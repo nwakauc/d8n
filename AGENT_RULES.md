@@ -43,6 +43,7 @@ Relevant starting documents:
 - `docs/HUMAN_TODO.md`
 - `docs/ARCHITECTURE_DIAGRAMS.md`
 - `docs/SCALING_GUIDE.md`
+- `docs/architecture/`
 - Future ADRs in `docs/adr/`
 
 ## Architecture Rules
@@ -402,6 +403,50 @@ Agents must update documentation when a change affects:
 - Payment or verification flows
 
 Major architecture changes require an ADR.
+
+## Test Integrity Rules
+
+Agents must not modify existing test expectations merely to make tests pass.
+
+If a test appears wrong, outdated, or incompatible with the requested behavior:
+
+- Stop and explain why.
+- Identify the product or architecture decision involved.
+- Change the test only when the intended behavior has explicitly changed.
+
+Never weaken security, authorization, tenant isolation, deletion, payment, or moderation tests to get a green suite.
+
+## API Serialization Rules
+
+Agents must not expose Active Record models directly in public JSON responses for sensitive domains.
+
+Use explicit response objects, serializers, presenters, or carefully controlled JSON hashes.
+
+This is especially important for:
+
+- Users
+- Profiles
+- Messages
+- Reports
+- Trust signals
+- Verification records
+- Payment records
+- Admin users
+
+Do not accidentally expose internal fields such as risk scores, provider IDs, moderation notes, private identifiers, tokens, or verification metadata.
+
+## Legacy Reference Rules
+
+Date9ja may be used as a behavioral reference.
+
+Date9ja must not be treated as an architecture template unless explicitly approved.
+
+When inspecting legacy Date9ja behavior:
+
+- Identify the user-facing behavior.
+- Identify the data that must be preserved.
+- Reimplement according to D8N architecture.
+- Do not copy legacy schemas, constants, auth assumptions, or brand-specific conditionals blindly.
 
 ## Review Rules
 

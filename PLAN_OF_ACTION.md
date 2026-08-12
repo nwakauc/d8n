@@ -341,20 +341,47 @@ Core model:
 
 - `Brand`
 - `BrandOwner`
-- `BrandOperator`
 - `BrandMembership`
+- `AdminAssignment`
 
 Important distinction:
 
 - `Brand` is the dating product.
 - `BrandOwner` is the organization or person that owns the business relationship.
-- `BrandOperator` / `BrandMembership` defines who can administer the brand.
+- `BrandMembership` defines an end user's relationship to a dating brand.
+- `AdminAssignment` defines staff/operator access to administer a brand.
 
 For D8N-owned brands, the owner is D8N.
 
 For future external franchises or white-label partners, the owner may be an external organization.
 
 External ownership must not imply access to platform-level data.
+
+Do not merge end-user brand membership with staff/admin access.
+
+Example:
+
+```txt
+User
+  platform identity
+
+BrandMembership
+  user_id
+  brand_id
+  status
+
+Profile
+  user_id
+  brand_id
+  brand_membership_id
+  dating presence inside one brand
+
+AdminAssignment
+  admin_user_id
+  brand_id
+  role
+  permissions
+```
 
 ### Identity
 
@@ -378,6 +405,7 @@ Responsible for:
 Core models:
 
 - `User`
+- `IdentityIdentifier`
 - `Credential`
 - `AuthAttempt`
 - `Session`
@@ -501,6 +529,48 @@ Sensitive actions may require step-up verification:
 Implementation note:
 
 Rodauth supports many relevant security features, but D8N must confirm through a spike how best to model phone-first OTP as a first authentication factor in an API-only Rails app. If Rodauth cannot cleanly support a required brand flow, D8N should still preserve the same credential/strategy interface and use mature lower-level libraries rather than building fragile custom auth.
+
+### Identity Identifiers And Account Linking
+
+D8N should normalize identity identifiers so the platform can reason about emails, phone numbers, and provider identities safely.
+
+Examples:
+
+```txt
+identity_identifiers
+  id
+  user_id
+  kind
+  normalized_value
+  verified_at
+  last_seen_at
+  metadata
+  deleted_at
+  created_at
+  updated_at
+```
+
+Possible kinds:
+
+- `email`
+- `phone`
+- `oauth_provider_uid`
+- `device_fingerprint`
+
+Credential linking is allowed.
+
+Automatic account merging is not allowed.
+
+If two accounts later appear to belong to the same person, D8N should not silently merge them. That is a security and privacy risk in a dating platform.
+
+Allowed account resolution path:
+
+- Detect possible duplicate through identifiers or risk signals.
+- Lock or step-up verify sensitive operations if needed.
+- Require support-assisted review for merges.
+- Require user consent where appropriate.
+- Preserve an audit trail.
+- Never merge profiles, messages, matches, photos, or brand memberships automatically.
 
 ### Profiles
 
@@ -723,9 +793,10 @@ Initial critical tables:
 ```txt
 brands
 brand_owners
-brand_operators
 brand_memberships
+admin_assignments
 users
+identity_identifiers
 credentials
 auth_attempts
 sessions
@@ -772,6 +843,41 @@ deleted_at
 ```
 
 The exact owner implementation can be reviewed by the CTO, but Phase 2 should not hard-code the assumption that every brand is D8N-owned forever.
+
+Initial relationship rules:
+
+```txt
+users
+  platform identities
+
+brand_memberships
+  user_id
+  brand_id
+  status
+
+profiles
+  user_id
+  brand_id
+  brand_membership_id
+  status
+
+admin_assignments
+  admin_user_id
+  brand_id
+  admin_role_id
+  status
+```
+
+Important constraints to design for:
+
+- One active brand membership per user per brand.
+- One active profile per user per brand.
+- A profile must belong to a membership for the same user and brand.
+- Likes should not allow self-like.
+- Matches should use deterministic user/profile pair ordering.
+- Matches should be unique for the same brand and participant pair.
+- Conversations should not cross brands unless a future feature explicitly allows it.
+- Admin assignments must not be confused with consumer brand memberships.
 
 Most brand-owned tables should include:
 
@@ -1504,17 +1610,30 @@ Acceptance criteria:
 - Brand moderators are restricted to assigned brands
 - Sensitive actions are audited
 
-### Phase 11: Second Brand Proof
+### Phase 11: Date9ja Migration And Second-Brand Proof
 
 Deliverables:
 
-- Date9ja configured as a second brand
+- Date9ja legacy system inventory
+- Date9ja schema inventory
+- Date9ja credential/password-hash inventory
+- Date9ja media inventory
+- Date9ja data mapping plan
+- Migration dry run
+- Reconciliation reports
+- Rollback plan
+- Date9ja configured on D8N as the second brand
 - Distinct profile requirements
 - Distinct matching strategy
 - Distinct frontend/API client behavior if applicable
 
 Acceptance criteria:
 
+- Legacy Date9ja auth/password behavior is understood before migration
+- Date9ja users, profiles, photos, matches, and messages are mapped deliberately
+- Migration counts reconcile across source and target
+- Migration can be dry-run without mutating production data
+- Rollback or fallback plan exists before cutover
 - Date9ja runs on the same platform core
 - Date9ja and HookUs users/data remain properly isolated
 - Shared services work across both brands

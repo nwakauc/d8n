@@ -57,9 +57,13 @@ flowchart TB
   User --> Credentials[Credentials<br/>email/password, phone OTP, OAuth, WebAuthn]
   User --> Verification[User Verification<br/>email, phone, selfie, ID]
 
-  User --> HookUsProfile[HookUs Profile]
-  User --> Date9jaProfile[Date9ja Profile]
-  User --> DateSAProfile[DateSA Profile]
+  User --> HookUsMembership[HookUs Membership]
+  User --> Date9jaMembership[Date9ja Membership]
+  User --> DateSAMembership[DateSA Membership]
+
+  HookUsMembership --> HookUsProfile[HookUs Profile]
+  Date9jaMembership --> Date9jaProfile[Date9ja Profile]
+  DateSAMembership --> DateSAProfile[DateSA Profile]
 
   HookUsProfile --> HookUsActivity[HookUs likes, matches, chats]
   Date9jaProfile --> Date9jaActivity[Date9ja likes, matches, chats]
