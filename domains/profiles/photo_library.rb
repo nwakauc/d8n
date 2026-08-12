@@ -23,6 +23,7 @@ module Profiles
     def self.soft_delete!(user:, brand:, id:)
       photo = ProfilePhoto.kept.find_by!(id:, user:, brand:)
       photo.update!(deleted_at: Time.current, visibility: :hidden)
+      photo.image.purge_later if photo.image.attached?
       photo
     end
 

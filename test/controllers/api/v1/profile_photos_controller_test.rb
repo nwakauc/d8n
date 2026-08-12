@@ -1,6 +1,13 @@
 require "test_helper"
 
 class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
+  teardown do
+    clear_enqueued_jobs
+    clear_performed_jobs
+  end
+
   setup do
     @brand = Brand.create!(slug: "hookus", name: "HookUs")
     BrandDomain.create!(brand: @brand, host: "hookus.test")
@@ -77,7 +84,9 @@ class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
   test "soft deletes current brand profile photo" do
     photo = create_photo
 
-    delete "/api/v1/profile/photos/#{photo.id}", headers: bearer_headers(@token)
+    assert_enqueued_with(job: ActiveStorage::PurgeJob) do
+      delete "/api/v1/profile/photos/#{photo.id}", headers: bearer_headers(@token)
+    end
 
     assert_response :success
     photo.reload
