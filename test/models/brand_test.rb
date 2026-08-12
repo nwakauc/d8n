@@ -23,4 +23,27 @@ class BrandTest < ActiveSupport::TestCase
 
     assert brand.valid?
   end
+
+  test "defaults profile completion requirements" do
+    brand = Brand.create!(slug: "hookus", name: "HookUs")
+
+    assert_equal %w[ display_name birthdate gender ], brand.profile_completion_requirements.fetch("profile_fields")
+    assert_equal %w[ min_age max_age interested_in ], brand.profile_completion_requirements.fetch("preference_fields")
+    assert_equal %w[ photos ], brand.profile_completion_requirements.fetch("collections")
+  end
+
+  test "rejects unsupported profile completion requirements" do
+    brand = Brand.new(
+      slug: "hookus",
+      name: "HookUs",
+      profile_requirements: {
+        profile_fields: [ "display_name", "unknown_field" ],
+        preference_fields: [ "min_age" ],
+        collections: []
+      }
+    )
+
+    assert_not brand.valid?
+    assert_includes brand.errors[:profile_requirements], "contains unsupported profile fields"
+  end
 end

@@ -42,6 +42,27 @@ module Profiles
       assert_empty completion.missing
     end
 
+    test "uses brand-specific profile completion requirements" do
+      brand = Brand.create!(
+        slug: "hookus",
+        name: "HookUs",
+        profile_requirements: {
+          profile_fields: [ "display_name" ],
+          preference_fields: [],
+          collections: []
+        }
+      )
+      user = User.create!
+      membership = BrandMembership.create!(brand:, user:)
+      profile = Profile.create!(brand:, user:, brand_membership: membership, display_name: "Ada")
+
+      completion = Completion.call(profile:)
+
+      assert completion.complete?
+      assert_equal 100, completion.percent
+      assert_empty completion.missing
+    end
+
     private
 
     def build_profile(attributes = {})

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_12_171633) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_12_172151) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -125,6 +125,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_171633) do
     t.datetime "deleted_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "profile_requirements", default: {"collections"=>["photos"], "profile_fields"=>["display_name", "birthdate", "gender"], "preference_fields"=>["min_age", "max_age", "interested_in"]}, null: false
     t.index ["owner_type", "owner_id"], name: "index_brands_on_owner_type_and_owner_id"
     t.index ["slug"], name: "index_brands_on_slug", unique: true, where: "(deleted_at IS NULL)"
   end

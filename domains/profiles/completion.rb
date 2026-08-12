@@ -2,9 +2,9 @@ module Profiles
   class Completion
     Result = Data.define(:complete?, :percent, :missing)
 
-    REQUIRED_PROFILE_FIELDS = %i[ display_name birthdate gender ].freeze
-    REQUIRED_PREFERENCE_FIELDS = %i[ min_age max_age interested_in ].freeze
-    REQUIRED_COLLECTIONS = %i[ photos ].freeze
+    SUPPORTED_PROFILE_FIELDS = %w[ display_name birthdate gender ].freeze
+    SUPPORTED_PREFERENCE_FIELDS = %w[ min_age max_age interested_in max_distance_km country relationship_intent ].freeze
+    SUPPORTED_COLLECTIONS = %w[ photos ].freeze
 
     def self.call(profile:)
       new(profile:).call
@@ -16,7 +16,7 @@ module Profiles
 
     def call
       missing = missing_profile_fields + missing_preference_fields + missing_collections
-      total = REQUIRED_PROFILE_FIELDS.size + REQUIRED_PREFERENCE_FIELDS.size + REQUIRED_COLLECTIONS.size
+      total = profile_fields.size + preference_fields.size + collections.size
       completed = total - missing.size
 
       Result.new(missing.empty?, ((completed.to_f / total) * 100).round, missing)
@@ -27,14 +27,14 @@ module Profiles
     attr_reader :profile
 
     def missing_profile_fields
-      REQUIRED_PROFILE_FIELDS.filter { |field| profile.public_send(field).blank? }
+      profile_fields.filter { |field| profile.public_send(field).blank? }.map(&:to_sym)
     end
 
     def missing_preference_fields
       preference = profile.profile_preference
-      return REQUIRED_PREFERENCE_FIELDS.map { |field| :"preferences.#{field}" } if preference.blank?
+      return preference_fields.map { |field| :"preferences.#{field}" } if preference.blank?
 
-      REQUIRED_PREFERENCE_FIELDS.filter_map do |field|
+      preference_fields.filter_map do |field|
         :"preferences.#{field}" if preference.public_send(field).blank?
       end
     end
@@ -42,7 +42,23 @@ module Profiles
     def missing_collections
       return [] if profile.profile_photos.kept.exists?
 
-      REQUIRED_COLLECTIONS
+      collections.map(&:to_sym)
+    end
+
+    def requirements
+      @requirements ||= profile.brand.profile_completion_requirements
+    end
+
+    def profile_fields
+      requirements.fetch("profile_fields")
+    end
+
+    def preference_fields
+      requirements.fetch("preference_fields")
+    end
+
+    def collections
+      requirements.fetch("collections")
     end
   end
 end
