@@ -7,6 +7,8 @@ Rails.application.routes.draw do
       get "me" => "me#show"
       get "profile" => "profile#show"
       patch "profile" => "profile#update"
+      get "profile/preferences" => "profile_preferences#show"
+      patch "profile/preferences" => "profile_preferences#update"
       post "auth/phone/request_otp" => "auth/phone#request_otp"
       post "auth/phone/verify_otp" => "auth/phone#verify_otp"
     end

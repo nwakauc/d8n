@@ -8,6 +8,7 @@ class User < ApplicationRecord
   has_many :sessions, dependent: :restrict_with_exception
   has_many :notification_deliveries, dependent: :nullify
   has_many :profiles, dependent: :restrict_with_exception
+  has_many :profile_preferences, dependent: :restrict_with_exception
 
   enum :status, { active: 0, suspended: 1, closed: 2 }
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_12_164353) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_12_165911) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -173,6 +173,29 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_164353) do
     t.index ["identity_identifier_id"], name: "index_otp_challenges_on_identity_identifier_id"
   end
 
+  create_table "profile_preferences", force: :cascade do |t|
+    t.bigint "profile_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "brand_id", null: false
+    t.integer "min_age"
+    t.integer "max_age"
+    t.jsonb "interested_in", default: [], null: false
+    t.integer "max_distance_km"
+    t.string "country"
+    t.string "relationship_intent"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "min_age", "max_age"], name: "index_profile_preferences_on_brand_id_and_min_age_and_max_age"
+    t.index ["brand_id"], name: "index_profile_preferences_on_brand_id"
+    t.index ["deleted_at"], name: "index_profile_preferences_on_deleted_at"
+    t.index ["profile_id"], name: "index_profile_preferences_on_active_profile_id", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["profile_id"], name: "index_profile_preferences_on_profile_id"
+    t.index ["user_id", "brand_id"], name: "index_profile_preferences_on_active_user_brand", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["user_id"], name: "index_profile_preferences_on_user_id"
+  end
+
   create_table "profiles", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "brand_id", null: false
@@ -254,6 +277,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_164353) do
   add_foreign_key "notification_deliveries", "users"
   add_foreign_key "otp_challenges", "brands"
   add_foreign_key "otp_challenges", "identity_identifiers"
+  add_foreign_key "profile_preferences", "brands"
+  add_foreign_key "profile_preferences", "profiles"
+  add_foreign_key "profile_preferences", "users"
   add_foreign_key "profiles", "brand_memberships"
   add_foreign_key "profiles", "brands"
   add_foreign_key "profiles", "users"

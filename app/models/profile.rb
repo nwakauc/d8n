@@ -5,6 +5,8 @@ class Profile < ApplicationRecord
   belongs_to :brand
   belongs_to :brand_membership
 
+  has_one :profile_preference, dependent: :restrict_with_exception
+
   enum :status, { draft: 0, active: 1, suspended: 2 }
   enum :visibility, { hidden: 0, visible: 1 }
 

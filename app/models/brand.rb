@@ -8,6 +8,7 @@ class Brand < ApplicationRecord
   has_many :otp_challenges, dependent: :restrict_with_exception
   has_many :notification_deliveries, dependent: :restrict_with_exception
   has_many :profiles, dependent: :restrict_with_exception
+  has_many :profile_preferences, dependent: :restrict_with_exception
 
   enum :status, { active: 0, disabled: 1, archived: 2 }
 
