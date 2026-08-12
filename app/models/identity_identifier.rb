@@ -3,6 +3,7 @@ class IdentityIdentifier < ApplicationRecord
 
   has_many :credentials, dependent: :restrict_with_exception
   has_many :auth_attempts, dependent: :nullify
+  has_many :otp_challenges, dependent: :nullify
 
   enum :kind, { email: 0, phone: 1, oauth_provider_uid: 2, device_fingerprint: 3 }
 
@@ -15,6 +16,11 @@ class IdentityIdentifier < ApplicationRecord
   private
 
   def normalize_value
-    self.normalized_value = normalized_value.to_s.strip.downcase
+    self.normalized_value =
+      if phone?
+        Identity::PhoneNormalizer.call(normalized_value)
+      else
+        normalized_value.to_s.strip.downcase
+      end
   end
 end

@@ -5,6 +5,7 @@ class User < ApplicationRecord
   has_many :credentials, dependent: :restrict_with_exception
   has_many :auth_attempts, dependent: :nullify
   has_many :security_events, dependent: :nullify
+  has_many :sessions, dependent: :restrict_with_exception
 
   enum :status, { active: 0, suspended: 1, closed: 2 }
 

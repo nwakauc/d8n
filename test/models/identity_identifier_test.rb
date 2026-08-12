@@ -12,9 +12,10 @@ class IdentityIdentifierTest < ActiveSupport::TestCase
     user = User.create!
     other_user = User.create!
 
-    IdentityIdentifier.create!(user:, kind: :phone, normalized_value: "+27821234567")
-    duplicate = IdentityIdentifier.new(user: other_user, kind: :phone, normalized_value: "+27821234567")
+    identifier = IdentityIdentifier.create!(user:, kind: :phone, normalized_value: "+27 82 123 4567")
+    duplicate = IdentityIdentifier.new(user: other_user, kind: :phone, normalized_value: "27821234567")
 
+    assert_equal "27821234567", identifier.normalized_value
     assert_not duplicate.valid?
     assert_includes duplicate.errors[:normalized_value], "has already been taken"
   end

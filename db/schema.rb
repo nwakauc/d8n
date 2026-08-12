@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_12_143401) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_12_151058) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -131,6 +131,26 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_143401) do
     t.index ["user_id"], name: "index_identity_identifiers_on_user_id"
   end
 
+  create_table "otp_challenges", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "identity_identifier_id"
+    t.integer "kind", null: false
+    t.string "identifier", null: false
+    t.string "code_digest", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "consumed_at"
+    t.integer "attempt_count", default: 0, null: false
+    t.string "ip_address"
+    t.text "user_agent"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "identifier", "kind", "created_at"], name: "idx_on_brand_id_identifier_kind_created_at_7a5f2a0ce9"
+    t.index ["brand_id", "identifier", "kind"], name: "index_otp_challenges_on_active_lookup", where: "(consumed_at IS NULL)"
+    t.index ["brand_id"], name: "index_otp_challenges_on_brand_id"
+    t.index ["identity_identifier_id"], name: "index_otp_challenges_on_identity_identifier_id"
+  end
+
   create_table "security_events", force: :cascade do |t|
     t.bigint "brand_id"
     t.bigint "user_id"
@@ -145,6 +165,25 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_143401) do
     t.index ["brand_id"], name: "index_security_events_on_brand_id"
     t.index ["user_id", "event_type", "created_at"], name: "index_security_events_on_user_id_and_event_type_and_created_at"
     t.index ["user_id"], name: "index_security_events_on_user_id"
+  end
+
+  create_table "sessions", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "brand_id", null: false
+    t.string "token_digest", null: false
+    t.string "device_name"
+    t.string "ip_address"
+    t.text "user_agent"
+    t.datetime "last_used_at", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "revoked_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "user_id", "revoked_at"], name: "index_sessions_on_brand_id_and_user_id_and_revoked_at"
+    t.index ["brand_id"], name: "index_sessions_on_brand_id"
+    t.index ["token_digest"], name: "index_sessions_on_token_digest", unique: true
+    t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -167,6 +206,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_143401) do
   add_foreign_key "credentials", "identity_identifiers"
   add_foreign_key "credentials", "users"
   add_foreign_key "identity_identifiers", "users"
+  add_foreign_key "otp_challenges", "brands"
+  add_foreign_key "otp_challenges", "identity_identifiers"
   add_foreign_key "security_events", "brands"
   add_foreign_key "security_events", "users"
+  add_foreign_key "sessions", "brands"
+  add_foreign_key "sessions", "users"
 end
