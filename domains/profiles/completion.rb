@@ -4,6 +4,7 @@ module Profiles
 
     REQUIRED_PROFILE_FIELDS = %i[ display_name birthdate gender ].freeze
     REQUIRED_PREFERENCE_FIELDS = %i[ min_age max_age interested_in ].freeze
+    REQUIRED_COLLECTIONS = %i[ photos ].freeze
 
     def self.call(profile:)
       new(profile:).call
@@ -14,8 +15,8 @@ module Profiles
     end
 
     def call
-      missing = missing_profile_fields + missing_preference_fields
-      total = REQUIRED_PROFILE_FIELDS.size + REQUIRED_PREFERENCE_FIELDS.size
+      missing = missing_profile_fields + missing_preference_fields + missing_collections
+      total = REQUIRED_PROFILE_FIELDS.size + REQUIRED_PREFERENCE_FIELDS.size + REQUIRED_COLLECTIONS.size
       completed = total - missing.size
 
       Result.new(missing.empty?, ((completed.to_f / total) * 100).round, missing)
@@ -36,6 +37,12 @@ module Profiles
       REQUIRED_PREFERENCE_FIELDS.filter_map do |field|
         :"preferences.#{field}" if preference.public_send(field).blank?
       end
+    end
+
+    def missing_collections
+      return [] if profile.profile_photos.kept.exists?
+
+      REQUIRED_COLLECTIONS
     end
   end
 end

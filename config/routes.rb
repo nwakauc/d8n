@@ -9,6 +9,9 @@ Rails.application.routes.draw do
       patch "profile" => "profile#update"
       get "profile/preferences" => "profile_preferences#show"
       patch "profile/preferences" => "profile_preferences#update"
+      get "profile/photos" => "profile_photos#index"
+      post "profile/photos" => "profile_photos#create"
+      delete "profile/photos/:id" => "profile_photos#destroy"
       post "auth/phone/request_otp" => "auth/phone#request_otp"
       post "auth/phone/verify_otp" => "auth/phone#verify_otp"
     end

@@ -8,13 +8,14 @@ module Profiles
       completion = Completion.call(profile:)
 
       assert_not completion.complete?
-      assert_equal 17, completion.percent
+      assert_equal 14, completion.percent
       assert_equal [
         :birthdate,
         :gender,
         :"preferences.min_age",
         :"preferences.max_age",
-        :"preferences.interested_in"
+        :"preferences.interested_in",
+        :photos
       ], completion.missing
     end
 
@@ -32,6 +33,7 @@ module Profiles
         max_age: 35,
         interested_in: [ "man" ]
       )
+      attach_photo(profile)
 
       completion = Completion.call(profile:)
 
@@ -54,6 +56,16 @@ module Profiles
           brand_membership: membership
         }.merge(attributes)
       )
+    end
+
+    def attach_photo(profile)
+      photo = ProfilePhoto.new(profile:, user: profile.user, brand: profile.brand)
+      photo.image.attach(
+        io: Rails.root.join("test/fixtures/files/profile_photo.png").open,
+        filename: "profile_photo.png",
+        content_type: "image/png"
+      )
+      photo.save!
     end
   end
 end

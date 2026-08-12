@@ -10,9 +10,37 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_12_165911) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_12_171633) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "active_storage_attachments", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "record_type", null: false
+    t.bigint "record_id", null: false
+    t.bigint "blob_id", null: false
+    t.datetime "created_at", null: false
+    t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
+    t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
+  end
+
+  create_table "active_storage_blobs", force: :cascade do |t|
+    t.string "key", null: false
+    t.string "filename", null: false
+    t.string "content_type"
+    t.text "metadata"
+    t.string "service_name", null: false
+    t.bigint "byte_size", null: false
+    t.string "checksum"
+    t.datetime "created_at", null: false
+    t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
+  end
+
+  create_table "active_storage_variant_records", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.string "variation_digest", null: false
+    t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
 
   create_table "admin_assignments", force: :cascade do |t|
     t.bigint "admin_user_id", null: false
@@ -173,6 +201,25 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_165911) do
     t.index ["identity_identifier_id"], name: "index_otp_challenges_on_identity_identifier_id"
   end
 
+  create_table "profile_photos", force: :cascade do |t|
+    t.bigint "profile_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "brand_id", null: false
+    t.integer "position", default: 0, null: false
+    t.integer "status", default: 0, null: false
+    t.integer "visibility", default: 0, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "status", "created_at"], name: "index_profile_photos_on_brand_id_and_status_and_created_at"
+    t.index ["brand_id", "user_id", "deleted_at"], name: "index_profile_photos_on_brand_id_and_user_id_and_deleted_at"
+    t.index ["brand_id"], name: "index_profile_photos_on_brand_id"
+    t.index ["profile_id", "position"], name: "index_profile_photos_on_profile_id_and_position", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["profile_id"], name: "index_profile_photos_on_profile_id"
+    t.index ["user_id"], name: "index_profile_photos_on_user_id"
+  end
+
   create_table "profile_preferences", force: :cascade do |t|
     t.bigint "profile_id", null: false
     t.bigint "user_id", null: false
@@ -260,6 +307,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_165911) do
     t.datetime "updated_at", null: false
   end
 
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "admin_assignments", "admin_roles"
   add_foreign_key "admin_assignments", "admin_users"
   add_foreign_key "admin_assignments", "brands"
@@ -277,6 +326,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_165911) do
   add_foreign_key "notification_deliveries", "users"
   add_foreign_key "otp_challenges", "brands"
   add_foreign_key "otp_challenges", "identity_identifiers"
+  add_foreign_key "profile_photos", "brands"
+  add_foreign_key "profile_photos", "profiles"
+  add_foreign_key "profile_photos", "users"
   add_foreign_key "profile_preferences", "brands"
   add_foreign_key "profile_preferences", "profiles"
   add_foreign_key "profile_preferences", "users"
