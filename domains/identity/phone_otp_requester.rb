@@ -1,6 +1,6 @@
 module Identity
   class PhoneOtpRequester
-    Result = Data.define(:success?, :challenge, :error)
+    Result = Data.define(:success?, :challenge, :error, :retry_after)
 
     EXPIRES_IN = 10.minutes
 
@@ -16,20 +16,24 @@ module Identity
     end
 
     def call
-      return Result.new(false, nil, :brand_required) if brand.blank?
+      return Result.new(false, nil, :brand_required, nil) if brand.blank?
 
       identifier = PhoneNormalizer.call(phone)
-      return Result.new(false, nil, :invalid_phone) if identifier.blank?
+      return Result.new(false, nil, :invalid_phone, nil) if identifier.blank?
+
+      throttle = OtpThrottle.call(brand:, identifier:, ip_address:)
+      return throttled_result(identifier, throttle) if throttle.throttled?
 
       challenge = nil
 
       OtpChallenge.transaction do
         expire_existing_challenges(identifier)
-        challenge = create_challenge(identifier)
+        challenge, code = create_challenge(identifier)
+        send_otp(identifier, code, challenge)
         record_security_event(challenge)
       end
 
-      Result.new(true, challenge, nil)
+      Result.new(true, challenge, nil, nil)
     end
 
     private
@@ -47,7 +51,7 @@ module Identity
     def create_challenge(identifier)
       code = OtpCode.generate
 
-      OtpChallenge.create!(
+      challenge = OtpChallenge.create!(
         brand:,
         kind: :phone_otp,
         identifier:,
@@ -55,6 +59,20 @@ module Identity
         expires_at: EXPIRES_IN.from_now,
         ip_address:,
         user_agent:
+      )
+
+      [ challenge, code ]
+    end
+
+    def send_otp(identifier, code, challenge)
+      Notifications::SmsSender.call(
+        brand:,
+        recipient: identifier,
+        body: "#{brand.name} verification code: #{code}",
+        metadata: {
+          purpose: "phone_otp",
+          challenge_id: challenge.id
+        }
       )
     end
 
@@ -67,6 +85,33 @@ module Identity
         user_agent:,
         metadata: { challenge_id: challenge.id }
       )
+    end
+
+    def throttled_result(identifier, throttle)
+      AuthAttempt.create!(
+        brand:,
+        kind: :phone_otp,
+        result: :throttled,
+        identifier:,
+        ip_address:,
+        user_agent:,
+        metadata: { throttle_scope: throttle.scope.to_s }
+      )
+      SecurityEvent.create!(
+        brand:,
+        event_type: "auth.phone_otp.throttled",
+        severity: :warning,
+        ip_address:,
+        user_agent:,
+        metadata: {
+          throttle_scope: throttle.scope.to_s,
+          retry_after: throttle.retry_after,
+          identifier_kind: "phone",
+          identifier_last4: identifier.last(4)
+        }
+      )
+
+      Result.new(false, nil, :rate_limited, throttle.retry_after)
     end
   end
 end

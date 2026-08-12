@@ -27,7 +27,7 @@ class Session < ApplicationRecord
   end
 
   def self.digest_token(token)
-    OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, token.to_s)
+    Identity::HmacDigest.call(purpose: "session-token", value: token)
   end
 
   def revoked?

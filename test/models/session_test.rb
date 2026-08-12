@@ -29,4 +29,8 @@ class SessionTest < ActiveSupport::TestCase
     assert_not_includes Session.active, session
     assert session.expired?
   end
+
+  test "session token digests use a session-specific HMAC purpose" do
+    assert_not_equal OtpChallenge.digest_code("123456"), Session.digest_token("123456")
+  end
 end

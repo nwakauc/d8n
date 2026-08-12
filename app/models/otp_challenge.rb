@@ -9,7 +9,7 @@ class OtpChallenge < ApplicationRecord
   scope :active, -> { where(consumed_at: nil).where("expires_at > ?", Time.current) }
 
   def self.digest_code(code)
-    OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, code.to_s)
+    Identity::HmacDigest.call(purpose: "otp-challenge", value: code)
   end
 
   def consume!

@@ -87,15 +87,24 @@ module Identity
       identity_identifier = IdentityIdentifier.kept.find_by(kind: :phone, normalized_value: identifier)
       return [ identity_identifier.user, identity_identifier ] if identity_identifier.present?
 
-      user = User.create!
-      identity_identifier = user.identity_identifiers.create!(
-        kind: :phone,
-        normalized_value: identifier,
-        verified_at: Time.current,
-        last_seen_at: Time.current
-      )
+      create_user_and_identifier(identifier)
+    rescue ActiveRecord::RecordNotUnique
+      identity_identifier = IdentityIdentifier.kept.find_by!(kind: :phone, normalized_value: identifier)
+      [ identity_identifier.user, identity_identifier ]
+    end
 
-      [ user, identity_identifier ]
+    def create_user_and_identifier(identifier)
+      User.transaction(requires_new: true) do
+        user = User.create!
+        identity_identifier = user.identity_identifiers.create!(
+          kind: :phone,
+          normalized_value: identifier,
+          verified_at: Time.current,
+          last_seen_at: Time.current
+        )
+
+        [ user, identity_identifier ]
+      end
     end
 
     def credential_for(user, identity_identifier)

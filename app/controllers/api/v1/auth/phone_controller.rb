@@ -12,7 +12,7 @@ class Api::V1::Auth::PhoneController < ApplicationController
         message: "If the phone number can receive D8N codes, a code has been sent."
       }, status: :accepted
     else
-      render_error(result.error)
+      render_error(result.error, retry_after: result.retry_after)
     end
   end
 
@@ -52,12 +52,15 @@ class Api::V1::Auth::PhoneController < ApplicationController
     params.permit(:phone, :code, :device_name)
   end
 
-  def render_error(error)
+  def render_error(error, retry_after: nil)
     case error
     when :brand_required
       render json: { error: "brand_required" }, status: :not_found
     when :invalid_phone
       render json: { error: "invalid_phone" }, status: :unprocessable_entity
+    when :rate_limited
+      response.set_header("Retry-After", retry_after.to_s) if retry_after.present?
+      render json: { error: "rate_limited" }, status: :too_many_requests
     else
       render json: { error: "invalid_code" }, status: :unauthorized
     end

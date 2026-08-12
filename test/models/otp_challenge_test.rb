@@ -13,6 +13,7 @@ class OtpChallengeTest < ActiveSupport::TestCase
 
     assert challenge.code_matches?("123456")
     assert_not challenge.code_matches?("654321")
+    assert_not_equal "123456", challenge.code_digest
   end
 
   test "active excludes consumed and expired challenges" do

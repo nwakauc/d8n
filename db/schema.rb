@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_12_151058) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_12_160435) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -131,6 +131,28 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_151058) do
     t.index ["user_id"], name: "index_identity_identifiers_on_user_id"
   end
 
+  create_table "notification_deliveries", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "user_id"
+    t.integer "channel", null: false
+    t.string "provider", null: false
+    t.string "recipient", null: false
+    t.integer "status", default: 0, null: false
+    t.string "external_id"
+    t.string "error_code"
+    t.text "error_message"
+    t.datetime "sent_at"
+    t.datetime "failed_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "channel", "status", "created_at"], name: "idx_on_brand_id_channel_status_created_at_a9a03f5e6e"
+    t.index ["brand_id"], name: "index_notification_deliveries_on_brand_id"
+    t.index ["provider", "external_id"], name: "index_notification_deliveries_on_provider_and_external_id"
+    t.index ["recipient"], name: "index_notification_deliveries_on_recipient"
+    t.index ["user_id"], name: "index_notification_deliveries_on_user_id"
+  end
+
   create_table "otp_challenges", force: :cascade do |t|
     t.bigint "brand_id", null: false
     t.bigint "identity_identifier_id"
@@ -206,6 +228,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_151058) do
   add_foreign_key "credentials", "identity_identifiers"
   add_foreign_key "credentials", "users"
   add_foreign_key "identity_identifiers", "users"
+  add_foreign_key "notification_deliveries", "brands"
+  add_foreign_key "notification_deliveries", "users"
   add_foreign_key "otp_challenges", "brands"
   add_foreign_key "otp_challenges", "identity_identifiers"
   add_foreign_key "security_events", "brands"
