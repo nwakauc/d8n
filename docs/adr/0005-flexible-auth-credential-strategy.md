@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for direction, implementation spike required.
+Accepted for direction after initial spike.
 
 ## Context
 
@@ -18,12 +18,22 @@ Rodauth/Rodauth-Rails is the preferred mature Ruby/Rails authentication engine t
 
 All auth strategies must produce the same D8N session model.
 
+The initial spike on `spike/rodauth-phone-otp` showed:
+
+- Rodauth-Rails works with Rails 8 API-only.
+- Rodauth JSON/JWT routes can be mounted successfully.
+- Rodauth's generated default is email/password centered.
+- Rodauth's `sms_codes` feature is primarily a multifactor/backup SMS-code feature, not a complete phone-first signup/login flow by itself.
+
+D8N should therefore use Rodauth/Rodauth-Rails where it cleanly provides mature account/session/security primitives, while implementing HookUs-style phone-first OTP as a D8N authentication strategy around or alongside those primitives.
+
 ## Consequences
 
 - Brands can choose different auth policies without separate identity systems.
 - D8N avoids custom crypto, password hashing, and session security.
 - Phone-only auth can be supported for brands where appropriate, with rate limiting, lockout, OTP expiry, device tracking, and step-up verification.
-- An implementation spike is required to confirm the cleanest Rodauth/Rodauth-Rails design for phone-first OTP in an API-only Rails platform.
+- Rodauth should not be forced into a shape that hides D8N's identity, credential, and brand-policy requirements.
+- A final implementation design is still required before production auth code is merged.
 
 ## Alternatives Considered
 

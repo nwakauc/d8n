@@ -528,7 +528,7 @@ Sensitive actions may require step-up verification:
 
 Implementation note:
 
-Rodauth supports many relevant security features, but D8N must confirm through a spike how best to model phone-first OTP as a first authentication factor in an API-only Rails app. If Rodauth cannot cleanly support a required brand flow, D8N should still preserve the same credential/strategy interface and use mature lower-level libraries rather than building fragile custom auth.
+The initial Rodauth spike confirmed Rodauth-Rails works in the Rails 8 API-only app and is useful for mature account/session/security primitives. It also confirmed Rodauth's generated defaults are email/password centered, and Rodauth `sms_codes` is not a complete HookUs-style phone-first signup/login flow by itself. D8N should preserve the credential/strategy interface and implement phone-first OTP as a D8N auth strategy around or alongside mature auth primitives.
 
 ### Identity Identifiers And Account Linking
 
@@ -1832,7 +1832,7 @@ Confirmed direction, still requiring CTO review:
 2. D8N marketing site is a separate Next.js application/repository.
 3. HookUs is the first product build target.
 4. Date9ja becomes the second-brand proof/migration target.
-5. Authentication should use a flexible credential/strategy model, preferably backed by Rodauth/Rodauth-Rails after implementation spike.
+5. Authentication should use a flexible credential/strategy model, using Rodauth/Rodauth-Rails where it cleanly supports D8N's account/session/security needs.
 
 Remaining open decisions:
 
@@ -1863,7 +1863,7 @@ Subject to CTO review:
 - Build D8N Core as an API-only Rails platform
 - Build HookUs first
 - Use Date9ja as the second-brand proof/migration target
-- Use a Rodauth/Rodauth-Rails-backed credential/strategy auth model if the implementation spike validates the required brand flows
+- Use a D8N credential/strategy auth model with Rodauth/Rodauth-Rails for mature account/session/security primitives where it fits
 - Use PostgreSQL as the primary database
 - Use Redis for cache, jobs, and realtime support where needed
 - Use Sidekiq or Solid Queue depending on deployment preference
