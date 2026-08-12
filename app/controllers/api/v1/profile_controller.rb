@@ -40,7 +40,18 @@ class Api::V1::ProfileController < ApplicationController
       birthdate: profile.birthdate&.iso8601,
       gender: profile.gender,
       status: profile.status,
-      visibility: profile.visibility
+      visibility: profile.visibility,
+      completion: completion_payload(profile)
+    }
+  end
+
+  def completion_payload(profile)
+    completion = Profiles::Completion.call(profile:)
+
+    {
+      complete: completion.complete?,
+      percent: completion.percent,
+      missing: completion.missing.map(&:to_s)
     }
   end
 end

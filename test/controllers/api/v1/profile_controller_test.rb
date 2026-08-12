@@ -46,6 +46,35 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Ada", response_body.fetch("profile").fetch("display_name")
     assert_equal "hookus", response_body.fetch("profile").fetch("brand").fetch("slug")
     assert_equal "visible", response_body.fetch("profile").fetch("visibility")
+    assert_equal false, response_body.fetch("profile").fetch("completion").fetch("complete")
+    assert_includes response_body.fetch("profile").fetch("completion").fetch("missing"), "preferences.min_age"
+  end
+
+  test "returns complete profile completion when required profile and preferences exist" do
+    profile = Profile.create!(
+      user: @user,
+      brand: @brand,
+      brand_membership: @membership,
+      display_name: "Ada",
+      birthdate: 25.years.ago.to_date,
+      gender: "woman"
+    )
+    ProfilePreference.create!(
+      profile:,
+      user: @user,
+      brand: @brand,
+      min_age: 25,
+      max_age: 35,
+      interested_in: [ "man" ]
+    )
+
+    get "/api/v1/profile", headers: bearer_headers(@token)
+
+    assert_response :success
+    completion = JSON.parse(response.body).fetch("profile").fetch("completion")
+    assert_equal true, completion.fetch("complete")
+    assert_equal 100, completion.fetch("percent")
+    assert_empty completion.fetch("missing")
   end
 
   test "updates existing current brand profile" do
