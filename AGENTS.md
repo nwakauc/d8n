@@ -31,7 +31,7 @@ Use `README.md` for the company/product blueprint.
 - Explicit tenant/brand isolation
 - Identity and brand profiles are separate
 - D8N marketing site belongs in a separate Next.js app/repo
-- Rodauth/Rodauth-Rails credential strategy is the preferred auth direction pending implementation spike
+- Rodauth/Rodauth-Rails is useful for mature auth/session/security primitives, while HookUs phone-first OTP remains a D8N auth strategy
 
 ## Core Invariants
 

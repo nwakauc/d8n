@@ -427,7 +427,7 @@ The user experience can differ by brand, but session security, rate limiting, de
 
 Recommended auth architecture:
 
-- Use Rodauth/Rodauth-Rails as the preferred mature Ruby/Rails authentication engine, subject to implementation spike.
+- Use Rodauth/Rodauth-Rails where it cleanly provides mature Ruby/Rails authentication, session, and security primitives.
 - Add a D8N credential and strategy layer above the auth engine so brands can choose different auth policies.
 - Reuse mature libraries for password hashing, sessions, lockout, WebAuthn, OTP/TOTP, recovery, JSON/JWT API behavior, and related security controls where practical.
 - Do not write custom crypto, password hashing, token signing, or session security from scratch.

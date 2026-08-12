@@ -18,7 +18,19 @@ class WelcomeController < ApplicationController
       message: "Welcome to D8N API",
       app: "d8n",
       api_version: "v1",
+      current_brand: current_brand_payload,
       services: SERVICES
+    }
+  end
+
+  private
+
+  def current_brand_payload
+    return unless Current.brand
+
+    {
+      slug: Current.brand.slug,
+      name: Current.brand.name
     }
   end
 end

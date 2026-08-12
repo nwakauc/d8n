@@ -1,5 +1,6 @@
 class Brand < ApplicationRecord
   has_many :brand_memberships, dependent: :restrict_with_exception
+  has_many :brand_domains, dependent: :restrict_with_exception
   has_many :users, through: :brand_memberships
   has_many :admin_assignments, dependent: :restrict_with_exception
   has_many :admin_users, through: :admin_assignments
