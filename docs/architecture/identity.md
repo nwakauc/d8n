@@ -42,6 +42,14 @@ D8N should support multiple credential types:
 
 All credential strategies produce the same D8N session result.
 
+## Sessions
+
+D8N sessions are currently brand-scoped.
+
+A token issued after authenticating on HookUs is valid only for HookUs requests. The same underlying `User` may later authenticate into another brand, but that brand receives its own session token.
+
+This is deliberately stricter than a platform-wide session. It keeps brand privacy and tenant isolation simple while D8N is proving the multi-brand model.
+
 ## Identity Identifiers
 
 Identity identifiers normalize emails, phones, provider IDs, and other identity signals.
