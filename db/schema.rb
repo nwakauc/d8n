@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_12_160435) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_12_164353) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -173,6 +173,28 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_160435) do
     t.index ["identity_identifier_id"], name: "index_otp_challenges_on_identity_identifier_id"
   end
 
+  create_table "profiles", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "brand_id", null: false
+    t.bigint "brand_membership_id", null: false
+    t.string "display_name"
+    t.text "bio"
+    t.date "birthdate"
+    t.string "gender"
+    t.integer "status", default: 0, null: false
+    t.integer "visibility", default: 0, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "status", "visibility", "created_at"], name: "idx_on_brand_id_status_visibility_created_at_3574045134"
+    t.index ["brand_id"], name: "index_profiles_on_brand_id"
+    t.index ["brand_membership_id"], name: "index_profiles_on_brand_membership_id"
+    t.index ["deleted_at"], name: "index_profiles_on_deleted_at"
+    t.index ["user_id", "brand_id"], name: "index_profiles_on_user_id_and_brand_id", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["user_id"], name: "index_profiles_on_user_id"
+  end
+
   create_table "security_events", force: :cascade do |t|
     t.bigint "brand_id"
     t.bigint "user_id"
@@ -232,6 +254,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_160435) do
   add_foreign_key "notification_deliveries", "users"
   add_foreign_key "otp_challenges", "brands"
   add_foreign_key "otp_challenges", "identity_identifiers"
+  add_foreign_key "profiles", "brand_memberships"
+  add_foreign_key "profiles", "brands"
+  add_foreign_key "profiles", "users"
   add_foreign_key "security_events", "brands"
   add_foreign_key "security_events", "users"
   add_foreign_key "sessions", "brands"

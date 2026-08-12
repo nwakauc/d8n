@@ -5,6 +5,8 @@ Rails.application.routes.draw do
     namespace :v1 do
       get "health" => "health#show"
       get "me" => "me#show"
+      get "profile" => "profile#show"
+      patch "profile" => "profile#update"
       post "auth/phone/request_otp" => "auth/phone#request_otp"
       post "auth/phone/verify_otp" => "auth/phone#verify_otp"
     end
