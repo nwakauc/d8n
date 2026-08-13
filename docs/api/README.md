@@ -154,6 +154,11 @@ points to publication, and `complete` enters the normal product. A suspended
 profile has no next step. The API does not create empty profile rows during
 identity registration; the first profile patch creates the current-brand draft.
 
+The current profile-photo upload is a local-development foundation. Do not enable
+it for production until ADR 0011's private storage, verified image processing,
+metadata stripping, moderation, authorized delivery, and purge gates are
+implemented.
+
 Phase 5 Slice 1 exposes conversation metadata only. No frontend should simulate or persist chat messages against D8N until the documented message-content endpoints ship with block/report and privacy controls.
 
 ## Blocking

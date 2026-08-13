@@ -55,6 +55,8 @@ Use this alongside `PLAN_OF_ACTION.md`, `AGENT_RULES.md`, and future ADRs.
 - Define message retention, export, deletion, and legal-erasure behavior.
 - Define whether suspended or banned counterpart conversation history remains readable.
 - Define the evidence-access policy for moderators reviewing reported messages.
+- Define photo moderation categories, reviewer permissions, appeal behavior, and
+  whether automated approval is permitted.
 
 ## Product Decisions
 
@@ -80,6 +82,10 @@ Use this alongside `PLAN_OF_ACTION.md`, `AGENT_RULES.md`, and future ADRs.
 - Decide the web/mobile Google authorization flow, redirect origins, consent
   scopes, and retained claims/tokens.
 - Define HookUs verification policy.
+- Define which HookUs actions, if any, require phone control, selfie/liveness,
+  age, or identity-document assertions.
+- Decide whether verification assertions may be reused across brands, with what
+  consent, expiry, and user-facing disclosure.
 - Define HookUs monetization.
 - Define Date9ja positioning for second-brand proof.
 - Define Date9ja required profile fields.
@@ -94,6 +100,17 @@ Use this alongside `PLAN_OF_ACTION.md`, `AGENT_RULES.md`, and future ADRs.
 - Define whether clients may read stored coordinates back or only replace/delete them.
 - Confirm POPIA treatment of precise location before the Cape Town private beta.
 - Define support and admin access rules for precise location; default to no access.
+
+## Media And Verification Privacy
+
+- Define original-media, generated-variant, rejected-media, and deleted-media
+  retention and permanent purge timing.
+- Approve whether users have a recovery window for deleted photos.
+- Approve image-processing and moderation-provider disclosures.
+- Define verification evidence minimization, storage region, retention, export,
+  deletion, and legal-erasure behavior.
+- Define manual verification review, support access, audit, and appeal rules.
+- Decide which derived verification claims may be public and how they are worded.
 
 ## Brand And Marketing
 

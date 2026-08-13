@@ -40,10 +40,16 @@ module Profiles
       }
     ].freeze
 
+    # Photos are deliberately NOT required for completion/publication — HookUs
+    # is a hookup site, and plenty of people want to stay anonymous rather
+    # than share a photo up front. Photo upload itself is unaffected by this:
+    # Profiles::Configuration still lists "photos" as an available collection
+    # (just required: false), and POST /api/v1/profile/photos doesn't consult
+    # completion requirements at all. Anyone who wants to add photos still can.
     REQUIREMENTS = {
       profile_fields: %w[ display_name bio birthdate gender country_code ],
       preference_fields: %w[ interested_in ],
-      collections: %w[ photos ],
+      collections: [].freeze,
       option_groups: %w[ intents vibes ]
     }.freeze
 

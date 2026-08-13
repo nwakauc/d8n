@@ -1391,6 +1391,7 @@ As of 2026-08-13:
 - Phase 3 now also has typed HookUs profile details, tenant-safe controlled option groups/selections, required intents and vibes, option retirement behavior, explicit owner/public serialization, and a brand-scoped profile configuration endpoint.
 - Phase 4 architecture is accepted in ADR 0009. Slices 1 through 5 now provide profile publication, private locations, tenant-safe discovery, bilateral preferences, score-aware signed cursors, capability-based HookUs ranking, likes, passes, interaction exclusions, atomic canonical matches, and a non-production Date9ja strategy contract proof. Date9ja production scoring remains blocked on migration and privacy decisions.
 - Phase 5 architecture is accepted in ADR 0010. Slice 1 provides tenant-constrained, match-gated conversation metadata, explicit participants, idempotent creation, and participant-scoped cursor listing. A subsequent Trust slice provides directional profile blocks, removes positive relationship state, and excludes either block direction from discovery, interactions, match lists, and conversation access. It stores no message content; text messaging remains blocked on reporting, retention/export/erasure, content filtering, read-state, and abuse-control requirements in the Slice 2 gate.
+- Phase 6 architecture is proposed in ADR 0011. Existing profile-photo uploads remain a development foundation; production media requires private object storage, verified processing, metadata stripping, moderation, authorized variants, and purge behavior. Verification assertions remain separate from authentication and media evidence, and implementation is blocked on the documented provider, privacy, retention, and product-policy decisions.
 
 HookUs remains the first product build target. Date9ja remains the migration and second-brand proof target.
 
@@ -1549,6 +1550,15 @@ Acceptance criteria:
 - Messages can be reported
 
 ### Phase 6: Verification And Media
+
+Architecture gate:
+
+- Review ADR 0011 before adding media or verification migrations.
+- Follow the bounded sequence in `docs/architecture/media-and-verification.md`.
+- Treat existing `ProfilePhoto` uploads as development-only until private storage,
+  verified processing, moderation, authorized delivery, and purge gates pass.
+- Do not treat phone OTP as identity verification or silently reuse verification
+  or media across brands.
 
 Deliverables:
 

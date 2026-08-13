@@ -498,7 +498,12 @@ paths:
       operationId: createProfilePhoto
       tags: [Profile]
       summary: Upload a profile photo
-      description: Accepts JPEG, PNG, or WebP up to 10 MB. New photos begin pending review and hidden.
+      description: |
+        Development foundation only; production uploads remain gated on ADR 0011.
+        Accepts declared JPEG, PNG, or WebP uploads up to 10 MB. New photos begin
+        pending review and hidden. The current endpoint does not yet provide the
+        verified processing, moderation, private object storage, or revocable
+        delivery required for production media.
       requestBody:
         required: true
         content:
