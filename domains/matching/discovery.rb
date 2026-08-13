@@ -23,6 +23,7 @@ module Matching
       viewer = current_viewer!
       strategy = StrategyRegistry.fetch(brand:)
       scope = EligibilityScope.call(brand:, viewer:, location_max_age: strategy.location_max_age)
+      scope = ExclusionsScope.call(scope:, viewer:)
       scope = strategy.rank(scope:, viewer:)
       scope = Cursor.apply(scope:, value: cursor, brand:, strategy:)
       profiles = scope.includes(profile_option_selections: [ :profile_option, :profile_option_group ]).limit(limit + 1).to_a
@@ -41,7 +42,7 @@ module Matching
 
     def current_viewer!
       profile = Profile.kept.find_by(user:, brand:)
-      preference = profile&.profile_preference
+      preference = ProfilePreference.kept.find_by(profile:) if profile
       eligible = profile&.active? && profile.visible? && profile.birthdate.present? && profile.gender.present? &&
         user.active? && user.deleted_at.nil? && profile.brand_membership.active? && profile.brand_membership.deleted_at.nil? &&
         preference&.deleted_at.nil? && preference.min_age.present? && preference.max_age.present? && preference.interested_in.any?

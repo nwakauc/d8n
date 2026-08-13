@@ -22,6 +22,9 @@ class Brand < ApplicationRecord
   has_many :profile_options, dependent: :restrict_with_exception
   has_many :profile_option_selections, dependent: :restrict_with_exception
   has_many :profile_locations, dependent: :restrict_with_exception
+  has_many :likes, dependent: :restrict_with_exception
+  has_many :profile_passes, dependent: :restrict_with_exception
+  has_many :matches, dependent: :restrict_with_exception
 
   enum :status, { active: 0, disabled: 1, archived: 2 }
 

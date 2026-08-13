@@ -25,6 +25,7 @@ module Profiles
         normalized.each do |group_key, option_codes|
           replace_group!(group_key:, option_codes:)
         end
+        Publication.unpublish_if_incomplete!(profile:)
       end
 
       profile.profile_option_selections.kept.includes(:profile_option, :profile_option_group)

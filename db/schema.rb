@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_13_063002) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_13_063005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -161,6 +161,40 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_063002) do
     t.index ["user_id"], name: "index_identity_identifiers_on_user_id"
   end
 
+  create_table "likes", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "liker_profile_id", null: false
+    t.bigint "liked_profile_id", null: false
+    t.integer "kind", default: 0, null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "liker_profile_id", "liked_profile_id"], name: "idx_likes_active_pair", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["brand_id"], name: "index_likes_on_brand_id"
+    t.index ["liked_profile_id"], name: "index_likes_on_liked_profile_id"
+    t.index ["liker_profile_id"], name: "index_likes_on_liker_profile_id"
+    t.check_constraint "liker_profile_id <> liked_profile_id", name: "chk_likes_not_self"
+  end
+
+  create_table "matches", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "profile_a_id", null: false
+    t.bigint "profile_b_id", null: false
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "profile_a_id", "created_at"], name: "index_matches_on_brand_id_and_profile_a_id_and_created_at"
+    t.index ["brand_id", "profile_a_id", "profile_b_id"], name: "idx_matches_active_pair", unique: true, where: "((deleted_at IS NULL) AND (status = 0))"
+    t.index ["brand_id", "profile_b_id", "created_at"], name: "index_matches_on_brand_id_and_profile_b_id_and_created_at"
+    t.index ["brand_id"], name: "index_matches_on_brand_id"
+    t.index ["profile_a_id"], name: "index_matches_on_profile_a_id"
+    t.index ["profile_b_id"], name: "index_matches_on_profile_b_id"
+    t.index ["public_id"], name: "index_matches_on_public_id", unique: true
+    t.check_constraint "profile_a_id < profile_b_id", name: "chk_matches_canonical_pair"
+  end
+
   create_table "notification_deliveries", force: :cascade do |t|
     t.bigint "brand_id", null: false
     t.bigint "user_id"
@@ -280,6 +314,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_063002) do
     t.check_constraint "\"position\" >= 0", name: "chk_profile_options_position"
   end
 
+  create_table "profile_passes", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "passer_profile_id", null: false
+    t.bigint "passed_profile_id", null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "passer_profile_id", "passed_profile_id"], name: "idx_profile_passes_active_pair", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["brand_id"], name: "index_profile_passes_on_brand_id"
+    t.index ["passed_profile_id"], name: "index_profile_passes_on_passed_profile_id"
+    t.index ["passer_profile_id"], name: "index_profile_passes_on_passer_profile_id"
+    t.check_constraint "passer_profile_id <> passed_profile_id", name: "chk_profile_passes_not_self"
+  end
+
   create_table "profile_photos", force: :cascade do |t|
     t.bigint "profile_id", null: false
     t.bigint "user_id", null: false
@@ -351,6 +399,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_063002) do
     t.index ["brand_id"], name: "index_profiles_on_brand_id"
     t.index ["brand_membership_id"], name: "index_profiles_on_brand_membership_id"
     t.index ["deleted_at"], name: "index_profiles_on_deleted_at"
+    t.index ["id", "brand_id"], name: "idx_profiles_on_id_brand", unique: true
     t.index ["id", "user_id", "brand_id"], name: "idx_profiles_on_id_user_brand", unique: true
     t.index ["public_id"], name: "index_profiles_on_public_id", unique: true
     t.index ["user_id", "brand_id"], name: "index_profiles_on_user_id_and_brand_id", unique: true, where: "(deleted_at IS NULL)"
@@ -416,6 +465,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_063002) do
   add_foreign_key "credentials", "identity_identifiers"
   add_foreign_key "credentials", "users"
   add_foreign_key "identity_identifiers", "users"
+  add_foreign_key "likes", "brands"
+  add_foreign_key "likes", "profiles", column: ["liked_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_likes_liked_profile_tenant"
+  add_foreign_key "likes", "profiles", column: ["liker_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_likes_liker_profile_tenant"
+  add_foreign_key "matches", "brands"
+  add_foreign_key "matches", "profiles", column: ["profile_a_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_matches_profile_a_tenant"
+  add_foreign_key "matches", "profiles", column: ["profile_b_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_matches_profile_b_tenant"
   add_foreign_key "notification_deliveries", "brands"
   add_foreign_key "notification_deliveries", "users"
   add_foreign_key "otp_challenges", "brands"
@@ -436,6 +491,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_063002) do
   add_foreign_key "profile_options", "brands"
   add_foreign_key "profile_options", "profile_option_groups"
   add_foreign_key "profile_options", "profile_option_groups", column: ["profile_option_group_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_options_group_tenant"
+  add_foreign_key "profile_passes", "brands"
+  add_foreign_key "profile_passes", "profiles", column: ["passed_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_passes_passed_tenant"
+  add_foreign_key "profile_passes", "profiles", column: ["passer_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_passes_passer_tenant"
   add_foreign_key "profile_photos", "brands"
   add_foreign_key "profile_photos", "profiles"
   add_foreign_key "profile_photos", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_photos_profile_tenant"

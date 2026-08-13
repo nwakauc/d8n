@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for Phase 4 Slices 1 and 2 on 2026-08-13. Interaction and ranking slices remain subject to their implementation gates.
+Accepted for Phase 4 Slices 1 through 3 on 2026-08-13. Capability-based ranking and Date9ja contract proof remain subject to their implementation gates.
 
 ## Context
 
@@ -131,12 +131,11 @@ The matching interfaces must permit these capabilities later without pretending 
 
 ## Approval Gate
 
-Before discovery and interaction migrations begin, review and approve:
+Before capability-based ranking begins, review and approve:
 
-1. The shared eligibility versus brand-ranking boundary.
-2. Precise-location retention and public-distance policy for HookUs beta.
-3. HookUs behavior for incomplete, hidden, or stale-location profiles.
-4. The first-slice deferrals above.
+1. HookUs score weights and missing-input behavior.
+2. Which score reasons are safe and useful to expose to clients.
+3. Whether ranking is applied directly to the full eligible relation or to a documented bounded candidate pool.
 
 Approved and implemented in Slice 1:
 
@@ -153,3 +152,13 @@ Approved and implemented in Slice 2:
 - A 24-hour HookUs location freshness threshold when either side requires distance.
 - No distance or location value in discovery responses.
 - Explicit HookUs strategy registration with deterministic signed-cursor pagination.
+
+Approved and implemented in Slice 3:
+
+- Explicit complete-profile publication and deactivation workflows.
+- Automatic unpublishing when required profile data, preferences, options, or photos are removed.
+- Directed, tenant-constrained likes and passes with soft deletion and database no-self checks.
+- Eligibility revalidation and deterministic participant locking for interaction writes.
+- Canonical, tenant-constrained matches with public UUIDs and database uniqueness.
+- Idempotent interaction retries and exactly one match under concurrent reciprocal likes.
+- Discovery interaction exclusions and enforcement-aware, cursor-paginated match listing.

@@ -36,7 +36,7 @@ module Profiles
     end
 
     def missing_preference_fields
-      preference = profile.profile_preference
+      preference = ProfilePreference.kept.find_by(profile:)
       return preference_fields.map { |field| :"preferences.#{field}" } if preference.blank?
 
       preference_fields.filter_map do |field|

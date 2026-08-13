@@ -29,6 +29,7 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
 
   test "returns public same-brand profiles without private identifiers or coordinates" do
     Profiles::HookusProfileCatalog.install!(brand: @brand)
+    require_only_public_options
     candidate = create_candidate(display_name: "Sam")
     Profiles::OptionSelections.replace!(profile: candidate, selections: { intents: [ "hookups" ], vibes: [ "chill" ] })
     create_location(candidate)
@@ -121,9 +122,17 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
 
   test "preloads public options with bounded select queries" do
     Profiles::HookusProfileCatalog.install!(brand: @brand)
-    5.times do
-      candidate = create_candidate
-      Profiles::OptionSelections.replace!(profile: candidate, selections: { intents: [ "hookups" ], vibes: [ "chill" ] })
+    require_only_public_options
+    candidate = create_candidate
+    Profiles::OptionSelections.replace!(profile: candidate, selections: { intents: [ "hookups" ], vibes: [ "chill" ] })
+
+    baseline_count = count_select_queries do
+      get "/api/v1/discovery", headers: bearer_headers(@token)
+    end
+
+    4.times do
+      additional = create_candidate
+      Profiles::OptionSelections.replace!(profile: additional, selections: { intents: [ "hookups" ], vibes: [ "chill" ] })
     end
 
     select_count = count_select_queries do
@@ -131,8 +140,23 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    assert_operator select_count, :<=, 12
+    assert_operator select_count, :<=, baseline_count + 1
     assert_equal 5, JSON.parse(response.body).fetch("profiles").size
+  end
+
+  test "excludes profiles with an existing like pass or match" do
+    liked = create_candidate
+    passed = create_candidate
+    matched = create_candidate
+    Like.create!(brand: @brand, liker_profile: @viewer, liked_profile: liked)
+    ProfilePass.create!(brand: @brand, passer_profile: @viewer, passed_profile: passed)
+    profile_a_id, profile_b_id = Match.canonical_pair(@viewer.id, matched.id)
+    Match.create!(brand: @brand, profile_a_id:, profile_b_id:)
+
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert_empty JSON.parse(response.body).fetch("profiles")
   end
 
   private
@@ -174,5 +198,14 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     end
     ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
     count
+  end
+
+  def require_only_public_options
+    @brand.update!(profile_requirements: {
+      profile_fields: [],
+      preference_fields: [],
+      collections: [],
+      option_groups: %w[ intents vibes ]
+    })
   end
 end

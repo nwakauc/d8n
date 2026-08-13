@@ -18,7 +18,7 @@ module Matching
     def initialize(brand:, viewer:, location_max_age:)
       @brand = brand
       @viewer = viewer
-      @viewer_preference = viewer.profile_preference
+      @viewer_preference = ProfilePreference.kept.find_by(profile: viewer)
       @location_cutoff = location_max_age.ago
     end
 
@@ -72,20 +72,30 @@ module Matching
     end
 
     def join_candidate_locations(scope)
-      scope.joins(<<~SQL.squish).joins(<<~SQL.squish)
-        INNER JOIN profile_locations viewer_location
-          ON viewer_location.id = #{Integer(viewer_location.id)}
-          AND viewer_location.profile_id = #{Integer(viewer.id)}
-          AND viewer_location.brand_id = profiles.brand_id
-          AND viewer_location.deleted_at IS NULL
-          AND viewer_location.captured_at >= #{ProfileLocation.connection.quote(location_cutoff)}
+      scope.with(
+        viewer_location: viewer_location_relation,
+        candidate_locations: fresh_location_relation
+      ).joins(<<~SQL.squish).joins(<<~SQL.squish)
+        INNER JOIN viewer_location
+          ON viewer_location.brand_id = profiles.brand_id
       SQL
-        LEFT JOIN profile_locations candidate_locations
+        LEFT JOIN candidate_locations
           ON candidate_locations.profile_id = profiles.id
           AND candidate_locations.brand_id = profiles.brand_id
-          AND candidate_locations.deleted_at IS NULL
-          AND candidate_locations.captured_at >= #{ProfileLocation.connection.quote(location_cutoff)}
       SQL
+    end
+
+    def viewer_location_relation
+      ProfileLocation.kept.where(
+        id: viewer_location.id,
+        profile_id: viewer.id,
+        brand_id: brand.id,
+        captured_at: location_cutoff..
+      )
+    end
+
+    def fresh_location_relation
+      ProfileLocation.kept.where(brand_id: brand.id, captured_at: location_cutoff..)
     end
 
     def within_viewer_distance(scope)

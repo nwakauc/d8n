@@ -21,7 +21,7 @@ Date9ja remains a behavioral and migration reference. Its `User`-centric schema 
 
 ## Implementation Sequence
 
-Current status: Slices 1 and 2 are implemented. Slices 3 through 5 have not started.
+Current status: Slices 1 through 3 are implemented. Slices 4 and 5 have not started.
 
 ### Slice 1: Profile Addressability And Location
 
