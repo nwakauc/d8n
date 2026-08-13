@@ -4,6 +4,7 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
       get "health" => "health#show"
+      get "openapi.json" => "openapi#show"
       get "me" => "me#show"
       get "discovery" => "discovery#index"
       get "matches" => "matches#index"

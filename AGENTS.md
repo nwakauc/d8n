@@ -150,3 +150,14 @@ RUBOCOP_CACHE_ROOT=tmp/rubocop_cache bin/rubocop --no-server
 ```
 
 Use local PostgreSQL access when tests require it.
+
+## API Contract
+
+The canonical frontend/API contract is `docs/api/openapi.yaml`, with integration guidance in `docs/api/README.md` and runtime JSON at `GET /api/v1/openapi.json`.
+
+When adding, removing, or changing an `/api/v1` route, request field, response shape, authentication rule, status, or stable error code:
+
+- Update the OpenAPI contract and integration guide in the same change.
+- Add or update the endpoint request test.
+- Run `bin/rails test test/contracts/openapi_contract_test.rb`.
+- Do not document a planned endpoint as available before its production route exists.

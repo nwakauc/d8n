@@ -1,5 +1,12 @@
 # D8N — Global Dating Technology Group
 
+## Developer Reference
+
+- [API integration guide](docs/api/README.md)
+- [OpenAPI 3.1 contract](docs/api/openapi.yaml)
+- Runtime JSON contract: `GET /api/v1/openapi.json`
+- Architecture decisions: [`docs/adr/`](docs/adr/)
+
 ## Company Master Blueprint
 
 **Company:** D8N

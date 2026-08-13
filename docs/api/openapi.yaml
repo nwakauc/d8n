@@ -1,0 +1,1120 @@
+openapi: 3.1.0
+info:
+  title: D8N Core API
+  version: 1.0.0
+  summary: Multi-brand dating platform API
+  description: |
+    D8N resolves the active brand from the request host. Never send a brand ID in
+    client-controlled input. Bearer sessions are brand-bound, and profile identifiers
+    exposed by dating endpoints are public UUIDs rather than internal database IDs.
+servers:
+  - url: https://{brandHost}
+    description: Brand-specific API origin
+    variables:
+      brandHost:
+        default: hookus.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: System
+  - name: Authentication
+  - name: Profile
+  - name: Matching
+paths:
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      tags: [System]
+      summary: Check API availability
+      security: []
+      responses:
+        "200":
+          description: API is available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /api/v1/openapi.json:
+    get:
+      operationId: getOpenapiContract
+      tags: [System]
+      summary: Download this API contract as JSON
+      security: []
+      responses:
+        "200":
+          description: OpenAPI contract for the deployed commit.
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/auth/phone/request_otp:
+    post:
+      operationId: requestPhoneOtp
+      tags: [Authentication]
+      summary: Request a phone authentication code
+      description: The success response is intentionally generic and never contains the code.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneOtpRequest"
+      responses:
+        "202":
+          description: The request was accepted without disclosing account existence.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          $ref: "#/components/responses/BrandRequired"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+        "429":
+          description: Request rate limit exceeded.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds before another request should be attempted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/auth/phone/verify_otp:
+    post:
+      operationId: verifyPhoneOtp
+      tags: [Authentication]
+      summary: Verify a phone code and issue a brand-bound session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneOtpVerification"
+      responses:
+        "201":
+          description: Session issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSessionResponse"
+        "401":
+          description: Code invalid, expired, consumed, or account access denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/BrandRequired"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+  /api/v1/auth/session:
+    delete:
+      operationId: revokeSession
+      tags: [Authentication]
+      summary: Revoke the current session
+      responses:
+        "204":
+          description: Session revoked.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/me:
+    get:
+      operationId: getCurrentIdentity
+      tags: [Authentication]
+      summary: Confirm the authenticated identity, brand, and session
+      responses:
+        "200":
+          description: Current authenticated context.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/profile/configuration:
+    get:
+      operationId: getProfileConfiguration
+      tags: [Profile]
+      summary: Get the resolved brand's onboarding and profile contract
+      responses:
+        "200":
+          description: Brand-owned field and controlled-option configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileConfigurationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/profile:
+    get:
+      operationId: getProfile
+      tags: [Profile]
+      summary: Get the current brand profile
+      responses:
+        "200":
+          description: Current profile or null when none exists.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profile]
+                properties:
+                  profile:
+                    oneOf:
+                      - $ref: "#/components/schemas/OwnerProfile"
+                      - type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      operationId: updateProfile
+      tags: [Profile]
+      summary: Create or update the current brand profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated owner profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerProfileResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /api/v1/profile/preferences:
+    get:
+      operationId: getProfilePreferences
+      tags: [Profile]
+      summary: Get the current brand preferences
+      responses:
+        "200":
+          description: Current preferences or null.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [preferences]
+                properties:
+                  preferences:
+                    oneOf:
+                      - $ref: "#/components/schemas/ProfilePreferences"
+                      - type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      operationId: updateProfilePreferences
+      tags: [Profile]
+      summary: Create or update current brand preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfilePreferencesUpdate"
+      responses:
+        "200":
+          description: Updated preferences.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [preferences]
+                properties:
+                  preferences:
+                    $ref: "#/components/schemas/ProfilePreferences"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /api/v1/profile/options:
+    patch:
+      operationId: replaceProfileOptions
+      tags: [Profile]
+      summary: Replace selections for supplied controlled-option groups
+      description: Omitted groups are unchanged. Supplied group arrays replace that group's active selections.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [selections]
+              properties:
+                selections:
+                  type: object
+                  additionalProperties:
+                    type: array
+                    items:
+                      type: string
+      responses:
+        "200":
+          description: Updated owner profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerProfileResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /api/v1/profile/publication:
+    post:
+      operationId: activateProfile
+      tags: [Profile]
+      summary: Activate and publish a complete profile
+      responses:
+        "200":
+          description: Activated owner profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerProfileResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "422":
+          description: Profile does not satisfy current brand completion requirements.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncompleteProfileError"
+    delete:
+      operationId: deactivateProfile
+      tags: [Profile]
+      summary: Hide and deactivate the current profile
+      responses:
+        "200":
+          description: Deactivated owner profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerProfileResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+  /api/v1/profile/location:
+    put:
+      operationId: replaceProfileLocation
+      tags: [Profile]
+      summary: Replace the current profile's private precise location
+      description: Coordinates are accepted but never returned by this API.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileLocationUpdate"
+      responses:
+        "200":
+          description: Private location state without coordinates.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileLocationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+    delete:
+      operationId: deleteProfileLocation
+      tags: [Profile]
+      summary: Soft-delete the current profile's precise location
+      responses:
+        "200":
+          description: Location is no longer configured.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileLocationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+  /api/v1/profile/photos:
+    get:
+      operationId: listProfilePhotos
+      tags: [Profile]
+      summary: List the current profile's photos
+      responses:
+        "200":
+          description: Owner photo library.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [photos]
+                properties:
+                  photos:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProfilePhoto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createProfilePhoto
+      tags: [Profile]
+      summary: Upload a profile photo
+      description: Accepts JPEG, PNG, or WebP up to 10 MB. New photos begin pending review and hidden.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image:
+                  type: string
+                  format: binary
+                position:
+                  type: integer
+                  minimum: 0
+      responses:
+        "201":
+          description: Photo accepted for processing/review.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [photo]
+                properties:
+                  photo:
+                    $ref: "#/components/schemas/ProfilePhoto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /api/v1/profile/photos/{id}:
+    delete:
+      operationId: deleteProfilePhoto
+      tags: [Profile]
+      summary: Soft-delete a profile photo
+      parameters:
+        - $ref: "#/components/parameters/PhotoId"
+      responses:
+        "200":
+          description: Soft-deleted owner photo record.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [photo]
+                properties:
+                  photo:
+                    $ref: "#/components/schemas/ProfilePhoto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/discovery:
+    get:
+      operationId: getDiscovery
+      tags: [Matching]
+      summary: Get a ranked page of eligible public profiles
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Strategy-ranked profiles and an opaque next cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiscoveryResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Current profile is not active and discoverable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Production matching is not configured for this brand.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+  /api/v1/profiles/{profile_id}/likes:
+    post:
+      operationId: likeProfile
+      tags: [Matching]
+      summary: Idempotently like an eligible public profile
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      responses:
+        "200":
+          description: Existing like returned idempotently.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResponse"
+        "201":
+          description: Like created; a mutual like may also create a match.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/InteractionConflict"
+  /api/v1/profiles/{profile_id}/pass:
+    post:
+      operationId: passProfile
+      tags: [Matching]
+      summary: Idempotently pass on an eligible public profile
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      responses:
+        "200":
+          description: Existing pass returned idempotently.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PassResponse"
+        "201":
+          description: Pass created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PassResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/InteractionConflict"
+  /api/v1/matches:
+    get:
+      operationId: listMatches
+      tags: [Matching]
+      summary: List current live matches
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Live matches and an opaque next cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: Opaque brand-bound D8N session token.
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque signed cursor returned by the same endpoint and brand.
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+    PublicProfileId:
+      name: profile_id
+      in: path
+      required: true
+      description: Stable public profile UUID from discovery.
+      schema:
+        type: string
+        format: uuid
+    PhotoId:
+      name: id
+      in: path
+      required: true
+      description: Owner photo record ID.
+      schema:
+        type: integer
+  responses:
+    Unauthorized:
+      description: Missing, invalid, expired, revoked, or wrong-brand bearer token.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    BrandRequired:
+      description: Request host did not resolve to an active brand.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ProfileOrMembershipRequired:
+      description: Required brand membership/profile/lifecycle state is unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InvalidInput:
+      description: Request input, cursor, or limit is invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ValidationFailed:
+      description: Validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationError"
+    NotFound:
+      description: Resource is unavailable, including cross-brand resources.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InteractionConflict:
+      description: Interaction conflicts with the current participant state.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, app, api_version]
+      properties:
+        status:
+          const: ok
+        app:
+          const: d8n
+        api_version:
+          const: v1
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    ValidationError:
+      allOf:
+        - $ref: "#/components/schemas/ErrorResponse"
+        - type: object
+          required: [details]
+          properties:
+            details:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+    MessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+    BrandSummary:
+      type: object
+      required: [slug, name]
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+    PhoneOtpRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          description: International phone number; normalized by the server.
+    PhoneOtpVerification:
+      type: object
+      required: [phone, code]
+      properties:
+        phone:
+          type: string
+        code:
+          type: string
+        device_name:
+          type: [string, "null"]
+          maxLength: 120
+    AuthSessionResponse:
+      type: object
+      required: [token, token_type, expires_at, user_id, brand]
+      properties:
+        token:
+          type: string
+          description: Secret bearer token returned only when the session is issued.
+        token_type:
+          const: Bearer
+        expires_at:
+          type: string
+          format: date-time
+        user_id:
+          type: integer
+          description: Private platform identity ID; do not use as a public dating-profile ID.
+        brand:
+          $ref: "#/components/schemas/BrandSummary"
+    MeResponse:
+      type: object
+      required: [user_id, brand, session]
+      properties:
+        user_id:
+          type: integer
+        brand:
+          $ref: "#/components/schemas/BrandSummary"
+        session:
+          type: object
+          required: [id, expires_at]
+          properties:
+            id:
+              type: integer
+            expires_at:
+              type: string
+              format: date-time
+    Completion:
+      type: object
+      required: [complete, percent, missing]
+      properties:
+        complete:
+          type: boolean
+        percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+        missing:
+          type: array
+          items:
+            type: string
+    ProfileUpdate:
+      type: object
+      properties:
+        display_name:
+          type: [string, "null"]
+          maxLength: 80
+        bio:
+          type: [string, "null"]
+          maxLength: 1000
+        birthdate:
+          type: [string, "null"]
+          format: date
+        gender:
+          type: [string, "null"]
+          maxLength: 40
+        visibility:
+          type: string
+          enum: [hidden, visible]
+        country_code:
+          type: [string, "null"]
+          pattern: "^[A-Z]{2}$"
+        city:
+          type: [string, "null"]
+          maxLength: 120
+        occupation:
+          type: [string, "null"]
+          maxLength: 120
+        height_cm:
+          type: [integer, "null"]
+          minimum: 100
+          maximum: 250
+        body_type:
+          type: [string, "null"]
+          maxLength: 80
+        languages_spoken:
+          type: array
+          maxItems: 15
+          items:
+            type: string
+            maxLength: 40
+        smoking:
+          type: [string, "null"]
+          enum: [never, occasionally, regularly, null]
+        drinking:
+          type: [string, "null"]
+          enum: [never, occasionally, regularly, null]
+        fitness:
+          type: [string, "null"]
+          enum: [never, occasionally, regularly, null]
+    OwnerProfile:
+      allOf:
+        - $ref: "#/components/schemas/ProfileUpdate"
+        - type: object
+          required: [id, brand, status, visibility, options, completion, languages_spoken]
+          properties:
+            id:
+              type: string
+              format: uuid
+            brand:
+              $ref: "#/components/schemas/BrandSummary"
+            status:
+              type: string
+              enum: [draft, active, suspended]
+            visibility:
+              type: string
+              enum: [hidden, visible]
+            options:
+              $ref: "#/components/schemas/ProfileOptionSelections"
+            completion:
+              $ref: "#/components/schemas/Completion"
+    OwnerProfileResponse:
+      type: object
+      required: [profile]
+      properties:
+        profile:
+          $ref: "#/components/schemas/OwnerProfile"
+    ProfileOptionSelections:
+      type: object
+      additionalProperties:
+        type: array
+        items:
+          type: string
+    PublicProfile:
+      type: object
+      required: [id, age, languages_spoken, options]
+      properties:
+        id:
+          type: string
+          format: uuid
+        display_name:
+          type: [string, "null"]
+        age:
+          type: [integer, "null"]
+          minimum: 18
+        bio:
+          type: [string, "null"]
+        gender:
+          type: [string, "null"]
+        country_code:
+          type: [string, "null"]
+        city:
+          type: [string, "null"]
+        occupation:
+          type: [string, "null"]
+        height_cm:
+          type: [integer, "null"]
+        body_type:
+          type: [string, "null"]
+        languages_spoken:
+          type: array
+          items:
+            type: string
+        smoking:
+          type: [string, "null"]
+        drinking:
+          type: [string, "null"]
+        fitness:
+          type: [string, "null"]
+        options:
+          $ref: "#/components/schemas/ProfileOptionSelections"
+    Compatibility:
+      type: object
+      required: [score, confidence, reasons]
+      properties:
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        reasons:
+          type: array
+          items:
+            type: string
+            enum: [shared_intent, similar_vibe, mutual_age_fit]
+    DiscoveryProfile:
+      allOf:
+        - $ref: "#/components/schemas/PublicProfile"
+        - type: object
+          required: [compatibility]
+          properties:
+            compatibility:
+              $ref: "#/components/schemas/Compatibility"
+    DiscoveryResponse:
+      type: object
+      required: [profiles, next_cursor]
+      properties:
+        profiles:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiscoveryProfile"
+        next_cursor:
+          type: [string, "null"]
+    ProfilePreferencesUpdate:
+      type: object
+      properties:
+        min_age:
+          type: [integer, "null"]
+          minimum: 18
+          maximum: 120
+        max_age:
+          type: [integer, "null"]
+          minimum: 18
+          maximum: 120
+        interested_in:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            maxLength: 40
+        max_distance_km:
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 500
+        country:
+          type: [string, "null"]
+          pattern: "^[A-Z]{2}$"
+        relationship_intent:
+          type: [string, "null"]
+          maxLength: 80
+    ProfilePreferences:
+      allOf:
+        - $ref: "#/components/schemas/ProfilePreferencesUpdate"
+        - type: object
+          required: [id, profile_id, brand, interested_in]
+          properties:
+            id:
+              type: integer
+            profile_id:
+              type: string
+              format: uuid
+            brand:
+              $ref: "#/components/schemas/BrandSummary"
+    ProfileLocationUpdate:
+      type: object
+      required: [latitude, longitude, accuracy_meters, captured_at]
+      properties:
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+          writeOnly: true
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+          writeOnly: true
+        accuracy_meters:
+          type: integer
+          minimum: 0
+          maximum: 100000
+        captured_at:
+          type: string
+          format: date-time
+    ProfileLocationState:
+      type: object
+      required: [configured]
+      properties:
+        configured:
+          type: boolean
+        accuracy_meters:
+          type: integer
+        source:
+          type: string
+          enum: [device, manual, imported]
+        captured_at:
+          type: string
+          format: date-time
+    ProfileLocationResponse:
+      type: object
+      required: [location]
+      properties:
+        location:
+          $ref: "#/components/schemas/ProfileLocationState"
+    ProfilePhoto:
+      type: object
+      required: [id, profile_id, position, status, visibility, deleted_at, image]
+      properties:
+        id:
+          type: integer
+        profile_id:
+          type: string
+          format: uuid
+        position:
+          type: integer
+        status:
+          type: string
+          enum: [pending_review, approved, rejected]
+        visibility:
+          type: string
+          enum: [hidden, visible]
+        deleted_at:
+          type: [string, "null"]
+          format: date-time
+        image:
+          oneOf:
+            - $ref: "#/components/schemas/ProfilePhotoImage"
+            - type: "null"
+    ProfilePhotoImage:
+      type: object
+      required: [filename, content_type, byte_size, url]
+      properties:
+        filename:
+          type: string
+        content_type:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
+        byte_size:
+          type: integer
+        url:
+          type: string
+    ProfileConfigurationResponse:
+      type: object
+      required: [configuration]
+      properties:
+        configuration:
+          $ref: "#/components/schemas/ProfileConfiguration"
+    ProfileConfiguration:
+      type: object
+      required: [profile_fields, preference_fields, collections, option_groups]
+      properties:
+        profile_fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConfiguredField"
+        preference_fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConfiguredField"
+        collections:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConfiguredField"
+        option_groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConfiguredOptionGroup"
+    ConfiguredField:
+      type: object
+      required: [key, label, required]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        required:
+          type: boolean
+    ConfiguredOptionGroup:
+      type: object
+      required: [key, label, cardinality, max_selections, required, visibility, options]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        cardinality:
+          type: string
+          enum: [single, multiple]
+        max_selections:
+          type: integer
+        required:
+          type: boolean
+        visibility:
+          type: string
+          enum: [owner_only, public_profile]
+        options:
+          type: array
+          items:
+            type: object
+            required: [code, label]
+            properties:
+              code:
+                type: string
+              label:
+                type: string
+    IncompleteProfileError:
+      allOf:
+        - $ref: "#/components/schemas/ErrorResponse"
+        - type: object
+          required: [completion]
+          properties:
+            completion:
+              type: object
+              required: [percent, missing]
+              properties:
+                percent:
+                  type: integer
+                missing:
+                  type: array
+                  items:
+                    type: string
+    LikeResponse:
+      type: object
+      required: [liked, matched, match_id, created]
+      properties:
+        liked:
+          const: true
+        matched:
+          type: boolean
+        match_id:
+          type: [string, "null"]
+          format: uuid
+        created:
+          type: boolean
+    PassResponse:
+      type: object
+      required: [passed, created]
+      properties:
+        passed:
+          const: true
+        created:
+          type: boolean
+    Match:
+      type: object
+      required: [id, matched_at, profile]
+      properties:
+        id:
+          type: string
+          format: uuid
+        matched_at:
+          type: string
+          format: date-time
+        profile:
+          $ref: "#/components/schemas/PublicProfile"
+    MatchListResponse:
+      type: object
+      required: [matches, next_cursor]
+      properties:
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Match"
+        next_cursor:
+          type: [string, "null"]
