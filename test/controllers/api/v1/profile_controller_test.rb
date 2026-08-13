@@ -32,6 +32,14 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
           bio: "Building something real.",
           birthdate: "1994-05-01",
           gender: "woman",
+          country_code: "za",
+          city: "Johannesburg",
+          occupation: "Engineer",
+          height_cm: 170,
+          languages_spoken: %w[ English Zulu ],
+          smoking: "never",
+          drinking: "occasionally",
+          fitness: "regularly",
           visibility: "visible"
         }
     end
@@ -46,6 +54,8 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Ada", response_body.fetch("profile").fetch("display_name")
     assert_equal "hookus", response_body.fetch("profile").fetch("brand").fetch("slug")
     assert_equal "visible", response_body.fetch("profile").fetch("visibility")
+    assert_equal "ZA", response_body.fetch("profile").fetch("country_code")
+    assert_equal %w[ English Zulu ], response_body.fetch("profile").fetch("languages_spoken")
     assert_equal false, response_body.fetch("profile").fetch("completion").fetch("complete")
     assert_includes response_body.fetch("profile").fetch("completion").fetch("missing"), "preferences.min_age"
   end

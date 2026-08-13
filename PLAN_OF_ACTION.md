@@ -1387,6 +1387,7 @@ As of 2026-08-13:
 - Phase 1 is implemented for local development and CI. Production hosting, error tracking, and backup operations still require human/provider decisions.
 - Phase 2 has brand resolution, platform identity, phone OTP, brand-scoped sessions, logout, lifecycle enforcement, authentication audit records, and database-backed profile tenancy constraints. Production SMS, account recovery, mature password authentication, and secure admin authentication remain open.
 - Phase 3 has brand-scoped profiles, preferences, photos, visibility, and configurable completion. Secure private media delivery, verified image processing, object storage, and moderation hooks remain Phase 6 work and are required before production use.
+- Phase 3 now also has typed HookUs profile details, tenant-safe controlled option groups/selections, required intents and vibes, option retirement behavior, explicit owner/public serialization, and a brand-scoped profile configuration endpoint.
 - Phase 4 has not started.
 
 HookUs remains the first product build target. Date9ja remains the migration and second-brand proof target.

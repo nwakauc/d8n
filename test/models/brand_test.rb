@@ -30,6 +30,7 @@ class BrandTest < ActiveSupport::TestCase
     assert_equal %w[ display_name birthdate gender ], brand.profile_completion_requirements.fetch("profile_fields")
     assert_equal %w[ min_age max_age interested_in ], brand.profile_completion_requirements.fetch("preference_fields")
     assert_equal %w[ photos ], brand.profile_completion_requirements.fetch("collections")
+    assert_empty brand.profile_completion_requirements.fetch("option_groups")
   end
 
   test "rejects unsupported profile completion requirements" do
@@ -45,5 +46,12 @@ class BrandTest < ActiveSupport::TestCase
 
     assert_not brand.valid?
     assert_includes brand.errors[:profile_requirements], "contains unsupported profile fields"
+  end
+
+  test "rejects malformed profile completion requirements" do
+    brand = Brand.new(slug: "hookus", name: "HookUs", profile_requirements: { profile_fields: "display_name" })
+
+    assert_not brand.valid?
+    assert_includes brand.errors[:profile_requirements], "must contain only supported string lists"
   end
 end

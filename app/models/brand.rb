@@ -2,8 +2,10 @@ class Brand < ApplicationRecord
   DEFAULT_PROFILE_REQUIREMENTS = {
     "profile_fields" => %w[ display_name birthdate gender ],
     "preference_fields" => %w[ min_age max_age interested_in ],
-    "collections" => %w[ photos ]
+    "collections" => %w[ photos ],
+    "option_groups" => []
   }.freeze
+  PROFILE_REQUIREMENT_KEYS = DEFAULT_PROFILE_REQUIREMENTS.keys.freeze
 
   has_many :brand_memberships, dependent: :restrict_with_exception
   has_many :brand_domains, dependent: :restrict_with_exception
@@ -16,6 +18,9 @@ class Brand < ApplicationRecord
   has_many :profiles, dependent: :restrict_with_exception
   has_many :profile_preferences, dependent: :restrict_with_exception
   has_many :profile_photos, dependent: :restrict_with_exception
+  has_many :profile_option_groups, dependent: :restrict_with_exception
+  has_many :profile_options, dependent: :restrict_with_exception
+  has_many :profile_option_selections, dependent: :restrict_with_exception
 
   enum :status, { active: 0, disabled: 1, archived: 2 }
 
@@ -27,20 +32,39 @@ class Brand < ApplicationRecord
   validate :profile_requirements_are_supported
 
   def profile_completion_requirements
-    DEFAULT_PROFILE_REQUIREMENTS.merge((profile_requirements || {}).deep_stringify_keys)
+    configured = profile_requirements.is_a?(Hash) ? profile_requirements.deep_stringify_keys : {}
+    DEFAULT_PROFILE_REQUIREMENTS.merge(configured)
   end
 
   private
 
   def profile_requirements_are_supported
+    unless profile_requirements.is_a?(Hash)
+      errors.add(:profile_requirements, "must be an object")
+      return
+    end
+
+    configured = profile_requirements.deep_stringify_keys
+    unknown_keys = configured.keys - PROFILE_REQUIREMENT_KEYS
+    invalid_lists = configured.slice(*PROFILE_REQUIREMENT_KEYS).reject do |_key, value|
+      value.is_a?(Array) && value.all? { |item| item.is_a?(String) }
+    end
+    if unknown_keys.any? || invalid_lists.any?
+      errors.add(:profile_requirements, "must contain only supported string lists")
+      return
+    end
+
     requirements = profile_completion_requirements
 
     unsupported_profile_fields = requirements.fetch("profile_fields") - Profiles::Completion::SUPPORTED_PROFILE_FIELDS
     unsupported_preference_fields = requirements.fetch("preference_fields") - Profiles::Completion::SUPPORTED_PREFERENCE_FIELDS
     unsupported_collections = requirements.fetch("collections") - Profiles::Completion::SUPPORTED_COLLECTIONS
+    unsupported_option_groups = requirements.fetch("option_groups") -
+      profile_option_groups.kept.where(key: requirements.fetch("option_groups")).pluck(:key)
 
     errors.add(:profile_requirements, "contains unsupported profile fields") if unsupported_profile_fields.any?
     errors.add(:profile_requirements, "contains unsupported preference fields") if unsupported_preference_fields.any?
     errors.add(:profile_requirements, "contains unsupported collections") if unsupported_collections.any?
+    errors.add(:profile_requirements, "contains unsupported option groups") if unsupported_option_groups.any?
   end
 end

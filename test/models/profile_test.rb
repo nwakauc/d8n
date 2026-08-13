@@ -76,4 +76,22 @@ class ProfileTest < ActiveSupport::TestCase
     assert_not profile.valid?
     assert_includes profile.errors[:birthdate], "must be at least 18 years ago"
   end
+
+  test "normalizes and validates HookUs profile details" do
+    brand = Brand.create!(slug: "hookus", name: "HookUs")
+    user = User.create!
+    membership = BrandMembership.create!(user:, brand:)
+    profile = Profile.new(
+      user:, brand:, brand_membership: membership,
+      country_code: " za ", city: " Johannesburg ", languages_spoken: [ "English", " English ", "Zulu" ],
+      height_cm: 99, smoking: "sometimes"
+    )
+
+    assert_not profile.valid?
+    assert_equal "ZA", profile.country_code
+    assert_equal "Johannesburg", profile.city
+    assert_equal %w[ English Zulu ], profile.languages_spoken
+    assert profile.errors[:height_cm].present?
+    assert profile.errors[:smoking].present?
+  end
 end

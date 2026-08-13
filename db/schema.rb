@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_13_061000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_13_063000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -203,6 +203,60 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_061000) do
     t.index ["identity_identifier_id"], name: "index_otp_challenges_on_identity_identifier_id"
   end
 
+  create_table "profile_option_groups", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.string "key", limit: 80, null: false
+    t.string "label", limit: 120, null: false
+    t.integer "cardinality", default: 0, null: false
+    t.integer "max_selections", default: 1, null: false
+    t.integer "visibility", default: 0, null: false
+    t.integer "status", default: 0, null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "key"], name: "idx_profile_option_groups_active_key", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["brand_id"], name: "index_profile_option_groups_on_brand_id"
+    t.index ["id", "brand_id"], name: "idx_profile_option_groups_id_brand", unique: true
+    t.check_constraint "\"position\" >= 0", name: "chk_profile_option_groups_position"
+    t.check_constraint "max_selections > 0", name: "chk_profile_option_groups_max_selections"
+  end
+
+  create_table "profile_option_selections", force: :cascade do |t|
+    t.bigint "profile_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "brand_id", null: false
+    t.bigint "profile_option_group_id", null: false
+    t.bigint "profile_option_id", null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "profile_option_group_id"], name: "idx_on_brand_id_profile_option_group_id_415cfbaf56"
+    t.index ["brand_id"], name: "index_profile_option_selections_on_brand_id"
+    t.index ["profile_id", "profile_option_group_id", "profile_option_id"], name: "idx_profile_option_selections_active", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["profile_id"], name: "index_profile_option_selections_on_profile_id"
+    t.index ["profile_option_group_id"], name: "index_profile_option_selections_on_profile_option_group_id"
+    t.index ["profile_option_id"], name: "index_profile_option_selections_on_profile_option_id"
+    t.index ["user_id"], name: "index_profile_option_selections_on_user_id"
+  end
+
+  create_table "profile_options", force: :cascade do |t|
+    t.bigint "profile_option_group_id", null: false
+    t.bigint "brand_id", null: false
+    t.string "code", limit: 80, null: false
+    t.string "label", limit: 120, null: false
+    t.integer "status", default: 0, null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id"], name: "index_profile_options_on_brand_id"
+    t.index ["id", "profile_option_group_id", "brand_id"], name: "idx_profile_options_id_group_brand", unique: true
+    t.index ["profile_option_group_id", "code"], name: "idx_profile_options_active_code", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["profile_option_group_id"], name: "index_profile_options_on_profile_option_group_id"
+    t.check_constraint "\"position\" >= 0", name: "chk_profile_options_position"
+  end
+
   create_table "profile_photos", force: :cascade do |t|
     t.bigint "profile_id", null: false
     t.bigint "user_id", null: false
@@ -259,6 +313,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_061000) do
     t.datetime "deleted_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "country_code", limit: 2
+    t.string "city", limit: 120
+    t.string "occupation", limit: 120
+    t.integer "height_cm"
+    t.string "body_type", limit: 80
+    t.jsonb "languages_spoken", default: [], null: false
+    t.string "smoking", limit: 32
+    t.string "drinking", limit: 32
+    t.string "fitness", limit: 32
+    t.index ["brand_id", "country_code", "city"], name: "index_profiles_on_brand_id_and_country_code_and_city"
     t.index ["brand_id", "status", "visibility", "created_at"], name: "idx_on_brand_id_status_visibility_created_at_3574045134"
     t.index ["brand_id"], name: "index_profiles_on_brand_id"
     t.index ["brand_membership_id"], name: "index_profiles_on_brand_membership_id"
@@ -331,6 +395,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_061000) do
   add_foreign_key "notification_deliveries", "users"
   add_foreign_key "otp_challenges", "brands"
   add_foreign_key "otp_challenges", "identity_identifiers"
+  add_foreign_key "profile_option_groups", "brands"
+  add_foreign_key "profile_option_selections", "brands"
+  add_foreign_key "profile_option_selections", "profile_option_groups"
+  add_foreign_key "profile_option_selections", "profile_option_groups", column: ["profile_option_group_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_option_selections_group_tenant"
+  add_foreign_key "profile_option_selections", "profile_options"
+  add_foreign_key "profile_option_selections", "profile_options", column: ["profile_option_id", "profile_option_group_id", "brand_id"], primary_key: ["id", "profile_option_group_id", "brand_id"], name: "fk_option_selections_option_tenant"
+  add_foreign_key "profile_option_selections", "profiles"
+  add_foreign_key "profile_option_selections", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_option_selections_profile_tenant"
+  add_foreign_key "profile_option_selections", "users"
+  add_foreign_key "profile_options", "brands"
+  add_foreign_key "profile_options", "profile_option_groups"
+  add_foreign_key "profile_options", "profile_option_groups", column: ["profile_option_group_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_options_group_tenant"
   add_foreign_key "profile_photos", "brands"
   add_foreign_key "profile_photos", "profiles"
   add_foreign_key "profile_photos", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_photos_profile_tenant"

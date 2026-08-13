@@ -173,4 +173,4 @@ Confirmed founder decisions on 2026-08-13:
 
 ## Approval Gate
 
-This document is an inventory and recommendation, not authorization to create migrations. ADR 0008 and the decisions above require founder/CTO review before profile schema implementation begins.
+ADR 0008 is accepted for the initial HookUs capability implementation. The unresolved decisions above remain a gate for Date9ja production migration mappings, not for additive HookUs development.

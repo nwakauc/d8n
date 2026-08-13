@@ -84,6 +84,30 @@ module Profiles
       assert_empty completion.missing
     end
 
+    test "requires every configured option group" do
+      brand = Brand.create!(slug: "hookus", name: "HookUs")
+      HookusProfileCatalog.install!(brand:)
+      brand.update!(profile_requirements: {
+        profile_fields: [], preference_fields: [], collections: [], option_groups: %w[ intents vibes ]
+      })
+      user = User.create!
+      membership = BrandMembership.create!(brand:, user:)
+      profile = Profile.create!(brand:, user:, brand_membership: membership)
+
+      OptionSelections.replace!(profile:, selections: { intents: [ "hookups" ] })
+      incomplete = Completion.call(profile:)
+
+      assert_not incomplete.complete?
+      assert_equal 50, incomplete.percent
+      assert_equal [ :"options.vibes" ], incomplete.missing
+
+      OptionSelections.replace!(profile:, selections: { vibes: [ "chill" ] })
+      complete = Completion.call(profile:)
+
+      assert complete.complete?
+      assert_equal 100, complete.percent
+    end
+
     private
 
     def build_profile(attributes = {})

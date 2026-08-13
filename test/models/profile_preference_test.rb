@@ -68,6 +68,21 @@ class ProfilePreferenceTest < ActiveSupport::TestCase
     assert_includes preference.errors[:interested_in], "must be an array"
   end
 
+  test "normalizes and bounds interested in selections" do
+    brand, user, profile = profile_setup
+    preference = ProfilePreference.new(
+      brand:, user:, profile:, country: " za ", interested_in: [ "woman", " woman ", "man" ]
+    )
+
+    assert preference.valid?
+    assert_equal "ZA", preference.country
+    assert_equal %w[ woman man ], preference.interested_in
+
+    preference.interested_in = Array.new(11) { |index| "value_#{index}" }
+    assert_not preference.valid?
+    assert_includes preference.errors[:interested_in], "cannot have more than 10 entries"
+  end
+
   private
 
   def profile_setup(slug: "hookus", user: User.create!)

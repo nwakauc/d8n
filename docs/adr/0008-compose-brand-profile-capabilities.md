@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed. Implementation requires founder/CTO approval of this ADR and the accompanying field matrix.
+Accepted for the initial HookUs profile capability implementation on 2026-08-13. Date9ja production migration mappings still require review before import work begins.
 
 ## Context
 
@@ -105,16 +105,15 @@ It does not redesign:
 
 Those remain focused domain capabilities even when their derived state appears in a profile response.
 
-## Approval And Implementation Gate
+## Date9ja Migration Gate
 
-No migration or production implementation based on this ADR may begin until:
+Date9ja production migration work based on this ADR may not begin until:
 
-1. The founder/CTO reviews this ADR.
-2. The HookUs and Date9ja field matrix is reviewed against product intent and migration reality.
-3. Unresolved field classifications are decided.
-4. Date9ja production data characteristics and migration mappings are confirmed.
+1. The Date9ja field matrix is reviewed against current product intent and migration reality.
+2. Unresolved Date9ja field classifications are decided.
+3. Date9ja production data characteristics and migration mappings are confirmed.
 
-After approval, implementation should be additive and proceed in small migrations with tenant-isolation, completion, serialization, option-lifecycle, and migration tests.
+Date9ja implementation must be additive and proceed in small migrations with tenant-isolation, completion, serialization, option-lifecycle, reconciliation, and migration tests.
 
 ## Consequences
 

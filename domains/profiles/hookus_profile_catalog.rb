@@ -1,0 +1,88 @@
+module Profiles
+  class HookusProfileCatalog
+    GROUPS = [
+      {
+        key: "intents",
+        label: "What are you here for?",
+        max_selections: 8,
+        options: {
+          "hookups" => "Hookups",
+          "casual" => "Something casual",
+          "dating_vibes" => "Dating and vibes",
+          "420_chill" => "420 and chill",
+          "nightlife" => "Nightlife",
+          "relationship" => "Relationship",
+          "travel" => "Travel",
+          "just_looking" => "Just looking"
+        }
+      },
+      {
+        key: "vibes",
+        label: "Vibes",
+        max_selections: 15,
+        options: {
+          "420_friendly" => "420 friendly",
+          "drinks" => "Drinks",
+          "nightlife" => "Nightlife",
+          "raves" => "Raves",
+          "music" => "Music",
+          "travel" => "Travel",
+          "beach" => "Beach",
+          "gaming" => "Gaming",
+          "fitness" => "Fitness",
+          "pets" => "Pets",
+          "creative" => "Creative",
+          "night_owl" => "Night owl",
+          "chill" => "Chill",
+          "smoke_free" => "Smoke free",
+          "foodie" => "Foodie"
+        }
+      }
+    ].freeze
+
+    REQUIREMENTS = {
+      profile_fields: %w[ display_name bio birthdate gender country_code ],
+      preference_fields: %w[ interested_in ],
+      collections: %w[ photos ],
+      option_groups: %w[ intents vibes ]
+    }.freeze
+
+    def self.install!(brand:)
+      new(brand:).install!
+    end
+
+    def initialize(brand:)
+      @brand = brand
+    end
+
+    def install!
+      Brand.transaction do
+        GROUPS.each_with_index { |definition, position| install_group!(definition, position:) }
+        brand.update!(profile_requirements: REQUIREMENTS)
+      end
+
+      brand
+    end
+
+    private
+
+    attr_reader :brand
+
+    def install_group!(definition, position:)
+      group = brand.profile_option_groups.kept.find_or_initialize_by(key: definition.fetch(:key))
+      group.update!(
+        label: definition.fetch(:label),
+        cardinality: :multiple,
+        max_selections: definition.fetch(:max_selections),
+        visibility: :public_profile,
+        status: :active,
+        position:
+      )
+
+      definition.fetch(:options).each_with_index do |(code, label), option_position|
+        option = group.profile_options.kept.find_or_initialize_by(code:)
+        option.update!(brand:, label:, status: :active, position: option_position)
+      end
+    end
+  end
+end

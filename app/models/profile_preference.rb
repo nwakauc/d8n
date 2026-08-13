@@ -26,6 +26,8 @@ class ProfilePreference < ApplicationRecord
   validate :profile_matches_scope
   validate :interested_in_is_array
 
+  before_validation :normalize_preferences
+
   private
 
   def age_range_is_ordered
@@ -43,8 +45,22 @@ class ProfilePreference < ApplicationRecord
   end
 
   def interested_in_is_array
-    return if interested_in.is_a?(Array)
+    unless interested_in.is_a?(Array)
+      errors.add(:interested_in, "must be an array")
+      return
+    end
 
-    errors.add(:interested_in, "must be an array")
+    errors.add(:interested_in, "cannot have more than 10 entries") if interested_in.size > 10
+    errors.add(:interested_in, "contains an invalid value") if interested_in.any? { |value| !value.is_a?(String) || value.length > 40 }
+  end
+
+  def normalize_preferences
+    self.country = country.to_s.strip.upcase.presence
+    self.relationship_intent = relationship_intent.to_s.strip.presence
+    return unless interested_in.is_a?(Array)
+
+    self.interested_in = interested_in.map do |value|
+      value.is_a?(String) ? value.strip.presence : value
+    end.compact.uniq
   end
 end

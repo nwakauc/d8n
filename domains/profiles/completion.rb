@@ -2,7 +2,10 @@ module Profiles
   class Completion
     Result = Data.define(:complete?, :percent, :missing)
 
-    SUPPORTED_PROFILE_FIELDS = %w[ display_name birthdate gender ].freeze
+    SUPPORTED_PROFILE_FIELDS = %w[
+      display_name bio birthdate gender country_code city occupation height_cm body_type
+      languages_spoken smoking drinking fitness
+    ].freeze
     SUPPORTED_PREFERENCE_FIELDS = %w[ min_age max_age interested_in max_distance_km country relationship_intent ].freeze
     SUPPORTED_COLLECTIONS = %w[ photos ].freeze
 
@@ -15,8 +18,8 @@ module Profiles
     end
 
     def call
-      missing = missing_profile_fields + missing_preference_fields + missing_collections
-      total = profile_fields.size + preference_fields.size + collections.size
+      missing = missing_profile_fields + missing_preference_fields + missing_collections + missing_option_groups
+      total = profile_fields.size + preference_fields.size + collections.size + option_groups.size
       return Result.new(true, 100, []) if total.zero?
 
       completed = total - missing.size
@@ -47,6 +50,13 @@ module Profiles
       collections.map(&:to_sym)
     end
 
+    def missing_option_groups
+      selected_keys = profile.profile_option_selections.kept.joins(:profile_option_group)
+        .where(profile_option_groups: { key: option_groups }).distinct.pluck("profile_option_groups.key")
+
+      (option_groups - selected_keys).map { |key| :"options.#{key}" }
+    end
+
     def requirements
       @requirements ||= profile.brand.profile_completion_requirements
     end
@@ -61,6 +71,10 @@ module Profiles
 
     def collections
       requirements.fetch("collections")
+    end
+
+    def option_groups
+      requirements.fetch("option_groups")
     end
   end
 end

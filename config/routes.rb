@@ -7,6 +7,8 @@ Rails.application.routes.draw do
       get "me" => "me#show"
       get "profile" => "profile#show"
       patch "profile" => "profile#update"
+      get "profile/configuration" => "profile_configuration#show"
+      patch "profile/options" => "profile_options#update"
       get "profile/preferences" => "profile_preferences#show"
       patch "profile/preferences" => "profile_preferences#update"
       get "profile/photos" => "profile_photos#index"
