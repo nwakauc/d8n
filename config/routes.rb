@@ -14,6 +14,7 @@ Rails.application.routes.draw do
       delete "profile/photos/:id" => "profile_photos#destroy"
       post "auth/phone/request_otp" => "auth/phone#request_otp"
       post "auth/phone/verify_otp" => "auth/phone#verify_otp"
+      delete "auth/session" => "auth/sessions#destroy"
     end
   end
 

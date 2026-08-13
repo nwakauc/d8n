@@ -65,8 +65,8 @@ Use this alongside `PLAN_OF_ACTION.md`, `AGENT_RULES.md`, and future ADRs.
 - Define Date9ja positioning for second-brand proof.
 - Define Date9ja required profile fields.
 - Define Date9ja matching philosophy.
-- Decide whether Date9ja is migrated from existing code or rebuilt on D8N.
-- If Date9ja has live users/data, inventory its schema, auth/password behavior, media, messages, matches, and required migration counts before Phase 11.
+- Migrate the existing live Date9ja product onto D8N rather than treating it as a clean brand configuration.
+- Inventory Date9ja schema, auth/password behavior, media, messages, matches, and required migration counts before Phase 11.
 
 ## Brand And Marketing
 

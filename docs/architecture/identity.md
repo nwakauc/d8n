@@ -50,6 +50,21 @@ A token issued after authenticating on HookUs is valid only for HookUs requests.
 
 This is deliberately stricter than a platform-wide session. It keeps brand privacy and tenant isolation simple while D8N is proving the multi-brand model.
 
+Session authentication also requires the brand, user, and brand membership to remain active and not soft-deleted. Sessions issued through a credential retain that credential reference and stop authenticating if it is disabled, revoked, or soft-deleted.
+
+Logout revokes only the current brand session and records a security event. Suspending a membership in one brand must not suspend the same identity's membership or sessions in another brand.
+
+## Authentication Lifecycle
+
+Phone OTP authentication uses deny-by-default lifecycle rules:
+
+- Inactive or deleted brands cannot request or verify OTP challenges.
+- Suspended, closed, or deleted users cannot receive a new session.
+- Disabled, revoked, or deleted credentials cannot receive a new session.
+- Suspended, left, or deleted memberships are not silently reactivated.
+- Public authentication failures remain generic while internal security events retain the denial reason.
+- Concurrent OTP requests for the same brand and phone or IP are serialized with PostgreSQL transaction advisory locks before throttle checks.
+
 ## Identity Identifiers
 
 Identity identifiers normalize emails, phones, provider IDs, and other identity signals.

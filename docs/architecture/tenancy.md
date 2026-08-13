@@ -59,3 +59,11 @@ Use database constraints where practical:
 - No self-like.
 
 Use partial unique indexes where soft deletion applies.
+
+Current profile-domain enforcement also uses composite foreign keys:
+
+- A profile's membership, user, and brand must identify the same membership row.
+- A preference's profile, user, and brand must identify the same profile row.
+- A photo's profile, user, and brand must identify the same profile row.
+
+These constraints protect tenant ownership even when application validations are bypassed.

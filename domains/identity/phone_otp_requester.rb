@@ -16,36 +16,45 @@ module Identity
     end
 
     def call
-      return Result.new(false, nil, :brand_required, nil) if brand.blank?
+      return Result.new(false, nil, :brand_required, nil) unless active_brand?
 
       identifier = PhoneNormalizer.call(phone)
       return Result.new(false, nil, :invalid_phone, nil) if identifier.blank?
 
-      throttle = OtpThrottle.call(brand:, identifier:, ip_address:)
-      return throttled_result(identifier, throttle) if throttle.throttled?
-
-      challenge = nil
+      result = nil
 
       OtpChallenge.transaction do
-        expire_existing_challenges(identifier)
-        challenge, code = create_challenge(identifier)
-        send_otp(identifier, code, challenge)
-        record_security_event(challenge)
+        OtpThrottleLock.with_lock(brand:, identifier:, ip_address:) do
+          throttle = OtpThrottle.call(brand:, identifier:, ip_address:)
+          if throttle.throttled?
+            result = throttled_result(identifier, throttle)
+          else
+            challenge, code = create_challenge(identifier)
+            expire_existing_challenges(identifier, except: challenge)
+            send_otp(identifier, code, challenge)
+            record_security_event(challenge)
+            result = Result.new(true, challenge, nil, nil)
+          end
+        end
       end
 
-      Result.new(true, challenge, nil, nil)
+      result
     end
 
     private
 
     attr_reader :brand, :phone, :ip_address, :user_agent
 
-    def expire_existing_challenges(identifier)
+    def active_brand?
+      brand.present? && brand.active? && brand.deleted_at.nil?
+    end
+
+    def expire_existing_challenges(identifier, except:)
       OtpChallenge.active.where(
         brand:,
         identifier:,
         kind: :phone_otp
-      ).update_all(consumed_at: Time.current, updated_at: Time.current)
+      ).where.not(id: except.id).update_all(consumed_at: Time.current, updated_at: Time.current)
     end
 
     def create_challenge(identifier)

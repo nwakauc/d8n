@@ -17,6 +17,8 @@ module Profiles
     def call
       missing = missing_profile_fields + missing_preference_fields + missing_collections
       total = profile_fields.size + preference_fields.size + collections.size
+      return Result.new(true, 100, []) if total.zero?
+
       completed = total - missing.size
 
       Result.new(missing.empty?, ((completed.to_f / total) * 100).round, missing)

@@ -63,6 +63,27 @@ module Profiles
       assert_empty completion.missing
     end
 
+    test "treats a profile with no configured requirements as complete" do
+      brand = Brand.create!(
+        slug: "hookus",
+        name: "HookUs",
+        profile_requirements: {
+          profile_fields: [],
+          preference_fields: [],
+          collections: []
+        }
+      )
+      user = User.create!
+      membership = BrandMembership.create!(brand:, user:)
+      profile = Profile.create!(brand:, user:, brand_membership: membership)
+
+      completion = Completion.call(profile:)
+
+      assert completion.complete?
+      assert_equal 100, completion.percent
+      assert_empty completion.missing
+    end
+
     private
 
     def build_profile(attributes = {})

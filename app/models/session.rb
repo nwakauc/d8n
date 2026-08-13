@@ -4,17 +4,20 @@ class Session < ApplicationRecord
 
   belongs_to :user
   belongs_to :brand
+  belongs_to :credential, optional: true
 
   scope :active, -> { where(revoked_at: nil).where("expires_at > ?", Time.current) }
 
   validates :token_digest, presence: true, uniqueness: true
   validates :last_used_at, :expires_at, presence: true
+  validate :credential_belongs_to_user
 
-  def self.issue!(user:, brand:, device_name: nil, ip_address: nil, user_agent: nil)
+  def self.issue!(user:, brand:, credential: nil, device_name: nil, ip_address: nil, user_agent: nil)
     raw_token = SecureRandom.urlsafe_base64(TOKEN_BYTES)
     session = create!(
       user:,
       brand:,
+      credential:,
       token_digest: digest_token(raw_token),
       device_name:,
       ip_address:,
@@ -36,5 +39,13 @@ class Session < ApplicationRecord
 
   def expired?
     expires_at <= Time.current
+  end
+
+  private
+
+  def credential_belongs_to_user
+    return if credential.blank? || credential.user_id == user_id
+
+    errors.add(:credential, "must belong to the session user")
   end
 end

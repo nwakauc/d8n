@@ -19,7 +19,7 @@ Preferred sequence:
 
 ## Date9ja Migration
 
-Date9ja is a live migration target if it has real users and data.
+Date9ja is a live migration target with existing users and data. This was confirmed by the founder on 2026-08-13.
 
 Before migration:
 
@@ -31,4 +31,4 @@ Before migration:
 - Reconcile counts.
 - Prepare rollback/fallback plan.
 
-Do not treat Date9ja as a clean new brand configuration unless the CTO confirms there is no production data to migrate.
+Do not treat Date9ja as a clean new brand configuration. Preserve existing users and reconcile all migrated production data.

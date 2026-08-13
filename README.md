@@ -1364,6 +1364,10 @@ Each successful brand strengthens the next.
 
 # 37. Roadmap
 
+## Historical Product Roadmap
+
+The sequence below predates the accepted implementation direction in `PLAN_OF_ACTION.md` and is retained as product-strategy context. The current engineering sequence builds HookUs first and uses Date9ja as the live migration and second-brand proof target.
+
 ## Phase 1 — Prove the Model
 
 Primary focus:

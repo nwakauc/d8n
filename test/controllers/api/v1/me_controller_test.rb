@@ -5,7 +5,7 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
     @brand = Brand.create!(slug: "hookus", name: "HookUs")
     BrandDomain.create!(brand: @brand, host: "hookus.test")
     @user = User.create!
-    BrandMembership.create!(brand: @brand, user: @user)
+    @membership = BrandMembership.create!(brand: @brand, user: @user)
     host! "hookus.test"
   end
 
@@ -50,6 +50,35 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
   test "rejects sessions from another brand" do
     other_brand = Brand.create!(slug: "date9ja", name: "Date9ja")
     token, = Session.issue!(brand: other_brand, user: @user)
+
+    get "/api/v1/me", headers: bearer_headers(token)
+
+    assert_response :unauthorized
+  end
+
+  test "rejects sessions when the user is not active" do
+    token, = Session.issue!(brand: @brand, user: @user)
+    @user.update!(status: :suspended)
+
+    get "/api/v1/me", headers: bearer_headers(token)
+
+    assert_response :unauthorized
+  end
+
+  test "rejects sessions when the brand membership is not active" do
+    token, = Session.issue!(brand: @brand, user: @user)
+    @membership.update!(status: :suspended)
+
+    get "/api/v1/me", headers: bearer_headers(token)
+
+    assert_response :unauthorized
+  end
+
+  test "rejects a session issued by a revoked credential" do
+    identifier = IdentityIdentifier.create!(user: @user, kind: :phone, normalized_value: "+27821234567")
+    credential = Credential.create!(user: @user, identity_identifier: identifier, kind: :phone_otp)
+    token, = Session.issue!(brand: @brand, user: @user, credential:)
+    credential.update!(status: :revoked)
 
     get "/api/v1/me", headers: bearer_headers(token)
 

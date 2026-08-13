@@ -25,6 +25,26 @@ class ProfileTest < ActiveSupport::TestCase
     assert_includes profile.errors[:brand_membership], "must belong to the same user and brand"
   end
 
+  test "database rejects a profile whose membership belongs to another tenant" do
+    brand = Brand.create!(slug: "hookus", name: "HookUs")
+    other_brand = Brand.create!(slug: "date9ja", name: "Date9ja")
+    user = User.create!
+    membership = BrandMembership.create!(user:, brand: other_brand)
+
+    assert_raises ActiveRecord::InvalidForeignKey do
+      Profile.insert_all!([ {
+        user_id: user.id,
+        brand_id: brand.id,
+        brand_membership_id: membership.id,
+        status: Profile.statuses.fetch("draft"),
+        visibility: Profile.visibilities.fetch("hidden"),
+        metadata: {},
+        created_at: Time.current,
+        updated_at: Time.current
+      } ])
+    end
+  end
+
   test "soft-deleted profiles do not block replacement" do
     brand = Brand.create!(slug: "hookus", name: "HookUs")
     user = User.create!

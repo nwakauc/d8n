@@ -3,6 +3,7 @@ class Credential < ApplicationRecord
   belongs_to :identity_identifier
 
   has_many :auth_attempts, dependent: :nullify
+  has_many :sessions, dependent: :restrict_with_exception
 
   enum :kind, {
     email_password: 0,

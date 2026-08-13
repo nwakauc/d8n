@@ -16,9 +16,11 @@ module Identity
         raise ActiveRecord::RecordNotUnique, "duplicate phone identifier"
       end
 
-      user, identity_identifier = verifier.send(:user_and_identifier, "27821234567")
+      access = verifier.send(:user_and_identifier, "27821234567")
+      identity_identifier = access.record
 
-      assert_equal existing_user, user
+      assert access.allowed?
+      assert_equal existing_user, identity_identifier.user
       assert_equal "27821234567", identity_identifier.normalized_value
       assert_equal 1, IdentityIdentifier.where(kind: :phone, normalized_value: "27821234567").count
     end

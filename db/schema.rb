@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_12_172151) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_13_061000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -112,6 +112,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_172151) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["brand_id"], name: "index_brand_memberships_on_brand_id"
+    t.index ["id", "user_id", "brand_id"], name: "idx_memberships_on_id_user_brand", unique: true
     t.index ["user_id", "brand_id"], name: "index_brand_memberships_on_user_id_and_brand_id", unique: true, where: "(deleted_at IS NULL)"
     t.index ["user_id"], name: "index_brand_memberships_on_user_id"
   end
@@ -262,6 +263,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_172151) do
     t.index ["brand_id"], name: "index_profiles_on_brand_id"
     t.index ["brand_membership_id"], name: "index_profiles_on_brand_membership_id"
     t.index ["deleted_at"], name: "index_profiles_on_deleted_at"
+    t.index ["id", "user_id", "brand_id"], name: "idx_profiles_on_id_user_brand", unique: true
     t.index ["user_id", "brand_id"], name: "index_profiles_on_user_id_and_brand_id", unique: true, where: "(deleted_at IS NULL)"
     t.index ["user_id"], name: "index_profiles_on_user_id"
   end
@@ -295,8 +297,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_172151) do
     t.jsonb "metadata", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "credential_id"
     t.index ["brand_id", "user_id", "revoked_at"], name: "index_sessions_on_brand_id_and_user_id_and_revoked_at"
     t.index ["brand_id"], name: "index_sessions_on_brand_id"
+    t.index ["credential_id"], name: "index_sessions_on_credential_id"
     t.index ["token_digest"], name: "index_sessions_on_token_digest", unique: true
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
@@ -329,15 +333,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_172151) do
   add_foreign_key "otp_challenges", "identity_identifiers"
   add_foreign_key "profile_photos", "brands"
   add_foreign_key "profile_photos", "profiles"
+  add_foreign_key "profile_photos", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_photos_profile_tenant"
   add_foreign_key "profile_photos", "users"
   add_foreign_key "profile_preferences", "brands"
   add_foreign_key "profile_preferences", "profiles"
+  add_foreign_key "profile_preferences", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_preferences_profile_tenant"
   add_foreign_key "profile_preferences", "users"
   add_foreign_key "profiles", "brand_memberships"
+  add_foreign_key "profiles", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_profiles_membership_tenant"
   add_foreign_key "profiles", "brands"
   add_foreign_key "profiles", "users"
   add_foreign_key "security_events", "brands"
   add_foreign_key "security_events", "users"
   add_foreign_key "sessions", "brands"
+  add_foreign_key "sessions", "credentials"
   add_foreign_key "sessions", "users"
 end

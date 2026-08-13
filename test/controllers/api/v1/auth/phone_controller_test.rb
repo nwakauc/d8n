@@ -73,6 +73,7 @@ class Api::V1::Auth::PhoneControllerTest < ActionDispatch::IntegrationTest
     assert_not_equal token, session.token_digest
     assert_equal "iPhone", session.device_name
     assert_equal @brand, session.brand
+    assert_equal user.credentials.last, session.credential
     assert_equal @brand, user.brand_memberships.last.brand
     assert_equal "27821234567", user.identity_identifiers.last.normalized_value
     assert user.credentials.last.phone_otp?
@@ -123,6 +124,44 @@ class Api::V1::Auth::PhoneControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unauthorized
+  end
+
+  test "verify OTP does not authenticate a suspended user" do
+    account = create_phone_account(user_status: :suspended)
+    request_phone_otp
+
+    assert_no_difference -> { Session.count } do
+      post "/api/v1/auth/phone/verify_otp", params: { phone: "+27 82 123 4567", code: "123456" }
+    end
+
+    assert_response :unauthorized
+    assert OtpChallenge.last.consumed?
+    assert_denied_event("user_inactive", account.fetch(:user))
+  end
+
+  test "verify OTP does not authenticate a revoked credential" do
+    account = create_phone_account(credential_status: :revoked)
+    request_phone_otp
+
+    assert_no_difference -> { Session.count } do
+      post "/api/v1/auth/phone/verify_otp", params: { phone: "+27 82 123 4567", code: "123456" }
+    end
+
+    assert_response :unauthorized
+    assert_denied_event("credential_inactive", account.fetch(:user))
+  end
+
+  test "verify OTP does not reactivate an inactive brand membership" do
+    account = create_phone_account(membership_status: :left)
+    request_phone_otp
+
+    assert_no_difference -> { Session.count } do
+      post "/api/v1/auth/phone/verify_otp", params: { phone: "+27 82 123 4567", code: "123456" }
+    end
+
+    assert_response :unauthorized
+    assert account.fetch(:membership).reload.left?
+    assert_denied_event("membership_inactive", account.fetch(:user))
   end
 
   test "request OTP requires brand context" do
@@ -189,6 +228,32 @@ class Api::V1::Auth::PhoneControllerTest < ActionDispatch::IntegrationTest
       post "/api/v1/auth/phone/request_otp", params: { phone: "+27 82 123 4567" }
     end
     assert_response :accepted
+  end
+
+  def create_phone_account(user_status: :active, credential_status: :active, membership_status: :active)
+    user = User.create!(status: user_status)
+    identifier = IdentityIdentifier.create!(
+      user:,
+      kind: :phone,
+      normalized_value: "+27 82 123 4567",
+      verified_at: Time.current
+    )
+    credential = Credential.create!(
+      user:,
+      identity_identifier: identifier,
+      kind: :phone_otp,
+      status: credential_status,
+      verified_at: Time.current
+    )
+    membership = BrandMembership.create!(user:, brand: @brand, status: membership_status)
+
+    { user:, identifier:, credential:, membership: }
+  end
+
+  def assert_denied_event(reason, user)
+    event = SecurityEvent.find_by!(event_type: "auth.phone_otp.denied")
+    assert_equal user, event.user
+    assert_equal reason, event.metadata.fetch("reason")
   end
 
   def create_challenge(identifier:, created_at:)

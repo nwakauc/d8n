@@ -8,6 +8,6 @@ class FilterParameterLoggingTest < ActiveSupport::TestCase
     params = filter.filter(phone: "+27 82 123 4567", code: "123456")
 
     assert_equal "[FILTERED]", params[:code]
-    assert_equal "+27 82 123 4567", params[:phone]
+    assert_equal "[FILTERED]", params[:phone]
   end
 end

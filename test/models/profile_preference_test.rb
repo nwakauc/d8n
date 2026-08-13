@@ -26,6 +26,23 @@ class ProfilePreferenceTest < ActiveSupport::TestCase
     assert_includes preference.errors[:profile], "must belong to the same user and brand"
   end
 
+  test "database rejects preferences assigned to a different brand than their profile" do
+    _, user, profile = profile_setup
+    other_brand = Brand.create!(slug: "date9ja", name: "Date9ja")
+
+    assert_raises ActiveRecord::InvalidForeignKey do
+      ProfilePreference.insert_all!([ {
+        profile_id: profile.id,
+        user_id: user.id,
+        brand_id: other_brand.id,
+        interested_in: [],
+        metadata: {},
+        created_at: Time.current,
+        updated_at: Time.current
+      } ])
+    end
+  end
+
   test "validates age range and distance limits" do
     brand, user, profile = profile_setup
     preference = ProfilePreference.new(

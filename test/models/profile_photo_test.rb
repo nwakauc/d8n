@@ -19,6 +19,25 @@ class ProfilePhotoTest < ActiveSupport::TestCase
     assert_includes photo.errors[:profile], "must belong to the same user and brand"
   end
 
+  test "database rejects photos assigned to a different brand than their profile" do
+    _, user, profile = profile_setup
+    other_brand = Brand.create!(slug: "date9ja", name: "Date9ja")
+
+    assert_raises ActiveRecord::InvalidForeignKey do
+      ProfilePhoto.insert_all!([ {
+        profile_id: profile.id,
+        user_id: user.id,
+        brand_id: other_brand.id,
+        position: 0,
+        status: ProfilePhoto.statuses.fetch("pending_review"),
+        visibility: ProfilePhoto.visibilities.fetch("hidden"),
+        metadata: {},
+        created_at: Time.current,
+        updated_at: Time.current
+      } ])
+    end
+  end
+
   test "accepts supported image content types" do
     brand, user, profile = profile_setup
     photo = ProfilePhoto.new(brand:, user:, profile:)

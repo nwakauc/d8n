@@ -12,7 +12,7 @@ module Brands
 
     def call
       host = normalized_host(request.host)
-      domain = BrandDomain.kept.active.includes(:brand).find_by(host:)
+      domain = BrandDomain.kept.active.joins(:brand).merge(Brand.kept.active).includes(:brand).find_by(host:)
 
       Result.new(brand: domain&.brand, source: domain ? :host : nil)
     end
