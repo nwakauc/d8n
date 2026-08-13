@@ -20,6 +20,7 @@ tags:
   - name: Authentication
   - name: Profile
   - name: Matching
+  - name: Messaging
 paths:
   /api/v1/health:
     get:
@@ -531,6 +532,56 @@ paths:
           $ref: "#/components/responses/ProfileOrMembershipRequired"
         "422":
           $ref: "#/components/responses/InvalidInput"
+  /api/v1/conversations:
+    get:
+      operationId: listConversations
+      tags: [Messaging]
+      summary: List conversations for the current brand profile
+      description: Slice 1 returns conversation metadata only; no message-content endpoint is available yet.
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Participant-scoped conversations and an opaque next cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+  /api/v1/matches/{match_id}/conversation:
+    post:
+      operationId: startConversation
+      tags: [Messaging]
+      summary: Idempotently open the conversation for a live match
+      parameters:
+        - $ref: "#/components/parameters/PublicMatchId"
+      responses:
+        "200":
+          description: Existing conversation returned idempotently.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartConversationResponse"
+        "201":
+          description: Conversation and both profile participants created atomically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartConversationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Match is unavailable, cross-brand, or does not include the current profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -570,6 +621,14 @@ components:
       description: Owner photo record ID.
       schema:
         type: integer
+    PublicMatchId:
+      name: match_id
+      in: path
+      required: true
+      description: Stable public match UUID from the match list.
+      schema:
+        type: string
+        format: uuid
   responses:
     Unauthorized:
       description: Missing, invalid, expired, revoked, or wrong-brand bearer token.
@@ -1116,5 +1175,41 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Match"
+        next_cursor:
+          type: [string, "null"]
+    Conversation:
+      type: object
+      required: [id, match_id, status, created_at, profile]
+      properties:
+        id:
+          type: string
+          format: uuid
+        match_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, closed]
+        created_at:
+          type: string
+          format: date-time
+        profile:
+          $ref: "#/components/schemas/PublicProfile"
+    StartConversationResponse:
+      type: object
+      required: [conversation, created]
+      properties:
+        conversation:
+          $ref: "#/components/schemas/Conversation"
+        created:
+          type: boolean
+    ConversationListResponse:
+      type: object
+      required: [conversations, next_cursor]
+      properties:
+        conversations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Conversation"
         next_cursor:
           type: [string, "null"]

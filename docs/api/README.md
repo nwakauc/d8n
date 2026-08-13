@@ -10,9 +10,19 @@ When D8N is running, the same contract is available as JSON:
 GET /api/v1/openapi.json
 ```
 
+Interactive Swagger UI is available at:
+
+```txt
+GET /api/docs
+```
+
+Use **Authorize** with a brand-bound bearer token, then execute requests directly from the documented operations. Swagger UI is self-hosted, reads the canonical runtime contract, does not use an external validator, and does not persist authorization across page reloads.
+
 The repository contract is authoritative for the deployed commit. Clients may generate types or API clients from it, but should keep generated output in their own repositories.
 
 The JSON URL can be imported directly into Postman, Insomnia, Bruno, Swagger Editor, or an OpenAPI code generator. For local development, start Rails and import `http://localhost:3000/api/v1/openapi.json`; configure requests to use the required brand host as described below.
+
+Every task that changes an API route, input, output, authentication rule, status code, or stable error code must update `openapi.yaml`, the integration guidance, and endpoint tests in the same change. `OpenapiContractTest` enforces route coverage, unique operation IDs, valid local references, and runtime publication.
 
 ## Brand And Tenant Context
 
@@ -69,8 +79,11 @@ After authentication, a brand frontend should:
 4. Update preferences, controlled options, photos, and location through their focused endpoints.
 5. Use the profile `completion` object and activate through `POST /api/v1/profile/publication`.
 6. Request discovery only after activation, then use returned public profile UUIDs for likes and passes.
+7. Use a public match UUID with `POST /api/v1/matches/:match_id/conversation`, then list started chats through `GET /api/v1/conversations`.
 
 Frontends should render from `profile/configuration`; they should not hardcode HookUs option codes as a universal D8N schema. New semantic capabilities still require a D8N backend contract rather than arbitrary client fields.
+
+Phase 5 Slice 1 exposes conversation metadata only. No frontend should simulate or persist chat messages against D8N until the documented message-content endpoints ship with block/report and privacy controls.
 
 ## Pagination
 

@@ -5,6 +5,7 @@
 - [API integration guide](docs/api/README.md)
 - [OpenAPI 3.1 contract](docs/api/openapi.yaml)
 - Runtime JSON contract: `GET /api/v1/openapi.json`
+- Interactive Swagger UI: `GET /api/docs`
 - Architecture decisions: [`docs/adr/`](docs/adr/)
 
 ## Company Master Blueprint

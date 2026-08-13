@@ -52,6 +52,9 @@ Use this alongside `PLAN_OF_ACTION.md`, `AGENT_RULES.md`, and future ADRs.
 - Define fraud/scam review process.
 - Define photo moderation policy.
 - Define message reporting policy.
+- Define message retention, export, deletion, and legal-erasure behavior.
+- Define whether suspended or banned counterpart conversation history remains readable.
+- Define the evidence-access policy for moderators reviewing reported messages.
 
 ## Product Decisions
 
@@ -60,6 +63,7 @@ Use this alongside `PLAN_OF_ACTION.md`, `AGENT_RULES.md`, and future ADRs.
 - Define HookUs required profile fields.
 - Define HookUs matching philosophy.
 - ADR 0009 profile-level ownership, private-location boundary, shared eligibility, and brand-strategy contract approved through Slice 5 on 2026-08-13; Date9ja production scoring remains blocked.
+- ADR 0010 match-gated messaging architecture and metadata-only Slice 1 approved on 2026-08-13; message-content APIs remain blocked on the documented privacy and trust-and-safety gate.
 - Confirm before beta that HookUs activation, rather than discovery, owns the profile-completion publication gate.
 - Confirm before beta the initial HookUs policy: location becomes stale after 24 hours and is required only when either side sets a distance limit.
 - Confirm before beta the initial HookUs policy: discovery displays no distance value.

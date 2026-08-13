@@ -17,6 +17,8 @@ class Profile < ApplicationRecord
   has_many :passes_received, class_name: "ProfilePass", foreign_key: :passed_profile_id, dependent: :restrict_with_exception
   has_many :matches_as_profile_a, class_name: "Match", foreign_key: :profile_a_id, dependent: :restrict_with_exception
   has_many :matches_as_profile_b, class_name: "Match", foreign_key: :profile_b_id, dependent: :restrict_with_exception
+  has_many :conversation_participants, dependent: :restrict_with_exception
+  has_many :conversations, through: :conversation_participants
 
   enum :status, { draft: 0, active: 1, suspended: 2 }
   enum :visibility, { hidden: 0, visible: 1 }

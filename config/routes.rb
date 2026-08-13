@@ -2,12 +2,16 @@ Rails.application.routes.draw do
   root "welcome#index"
 
   namespace :api do
+    get "docs" => "docs#show"
+
     namespace :v1 do
       get "health" => "health#show"
       get "openapi.json" => "openapi#show"
       get "me" => "me#show"
       get "discovery" => "discovery#index"
       get "matches" => "matches#index"
+      get "conversations" => "conversations#index"
+      post "matches/:match_id/conversation" => "conversations#create"
       post "profiles/:profile_id/likes" => "likes#create"
       post "profiles/:profile_id/pass" => "profile_passes#create"
       get "profile" => "profile#show"

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_13_063005) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_13_064000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -131,6 +131,39 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_063005) do
     t.index ["slug"], name: "index_brands_on_slug", unique: true, where: "(deleted_at IS NULL)"
   end
 
+  create_table "conversation_participants", force: :cascade do |t|
+    t.bigint "conversation_id", null: false
+    t.bigint "profile_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "brand_id", null: false
+    t.datetime "last_read_at"
+    t.datetime "archived_at"
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "profile_id", "conversation_id"], name: "idx_conversation_participants_profile_list"
+    t.index ["brand_id"], name: "index_conversation_participants_on_brand_id"
+    t.index ["conversation_id", "profile_id"], name: "idx_conversation_participants_unique_profile", unique: true
+    t.index ["conversation_id"], name: "index_conversation_participants_on_conversation_id"
+    t.index ["profile_id"], name: "index_conversation_participants_on_profile_id"
+    t.index ["user_id"], name: "index_conversation_participants_on_user_id"
+  end
+
+  create_table "conversations", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "match_id", null: false
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "created_at", "public_id"], name: "idx_conversations_brand_cursor"
+    t.index ["brand_id"], name: "index_conversations_on_brand_id"
+    t.index ["id", "brand_id"], name: "idx_conversations_on_id_brand", unique: true
+    t.index ["match_id"], name: "index_conversations_on_match_id", unique: true
+    t.index ["public_id"], name: "index_conversations_on_public_id", unique: true
+  end
+
   create_table "credentials", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "identity_identifier_id", null: false
@@ -189,6 +222,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_063005) do
     t.index ["brand_id", "profile_a_id", "profile_b_id"], name: "idx_matches_active_pair", unique: true, where: "((deleted_at IS NULL) AND (status = 0))"
     t.index ["brand_id", "profile_b_id", "created_at"], name: "index_matches_on_brand_id_and_profile_b_id_and_created_at"
     t.index ["brand_id"], name: "index_matches_on_brand_id"
+    t.index ["id", "brand_id"], name: "idx_matches_on_id_brand", unique: true
     t.index ["profile_a_id"], name: "index_matches_on_profile_a_id"
     t.index ["profile_b_id"], name: "index_matches_on_profile_b_id"
     t.index ["public_id"], name: "index_matches_on_public_id", unique: true
@@ -462,6 +496,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_063005) do
   add_foreign_key "brand_domains", "brands"
   add_foreign_key "brand_memberships", "brands"
   add_foreign_key "brand_memberships", "users"
+  add_foreign_key "conversation_participants", "brands"
+  add_foreign_key "conversation_participants", "conversations", column: ["conversation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_conversation_participants_conversation_tenant"
+  add_foreign_key "conversation_participants", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_conversation_participants_profile_tenant"
+  add_foreign_key "conversation_participants", "users"
+  add_foreign_key "conversations", "brands"
+  add_foreign_key "conversations", "matches", column: ["match_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_conversations_match_tenant"
   add_foreign_key "credentials", "identity_identifiers"
   add_foreign_key "credentials", "users"
   add_foreign_key "identity_identifiers", "users"

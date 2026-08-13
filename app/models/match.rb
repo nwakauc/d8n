@@ -3,6 +3,8 @@ class Match < ApplicationRecord
   belongs_to :profile_a, class_name: "Profile"
   belongs_to :profile_b, class_name: "Profile"
 
+  has_one :conversation, dependent: :restrict_with_exception
+
   enum :status, { active: 0, ended: 1 }, prefix: true
 
   scope :kept, -> { where(deleted_at: nil) }

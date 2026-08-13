@@ -153,7 +153,7 @@ Use local PostgreSQL access when tests require it.
 
 ## API Contract
 
-The canonical frontend/API contract is `docs/api/openapi.yaml`, with integration guidance in `docs/api/README.md` and runtime JSON at `GET /api/v1/openapi.json`.
+The canonical frontend/API contract is `docs/api/openapi.yaml`, with integration guidance in `docs/api/README.md`, runtime JSON at `GET /api/v1/openapi.json`, and interactive Swagger UI at `GET /api/docs`.
 
 When adding, removing, or changing an `/api/v1` route, request field, response shape, authentication rule, status, or stable error code:
 

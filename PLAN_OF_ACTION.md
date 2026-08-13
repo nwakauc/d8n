@@ -1389,6 +1389,7 @@ As of 2026-08-13:
 - Phase 3 has brand-scoped profiles, preferences, photos, visibility, and configurable completion. Secure private media delivery, verified image processing, object storage, and moderation hooks remain Phase 6 work and are required before production use.
 - Phase 3 now also has typed HookUs profile details, tenant-safe controlled option groups/selections, required intents and vibes, option retirement behavior, explicit owner/public serialization, and a brand-scoped profile configuration endpoint.
 - Phase 4 architecture is accepted in ADR 0009. Slices 1 through 5 now provide profile publication, private locations, tenant-safe discovery, bilateral preferences, score-aware signed cursors, capability-based HookUs ranking, likes, passes, interaction exclusions, atomic canonical matches, and a non-production Date9ja strategy contract proof. Date9ja production scoring remains blocked on migration and privacy decisions.
+- Phase 5 architecture is accepted in ADR 0010. Slice 1 provides tenant-constrained, match-gated conversation metadata, explicit participants, idempotent creation, and participant-scoped cursor listing. It stores no message content; text messaging remains blocked on the Slice 2 privacy and trust-and-safety gate.
 
 HookUs remains the first product build target. Date9ja remains the migration and second-brand proof target.
 
@@ -1527,6 +1528,8 @@ Acceptance criteria:
 - Concurrent reciprocal likes create exactly one canonical match
 
 ### Phase 5: Messaging
+
+Architecture: ADR 0010 defines a durable conversation per brand-scoped match, explicit profile participants, metadata-only Slice 1 APIs, and the safety gate required before private message content ships.
 
 Deliverables:
 
