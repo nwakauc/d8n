@@ -64,7 +64,7 @@ Slice 1 may implement:
 - participant-scoped, cursor-paginated `GET /api/v1/conversations`;
 - public counterpart profile serialization without messages or private identifiers.
 
-Slice 1 does not claim the Phase 5 acceptance criteria for blocked users or message reporting are complete.
+Slice 1 did not claim the Phase 5 acceptance criteria for blocked users or message reporting were complete. A subsequent Trust slice now denies conversation creation and listing in either block direction while preserving retained conversation metadata. Message reporting and its evidence-access policy remain incomplete.
 
 ## Date9ja Migration Gate
 
@@ -75,7 +75,7 @@ Before importing Date9ja conversations or messages, inventory source counts, mat
 - Messaging remains brand-profile scoped while identity remains network scoped.
 - Conversation creation is safe to retry and does not enlarge the match transaction.
 - Explicit participant state supports read/archive behavior without assuming all future conversations are identical.
-- Message delivery takes more slices, but private content cannot ship before blocking/reporting/privacy controls exist.
+- Message delivery takes more slices. Blocking now exists, but private content cannot ship before reporting and the remaining privacy controls exist.
 - Date9ja remains a migration source rather than an architecture template.
 
 ## Alternatives Considered

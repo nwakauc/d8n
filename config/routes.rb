@@ -14,6 +14,8 @@ Rails.application.routes.draw do
       post "matches/:match_id/conversation" => "conversations#create"
       post "profiles/:profile_id/likes" => "likes#create"
       post "profiles/:profile_id/pass" => "profile_passes#create"
+      post "profiles/:profile_id/block" => "profile_blocks#create"
+      delete "profiles/:profile_id/block" => "profile_blocks#destroy"
       get "profile" => "profile#show"
       patch "profile" => "profile#update"
       post "profile/publication" => "profile_publications#create"

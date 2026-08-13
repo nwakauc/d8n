@@ -10,7 +10,8 @@ module Messaging
       ).find_by(brand:, public_id: match_public_id)
 
       available = match && [ match.profile_a_id, match.profile_b_id ].include?(viewer.id) &&
-        profile_available?(match.profile_a) && profile_available?(match.profile_b)
+        profile_available?(match.profile_a) && profile_available?(match.profile_b) &&
+        !Trust::BlockPolicy.blocked_between?(brand:, first: match.profile_a, second: match.profile_b)
       raise AccessError, :conversation_unavailable unless available
 
       Result.new(match:, viewer:)

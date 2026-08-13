@@ -21,7 +21,7 @@ Date9ja remains a behavioral and migration reference. Its `User`-centric schema 
 
 ## Implementation Sequence
 
-Current status: Slices 1 through 5 are implemented. Date9ja production matching remains blocked on its migration and privacy decisions.
+Current status: Slices 1 through 5 and the subsequent Trust block-policy integration are implemented. Date9ja production matching remains blocked on its migration and privacy decisions.
 
 ### Slice 1: Profile Addressability And Location
 
@@ -121,4 +121,4 @@ Phase 4's first slice is successful when:
 
 ## Explicit Non-Goals
 
-This sequence does not implement messaging, reports, blocks, notifications, entitlements, daily picks, boosts, presence, or full Date9ja migration. Those capabilities integrate through documented boundaries after their own domain and privacy reviews.
+The original five-slice sequence did not implement messaging, reports, blocks, notifications, entitlements, daily picks, boosts, presence, or full Date9ja migration. Match-gated conversation metadata and directional Trust blocks have since integrated through their reviewed boundaries. Reports, notifications, entitlements, daily picks, boosts, presence, message content, and full Date9ja migration remain outside this sequence.

@@ -12,6 +12,16 @@
 
 Gate: concurrency, cross-brand, non-participant, lifecycle, soft-deletion, cursor, serializer, and query-count tests pass.
 
+### Trust Prerequisite: Profile Blocking
+
+- Directional profile blocks are brand-owned and soft-deletable.
+- Either block direction hides match and conversation metadata from both profiles.
+- Conversation creation rechecks block policy after deterministically locking both profiles and the match.
+- Blocking removes likes in both directions and ends an active match.
+- Unblocking permits future eligible interaction but does not reactivate the ended match.
+
+Gate: deleted and cross-brand targets do not disclose existence, and block races against likes or conversation creation settle with access denied.
+
 ### Slice 2: Text Messages And Read State
 
 - Bounded text-only messages with public UUIDs.
@@ -19,7 +29,7 @@ Gate: concurrency, cross-brand, non-participant, lifecycle, soft-deletion, curso
 - Opaque chronological cursor polling.
 - Per-participant read position.
 - Message-content log filtering and send throttling.
-- Explicit Trust block and report-evidence interfaces.
+- Existing Trust block enforcement plus a report-evidence interface.
 
 Gate: blocked participants cannot send, reports can retain authorized evidence, and content never appears in logs or unrelated serializers.
 

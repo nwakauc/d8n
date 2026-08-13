@@ -34,6 +34,7 @@ module Messaging
           message_membership_as: { deleted_at: nil, status: BrandMembership.statuses.fetch("active") },
           message_membership_bs: { deleted_at: nil, status: BrandMembership.statuses.fetch("active") }
         )
+      scope = Trust::BlockPolicy.exclude_matches(scope:)
         .order("conversations.created_at DESC", "conversations.public_id DESC")
       scope = ConversationCursor.apply(scope:, value: cursor, brand:, viewer:)
       conversations = scope.preload(

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_13_064000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_13_065000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -271,6 +271,22 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_064000) do
     t.index ["identity_identifier_id"], name: "index_otp_challenges_on_identity_identifier_id"
   end
 
+  create_table "profile_blocks", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "blocker_profile_id", null: false
+    t.bigint "blocked_profile_id", null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["blocked_profile_id"], name: "index_profile_blocks_on_blocked_profile_id"
+    t.index ["blocker_profile_id"], name: "index_profile_blocks_on_blocker_profile_id"
+    t.index ["brand_id", "blocked_profile_id"], name: "idx_profile_blocks_active_incoming", where: "(deleted_at IS NULL)"
+    t.index ["brand_id", "blocker_profile_id", "blocked_profile_id"], name: "idx_profile_blocks_active_pair", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["brand_id", "blocker_profile_id"], name: "idx_profile_blocks_active_outgoing", where: "(deleted_at IS NULL)"
+    t.index ["brand_id"], name: "index_profile_blocks_on_brand_id"
+    t.check_constraint "blocker_profile_id <> blocked_profile_id", name: "chk_profile_blocks_not_self"
+  end
+
   create_table "profile_locations", force: :cascade do |t|
     t.bigint "profile_id", null: false
     t.bigint "user_id", null: false
@@ -515,6 +531,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_064000) do
   add_foreign_key "notification_deliveries", "users"
   add_foreign_key "otp_challenges", "brands"
   add_foreign_key "otp_challenges", "identity_identifiers"
+  add_foreign_key "profile_blocks", "brands"
+  add_foreign_key "profile_blocks", "profiles", column: ["blocked_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_blocks_blocked_tenant"
+  add_foreign_key "profile_blocks", "profiles", column: ["blocker_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_blocks_blocker_tenant"
   add_foreign_key "profile_locations", "brands"
   add_foreign_key "profile_locations", "profiles"
   add_foreign_key "profile_locations", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_profile_locations_profile_tenant"

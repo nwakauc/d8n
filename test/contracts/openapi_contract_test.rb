@@ -23,8 +23,17 @@ class OpenapiContractTest < ActionDispatch::IntegrationTest
     get "/api/v1/openapi.json"
 
     assert_response :success
-    assert_equal contract.fetch("info"), JSON.parse(response.body).fetch("info")
+    runtime_contract = JSON.parse(response.body)
+    assert_equal contract.fetch("info"), runtime_contract.fetch("info")
+    assert_equal contract.fetch("servers"), runtime_contract.fetch("servers")
     assert_match(/public/, response.headers.fetch("Cache-Control"))
+  end
+
+  test "uses the current origin for self-hosted interactive documentation" do
+    current_origin = contract.fetch("servers").first
+
+    assert_equal "/", current_origin.fetch("url")
+    assert_match(/Swagger UI/, current_origin.fetch("description"))
   end
 
   private

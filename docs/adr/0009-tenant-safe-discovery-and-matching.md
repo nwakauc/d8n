@@ -111,6 +111,12 @@ Exact column names and indexes remain an implementation-plan concern, but the mi
 
 The matching interfaces must permit these capabilities later without pretending they already exist.
 
+## Subsequent Trust Integration
+
+Directional, brand-scoped profile blocking was implemented after the five matching slices. Either block direction now excludes both profiles from shared eligibility and rejects later like/pass authorization. Creating a block soft-deletes existing likes in both directions and ends the canonical active match; unblocking does not restore that positive relationship state. Profile-row locking uses the same deterministic order as interaction and conversation writes so concurrent operations settle with the block enforced.
+
+Reports and network-level enforcement remain deferred to their own reviewed Trust slices.
+
 ## Consequences
 
 - One person can participate independently in multiple brands without cross-brand likes or matches.

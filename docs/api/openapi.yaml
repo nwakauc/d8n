@@ -8,8 +8,10 @@ info:
     client-controlled input. Bearer sessions are brand-bound, and profile identifiers
     exposed by dating endpoints are public UUIDs rather than internal database IDs.
 servers:
+  - url: /
+    description: Current API origin (use this for the self-hosted Swagger UI)
   - url: https://{brandHost}
-    description: Brand-specific API origin
+    description: Production brand-specific API origin
     variables:
       brandHost:
         default: hookus.example.com
@@ -21,6 +23,7 @@ tags:
   - name: Profile
   - name: Matching
   - name: Messaging
+  - name: Trust
 paths:
   /api/v1/health:
     get:
@@ -511,6 +514,51 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/InteractionConflict"
+  /api/v1/profiles/{profile_id}/block:
+    post:
+      operationId: blockProfile
+      tags: [Trust]
+      summary: Idempotently block a current-brand profile
+      description: |
+        Blocking applies in either direction for discovery, interactions, match lists,
+        and conversation access. It removes existing likes and ends an active match.
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      responses:
+        "200":
+          description: The directional block already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockResponse"
+        "201":
+          description: The directional block was created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: unblockProfile
+      tags: [Trust]
+      summary: Idempotently remove the current profile's directional block
+      description: |
+        Unknown, cross-brand, self, and soft-deleted targets receive the same no-content
+        response. Unblocking does not restore likes or reactivate an ended match.
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      responses:
+        "204":
+          description: The request completed without disclosing target or block state.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
   /api/v1/matches:
     get:
       operationId: listMatches
@@ -1152,6 +1200,14 @@ components:
       required: [passed, created]
       properties:
         passed:
+          const: true
+        created:
+          type: boolean
+    BlockResponse:
+      type: object
+      required: [blocked, created]
+      properties:
+        blocked:
           const: true
         created:
           type: boolean

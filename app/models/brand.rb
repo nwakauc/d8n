@@ -27,6 +27,7 @@ class Brand < ApplicationRecord
   has_many :matches, dependent: :restrict_with_exception
   has_many :conversations, dependent: :restrict_with_exception
   has_many :conversation_participants, dependent: :restrict_with_exception
+  has_many :profile_blocks, dependent: :restrict_with_exception
 
   enum :status, { active: 0, disabled: 1, archived: 2 }
 

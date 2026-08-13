@@ -32,6 +32,7 @@ module Matching
           match_membership_as: { deleted_at: nil, status: BrandMembership.statuses.fetch("active") },
           match_membership_bs: { deleted_at: nil, status: BrandMembership.statuses.fetch("active") }
         )
+      scope = Trust::BlockPolicy.exclude_matches(scope:)
         .order(created_at: :desc, public_id: :desc)
       scope = MatchCursor.apply(scope:, value: cursor, brand:, viewer:)
       matches = scope.includes(

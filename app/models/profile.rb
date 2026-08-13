@@ -19,6 +19,14 @@ class Profile < ApplicationRecord
   has_many :matches_as_profile_b, class_name: "Match", foreign_key: :profile_b_id, dependent: :restrict_with_exception
   has_many :conversation_participants, dependent: :restrict_with_exception
   has_many :conversations, through: :conversation_participants
+  has_many :blocks_initiated,
+    class_name: "ProfileBlock",
+    foreign_key: :blocker_profile_id,
+    dependent: :restrict_with_exception
+  has_many :blocks_received,
+    class_name: "ProfileBlock",
+    foreign_key: :blocked_profile_id,
+    dependent: :restrict_with_exception
 
   enum :status, { draft: 0, active: 1, suspended: 2 }
   enum :visibility, { hidden: 0, visible: 1 }

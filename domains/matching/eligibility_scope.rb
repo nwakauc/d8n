@@ -24,6 +24,7 @@ module Matching
 
     def call
       scope = lifecycle_scope
+      scope = Trust::BlockPolicy.exclude_profiles(scope:, viewer:)
       scope = reciprocal_gender_scope(scope)
       scope = reciprocal_age_scope(scope)
       distance_scope(scope)

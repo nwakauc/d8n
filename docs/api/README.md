@@ -4,6 +4,9 @@
 
 The canonical machine-readable API contract is [`openapi.yaml`](openapi.yaml).
 
+For a step-by-step local workflow using Swagger UI, Apidog, or the HookUs
+frontend, see [`LOCAL_TESTING.md`](LOCAL_TESTING.md).
+
 When D8N is running, the same contract is available as JSON:
 
 ```txt
@@ -78,12 +81,18 @@ After authentication, a brand frontend should:
 3. Read or create the profile through `GET/PATCH /api/v1/profile`.
 4. Update preferences, controlled options, photos, and location through their focused endpoints.
 5. Use the profile `completion` object and activate through `POST /api/v1/profile/publication`.
-6. Request discovery only after activation, then use returned public profile UUIDs for likes and passes.
+6. Request discovery only after activation, then use returned public profile UUIDs for likes, passes, and blocks.
 7. Use a public match UUID with `POST /api/v1/matches/:match_id/conversation`, then list started chats through `GET /api/v1/conversations`.
 
 Frontends should render from `profile/configuration`; they should not hardcode HookUs option codes as a universal D8N schema. New semantic capabilities still require a D8N backend contract rather than arbitrary client fields.
 
 Phase 5 Slice 1 exposes conversation metadata only. No frontend should simulate or persist chat messages against D8N until the documented message-content endpoints ship with block/report and privacy controls.
+
+## Blocking
+
+`POST /api/v1/profiles/:profile_id/block` creates a directional block idempotently. Either block direction removes both profiles from each other's discovery, interaction, match-list, and conversation surfaces. Creating a block soft-deletes existing likes in both directions and ends an active match.
+
+`DELETE /api/v1/profiles/:profile_id/block` removes only the current profile's outgoing block. It is idempotent and returns `204` for absent, unknown, cross-brand, self, and soft-deleted targets without revealing whether the target exists. Unblocking permits future eligible interaction but never restores earlier likes or reactivates an ended match. Existing conversation metadata may become visible again under the ended-match read-only history policy; no message-content API exists yet.
 
 ## Pagination
 
@@ -113,7 +122,7 @@ Errors use a stable machine-readable `error` code and may include field-level `d
 - `422`: invalid input, limit, cursor, or incomplete profile.
 - `429 rate_limited`: honor the `Retry-After` header when present.
 
-`POST` like/pass operations are idempotent. OTP verification and profile mutations should only be retried according to the documented status and error code.
+`POST` like, pass, and block operations are idempotent. Unblock is also idempotent. OTP verification and profile mutations should only be retried according to the documented status and error code.
 
 ## Confirming The Contract
 
