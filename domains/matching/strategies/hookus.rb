@@ -4,6 +4,11 @@ module Matching
       KEY = "hookus_v1"
       LOCATION_MAX_AGE = 24.hours
       DIMENSION_COUNT = 4
+      REASONS = {
+        matching_shared_intent: "shared_intent",
+        matching_similar_vibe: "similar_vibe",
+        matching_mutual_age_fit: "mutual_age_fit"
+      }.freeze
 
       OPTION_STATS_SQL = <<~SQL.squish.freeze
         COUNT(*) FILTER (WHERE profile_option_groups.key = 'intents') AS intent_count,
@@ -50,6 +55,10 @@ module Matching
         LOCATION_MAX_AGE
       end
 
+      def self.production_ready?
+        true
+      end
+
       def self.rank(scope:, viewer:)
         viewer_has_location = fresh_location?(viewer:)
         viewer_uses_distance = viewer.profile_preference.max_distance_km.present?
@@ -68,6 +77,14 @@ module Matching
 
       def self.cursor_payload(profile:)
         { score: Integer(profile[:matching_score]) }
+      end
+
+      def self.compatibility(profile:)
+        {
+          score: Integer(profile[:matching_score]),
+          confidence: profile[:matching_confidence].to_f,
+          reasons: REASONS.filter_map { |attribute, code| code if profile[attribute] }
+        }
       end
 
       def self.apply_cursor(scope:, payload:)

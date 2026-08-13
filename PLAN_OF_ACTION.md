@@ -1388,7 +1388,7 @@ As of 2026-08-13:
 - Phase 2 has brand resolution, platform identity, phone OTP, brand-scoped sessions, logout, lifecycle enforcement, authentication audit records, and database-backed profile tenancy constraints. Production SMS, account recovery, mature password authentication, and secure admin authentication remain open.
 - Phase 3 has brand-scoped profiles, preferences, photos, visibility, and configurable completion. Secure private media delivery, verified image processing, object storage, and moderation hooks remain Phase 6 work and are required before production use.
 - Phase 3 now also has typed HookUs profile details, tenant-safe controlled option groups/selections, required intents and vibes, option retirement behavior, explicit owner/public serialization, and a brand-scoped profile configuration endpoint.
-- Phase 4 architecture is accepted in ADR 0009. Slices 1 through 4 now provide profile publication, private locations, tenant-safe discovery, bilateral preferences, score-aware signed cursors, capability-based HookUs ranking, likes, passes, interaction exclusions, and atomic canonical matches. The Date9ja strategy contract proof has not started.
+- Phase 4 architecture is accepted in ADR 0009. Slices 1 through 5 now provide profile publication, private locations, tenant-safe discovery, bilateral preferences, score-aware signed cursors, capability-based HookUs ranking, likes, passes, interaction exclusions, atomic canonical matches, and a non-production Date9ja strategy contract proof. Date9ja production scoring remains blocked on migration and privacy decisions.
 
 HookUs remains the first product build target. Date9ja remains the migration and second-brand proof target.
 

@@ -21,7 +21,7 @@ Date9ja remains a behavioral and migration reference. Its `User`-centric schema 
 
 ## Implementation Sequence
 
-Current status: Slices 1 through 4 are implemented. Slice 5 has not started.
+Current status: Slices 1 through 5 are implemented. Date9ja production matching remains blocked on its migration and privacy decisions.
 
 ### Slice 1: Profile Addressability And Location
 
@@ -80,6 +80,14 @@ Implemented policy:
 - Do not invent Date9ja mappings or expose sensitive fields to satisfy the contract.
 
 Gate: Date9ja production behavior remains blocked on ADR 0008 migration and privacy decisions.
+
+Implemented contract proof:
+
+- HookUs and Date9ja implement the same ranking, cursor, compatibility-presentation, location-policy, and readiness interface.
+- `date9ja` remains absent from the production strategy registry and its discovery endpoint returns `matching_not_configured`.
+- The separate Date9ja contract registry is available only for architecture tests and explicitly reports `production_ready? == false`.
+- Its neutral score and 24-hour location-freshness value are interface fixtures, not approved Date9ja product behavior.
+- Shared eligibility excludes another brand before the Date9ja contract ranks or paginates candidates.
 
 ## Required API Surface
 

@@ -223,6 +223,22 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_equal "matching_not_configured", JSON.parse(response.body).fetch("error")
   end
 
+  test "does not expose the Date9ja contract strategy as production discovery" do
+    date9ja = Brand.create!(slug: "date9ja", name: "Date9ja")
+    BrandDomain.create!(brand: date9ja, host: "date9ja.test")
+    viewer = create_profile(
+      brand: date9ja, gender: "woman", age: 30,
+      interested_in: [ "man" ], min_age: 25, max_age: 40
+    )
+    token, = Session.issue!(brand: date9ja, user: viewer.user)
+    host! "date9ja.test"
+
+    get "/api/v1/discovery", headers: bearer_headers(token)
+
+    assert_response :not_found
+    assert_equal "matching_not_configured", JSON.parse(response.body).fetch("error")
+  end
+
   test "preloads public options with bounded select queries" do
     Profiles::HookusProfileCatalog.install!(brand: @brand)
     require_only_public_options

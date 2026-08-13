@@ -8,9 +8,8 @@ class Api::V1::DiscoveryController < ApplicationController
       cursor: params[:cursor],
       limit: params[:limit]
     )
-
     render json: {
-      profiles: result.profiles.map { |profile| Matching::CandidateSerializer.call(profile:) },
+      profiles: result.profiles.map { |profile| Matching::CandidateSerializer.call(profile:, strategy: result.strategy) },
       next_cursor: result.next_cursor
     }
   rescue Matching::Discovery::ViewerIneligible

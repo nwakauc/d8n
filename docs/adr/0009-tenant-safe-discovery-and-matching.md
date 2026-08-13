@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for Phase 4 Slices 1 through 4 on 2026-08-13. Date9ja contract proof remains subject to its implementation gate.
+Accepted for Phase 4 Slices 1 through 5 on 2026-08-13. Date9ja production matching remains blocked on ADR 0008 and human product/privacy decisions.
 
 ## Context
 
@@ -171,3 +171,11 @@ Approved and implemented in Slice 4:
 - Distance contributes only when either participant explicitly configured a distance preference and both locations are fresh.
 - Public explanations use bounded reason codes and never disclose distance-derived facts, option values, owner-only fields, or precise location.
 - Ranking applies to the full eligible PostgreSQL relation with a signed score-aware keyset cursor.
+
+Approved and implemented in Slice 5:
+
+- Strategy-owned ranking, cursor, compatibility presentation, location policy, and production-readiness form the shared contract.
+- A non-production Date9ja contract proves a second brand can reuse shared eligibility without HookUs conditionals.
+- Date9ja remains excluded from the production registry and its discovery API remains unavailable.
+- Neutral score and location-freshness values in the proof are test fixtures, not Date9ja product decisions.
+- Production Date9ja scoring remains blocked on ADR 0008 migration mappings and sensitive-data review.

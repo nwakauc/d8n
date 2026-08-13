@@ -6,7 +6,7 @@ module Matching
     class ViewerIneligible < StandardError; end
     class InvalidLimit < StandardError; end
 
-    Result = Data.define(:profiles, :next_cursor)
+    Result = Data.define(:profiles, :next_cursor, :strategy)
 
     def self.call(user:, brand:, cursor: nil, limit: nil)
       new(user:, brand:, cursor:, limit:).call
@@ -32,7 +32,8 @@ module Matching
 
       Result.new(
         profiles:,
-        next_cursor: has_more ? Cursor.encode(brand:, strategy:, profile: profiles.last) : nil
+        next_cursor: has_more ? Cursor.encode(brand:, strategy:, profile: profiles.last) : nil,
+        strategy:
       )
     end
 
