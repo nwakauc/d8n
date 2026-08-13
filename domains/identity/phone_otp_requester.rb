@@ -17,6 +17,7 @@ module Identity
 
     def call
       return Result.new(false, nil, :brand_required, nil) unless active_brand?
+      return Result.new(false, nil, :auth_method_unavailable, nil) unless phone_otp_enabled?
 
       identifier = PhoneNormalizer.call(phone)
       return Result.new(false, nil, :invalid_phone, nil) if identifier.blank?
@@ -47,6 +48,10 @@ module Identity
 
     def active_brand?
       brand.present? && brand.active? && brand.deleted_at.nil?
+    end
+
+    def phone_otp_enabled?
+      AuthPolicy.enabled?(brand:, method: :phone_otp)
     end
 
     def expire_existing_challenges(identifier, except:)

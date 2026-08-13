@@ -47,6 +47,42 @@ Authentication tokens are brand-bound. A token issued through a HookUs host cann
 
 ## Authentication Flow
 
+Discover the implemented login methods enabled for the request host:
+
+```txt
+GET /api/v1/auth/methods
+```
+
+Only methods returned by this endpoint should be presented as usable. Planned or
+configured methods are withheld until their server-side implementation is
+available. HookUs currently exposes `phone_password` and `email_password`;
+Google remains behind ADR 0012's implementation gate.
+
+Register immediately with either a phone number or email address:
+
+```sh
+curl -i -X POST http://localhost:3000/api/v1/auth/password/register \
+  -H 'Content-Type: application/json' \
+  -d '{"identifier":"+27821234567","password":"secret","device_name":"Local Web"}'
+```
+
+The response issues a session immediately and reports `identifier.verified` as
+`false`. Registration proves knowledge of the new D8N password, not control of
+the supplied phone number or email inbox. Verification and recovery are later,
+separate capabilities.
+
+Return with the same phone/email and password:
+
+```sh
+curl -i -X POST http://localhost:3000/api/v1/auth/password/login \
+  -H 'Content-Type: application/json' \
+  -d '{"identifier":"+27821234567","password":"secret","device_name":"Local Web"}'
+```
+
+Password login never silently joins an existing D8N identity to another brand.
+Registration is the explicit current-brand join for a new identity; a future
+existing-identity brand-join flow remains separate.
+
 Request a phone code:
 
 ```sh

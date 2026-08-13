@@ -58,7 +58,10 @@ module Profiles
     def install!
       Brand.transaction do
         GROUPS.each_with_index { |definition, position| install_group!(definition, position:) }
-        brand.update!(profile_requirements: REQUIREMENTS)
+        brand.update!(
+          profile_requirements: REQUIREMENTS,
+          auth_methods: %w[ phone_password email_password ]
+        )
       end
 
       brand

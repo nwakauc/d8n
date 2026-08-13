@@ -51,6 +51,92 @@ paths:
             application/json:
               schema:
                 type: object
+  /api/v1/auth/methods:
+    get:
+      operationId: getAuthenticationMethods
+      tags: [Authentication]
+      summary: List implemented authentication methods enabled for this brand
+      security: []
+      responses:
+        "200":
+          description: Host-resolved brand and currently available methods.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthMethodsResponse"
+        "404":
+          $ref: "#/components/responses/BrandRequired"
+  /api/v1/auth/password/register:
+    post:
+      operationId: registerWithPassword
+      tags: [Authentication]
+      summary: Register immediately with a phone or email and password
+      description: |
+        Creates a D8N identity, current-brand membership, and brand-bound session.
+        Registration does not prove control of the phone number or email address;
+        the returned identifier remains unverified until a later verification flow.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordAuthRequest"
+      responses:
+        "201":
+          description: Account, membership, password credential, and session created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordAuthSessionResponse"
+        "404":
+          $ref: "#/components/responses/AuthMethodUnavailable"
+        "409":
+          description: The request already carries an authenticated D8N session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Registration cannot be completed with the supplied input.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /api/v1/auth/password/login:
+    post:
+      operationId: loginWithPassword
+      tags: [Authentication]
+      summary: Log in with an existing phone or email password credential
+      description: |
+        Login requires an existing active membership in the host-resolved brand.
+        It never enrolls an existing D8N identity into another brand implicitly.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordAuthRequest"
+      responses:
+        "201":
+          description: Brand-bound session issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordAuthSessionResponse"
+        "401":
+          description: Identifier, password, account lifecycle, or membership is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/AuthMethodUnavailable"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /api/v1/auth/phone/request_otp:
     post:
       operationId: requestPhoneOtp
@@ -72,7 +158,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
         "404":
-          $ref: "#/components/responses/BrandRequired"
+          $ref: "#/components/responses/AuthMethodUnavailable"
         "422":
           $ref: "#/components/responses/InvalidInput"
         "429":
@@ -112,7 +198,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          $ref: "#/components/responses/BrandRequired"
+          $ref: "#/components/responses/AuthMethodUnavailable"
         "422":
           $ref: "#/components/responses/InvalidInput"
   /api/v1/auth/session:
@@ -690,6 +776,23 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+    AuthMethodUnavailable:
+      description: Request host did not resolve to an active brand, or this authentication method is disabled.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    RateLimited:
+      description: Authentication rate limit exceeded.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds before another request should be attempted.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
     ProfileOrMembershipRequired:
       description: Required brand membership/profile/lifecycle state is unavailable.
       content:
@@ -763,6 +866,18 @@ components:
           type: string
         name:
           type: string
+    AuthMethodsResponse:
+      type: object
+      required: [brand, methods]
+      properties:
+        brand:
+          $ref: "#/components/schemas/BrandSummary"
+        methods:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [phone_otp, phone_password, email_password, google]
     PhoneOtpRequest:
       type: object
       required: [phone]
@@ -770,6 +885,21 @@ components:
         phone:
           type: string
           description: International phone number; normalized by the server.
+    PasswordAuthRequest:
+      type: object
+      required: [identifier, password]
+      properties:
+        identifier:
+          type: string
+          description: International phone number or email address; normalized by the server.
+        password:
+          type: string
+          format: password
+          minLength: 6
+          description: At least 6 characters and no more than 72 UTF-8 bytes.
+        device_name:
+          type: [string, "null"]
+          maxLength: 120
     PhoneOtpVerification:
       type: object
       required: [phone, code]
@@ -798,6 +928,22 @@ components:
           description: Private platform identity ID; do not use as a public dating-profile ID.
         brand:
           $ref: "#/components/schemas/BrandSummary"
+    PasswordAuthSessionResponse:
+      allOf:
+        - $ref: "#/components/schemas/AuthSessionResponse"
+        - type: object
+          required: [identifier]
+          properties:
+            identifier:
+              type: object
+              required: [kind, verified]
+              properties:
+                kind:
+                  type: string
+                  enum: [phone, email]
+                verified:
+                  type: boolean
+                  description: False until D8N separately proves control of the phone or email.
     MeResponse:
       type: object
       required: [user_id, brand, session]

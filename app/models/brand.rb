@@ -36,6 +36,7 @@ class Brand < ApplicationRecord
   validates :slug, presence: true, uniqueness: { conditions: -> { kept } }
   validates :name, presence: true
   validates :owner_type, presence: true
+  validate :auth_methods_are_supported
   validate :profile_requirements_are_supported
 
   def profile_completion_requirements
@@ -44,6 +45,17 @@ class Brand < ApplicationRecord
   end
 
   private
+
+  def auth_methods_are_supported
+    unless auth_methods.is_a?(Array) && auth_methods.all? { |method| method.is_a?(String) }
+      errors.add(:auth_methods, "must be a list of supported strings")
+      return
+    end
+
+    errors.add(:auth_methods, "contains duplicates") if auth_methods.uniq.size != auth_methods.size
+    unsupported = auth_methods - Identity::AuthPolicy::SUPPORTED_METHODS
+    errors.add(:auth_methods, "contains unsupported methods") if unsupported.any?
+  end
 
   def profile_requirements_are_supported
     unless profile_requirements.is_a?(Hash)

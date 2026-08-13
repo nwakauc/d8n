@@ -56,6 +56,8 @@ class Api::V1::Auth::PhoneController < ApplicationController
     case error
     when :brand_required
       render json: { error: "brand_required" }, status: :not_found
+    when :auth_method_unavailable
+      render json: { error: "auth_method_unavailable" }, status: :not_found
     when :invalid_phone
       render json: { error: "invalid_phone" }, status: :unprocessable_entity
     when :rate_limited

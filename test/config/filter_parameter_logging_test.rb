@@ -11,6 +11,19 @@ class FilterParameterLoggingTest < ActiveSupport::TestCase
     assert_equal "[FILTERED]", params[:phone]
   end
 
+  test "filters password and reset-token parameters" do
+    filter = ActiveSupport::ParameterFilter.new(Rails.application.config.filter_parameters)
+    params = filter.filter(
+      password: "correct horse battery staple",
+      password_confirmation: "correct horse battery staple",
+      reset_token: "secret-reset-token"
+    )
+
+    assert_equal "[FILTERED]", params[:password]
+    assert_equal "[FILTERED]", params[:password_confirmation]
+    assert_equal "[FILTERED]", params[:reset_token]
+  end
+
   test "filters precise location parameters" do
     filter = ActiveSupport::ParameterFilter.new(Rails.application.config.filter_parameters)
 

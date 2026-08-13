@@ -33,7 +33,7 @@ Profile
 
 D8N should support multiple credential types:
 
-- Email/password
+- Password attached to a verified email or phone identifier
 - Email OTP
 - Phone OTP
 - OAuth
@@ -41,6 +41,18 @@ D8N should support multiple credential types:
 - Recovery code
 
 All credential strategies produce the same D8N session result.
+
+ADR 0012 provides zero-friction phone/password and email/password as
+brand-configurable choices, with Google deferred. New registration immediately
+creates the current-brand membership and session, but leaves the supplied
+identifier honestly unverified. Registration, login, joining another brand, and
+linking a credential remain separate operations. Password or provider
+authentication does not silently create membership in another dating brand.
+
+Password knowledge and identifier control are separate facts. An unverified
+phone/email may authenticate with its D8N password, but cannot support recovery,
+verification badges, linking, or other control-dependent actions until a later
+challenge proves access and sets `verified_at`.
 
 ## Sessions
 
@@ -78,6 +90,10 @@ They must not cause automatic account merging.
 Credential linking is allowed.
 
 Automatic account merging is not allowed.
+
+Linking a durable credential requires recent reauthentication of the current
+identity plus verification of the new identifier/provider. An identifier already
+owned by another user cannot be moved through self-service linking.
 
 If two accounts appear to belong to the same person:
 

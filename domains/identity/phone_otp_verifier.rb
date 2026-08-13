@@ -20,6 +20,7 @@ module Identity
 
     def call
       return failure(:brand_required) unless active_brand?
+      return failure(:auth_method_unavailable) unless phone_otp_enabled?
 
       identifier = PhoneNormalizer.call(phone)
       return failure(:invalid_phone, identifier:) if identifier.blank?
@@ -195,6 +196,10 @@ module Identity
 
     def active_brand?
       brand.present? && active_record?(brand)
+    end
+
+    def phone_otp_enabled?
+      AuthPolicy.enabled?(brand:, method: :phone_otp)
     end
 
     def failure(error, identifier: nil)

@@ -5,7 +5,11 @@ module Identity
     self.use_transactional_tests = false
 
     test "serializes concurrent OTP requests for the same brand and phone" do
-      brand = Brand.create!(slug: "otp-lock-#{SecureRandom.hex(6)}", name: "OTP Lock Test")
+      brand = Brand.create!(
+        slug: "otp-lock-#{SecureRandom.hex(6)}",
+        name: "OTP Lock Test",
+        auth_methods: %w[ phone_otp ]
+      )
       results = Queue.new
       start = Queue.new
 

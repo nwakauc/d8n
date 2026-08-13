@@ -5,7 +5,7 @@ class AuthAttempt < ApplicationRecord
   belongs_to :credential, optional: true
 
   enum :kind, {
-    email_password: 0,
+    password: 0,
     email_otp: 1,
     phone_otp: 2,
     oauth: 3,

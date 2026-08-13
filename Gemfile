@@ -6,6 +6,12 @@ gem "rails", "~> 8.0.5"
 gem "pg", "~> 1.1"
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"
+# Mature password authentication mechanics behind D8N-owned identity and sessions.
+gem "rodauth-rails", "~> 2.2"
+# Let Rodauth reuse Active Record's PostgreSQL connection inside the monolith.
+gem "sequel-activerecord_connection", "~> 2.0", require: false
+# Rodauth loads bcrypt only for password-enabled configurations.
+gem "bcrypt", "~> 3.1", require: false
 # Build JSON APIs with ease [https://github.com/rails/jbuilder]
 # gem "jbuilder"
 

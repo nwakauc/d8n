@@ -2,7 +2,7 @@ require "test_helper"
 
 class Api::V1::Auth::PhoneControllerTest < ActionDispatch::IntegrationTest
   setup do
-    @brand = Brand.create!(slug: "hookus", name: "HookUs")
+    @brand = Brand.create!(slug: "hookus", name: "HookUs", auth_methods: %w[ phone_otp ])
     BrandDomain.create!(brand: @brand, host: "hookus.test")
     host! "hookus.test"
     Notifications::Sms::TestGateway.clear
@@ -171,6 +171,16 @@ class Api::V1::Auth::PhoneControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
     assert_equal({ "error" => "brand_required" }, JSON.parse(response.body))
+  end
+
+  test "phone OTP is unavailable when the brand disables it" do
+    @brand.update!(auth_methods: [])
+
+    post "/api/v1/auth/phone/request_otp", params: { phone: "+27 82 123 4567" }
+
+    assert_response :not_found
+    assert_equal({ "error" => "auth_method_unavailable" }, JSON.parse(response.body))
+    assert_not OtpChallenge.where(brand: @brand).exists?
   end
 
   test "request OTP is rate limited by phone cooldown" do

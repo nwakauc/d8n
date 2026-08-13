@@ -4,9 +4,10 @@ class Credential < ApplicationRecord
 
   has_many :auth_attempts, dependent: :nullify
   has_many :sessions, dependent: :restrict_with_exception
+  has_one :credential_password_hash, dependent: :restrict_with_exception
 
   enum :kind, {
-    email_password: 0,
+    password: 0,
     email_otp: 1,
     phone_otp: 2,
     oauth: 3,

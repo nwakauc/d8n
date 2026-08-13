@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_13_065000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_13_071000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -127,6 +127,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_065000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "profile_requirements", default: {"collections"=>["photos"], "profile_fields"=>["display_name", "birthdate", "gender"], "preference_fields"=>["min_age", "max_age", "interested_in"]}, null: false
+    t.jsonb "auth_methods", default: [], null: false
     t.index ["owner_type", "owner_id"], name: "index_brands_on_owner_type_and_owner_id"
     t.index ["slug"], name: "index_brands_on_slug", unique: true, where: "(deleted_at IS NULL)"
   end
@@ -164,6 +165,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_065000) do
     t.index ["public_id"], name: "index_conversations_on_public_id", unique: true
   end
 
+  create_table "credential_password_hashes", primary_key: "credential_id", force: :cascade do |t|
+    t.integer "credential_kind", default: 0, null: false
+    t.string "password_hash", null: false
+    t.datetime "password_changed_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.check_constraint "credential_kind = 0", name: "chk_password_hash_credential_kind"
+  end
+
   create_table "credentials", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "identity_identifier_id", null: false
@@ -175,6 +185,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_065000) do
     t.datetime "deleted_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["id", "kind"], name: "idx_credentials_on_id_kind", unique: true
     t.index ["identity_identifier_id"], name: "index_credentials_on_identity_identifier_id"
     t.index ["user_id", "kind", "identity_identifier_id"], name: "index_credentials_on_active_user_kind_identifier", unique: true, where: "(deleted_at IS NULL)"
     t.index ["user_id"], name: "index_credentials_on_user_id"
@@ -518,6 +529,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_065000) do
   add_foreign_key "conversation_participants", "users"
   add_foreign_key "conversations", "brands"
   add_foreign_key "conversations", "matches", column: ["match_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_conversations_match_tenant"
+  add_foreign_key "credential_password_hashes", "credentials", column: ["credential_id", "credential_kind"], primary_key: ["id", "kind"], name: "fk_password_hash_credential_kind"
   add_foreign_key "credentials", "identity_identifiers"
   add_foreign_key "credentials", "users"
   add_foreign_key "identity_identifiers", "users"

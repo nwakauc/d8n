@@ -74,6 +74,28 @@ schema after you select **Try it out**.
 
 ## 3. Authenticate With A Local Phone OTP
 
+For the fastest local signup, use `POST /api/v1/auth/password/register` in
+Swagger with either a phone number or email address and a password of at least six
+characters:
+
+```json
+{
+  "identifier": "+27821234567",
+  "password": "secret",
+  "device_name": "Local Swagger"
+}
+```
+
+The `201` response contains a bearer token immediately. Its
+`identifier.verified` value is `false` because signup does not pretend that D8N
+has proven phone or inbox control. Paste the returned token into **Authorize**
+without adding the `Bearer ` prefix. Use `POST /api/v1/auth/password/login` for
+later sessions.
+
+The OTP instructions below exercise the separate phone-OTP capability when that
+method is enabled for the local brand. HookUs's password-first catalog may not
+advertise phone OTP unless a developer explicitly enables it for that test.
+
 Authentication has two API calls:
 
 1. request an OTP;

@@ -68,6 +68,17 @@ Use this alongside `PLAN_OF_ACTION.md`, `AGENT_RULES.md`, and future ADRs.
 - Confirm before beta the initial HookUs policy: location becomes stale after 24 hours and is required only when either side sets a distance limit.
 - Confirm before beta the initial HookUs policy: discovery displays no distance value.
 - Define HookUs auth policy.
+- HookUs zero-friction phone/password and email/password signup approved on
+  2026-08-13; identifiers remain unverified until later proof. Google is deferred.
+- Six-character password minimum with no composition rules approved on
+  2026-08-13.
+- Approve breached-password handling, reset/session-revocation behavior, and
+  recovery/support policy.
+- Choose the transactional email provider required for email verification and
+  password reset.
+- Define recent-reauthentication requirements for linking a new credential.
+- Decide the web/mobile Google authorization flow, redirect origins, consent
+  scopes, and retained claims/tokens.
 - Define HookUs verification policy.
 - Define HookUs monetization.
 - Define Date9ja positioning for second-brand proof.
