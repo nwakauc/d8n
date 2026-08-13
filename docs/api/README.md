@@ -117,6 +117,22 @@ curl https://hookus.example.com/api/v1/me \
 The verification request response is intentionally generic. Test and development
 codes come from configured delivery adapters; production APIs never return codes.
 
+A signed-in user may change the password used by the current password-backed
+session. The current password is checked in the same request, which provides the
+required fresh reauthentication:
+
+```sh
+curl -i -X PATCH https://hookus.example.com/api/v1/auth/password \
+  -H 'Authorization: Bearer REPLACE_WITH_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"current_password":"secret","password":"new-secret","password_confirmation":"new-secret"}'
+```
+
+On success the current session remains valid and other active sessions issued
+from that password credential are revoked. This settings flow is deliberately
+separate from unauthenticated phone/email account recovery, which is not yet an
+available API.
+
 ## Frontend Bootstrap
 
 After authentication, a brand frontend should:

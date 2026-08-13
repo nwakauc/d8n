@@ -2,11 +2,12 @@
 
 ## Status
 
-Accepted through Phase 2 Slice 3 on 2026-08-13. The Rodauth integration proof,
+Accepted through Phase 2 Slice 4A on 2026-08-13. The Rodauth integration proof,
 dedicated brand authentication policy, and zero-friction phone/email password
 registration and login are implemented. Authenticated post-signup phone/email
-identifier verification is also implemented. Recovery, credential linking,
-brand joining, and Google remain behind their documented slice and human gates.
+identifier verification and authenticated password change are also implemented.
+Signed-out recovery, credential linking, brand joining, and Google remain behind
+their documented slice and human gates.
 
 ## Context
 
@@ -247,6 +248,14 @@ The former unauthenticated phone-OTP login routes and brand method were removed.
 - Add identifier-appropriate reset delivery without revealing account existence.
 - Require recent reauthentication for password change.
 - Revoke affected sessions and audit transitions without recording secrets.
+
+Implemented Slice 4A result: `PATCH /api/v1/auth/password` changes the password
+only for a current password-backed session after checking the current password in
+the same request. It retains that freshly reauthenticated session, revokes other
+active sessions issued from the affected credential, rate-limits failures, and
+audits without secrets. Signed-out recovery by verified phone/email remains a
+separate unimplemented part of Slice 4 because delivery and recovery policy still
+requires the human gates below.
 
 ### Slice 5: Explicit Credential Linking And Brand Join
 

@@ -12,6 +12,11 @@ module Identity
         window: 15.minutes,
         identifier_limit: 10,
         ip_limit: 50
+      },
+      "password_change" => {
+        window: 15.minutes,
+        identifier_limit: 5,
+        ip_limit: 20
       }
     }.freeze
 
@@ -56,8 +61,11 @@ module Identity
     end
 
     def failed_scope
-      AuthAttempt.where(brand:, kind: :password, result: :failed)
+      scope = AuthAttempt.where(brand:, kind: :password, result: :failed)
         .where("metadata ->> 'purpose' = ?", purpose)
+      return scope unless purpose == "password_change"
+
+      scope.where("metadata ->> 'failure_stage' = ?", "reauthentication")
     end
 
     def throttled_result(scope:, relation:, window:, limit:)

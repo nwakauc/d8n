@@ -231,6 +231,120 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ "error" => "invalid_credentials" }, JSON.parse(response.body))
   end
 
+  test "changes the authenticated password and revokes other sessions for that credential" do
+    register_phone
+    body = JSON.parse(response.body)
+    current_token = body.fetch("token")
+    current_session = Session.last
+    credential = current_session.credential
+    _, other_session = Session.issue!(user: current_session.user, brand: @brand, credential:)
+
+    patch "/api/v1/auth/password",
+      headers: bearer_headers(current_token),
+      params: {
+        current_password: "secret",
+        password: "new-secret",
+        password_confirmation: "new-secret"
+      }
+
+    assert_response :success
+    assert_equal({ "message" => "Password updated." }, JSON.parse(response.body))
+    assert Identity::PasswordEngine.matches?(credential:, password: "new-secret")
+    assert_not Identity::PasswordEngine.matches?(credential:, password: "secret")
+    assert_not current_session.reload.revoked?
+    assert other_session.reload.revoked?
+
+    event = SecurityEvent.find_by!(event_type: "auth.password_change.succeeded", user: current_session.user)
+    assert_equal 1, event.metadata.fetch("revoked_session_count")
+    assert_not_includes event.metadata.to_json, "new-secret"
+    assert_not_includes event.metadata.to_json, "secret"
+  end
+
+  test "requires the current password and leaves the credential unchanged on failure" do
+    register_phone
+    token = JSON.parse(response.body).fetch("token")
+    credential = Session.last.credential
+
+    patch "/api/v1/auth/password",
+      headers: bearer_headers(token),
+      params: {
+        current_password: "wrong-password",
+        password: "new-secret",
+        password_confirmation: "new-secret"
+      }
+
+    assert_response :unauthorized
+    assert_equal({ "error" => "invalid_current_password" }, JSON.parse(response.body))
+    assert Identity::PasswordEngine.matches?(credential:, password: "secret")
+  end
+
+  test "rejects mismatched short and unchanged replacement passwords" do
+    register_phone
+    token = JSON.parse(response.body).fetch("token")
+
+    [
+      [ "new-secret", "different", "invalid_password" ],
+      [ "short", "short", "invalid_password" ],
+      [ "secret", "secret", "password_unchanged" ]
+    ].each do |password, confirmation, error|
+      patch "/api/v1/auth/password",
+        headers: bearer_headers(token),
+        params: {
+          current_password: "secret",
+          password:,
+          password_confirmation: confirmation
+        }
+
+      assert_response :unprocessable_entity
+      assert_equal({ "error" => error }, JSON.parse(response.body))
+    end
+  end
+
+  test "requires an authenticated password-backed session" do
+    patch "/api/v1/auth/password",
+      params: { current_password: "secret", password: "new-secret", password_confirmation: "new-secret" }
+    assert_response :unauthorized
+
+    user = User.create!
+    BrandMembership.create!(user:, brand: @brand)
+    token, = Session.issue!(user:, brand: @brand)
+
+    patch "/api/v1/auth/password",
+      headers: bearer_headers(token),
+      params: { current_password: "secret", password: "new-secret", password_confirmation: "new-secret" }
+
+    assert_response :conflict
+    assert_equal({ "error" => "password_credential_required" }, JSON.parse(response.body))
+  end
+
+  test "rate limits repeated current-password failures" do
+    register_phone
+    token = JSON.parse(response.body).fetch("token")
+    session = Session.last
+    identifier = session.credential.identity_identifier.normalized_value
+    5.times do
+      AuthAttempt.create!(
+        brand: @brand,
+        user: session.user,
+        credential: session.credential,
+        kind: :password,
+        result: :failed,
+        identifier:,
+        ip_address: "127.0.0.1",
+        metadata: { purpose: "password_change", failure_stage: "reauthentication" }
+      )
+    end
+
+    patch "/api/v1/auth/password",
+      headers: bearer_headers(token),
+      params: { current_password: "secret", password: "new-secret", password_confirmation: "new-secret" }
+
+    assert_response :too_many_requests
+    assert_equal({ "error" => "rate_limited" }, JSON.parse(response.body))
+    assert response.headers.fetch("Retry-After").to_i.positive?
+    assert Identity::PasswordEngine.matches?(credential: session.credential, password: "secret")
+  end
+
   private
 
   def phone_registration

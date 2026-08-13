@@ -137,6 +137,49 @@ paths:
           $ref: "#/components/responses/AuthMethodUnavailable"
         "429":
           $ref: "#/components/responses/RateLimited"
+  /api/v1/auth/password:
+    patch:
+      operationId: changePassword
+      tags: [Authentication]
+      summary: Change the current password after reauthentication
+      description: |
+        Requires a password-backed brand session and the current password in the
+        same request. A successful change keeps the current session and revokes
+        every other active session issued from the affected password credential.
+        Unauthenticated account recovery through phone or email is not this endpoint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordChangeRequest"
+      responses:
+        "200":
+          description: Password changed and other affected sessions revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          description: The bearer session or current password is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The current session was not issued from a password credential.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The replacement password is invalid, mismatched, or unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /api/v1/auth/verification:
     post:
       operationId: requestIdentifierVerification
@@ -892,6 +935,21 @@ components:
         device_name:
           type: [string, "null"]
           maxLength: 120
+    PasswordChangeRequest:
+      type: object
+      required: [current_password, password, password_confirmation]
+      properties:
+        current_password:
+          type: string
+          format: password
+        password:
+          type: string
+          format: password
+          minLength: 6
+          description: At least 6 characters, no more than 72 UTF-8 bytes, and different from the current password.
+        password_confirmation:
+          type: string
+          format: password
     IdentifierVerification:
       type: object
       required: [kind, code]

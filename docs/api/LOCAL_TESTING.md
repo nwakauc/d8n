@@ -140,6 +140,21 @@ must configure `D8N_EMAIL_PROVIDER` and an actual Action Mailer transport.
 Confirm authentication with `GET /api/v1/me`. Expect HTTP `200` and a response
 whose brand slug is `hookus`.
 
+To test the authenticated settings flow, use `PATCH /api/v1/auth/password` while
+the bearer token is still authorized:
+
+```json
+{
+  "current_password": "secret",
+  "password": "new-secret",
+  "password_confirmation": "new-secret"
+}
+```
+
+Expect HTTP `200`. The current browser session remains usable; other sessions
+issued through the same password credential are revoked. This is not the future
+signed-out forgot-password recovery flow.
+
 The token is secret and brand-bound. Do not paste it into source code, commit it,
 or use it against another brand host.
 
@@ -199,25 +214,33 @@ HookUs UI:  http://localhost:3001
 D8N API:    http://localhost:3000
 ```
 
-A browser considers those different origins because their ports differ. This
-repository does not currently enable cross-origin requests in Rails. The safest
-local setup is a development proxy in the HookUs frontend:
+A browser considers those different origins because their ports differ. D8N's
+development CORS policy explicitly permits `http://localhost:3001` and
+`http://127.0.0.1:3001`, so HookUs may call
+`http://localhost:3000/api/v1/...` directly. Restart Rails after changing the
+Gemfile or CORS configuration.
+
+Production has no default cross-origin allowlist. Set a comma-separated list of
+exact trusted frontend origins when browser clients need direct API access:
+
+```sh
+D8N_CORS_ORIGINS=https://hookus.example.com,https://www.hookus.example.com
+```
+
+Do not use `*`. D8N accepts bearer authorization and `Content-Type` from allowed
+origins and exposes `Retry-After`; it does not grant browser access to arbitrary
+origins.
+
+A same-origin development proxy remains an optional alternative:
 
 ```txt
 browser calls /api/v1/...
 HookUs dev server on :3001 proxies /api/... to http://localhost:3000/api/...
 ```
 
-That keeps browser requests same-origin from the frontend's perspective and does
-not weaken the API's CORS policy. Configure the proxy in the HookUs repository,
-where its framework and environment conventions are defined. Preserve the path,
-method, body, `Authorization` header, and response status. Do not add a client-
-controlled brand header.
-
-If HookUs instead calls `http://localhost:3000` directly from browser JavaScript,
-the browser will block it until D8N has an explicit development-only CORS policy
-for `http://localhost:3001`. Treat that as a separate reviewed security change;
-do not enable every origin with `*`.
+Configure the proxy in the HookUs repository, where its framework and environment
+conventions are defined. Preserve the path, method, body, `Authorization` header,
+and response status. Do not add a client-controlled brand header.
 
 ## 7. Common Failures
 
@@ -262,9 +285,10 @@ part of the real authentication behavior and remains enabled in development.
 
 ### HookUs works in Apidog but fails in the browser
 
-That normally indicates the port-3001-to-port-3000 CORS boundary. Use the HookUs
-development proxy described above, or implement a narrowly scoped development
-CORS policy as a separate reviewed change.
+Confirm Rails was restarted after dependency installation, inspect the preflight
+response, and confirm HookUs is actually running from `http://localhost:3001` or
+`http://127.0.0.1:3001`. Any other frontend origin must be explicitly listed in
+`D8N_CORS_ORIGINS`.
 
 ## 8. Reset Between Manual Test Scenarios
 
