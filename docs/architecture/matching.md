@@ -21,6 +21,8 @@ Date9ja remains a behavioral and migration reference. Its `User`-centric schema 
 
 ## Implementation Sequence
 
+Current status: Slices 1 and 2 are implemented. Slices 3 through 5 have not started.
+
 ### Slice 1: Profile Addressability And Location
 
 - Add stable, unguessable public IDs to profiles and backfill them safely.
@@ -96,7 +98,7 @@ Phase 4's first slice is successful when:
 - Bilateral distance rules behave explicitly when location is absent or stale.
 - Like and pass retries are idempotent.
 - Two concurrent reciprocal likes create one canonical match.
-- Public profile payloads expose age, approved photos, and public option groups without private source fields.
+- Public profile payloads expose age and public option groups without private source fields; approved photos join discovery only after Phase 6 provides secure media delivery.
 - Matching strategies can differ without forking controllers, records, or tenant rules.
 - Relevant tests, RuboCop, Zeitwerk, and Brakeman pass.
 

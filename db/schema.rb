@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_13_063000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_13_063002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -203,6 +203,29 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_063000) do
     t.index ["identity_identifier_id"], name: "index_otp_challenges_on_identity_identifier_id"
   end
 
+  create_table "profile_locations", force: :cascade do |t|
+    t.bigint "profile_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "brand_id", null: false
+    t.decimal "latitude", precision: 10, scale: 7, null: false
+    t.decimal "longitude", precision: 10, scale: 7, null: false
+    t.integer "accuracy_meters", null: false
+    t.string "source", limit: 32, null: false
+    t.datetime "captured_at", null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "latitude", "longitude"], name: "idx_profile_locations_active_coordinates", where: "(deleted_at IS NULL)"
+    t.index ["brand_id"], name: "index_profile_locations_on_brand_id"
+    t.index ["profile_id"], name: "idx_profile_locations_active_profile", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["profile_id"], name: "index_profile_locations_on_profile_id"
+    t.index ["user_id"], name: "index_profile_locations_on_user_id"
+    t.check_constraint "accuracy_meters >= 0 AND accuracy_meters <= 100000", name: "chk_profile_locations_accuracy"
+    t.check_constraint "latitude >= '-90'::integer::numeric AND latitude <= 90::numeric", name: "chk_profile_locations_latitude"
+    t.check_constraint "longitude >= '-180'::integer::numeric AND longitude <= 180::numeric", name: "chk_profile_locations_longitude"
+    t.check_constraint "source::text = ANY (ARRAY['device'::character varying, 'manual'::character varying, 'imported'::character varying]::text[])", name: "chk_profile_locations_source"
+  end
+
   create_table "profile_option_groups", force: :cascade do |t|
     t.bigint "brand_id", null: false
     t.string "key", limit: 80, null: false
@@ -322,12 +345,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_063000) do
     t.string "smoking", limit: 32
     t.string "drinking", limit: 32
     t.string "fitness", limit: 32
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
     t.index ["brand_id", "country_code", "city"], name: "index_profiles_on_brand_id_and_country_code_and_city"
     t.index ["brand_id", "status", "visibility", "created_at"], name: "idx_on_brand_id_status_visibility_created_at_3574045134"
     t.index ["brand_id"], name: "index_profiles_on_brand_id"
     t.index ["brand_membership_id"], name: "index_profiles_on_brand_membership_id"
     t.index ["deleted_at"], name: "index_profiles_on_deleted_at"
     t.index ["id", "user_id", "brand_id"], name: "idx_profiles_on_id_user_brand", unique: true
+    t.index ["public_id"], name: "index_profiles_on_public_id", unique: true
     t.index ["user_id", "brand_id"], name: "index_profiles_on_user_id_and_brand_id", unique: true, where: "(deleted_at IS NULL)"
     t.index ["user_id"], name: "index_profiles_on_user_id"
   end
@@ -395,6 +420,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_063000) do
   add_foreign_key "notification_deliveries", "users"
   add_foreign_key "otp_challenges", "brands"
   add_foreign_key "otp_challenges", "identity_identifiers"
+  add_foreign_key "profile_locations", "brands"
+  add_foreign_key "profile_locations", "profiles"
+  add_foreign_key "profile_locations", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_profile_locations_profile_tenant"
+  add_foreign_key "profile_locations", "users"
   add_foreign_key "profile_option_groups", "brands"
   add_foreign_key "profile_option_selections", "brands"
   add_foreign_key "profile_option_selections", "profile_option_groups"

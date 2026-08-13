@@ -41,7 +41,7 @@ class Api::V1::ProfilePhotosController < ApplicationController
   def photo_payload(photo)
     {
       id: photo.id,
-      profile_id: photo.profile_id,
+      profile_id: photo.profile.public_id,
       position: photo.position,
       status: photo.status,
       visibility: photo.visibility,

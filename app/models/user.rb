@@ -11,6 +11,7 @@ class User < ApplicationRecord
   has_many :profile_preferences, dependent: :restrict_with_exception
   has_many :profile_photos, dependent: :restrict_with_exception
   has_many :profile_option_selections, dependent: :restrict_with_exception
+  has_many :profile_locations, dependent: :restrict_with_exception
 
   enum :status, { active: 0, suspended: 1, closed: 2 }
 

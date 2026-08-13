@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed for Phase 4. Founder/CTO review is required before matching or precise-location migrations begin.
+Accepted for Phase 4 Slices 1 and 2 on 2026-08-13. Interaction and ranking slices remain subject to their implementation gates.
 
 ## Context
 
@@ -131,10 +131,25 @@ The matching interfaces must permit these capabilities later without pretending 
 
 ## Approval Gate
 
-Before Phase 4 migrations begin, review and approve:
+Before discovery and interaction migrations begin, review and approve:
 
-1. Profile-level matching ownership and tenant constraints.
-2. The shared eligibility versus brand-ranking boundary.
-3. Precise-location collection, retention, and public-distance policy for HookUs beta.
-4. HookUs behavior for incomplete, hidden, or stale-location profiles.
-5. The first-slice deferrals above.
+1. The shared eligibility versus brand-ranking boundary.
+2. Precise-location retention and public-distance policy for HookUs beta.
+3. HookUs behavior for incomplete, hidden, or stale-location profiles.
+4. The first-slice deferrals above.
+
+Approved and implemented in Slice 1:
+
+- Profile-level public identifiers.
+- Tenant-constrained private profile locations.
+- Authenticated owner replacement and deletion without coordinate readback.
+- Coordinate parameter filtering and explicit public-serializer exclusion.
+
+Approved and implemented in Slice 2:
+
+- Shared profile-level eligibility rooted in the current brand.
+- Active and visible profile publication; completion is not recalculated inside discovery.
+- Reciprocal gender, age, and bilateral distance preferences.
+- A 24-hour HookUs location freshness threshold when either side requires distance.
+- No distance or location value in discovery responses.
+- Explicit HookUs strategy registration with deterministic signed-cursor pagination.

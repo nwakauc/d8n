@@ -60,6 +60,7 @@ class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
     assert photo.image.attached?
     assert_equal "pending_review", response_body.fetch("status")
     assert_equal "hidden", response_body.fetch("visibility")
+    assert_equal @profile.public_id, response_body.fetch("profile_id")
     assert_equal "/rails/active_storage/blobs", response_body.fetch("image").fetch("url")[0, 27]
   end
 

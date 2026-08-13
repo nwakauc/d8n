@@ -1,5 +1,6 @@
 class Profile < ApplicationRecord
   MINIMUM_AGE = 18
+  PUBLIC_ID_FORMAT = /\A[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/i
 
   belongs_to :user
   belongs_to :brand
@@ -9,6 +10,7 @@ class Profile < ApplicationRecord
   has_many :profile_photos, dependent: :restrict_with_exception
   has_many :profile_option_selections, dependent: :restrict_with_exception
   has_many :selected_profile_options, through: :profile_option_selections, source: :profile_option
+  has_many :profile_locations, dependent: :restrict_with_exception
 
   enum :status, { draft: 0, active: 1, suspended: 2 }
   enum :visibility, { hidden: 0, visible: 1 }
@@ -16,6 +18,7 @@ class Profile < ApplicationRecord
   scope :kept, -> { where(deleted_at: nil) }
 
   validates :user_id, uniqueness: { scope: :brand_id, conditions: -> { kept } }
+  validates :public_id, presence: true, uniqueness: true, format: { with: PUBLIC_ID_FORMAT }
   validates :display_name, length: { maximum: 80 }, allow_blank: true
   validates :bio, length: { maximum: 1_000 }, allow_blank: true
   validates :gender, length: { maximum: 40 }, allow_blank: true
@@ -32,9 +35,14 @@ class Profile < ApplicationRecord
   validate :brand_membership_matches_profile_scope
   validate :languages_spoken_are_valid
 
+  before_validation :ensure_public_id, on: :create
   before_validation :normalize_profile_details
 
   private
+
+  def ensure_public_id
+    self.public_id ||= SecureRandom.uuid
+  end
 
   def birthdate_meets_minimum_age
     return if birthdate.blank?

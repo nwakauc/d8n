@@ -38,7 +38,7 @@ class Api::V1::ProfilePreferencesController < ApplicationController
   def preference_payload(preference)
     {
       id: preference.id,
-      profile_id: preference.profile_id,
+      profile_id: preference.profile.public_id,
       brand: {
         slug: preference.brand.slug,
         name: preference.brand.name

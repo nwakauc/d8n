@@ -53,6 +53,7 @@ class Api::V1::ProfilePreferencesControllerTest < ActionDispatch::IntegrationTes
     assert_equal @profile, preference.profile
     assert_equal [ "woman" ], response_body.fetch("interested_in")
     assert_equal "hookus", response_body.fetch("brand").fetch("slug")
+    assert_equal @profile.public_id, response_body.fetch("profile_id")
   end
 
   test "updates existing current brand preferences" do

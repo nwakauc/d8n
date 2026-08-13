@@ -20,11 +20,14 @@ module Profiles
 
       payload = PublicSerializer.call(profile:)
 
+      assert_equal profile.public_id, payload.fetch(:id)
       assert_equal 25, payload.fetch(:age)
       assert_equal [ "hookups" ], payload.fetch(:options).fetch("intents")
       assert_not payload.fetch(:options).key?("private_note")
       assert_not payload.key?(:birthdate)
       assert_not payload.key?(:user_id)
+      assert_not payload.key?(:latitude)
+      assert_not payload.key?(:longitude)
     end
   end
 end

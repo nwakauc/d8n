@@ -1,6 +1,17 @@
 require "test_helper"
 
 class ProfileTest < ActiveSupport::TestCase
+  test "assigns an unguessable public identifier" do
+    brand = Brand.create!(slug: "hookus", name: "HookUs")
+    user = User.create!
+    membership = BrandMembership.create!(user:, brand:)
+
+    profile = Profile.create!(user:, brand:, brand_membership: membership)
+
+    assert_match(/\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/, profile.public_id)
+    assert_not_equal profile.id.to_s, profile.public_id
+  end
+
   test "allows one active profile per user and brand" do
     brand = Brand.create!(slug: "hookus", name: "HookUs")
     user = User.create!

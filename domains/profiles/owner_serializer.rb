@@ -10,7 +10,7 @@ module Profiles
 
     def call
       {
-        id: profile.id,
+        id: profile.public_id,
         brand: { slug: profile.brand.slug, name: profile.brand.name },
         display_name: profile.display_name,
         bio: profile.bio,

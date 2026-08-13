@@ -5,8 +5,11 @@ Rails.application.routes.draw do
     namespace :v1 do
       get "health" => "health#show"
       get "me" => "me#show"
+      get "discovery" => "discovery#index"
       get "profile" => "profile#show"
       patch "profile" => "profile#update"
+      put "profile/location" => "profile_locations#update"
+      delete "profile/location" => "profile_locations#destroy"
       get "profile/configuration" => "profile_configuration#show"
       patch "profile/options" => "profile_options#update"
       get "profile/preferences" => "profile_preferences#show"

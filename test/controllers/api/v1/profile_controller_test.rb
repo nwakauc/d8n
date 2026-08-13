@@ -51,6 +51,8 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
     assert_equal @brand, profile.brand
     assert_equal @user, profile.user
     assert_equal @membership, profile.brand_membership
+    assert_equal profile.public_id, response_body.fetch("profile").fetch("id")
+    assert_not_equal profile.id.to_s, response_body.fetch("profile").fetch("id")
     assert_equal "Ada", response_body.fetch("profile").fetch("display_name")
     assert_equal "hookus", response_body.fetch("profile").fetch("brand").fetch("slug")
     assert_equal "visible", response_body.fetch("profile").fetch("visibility")

@@ -59,10 +59,10 @@ Use this alongside `PLAN_OF_ACTION.md`, `AGENT_RULES.md`, and future ADRs.
 - Define HookUs onboarding.
 - Define HookUs required profile fields.
 - Define HookUs matching philosophy.
-- Approve ADR 0009's profile-level matching, shared eligibility, and brand-strategy boundaries.
-- Decide whether incomplete HookUs profiles may enter discovery or must remain hidden until complete.
-- Define HookUs behavior when precise location is missing or stale.
-- Define whether HookUs displays no distance, a rounded distance, or a coarse distance band.
+- ADR 0009 profile-level ownership and Slice 1 private-location boundary approved on 2026-08-13; approve the shared eligibility and brand-strategy implementation before Slice 2.
+- Confirm before beta that HookUs activation, rather than discovery, owns the profile-completion publication gate.
+- Confirm before beta the initial HookUs policy: location becomes stale after 24 hours and is required only when either side sets a distance limit.
+- Confirm before beta the initial HookUs policy: discovery displays no distance value.
 - Define HookUs auth policy.
 - Define HookUs verification policy.
 - Define HookUs monetization.
