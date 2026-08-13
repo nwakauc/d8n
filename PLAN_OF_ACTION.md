@@ -1388,7 +1388,7 @@ As of 2026-08-13:
 - Phase 2 has brand resolution, platform identity, phone OTP, brand-scoped sessions, logout, lifecycle enforcement, authentication audit records, and database-backed profile tenancy constraints. Production SMS, account recovery, mature password authentication, and secure admin authentication remain open.
 - Phase 3 has brand-scoped profiles, preferences, photos, visibility, and configurable completion. Secure private media delivery, verified image processing, object storage, and moderation hooks remain Phase 6 work and are required before production use.
 - Phase 3 now also has typed HookUs profile details, tenant-safe controlled option groups/selections, required intents and vibes, option retirement behavior, explicit owner/public serialization, and a brand-scoped profile configuration endpoint.
-- Phase 4 has not started.
+- Phase 4 architecture is proposed in ADR 0009 and `docs/architecture/matching.md`. Matching and precise-location migrations have not started and remain behind the documented approval gate.
 
 HookUs remains the first product build target. Date9ja remains the migration and second-brand proof target.
 
@@ -1498,6 +1498,14 @@ Acceptance criteria:
 
 ### Phase 4: Discovery And Matching
 
+Architecture gate:
+
+- Approve ADR 0009 before matching or precise-location migrations begin.
+- Keep dating actors profile-scoped; platform users must not become cross-brand matching identities.
+- Separate shared eligibility from brand-specific ranking and product allowances.
+- Treat precise coordinates as private, dedicated profile data.
+- Implement the bounded slices in `docs/architecture/matching.md`; do not copy either legacy application's `User`-centric schema.
+
 Deliverables:
 
 - Discovery feed
@@ -1513,6 +1521,10 @@ Acceptance criteria:
 - Discovery only shows eligible profiles for the current brand
 - Likes and matches are brand-scoped
 - Matching logic can differ by brand
+- Public APIs address profiles through stable public identifiers
+- Precise coordinates are never exposed in public profile payloads or logs
+- Discovery uses bounded cursor pagination and deterministic ordering
+- Concurrent reciprocal likes create exactly one canonical match
 
 ### Phase 5: Messaging
 

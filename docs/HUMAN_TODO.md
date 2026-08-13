@@ -59,6 +59,10 @@ Use this alongside `PLAN_OF_ACTION.md`, `AGENT_RULES.md`, and future ADRs.
 - Define HookUs onboarding.
 - Define HookUs required profile fields.
 - Define HookUs matching philosophy.
+- Approve ADR 0009's profile-level matching, shared eligibility, and brand-strategy boundaries.
+- Decide whether incomplete HookUs profiles may enter discovery or must remain hidden until complete.
+- Define HookUs behavior when precise location is missing or stale.
+- Define whether HookUs displays no distance, a rounded distance, or a coarse distance band.
 - Define HookUs auth policy.
 - Define HookUs verification policy.
 - Define HookUs monetization.
@@ -67,6 +71,14 @@ Use this alongside `PLAN_OF_ACTION.md`, `AGENT_RULES.md`, and future ADRs.
 - Define Date9ja matching philosophy.
 - Migrate the existing live Date9ja product onto D8N rather than treating it as a clean brand configuration.
 - Inventory Date9ja schema, auth/password behavior, media, messages, matches, and required migration counts before Phase 11.
+
+## Location Privacy
+
+- Define informed consent copy and withdrawal behavior for precise location.
+- Define location freshness and retention periods.
+- Define whether clients may read stored coordinates back or only replace/delete them.
+- Confirm POPIA treatment of precise location before the Cape Town private beta.
+- Define support and admin access rules for precise location; default to no access.
 
 ## Brand And Marketing
 
