@@ -3,9 +3,8 @@ class Api::V1::ProfileController < ApplicationController
 
   def show
     profile = Profiles::CurrentProfile.find(user: Current.user, brand: Current.brand)
-    return render json: { profile: nil }, status: :ok if profile.blank?
 
-    render json: { profile: Profiles::OwnerSerializer.call(profile:) }
+    render json: profile_payload(profile)
   end
 
   def update
@@ -15,7 +14,7 @@ class Api::V1::ProfileController < ApplicationController
       attributes: profile_params
     )
 
-    render json: { profile: Profiles::OwnerSerializer.call(profile:) }, status: :ok
+    render json: profile_payload(profile), status: :ok
   rescue ActiveRecord::RecordInvalid => e
     render json: { error: "invalid_profile", details: e.record.errors.to_hash }, status: :unprocessable_entity
   rescue ActiveRecord::RecordNotFound
@@ -23,6 +22,13 @@ class Api::V1::ProfileController < ApplicationController
   end
 
   private
+
+  def profile_payload(profile)
+    {
+      profile: profile && Profiles::OwnerSerializer.call(profile:),
+      onboarding: Profiles::OnboardingStatus.call(user: Current.user, brand: Current.brand)
+    }
+  end
 
   def profile_params
     params.permit(

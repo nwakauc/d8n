@@ -66,7 +66,8 @@ class Api::V1::Auth::PasswordsController < ApplicationController
       identifier: {
         kind: identifier.kind,
         verified: identifier.verified_at.present?
-      }
+      },
+      onboarding: Profiles::OnboardingStatus.call(user: result.user, brand: Current.brand)
     }
   end
 end

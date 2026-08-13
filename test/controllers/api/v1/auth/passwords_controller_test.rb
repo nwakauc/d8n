@@ -36,6 +36,8 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ "kind" => "phone", "verified" => false }, body.fetch("identifier"))
     assert_equal "hookus", body.fetch("brand").fetch("slug")
     assert body.fetch("token").present?
+    assert_equal "profile_required", body.fetch("onboarding").fetch("state")
+    assert_equal "profile", body.fetch("onboarding").fetch("next_step")
   end
 
   test "registers with a normalized email without pretending it is verified" do
@@ -71,6 +73,27 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     assert_equal "email", JSON.parse(response.body).fetch("identifier").fetch("kind")
+  end
+
+  test "returns resumable current-brand onboarding state on login" do
+    register_phone
+    user = IdentityIdentifier.last.user
+    membership = BrandMembership.find_by!(user:, brand: @brand)
+    Profile.create!(
+      user:,
+      brand: @brand,
+      brand_membership: membership,
+      display_name: "Ada",
+      birthdate: 25.years.ago.to_date,
+      gender: "woman"
+    )
+
+    post "/api/v1/auth/password/login", params: phone_registration
+
+    assert_response :created
+    onboarding = JSON.parse(response.body).fetch("onboarding")
+    assert_equal "profile_incomplete", onboarding.fetch("state")
+    assert_equal "preferences", onboarding.fetch("next_step")
   end
 
   test "rejects short passwords without leaving partial account records" do

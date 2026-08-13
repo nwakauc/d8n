@@ -20,7 +20,10 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
     get "/api/v1/profile", headers: bearer_headers(@token)
 
     assert_response :success
-    assert_equal({ "profile" => nil }, JSON.parse(response.body))
+    body = JSON.parse(response.body)
+    assert_nil body.fetch("profile")
+    assert_equal "profile_required", body.fetch("onboarding").fetch("state")
+    assert_equal "profile", body.fetch("onboarding").fetch("next_step")
   end
 
   test "creates the current user's brand profile" do
@@ -60,6 +63,8 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
     assert_equal %w[ English Zulu ], response_body.fetch("profile").fetch("languages_spoken")
     assert_equal false, response_body.fetch("profile").fetch("completion").fetch("complete")
     assert_includes response_body.fetch("profile").fetch("completion").fetch("missing"), "preferences.min_age"
+    assert_equal "profile_incomplete", response_body.fetch("onboarding").fetch("state")
+    assert_equal "preferences", response_body.fetch("onboarding").fetch("next_step")
   end
 
   test "returns complete profile completion when required profile and preferences exist" do
@@ -124,7 +129,9 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
     get "/api/v1/profile", headers: bearer_headers(@token)
 
     assert_response :success
-    assert_equal({ "profile" => nil }, JSON.parse(response.body))
+    body = JSON.parse(response.body)
+    assert_nil body.fetch("profile")
+    assert_equal "profile_required", body.fetch("onboarding").fetch("state")
   end
 
   test "rejects invalid profile values" do

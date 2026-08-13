@@ -246,17 +246,11 @@ paths:
       summary: Get the current brand profile
       responses:
         "200":
-          description: Current profile or null when none exists.
+          description: Current profile and resumable onboarding state.
           content:
             application/json:
               schema:
-                type: object
-                required: [profile]
-                properties:
-                  profile:
-                    oneOf:
-                      - $ref: "#/components/schemas/OwnerProfile"
-                      - type: "null"
+                $ref: "#/components/schemas/CurrentProfileResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
     patch:
@@ -271,11 +265,11 @@ paths:
               $ref: "#/components/schemas/ProfileUpdate"
       responses:
         "200":
-          description: Updated owner profile.
+          description: Updated owner profile and resumable onboarding state.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OwnerProfileResponse"
+                $ref: "#/components/schemas/CurrentProfileResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -932,7 +926,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/AuthSessionResponse"
         - type: object
-          required: [identifier]
+          required: [identifier, onboarding]
           properties:
             identifier:
               type: object
@@ -944,6 +938,8 @@ components:
                 verified:
                   type: boolean
                   description: False until D8N separately proves control of the phone or email.
+            onboarding:
+              $ref: "#/components/schemas/ProfileOnboardingStatus"
     MeResponse:
       type: object
       required: [user_id, brand, session]
@@ -1051,6 +1047,34 @@ components:
       properties:
         profile:
           $ref: "#/components/schemas/OwnerProfile"
+    CurrentProfileResponse:
+      type: object
+      required: [profile, onboarding]
+      properties:
+        profile:
+          oneOf:
+            - $ref: "#/components/schemas/OwnerProfile"
+            - type: "null"
+        onboarding:
+          $ref: "#/components/schemas/ProfileOnboardingStatus"
+    ProfileOnboardingStatus:
+      type: object
+      required: [state, next_step, profile_exists, profile_complete, profile_published, completion]
+      properties:
+        state:
+          type: string
+          enum: [profile_required, profile_incomplete, ready_to_publish, complete, profile_suspended]
+        next_step:
+          type: [string, "null"]
+          enum: [profile, preferences, photos, options, publication, null]
+        profile_exists:
+          type: boolean
+        profile_complete:
+          type: boolean
+        profile_published:
+          type: boolean
+        completion:
+          $ref: "#/components/schemas/Completion"
     ProfileOptionSelections:
       type: object
       additionalProperties:

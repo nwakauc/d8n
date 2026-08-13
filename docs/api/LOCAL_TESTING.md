@@ -90,7 +90,9 @@ The `201` response contains a bearer token immediately. Its
 `identifier.verified` value is `false` because signup does not pretend that D8N
 has proven phone or inbox control. Paste the returned token into **Authorize**
 without adding the `Bearer ` prefix. Use `POST /api/v1/auth/password/login` for
-later sessions.
+later sessions. The response's `onboarding.next_step` will initially be
+`profile`; use `GET /api/v1/profile/configuration`, then
+`PATCH /api/v1/profile`, and continue according to the updated onboarding state.
 
 The OTP instructions below exercise the separate phone-OTP capability when that
 method is enabled for the local brand. HookUs's password-first catalog may not

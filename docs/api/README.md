@@ -69,7 +69,8 @@ curl -i -X POST http://localhost:3000/api/v1/auth/password/register \
 The response issues a session immediately and reports `identifier.verified` as
 `false`. Registration proves knowledge of the new D8N password, not control of
 the supplied phone number or email inbox. Verification and recovery are later,
-separate capabilities.
+separate capabilities. It also returns an `onboarding` object. Follow its
+`next_step` value instead of assuming every brand has the same signup sequence.
 
 Return with the same phone/email and password:
 
@@ -121,6 +122,13 @@ After authentication, a brand frontend should:
 7. Use a public match UUID with `POST /api/v1/matches/:match_id/conversation`, then list started chats through `GET /api/v1/conversations`.
 
 Frontends should render from `profile/configuration`; they should not hardcode HookUs option codes as a universal D8N schema. New semantic capabilities still require a D8N backend contract rather than arbitrary client fields.
+
+Password registration and login, plus `GET/PATCH /api/v1/profile`, return a
+resumable `onboarding` state. `profile_required` starts profile creation,
+`profile_incomplete` points to the next incomplete domain, `ready_to_publish`
+points to publication, and `complete` enters the normal product. A suspended
+profile has no next step. The API does not create empty profile rows during
+identity registration; the first profile patch creates the current-brand draft.
 
 Phase 5 Slice 1 exposes conversation metadata only. No frontend should simulate or persist chat messages against D8N until the documented message-content endpoints ship with block/report and privacy controls.
 
