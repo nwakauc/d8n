@@ -73,6 +73,106 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_nil second_page.fetch("next_cursor")
   end
 
+  test "ranks with declared HookUs capabilities and returns bounded compatibility metadata" do
+    Profiles::HookusProfileCatalog.install!(brand: @brand)
+    require_only_public_options
+    select_options(@viewer, intents: %w[hookups casual], vibes: %w[chill music])
+    create_location(@viewer)
+    strongest = create_candidate(display_name: "Strongest")
+    select_options(strongest, intents: %w[hookups casual], vibes: %w[chill music])
+    create_location(strongest)
+    weaker = create_candidate(display_name: "Weaker")
+    select_options(weaker, intents: %w[relationship], vibes: %w[gaming])
+
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+
+    assert_response :success
+    profiles = JSON.parse(response.body).fetch("profiles")
+    assert_equal [ strongest.public_id, weaker.public_id ], profiles.pluck("id")
+    assert_equal({
+      "score" => 100,
+      "confidence" => 0.75,
+      "reasons" => %w[shared_intent similar_vibe mutual_age_fit]
+    }, profiles.first.fetch("compatibility"))
+    assert_equal 19, profiles.last.dig("compatibility", "score")
+    assert_equal 0.75, profiles.last.dig("compatibility", "confidence")
+    assert_equal [ "mutual_age_fit" ], profiles.last.dig("compatibility", "reasons")
+  end
+
+  test "uses distance only when either profile configured a distance preference" do
+    candidate = create_candidate
+    create_location(@viewer)
+    create_location(candidate)
+
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+
+    without_preference = JSON.parse(response.body).fetch("profiles").sole.fetch("compatibility")
+    assert_equal 0.25, without_preference.fetch("confidence")
+    assert_not_includes without_preference.fetch("reasons"), "nearby"
+
+    candidate.profile_preference.update!(max_distance_km: 50)
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+
+    with_preference = JSON.parse(response.body).fetch("profiles").sole.fetch("compatibility")
+    assert_equal 0.5, with_preference.fetch("confidence")
+    assert_not_includes with_preference.fetch("reasons"), "nearby"
+    assert_not_includes response.body, "nearby"
+  end
+
+  test "does not use owner-only option groups in score reasons" do
+    Profiles::HookusProfileCatalog.install!(brand: @brand)
+    require_only_public_options
+    select_options(@viewer, intents: [ "hookups" ], vibes: [ "chill" ])
+    candidate = create_candidate
+    select_options(candidate, intents: [ "hookups" ], vibes: [ "chill" ])
+    private_group = ProfileOptionGroup.create!(
+      brand: @brand, key: "private_preference", label: "Private preference",
+      cardinality: :single, max_selections: 1, visibility: :owner_only
+    )
+    private_option = ProfileOption.create!(
+      brand: @brand, profile_option_group: private_group, code: "secret_value", label: "Secret value"
+    )
+    [ @viewer, candidate ].each do |profile|
+      ProfileOptionSelection.create!(
+        profile:, user: profile.user, brand: @brand,
+        profile_option_group: private_group, profile_option: private_option
+      )
+    end
+
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("profiles").sole
+    assert_not payload.fetch("options").key?("private_preference")
+    assert_not_includes payload.dig("compatibility", "reasons"), "secret_value"
+    assert_not_includes response.body, "Secret value"
+  end
+
+  test "paginates across score boundaries without duplicates" do
+    Profiles::HookusProfileCatalog.install!(brand: @brand)
+    require_only_public_options
+    select_options(@viewer, intents: %w[hookups casual], vibes: %w[chill music])
+    strongest = create_candidate
+    select_options(strongest, intents: %w[hookups casual], vibes: %w[chill music])
+    middle = create_candidate
+    select_options(middle, intents: %w[hookups relationship], vibes: [ "gaming" ])
+    weakest = create_candidate
+    select_options(weakest, intents: [ "relationship" ], vibes: [ "gaming" ])
+
+    ids = []
+    cursor = nil
+    3.times do
+      get "/api/v1/discovery", headers: bearer_headers(@token), params: { limit: 1, cursor: }.compact
+      assert_response :success
+      page = JSON.parse(response.body)
+      ids << page.fetch("profiles").sole.fetch("id")
+      cursor = page.fetch("next_cursor")
+    end
+
+    assert_equal [ strongest.public_id, middle.public_id, weakest.public_id ], ids
+    assert_nil cursor
+  end
+
   test "rejects tampered cursors and invalid limits" do
     get "/api/v1/discovery", headers: bearer_headers(@token), params: { cursor: "not-a-cursor" }
 
@@ -87,10 +187,13 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
 
   test "does not accept a cursor for another brand" do
     candidate = create_candidate
+    ranked_candidate = Matching::Strategies::Hookus.rank(
+      scope: @brand.profiles.where(id: candidate.id), viewer: @viewer
+    ).first
     cursor = Matching::Cursor.encode(
       brand: @brand,
       strategy: Matching::Strategies::Hookus,
-      profile: candidate
+      profile: ranked_candidate
     )
     other_brand = Brand.create!(slug: "other-hookus", name: "Other HookUs")
 
@@ -189,6 +292,10 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
       latitude: -33.9249, longitude: 18.4241, accuracy_meters: 20,
       source: "device", captured_at: Time.current
     )
+  end
+
+  def select_options(profile, **selections)
+    Profiles::OptionSelections.replace!(profile:, selections:)
   end
 
   def count_select_queries

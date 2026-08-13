@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for Phase 4 Slices 1 through 3 on 2026-08-13. Capability-based ranking and Date9ja contract proof remain subject to their implementation gates.
+Accepted for Phase 4 Slices 1 through 4 on 2026-08-13. Date9ja contract proof remains subject to its implementation gate.
 
 ## Context
 
@@ -162,3 +162,12 @@ Approved and implemented in Slice 3:
 - Canonical, tenant-constrained matches with public UUIDs and database uniqueness.
 - Idempotent interaction retries and exactly one match under concurrent reciprocal likes.
 - Discovery interaction exclusions and enforcement-aware, cursor-paginated match listing.
+
+Approved and implemented in Slice 4:
+
+- HookUs weights are intent 40, vibe 25, age 15, and distance 10.
+- Missing dimensions are excluded from both earned and possible totals before rescaling to `0..100`.
+- Confidence reports the comparable fraction of the four declared dimensions.
+- Distance contributes only when either participant explicitly configured a distance preference and both locations are fresh.
+- Public explanations use bounded reason codes and never disclose distance-derived facts, option values, owner-only fields, or precise location.
+- Ranking applies to the full eligible PostgreSQL relation with a signed score-aware keyset cursor.

@@ -21,7 +21,7 @@ Date9ja remains a behavioral and migration reference. Its `User`-centric schema 
 
 ## Implementation Sequence
 
-Current status: Slices 1 through 3 are implemented. Slices 4 and 5 have not started.
+Current status: Slices 1 through 4 are implemented. Slice 5 has not started.
 
 ### Slice 1: Profile Addressability And Location
 
@@ -63,6 +63,15 @@ Gate: database constraints, command tests, request tests, and a concurrency test
 - Keep temporary availability, verification, paid boosts, and allowances out until their domains own them.
 
 Gate: fixed fixtures produce deterministic ranking and no owner-only profile option enters a public explanation.
+
+Implemented policy:
+
+- Intent, vibe, age, and distance carry weights of 40, 25, 15, and 10 respectively.
+- A dimension unavailable on either profile is removed from the possible total; the earned score is rescaled to `0..100`.
+- Confidence is the fraction of those four dimensions that were comparable, rounded to two decimal places.
+- Distance contributes only when either profile explicitly configured a distance preference and both locations are fresh.
+- Public reasons are bounded machine codes: `shared_intent`, `similar_vibe`, and `mutual_age_fit`. No distance-derived reason, option label, coordinate, or owner-only selection is returned.
+- Ranking runs over the full eligible PostgreSQL relation and uses score, creation time, and public profile ID as its keyset boundary.
 
 ### Slice 5: Date9ja Contract Proof
 

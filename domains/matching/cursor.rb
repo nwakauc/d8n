@@ -10,7 +10,8 @@ module Matching
           brand: brand.slug,
           strategy: strategy.key,
           created_at: profile.created_at.iso8601(6),
-          profile: profile.public_id
+          profile: profile.public_id,
+          ranking: strategy.cursor_payload(profile:)
         },
         purpose: PURPOSE
       )
@@ -21,14 +22,10 @@ module Matching
 
       payload = verifier.verify(value, purpose: PURPOSE).with_indifferent_access
       validate_payload!(payload:, brand:, strategy:)
-      created_at = Time.iso8601(payload.fetch(:created_at))
-      public_id = payload.fetch(:profile).to_s
-      raise Invalid, "cursor is invalid" unless public_id.match?(Profile::PUBLIC_ID_FORMAT)
-
-      scope.where(
-        "profiles.created_at < ? OR (profiles.created_at = ? AND profiles.public_id < ?)",
-        created_at, created_at, public_id
-      )
+      strategy.apply_cursor(scope:, payload: payload.fetch(:ranking).merge(
+        created_at: payload.fetch(:created_at),
+        profile: payload.fetch(:profile)
+      ))
     rescue ActiveSupport::MessageVerifier::InvalidSignature, ArgumentError, KeyError, TypeError
       raise Invalid, "cursor is invalid"
     end

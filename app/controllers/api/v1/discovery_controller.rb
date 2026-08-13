@@ -10,7 +10,7 @@ class Api::V1::DiscoveryController < ApplicationController
     )
 
     render json: {
-      profiles: result.profiles.map { |profile| Profiles::PublicSerializer.call(profile:) },
+      profiles: result.profiles.map { |profile| Matching::CandidateSerializer.call(profile:) },
       next_cursor: result.next_cursor
     }
   rescue Matching::Discovery::ViewerIneligible
