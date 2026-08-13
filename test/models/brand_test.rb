@@ -37,13 +37,13 @@ class BrandTest < ActiveSupport::TestCase
     brand = Brand.create!(slug: "hookus", name: "HookUs")
     assert_empty brand.auth_methods
 
-    brand.update!(auth_methods: %w[ phone_password email_password phone_otp google ])
-    assert_equal %w[ phone_password email_password phone_otp google ], brand.auth_methods
+    brand.update!(auth_methods: %w[ phone_password email_password google ])
+    assert_equal %w[ phone_password email_password google ], brand.auth_methods
   end
 
   test "rejects duplicate, malformed, and unsupported authentication methods" do
-    duplicate = Brand.new(slug: "duplicate", name: "Duplicate", auth_methods: %w[ phone_otp phone_otp ])
-    malformed = Brand.new(slug: "malformed", name: "Malformed", auth_methods: "phone_otp")
+    duplicate = Brand.new(slug: "duplicate", name: "Duplicate", auth_methods: %w[ phone_password phone_password ])
+    malformed = Brand.new(slug: "malformed", name: "Malformed", auth_methods: "phone_password")
     unsupported = Brand.new(slug: "unsupported", name: "Unsupported", auth_methods: %w[ magic_link ])
 
     assert_not duplicate.valid?

@@ -32,8 +32,8 @@ Rails.application.routes.draw do
       get "auth/methods" => "auth/methods#show"
       post "auth/password/register" => "auth/passwords#register"
       post "auth/password/login" => "auth/passwords#login"
-      post "auth/phone/request_otp" => "auth/phone#request_otp"
-      post "auth/phone/verify_otp" => "auth/phone#verify_otp"
+      post "auth/verification" => "auth/verifications#create"
+      patch "auth/verification" => "auth/verifications#update"
       delete "auth/session" => "auth/sessions#destroy"
     end
   end

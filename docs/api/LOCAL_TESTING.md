@@ -68,11 +68,11 @@ select **Current API origin** from the Servers list.
 
 The **Schemas** section at the bottom of Swagger describes reusable request and
 response shapes. It is reference material, not a separate endpoint to execute.
-For example, `PhoneOtpRequest` tells you that the OTP request body requires a
-`phone` string. The operation itself supplies an editable example based on that
-schema after you select **Try it out**.
+For example, `IdentifierVerificationRequest` tells you that post-signup
+verification requires a `kind` of `phone` or `email`. The operation itself
+supplies an editable example after you select **Try it out**.
 
-## 3. Authenticate With A Local Phone OTP
+## 3. Register And Optionally Verify Your Identifier
 
 For the fastest local signup, use `POST /api/v1/auth/password/register` in
 Swagger with either a phone number or email address and a password of at least six
@@ -94,57 +94,48 @@ later sessions. The response's `onboarding.next_step` will initially be
 `profile`; use `GET /api/v1/profile/configuration`, then
 `PATCH /api/v1/profile`, and continue according to the updated onboarding state.
 
-The OTP instructions below exercise the separate phone-OTP capability when that
-method is enabled for the local brand. HookUs's password-first catalog may not
-advertise phone OTP unless a developer explicitly enables it for that test.
-
-Authentication has two API calls:
-
-1. request an OTP;
-2. verify that OTP to receive a bearer token.
-
-In Swagger, expand `POST /api/v1/auth/phone/request_otp`, select **Try it out**,
-and use a development-only phone number that you control:
+Identifier verification happens only after password signup. Keep the bearer
+token authorized in Swagger, expand `POST /api/v1/auth/verification`, select
+**Try it out**, and request the channel already attached to the account:
 
 ```json
 {
-  "phone": "+27821234567"
+  "kind": "phone"
 }
 ```
 
 Select **Execute**. Expect HTTP `202`. The response is intentionally generic and
-never returns the OTP.
+never returns the code.
 
 The default development SMS provider is a null provider, so it records delivery
 without sending a real SMS. For local manual testing only, set the newest
-challenge for the same phone to the known code `123456`:
+challenge owned by your signed-in user to the known code `123456`:
 
 ```sh
 bin/rails runner '
 abort "development only" unless Rails.env.development?
 brand = Brand.kept.find_by!(slug: "hookus")
-phone = Identity::PhoneNormalizer.call("+27821234567")
-challenge = OtpChallenge.phone_otp.where(brand:, identifier: phone).order(created_at: :desc).first!
+challenge = OtpChallenge.phone_verification.where(brand:).order(created_at: :desc).first!
 challenge.update!(code_digest: OtpChallenge.digest_code("123456"))
-puts "Local OTP set to 123456"
+puts "Local verification code set to 123456"
 '
 ```
 
 Do not use this technique in staging or production.
 
-Next, expand `POST /api/v1/auth/phone/verify_otp` and execute:
+Next, expand `PATCH /api/v1/auth/verification` and execute:
 
 ```json
 {
-  "phone": "+27821234567",
-  "code": "123456",
-  "device_name": "Local Swagger"
+  "kind": "phone",
+  "code": "123456"
 }
 ```
 
-Expect HTTP `201`. Copy the `token` value from the response. Select
-**Authorize** at the top of Swagger, paste the token itself, and select
-**Authorize**. Do not type the `Bearer ` prefix; Swagger adds it to requests.
+Expect HTTP `200` with `identifier.verified: true`. This endpoint does not return
+or create another session. Email verification follows the same two requests with
+`kind: "email"`; development/test delivery uses Action Mailer, while production
+must configure `D8N_EMAIL_PROVIDER` and an actual Action Mailer transport.
 
 Confirm authentication with `GET /api/v1/me`. Expect HTTP `200` and a response
 whose brand slug is `hookus`.

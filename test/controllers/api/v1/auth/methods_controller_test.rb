@@ -5,7 +5,7 @@ class Api::V1::Auth::MethodsControllerTest < ActionDispatch::IntegrationTest
     @brand = Brand.create!(
       slug: "hookus",
       name: "HookUs",
-      auth_methods: %w[ phone_password email_password phone_otp google ]
+      auth_methods: %w[ phone_password email_password google ]
     )
     BrandDomain.create!(brand: @brand, host: "hookus.test")
     host! "hookus.test"
@@ -18,7 +18,7 @@ class Api::V1::Auth::MethodsControllerTest < ActionDispatch::IntegrationTest
     assert_equal(
       {
         "brand" => { "slug" => "hookus", "name" => "HookUs" },
-        "methods" => %w[ phone_password email_password phone_otp ]
+        "methods" => %w[ phone_password email_password ]
       },
       JSON.parse(response.body)
     )

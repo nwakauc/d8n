@@ -84,30 +84,38 @@ Password login never silently joins an existing D8N identity to another brand.
 Registration is the explicit current-brand join for a new identity; a future
 existing-identity brand-join flow remains separate.
 
-Request a phone code:
+After signup, an authenticated user may optionally verify the phone or email
+already attached to the account:
 
 ```sh
-curl -i -X POST https://hookus.example.com/api/v1/auth/phone/request_otp \
+curl -i -X POST https://hookus.example.com/api/v1/auth/verification \
+  -H 'Authorization: Bearer REPLACE_WITH_TOKEN' \
   -H 'Content-Type: application/json' \
-  -d '{"phone":"+27821234567"}'
+  -d '{"kind":"phone"}'
 ```
 
-Verify the code and retain the returned bearer token in secure client storage:
+Verify the delivered code using the same existing session:
 
 ```sh
-curl -i -X POST https://hookus.example.com/api/v1/auth/phone/verify_otp \
+curl -i -X PATCH https://hookus.example.com/api/v1/auth/verification \
+  -H 'Authorization: Bearer REPLACE_WITH_TOKEN' \
   -H 'Content-Type: application/json' \
-  -d '{"phone":"+27821234567","code":"123456","device_name":"Web"}'
+  -d '{"kind":"phone","code":"123456"}'
 ```
 
-Use the token on protected endpoints:
+Verification never creates an account, credential, membership, or session and
+never blocks normal onboarding. The former unauthenticated phone-OTP login routes
+have been removed; returning users log in with phone/email and password.
+
+Use the existing token on protected endpoints:
 
 ```sh
 curl https://hookus.example.com/api/v1/me \
   -H 'Authorization: Bearer REPLACE_WITH_TOKEN'
 ```
 
-The OTP request response is intentionally generic. Test and development codes come from the configured test SMS gateway; production APIs never return OTP codes.
+The verification request response is intentionally generic. Test and development
+codes come from configured delivery adapters; production APIs never return codes.
 
 ## Frontend Bootstrap
 

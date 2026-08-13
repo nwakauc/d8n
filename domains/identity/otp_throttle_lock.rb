@@ -1,8 +1,8 @@
 module Identity
   class OtpThrottleLock
-    def self.with_lock(brand:, identifier:, ip_address:)
-      keys = [ "phone:#{brand.id}:#{identifier}" ]
-      keys << "ip:#{brand.id}:#{ip_address}" if ip_address.present?
+    def self.with_lock(brand:, identifier:, kind:, ip_address:)
+      keys = [ lock_key(brand:, scope: "identifier", value: "#{kind}:#{identifier}") ]
+      keys << lock_key(brand:, scope: "ip", value: ip_address) if ip_address.present?
 
       keys.sort.each do |key|
         quoted_key = ActiveRecord::Base.connection.quote(key)
@@ -13,5 +13,11 @@ module Identity
 
       yield
     end
+
+    def self.lock_key(brand:, scope:, value:)
+      digest = HmacDigest.call(purpose: "otp-throttle-lock", value: "#{brand.id}:#{scope}:#{value}")
+      "otp:#{brand.id}:#{scope}:#{digest}"
+    end
+    private_class_method :lock_key
   end
 end

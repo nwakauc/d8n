@@ -1,21 +1,21 @@
-# ADR 0012: Add Password And Google Authentication Alongside Phone OTP
+# ADR 0012: Add Password Authentication And Post-Signup Verification
 
 ## Status
 
-Accepted through Phase 2 Slice 2 on 2026-08-13. The Rodauth integration proof,
+Accepted through Phase 2 Slice 3 on 2026-08-13. The Rodauth integration proof,
 dedicated brand authentication policy, and zero-friction phone/email password
-registration and login are approved. Recovery, identifier verification,
-credential linking, brand joining, and Google remain behind their documented
-slice and human gates.
+registration and login are implemented. Authenticated post-signup phone/email
+identifier verification is also implemented. Recovery, credential linking,
+brand joining, and Google remain behind their documented slice and human gates.
 
 ## Context
 
-D8N currently implements phone OTP as both registration and login. The intended
-HookUs product is broader:
+D8N initially implemented phone OTP as both registration and login. HookUs now
+uses the approved password-first model:
 
 - a person may register with a phone number and password;
 - a person may register with an email address and password;
-- a person may choose phone OTP instead of a password when the brand offers it;
+- a person may optionally prove control of the signup identifier afterward;
 - a person may choose Google when the brand offers it;
 - after explicit linking, the same D8N identity may sign in with any of its
   password credentials;
@@ -27,10 +27,10 @@ architecture. Importing existing Date9ja password hashes remains a separate
 migration decision: source algorithms, reset requirements, and reconciliation
 must be inventoried before any production migration.
 
-The schema anticipated multiple strategies, but only phone OTP is implemented.
-`Credential` currently has no dedicated password digest, lockout, reset-token, or
-confirmation storage. Renaming an enum does not by itself integrate Rodauth with
-these records.
+The original schema anticipated multiple strategies and retains legacy enum
+values for migration compatibility. Slices 0 through 2 added the dedicated
+password digest and policy boundaries; Slice 3 replaces the public OTP-login
+surface with authenticated verification challenges.
 
 ## Decision
 
@@ -195,10 +195,9 @@ account table are enabled.
 
 Implemented result: brands have a dedicated validated allow-list and
 `GET /api/v1/auth/methods` returns only the intersection of configured and
-implemented methods. Existing brands retain phone OTP during migration; newly
-created brands deny all methods until explicitly configured. HookUs provisioning
-enables phone OTP only. Password and Google are valid planned policy values but
-are not advertised until implemented.
+implemented login methods. HookUs and Date9ja enable phone/password and
+email/password; newly created brands deny all methods until explicitly
+configured. Google remains a valid planned value but is not advertised.
 
 ### Slice 2: Zero-Friction Phone/Email Password Registration And Login
 
@@ -213,19 +212,49 @@ Gate: tests cover cross-brand sessions, disabled methods, identifier collisions,
 concurrency, inactive users/credentials/memberships, enumeration resistance,
 secret filtering, password policy, and throttling.
 
-### Slice 3: Password Reset And Change
+### Slice 3: Post-Signup Identifier Verification
+
+- Reuse the existing phone-OTP challenge/throttle/lock machinery for phone
+  verification, run in a verification-only mode: sending a code creates no
+  `User`, `IdentityIdentifier`, `Credential`, or session, and verifying a code
+  only stamps `verified_at` on the caller's own already-existing identifier and
+  records a security event.
+- Add an equivalent email verification channel. This is net-new — D8N has no
+  email-sending integration today — but follows the same shape already proven
+  for phone: single-use, expiring, attempt-limited, rate-limited, purpose-bound
+  digest storage, and generic non-disclosing responses.
+- A verification challenge is scoped to the authenticated identity that owns the
+  identifier. An unauthenticated caller must never be able to mark an arbitrary
+  phone or email verified by guessing or replaying a code.
+- Declining or delaying verification never blocks profile creation, discovery,
+  or normal password login. It continues to block only the control-dependent
+  capabilities already named above: password reset through that channel,
+  verification badges, credential linking, and sensitive trust actions.
+
+Gate: tests cover resend throttling, expiry, purpose-bound single-use tokens,
+cross-identifier and cross-user rejection, non-enumeration, and that a
+verification attempt never creates or authenticates a session, credential, or
+membership.
+
+Implemented result: `POST/PATCH /api/v1/auth/verification` require the current
+brand session, address only the caller's existing phone/email identifier, and
+never issue authentication state. Phone uses the SMS adapter; email uses Action
+Mailer and fails closed in production until a provider/transport is configured.
+The former unauthenticated phone-OTP login routes and brand method were removed.
+
+### Slice 4: Password Reset And Change
 
 - Add identifier-appropriate reset delivery without revealing account existence.
 - Require recent reauthentication for password change.
 - Revoke affected sessions and audit transitions without recording secrets.
 
-### Slice 4: Explicit Credential Linking And Brand Join
+### Slice 5: Explicit Credential Linking And Brand Join
 
 - Add recent-reauthenticated linking for a new verified phone/email password.
 - Add an explicit authenticated join-brand workflow.
 - Deny collisions without automatic merge or cross-brand disclosure.
 
-### Slice 5: Google Sign-In And Linking
+### Slice 6: Google Sign-In And Linking
 
 - Select the concrete browser/mobile authorization flow and callback ownership.
 - Add server-validated Google identity mapping and explicit linking.
@@ -258,6 +287,9 @@ Before Google ships:
 - Password minimum length is six characters with no composition rules. Maximum
   length remains bounded by bcrypt's 72-byte input limit.
 - Google remains a later slice and is not bundled into password registration.
+- Phone OTP is not a login method going forward. It is repurposed to post-signup
+  phone verification (Slice 3), sent only after a phone/password account already
+  exists, never as a precondition to signing up.
 
 ## Consequences
 

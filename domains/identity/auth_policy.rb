@@ -1,12 +1,11 @@
 module Identity
   class AuthPolicy
     SUPPORTED_METHODS = %w[
-      phone_otp
       phone_password
       email_password
       google
     ].freeze
-    IMPLEMENTED_METHODS = %w[ phone_otp phone_password email_password ].freeze
+    IMPLEMENTED_METHODS = %w[ phone_password email_password ].freeze
 
     def self.enabled?(brand:, method:)
       brand.present? && brand.auth_methods.include?(method.to_s)

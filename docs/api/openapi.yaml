@@ -137,70 +137,68 @@ paths:
           $ref: "#/components/responses/AuthMethodUnavailable"
         "429":
           $ref: "#/components/responses/RateLimited"
-  /api/v1/auth/phone/request_otp:
+  /api/v1/auth/verification:
     post:
-      operationId: requestPhoneOtp
+      operationId: requestIdentifierVerification
       tags: [Authentication]
-      summary: Request a phone authentication code
-      description: The success response is intentionally generic and never contains the code.
-      security: []
+      summary: Request a post-signup phone or email verification code
+      description: |
+        Requires a brand-bound bearer session. The code is sent only to an
+        unverified identifier already owned by the current user. The generic
+        success response does not reveal whether that identifier exists or is
+        already verified, and requesting a code never creates account state.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PhoneOtpRequest"
+              $ref: "#/components/schemas/IdentifierVerificationRequest"
       responses:
         "202":
-          description: The request was accepted without disclosing account existence.
+          description: Request accepted without disclosing identifier state.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
-        "404":
-          $ref: "#/components/responses/AuthMethodUnavailable"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "422":
           $ref: "#/components/responses/InvalidInput"
         "429":
-          description: Request rate limit exceeded.
-          headers:
-            Retry-After:
-              schema:
-                type: integer
-              description: Seconds before another request should be attempted.
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          description: The configured delivery channel is temporarily unavailable.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /api/v1/auth/phone/verify_otp:
-    post:
-      operationId: verifyPhoneOtp
+    patch:
+      operationId: verifyIdentifier
       tags: [Authentication]
-      summary: Verify a phone code and issue a brand-bound session
-      security: []
+      summary: Verify the current user's phone or email identifier
+      description: |
+        Consumes a purpose-bound code and marks only the current user's matching
+        identifier verified. This endpoint never issues a session or creates a
+        user, credential, membership, or profile.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PhoneOtpVerification"
+              $ref: "#/components/schemas/IdentifierVerification"
       responses:
-        "201":
-          description: Session issued.
+        "200":
+          description: Identifier verified.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthSessionResponse"
+                $ref: "#/components/schemas/IdentifierVerificationResponse"
         "401":
-          description: Code invalid, expired, consumed, or account access denied.
+          description: Session or verification code is unavailable, invalid, expired, consumed, or locked.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          $ref: "#/components/responses/AuthMethodUnavailable"
-        "422":
-          $ref: "#/components/responses/InvalidInput"
   /api/v1/auth/session:
     delete:
       operationId: revokeSession
@@ -871,14 +869,14 @@ components:
           uniqueItems: true
           items:
             type: string
-            enum: [phone_otp, phone_password, email_password, google]
-    PhoneOtpRequest:
+            enum: [phone_password, email_password, google]
+    IdentifierVerificationRequest:
       type: object
-      required: [phone]
+      required: [kind]
       properties:
-        phone:
+        kind:
           type: string
-          description: International phone number; normalized by the server.
+          enum: [phone, email]
     PasswordAuthRequest:
       type: object
       required: [identifier, password]
@@ -894,17 +892,29 @@ components:
         device_name:
           type: [string, "null"]
           maxLength: 120
-    PhoneOtpVerification:
+    IdentifierVerification:
       type: object
-      required: [phone, code]
+      required: [kind, code]
       properties:
-        phone:
+        kind:
           type: string
+          enum: [phone, email]
         code:
           type: string
-        device_name:
-          type: [string, "null"]
-          maxLength: 120
+          pattern: "^[0-9]{6}$"
+    IdentifierVerificationResponse:
+      type: object
+      required: [identifier]
+      properties:
+        identifier:
+          type: object
+          required: [kind, verified]
+          properties:
+            kind:
+              type: string
+              enum: [phone, email]
+            verified:
+              const: true
     AuthSessionResponse:
       type: object
       required: [token, token_type, expires_at, user_id, brand]

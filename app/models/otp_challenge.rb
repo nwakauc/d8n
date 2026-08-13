@@ -2,7 +2,7 @@ class OtpChallenge < ApplicationRecord
   belongs_to :brand
   belongs_to :identity_identifier, optional: true
 
-  enum :kind, { phone_otp: 0 }
+  enum :kind, { phone_otp: 0, phone_verification: 1, email_verification: 2 }
 
   validates :identifier, :code_digest, :expires_at, presence: true
 

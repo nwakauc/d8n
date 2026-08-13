@@ -31,16 +31,17 @@ Profile
 
 ## Credentials
 
-D8N should support multiple credential types:
+D8N supports or plans these credential types:
 
-- Password attached to a verified email or phone identifier
-- Email OTP
-- Phone OTP
+- Password attached to an email or phone identifier
 - OAuth
 - WebAuthn
 - Recovery code
 
-All credential strategies produce the same D8N session result.
+Legacy phone-OTP credential values remain readable for migration compatibility,
+but OTP is no longer a signup/login credential. Phone/email codes are
+authenticated, post-signup identifier-verification challenges and never issue a
+session.
 
 ADR 0012 provides zero-friction phone/password and email/password as
 brand-configurable choices, with Google deferred. New registration immediately
@@ -66,16 +67,17 @@ Session authentication also requires the brand, user, and brand membership to re
 
 Logout revokes only the current brand session and records a security event. Suspending a membership in one brand must not suspend the same identity's membership or sessions in another brand.
 
-## Authentication Lifecycle
+## Identifier Verification Lifecycle
 
-Phone OTP authentication uses deny-by-default lifecycle rules:
-
-- Inactive or deleted brands cannot request or verify OTP challenges.
-- Suspended, closed, or deleted users cannot receive a new session.
-- Disabled, revoked, or deleted credentials cannot receive a new session.
-- Suspended, left, or deleted memberships are not silently reactivated.
-- Public authentication failures remain generic while internal security events retain the denial reason.
-- Concurrent OTP requests for the same brand and phone or IP are serialized with PostgreSQL transaction advisory locks before throttle checks.
+- A valid brand-bound session is required to request or verify a code.
+- Challenges target only an existing, kept identifier owned by the session user.
+- Challenges are channel- and purpose-bound, single-use, expiring,
+  attempt-limited, and resend/IP throttled.
+- Verification changes only identifier `verified_at` and audit records. It never
+  creates a user, credential, membership, profile, or session.
+- Missing/already-verified identifiers receive the same generic request response.
+- Concurrent requests for the same brand/channel/identifier or IP are serialized
+  with HMAC-keyed PostgreSQL transaction advisory locks before throttle checks.
 
 ## Identity Identifiers
 

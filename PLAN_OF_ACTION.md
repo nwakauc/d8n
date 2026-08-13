@@ -450,7 +450,7 @@ credentials
 
 Possible credential kinds:
 
-- `email_password`
+- `password` (attached to an email or phone identifier)
 - `email_otp`
 - `phone_otp`
 - `oauth`
@@ -479,13 +479,13 @@ Brand examples:
 
 ```txt
 HookUs
-  signup: phone_otp
-  required: phone verified
-  optional: email, WebAuthn later
+  signup: phone_password or email_password
+  required: password; identifier verification is optional post-signup
+  optional: Google, WebAuthn later
 
 Date9ja
-  signup: email_password or phone_otp
-  required: email or phone verified
+  signup: email_password or phone_password
+  required: password; identifier verification is optional post-signup
   stronger verification encouraged or required by policy
 
 Future professional brand
@@ -1385,8 +1385,8 @@ Review does not need to be slow, but it should be explicit.
 As of 2026-08-13:
 
 - Phase 1 is implemented for local development and CI. Production hosting, error tracking, and backup operations still require human/provider decisions.
-- Phase 2 has brand resolution, platform identity, phone OTP, brand-scoped sessions, logout, lifecycle enforcement, authentication audit records, and database-backed profile tenancy constraints. Production SMS, account recovery, mature password authentication, and secure admin authentication remain open.
-- ADR 0012 defines the Phase 2 password and Google extension. Slices 0 through 2 now provide the D8N-owned Rodauth password-security adapter, credential-kind-constrained password-hash storage, dedicated per-brand auth policy, host-resolved method discovery, and zero-friction phone/email password registration and login. Signup creates the current-brand membership and session immediately while leaving identifier control honestly unverified. Recovery, verification, explicit brand join, reauthenticated credential linking, and Google remain gated on their documented security and human decisions.
+- Phase 2 has brand resolution, platform identity, zero-friction phone/email password registration and login, brand-scoped sessions, logout, lifecycle enforcement, authentication audit records, and database-backed profile tenancy constraints. Production SMS/email delivery, account recovery, and secure admin authentication remain open.
+- ADR 0012 Slices 0 through 3 provide the D8N-owned Rodauth password-security adapter, credential-kind-constrained password-hash storage, dedicated per-brand auth policy, host-resolved method discovery, password registration/login, and optional authenticated post-signup phone/email verification. Verification never creates account/session state. Explicit brand join, reauthenticated credential linking, password recovery/change, and Google remain gated.
 - Phase 3 has brand-scoped profiles, preferences, photos, visibility, and configurable completion. Secure private media delivery, verified image processing, object storage, and moderation hooks remain Phase 6 work and are required before production use.
 - Phase 3 now also has typed HookUs profile details, tenant-safe controlled option groups/selections, required intents and vibes, option retirement behavior, explicit owner/public serialization, and a brand-scoped profile configuration endpoint.
 - Phase 4 architecture is accepted in ADR 0009. Slices 1 through 5 now provide profile publication, private locations, tenant-safe discovery, bilateral preferences, score-aware signed cursors, capability-based HookUs ranking, likes, passes, interaction exclusions, atomic canonical matches, and a non-production Date9ja strategy contract proof. Date9ja production scoring remains blocked on migration and privacy decisions.
@@ -1464,7 +1464,7 @@ Deliverables:
 - Login
 - Logout
 - Sessions
-- Phone OTP flow
+- Optional post-signup phone/email verification flow
 - Account status
 - Basic admin user
 

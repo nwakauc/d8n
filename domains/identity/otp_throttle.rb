@@ -2,9 +2,9 @@ module Identity
   class OtpThrottle
     Result = Data.define(:throttled?, :scope, :retry_after)
 
-    PHONE_COOLDOWN = 60.seconds
-    PHONE_WINDOW = 10.minutes
-    PHONE_LIMIT = 5
+    IDENTIFIER_COOLDOWN = 60.seconds
+    IDENTIFIER_WINDOW = 10.minutes
+    IDENTIFIER_LIMIT = 5
     IP_WINDOW = 10.minutes
     IP_LIMIT = 20
 
@@ -12,9 +12,10 @@ module Identity
       new(...).call
     end
 
-    def initialize(brand:, identifier:, ip_address:)
+    def initialize(brand:, identifier:, kind:, ip_address:)
       @brand = brand
       @identifier = identifier
+      @kind = kind
       @ip_address = ip_address
     end
 
@@ -24,24 +25,24 @@ module Identity
 
     private
 
-    attr_reader :brand, :identifier, :ip_address
+    attr_reader :brand, :identifier, :kind, :ip_address
 
     def phone_cooldown_result
       latest = phone_scope.order(created_at: :desc).first
       return if latest.blank?
 
-      retry_after = retry_after_for(latest.created_at, PHONE_COOLDOWN)
+      retry_after = retry_after_for(latest.created_at, IDENTIFIER_COOLDOWN)
       return if retry_after <= 0
 
-      Result.new(true, :phone_cooldown, positive_retry_after(retry_after))
+      Result.new(true, :identifier_cooldown, positive_retry_after(retry_after))
     end
 
     def phone_window_result
       throttled_window_result(
-        scope: :phone_window,
+        scope: :identifier_window,
         relation: phone_scope,
-        window: PHONE_WINDOW,
-        limit: PHONE_LIMIT
+        window: IDENTIFIER_WINDOW,
+        limit: IDENTIFIER_LIMIT
       )
     end
 
@@ -65,7 +66,7 @@ module Identity
     end
 
     def base_scope
-      OtpChallenge.where(brand:, kind: :phone_otp)
+      OtpChallenge.where(brand:, kind:)
     end
 
     def phone_scope
