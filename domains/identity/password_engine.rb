@@ -32,6 +32,8 @@ module Identity
     end
 
     def self.burn(password:)
+      # Rodauth has no public arbitrary-hash verification API. Keep this one
+      # version-coupled call isolated and guarded by a compatibility regression.
       rodauth.send(:password_hash_match?, dummy_hash, password.to_s)
       false
     rescue BCrypt::Errors::InvalidHash

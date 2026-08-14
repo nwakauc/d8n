@@ -494,6 +494,8 @@ paths:
                       $ref: "#/components/schemas/ProfilePhoto"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     post:
       operationId: createProfilePhoto
       tags: [Profile]
@@ -533,6 +535,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/ValidationFailed"
   /api/v1/profile/photos/{id}:

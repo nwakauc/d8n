@@ -1,4 +1,5 @@
 class Api::V1::ProfilePhotosController < ApplicationController
+  before_action :ensure_profile_photos_enabled!
   before_action :authenticate_user!
 
   def index
@@ -33,6 +34,12 @@ class Api::V1::ProfilePhotosController < ApplicationController
   end
 
   private
+
+  def ensure_profile_photos_enabled!
+    return if Rails.configuration.x.profile_photos_enabled
+
+    render json: { error: "not_found" }, status: :not_found
+  end
 
   def photo_params
     params.permit(:image, :position)

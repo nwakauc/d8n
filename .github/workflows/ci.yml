@@ -22,6 +22,19 @@ jobs:
       - name: Scan for common Rails security vulnerabilities using static analysis
         run: bin/brakeman --no-pager
 
+      - name: Audit locked gems for known vulnerabilities
+        run: bundle exec bundle-audit check --update
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Build production image
+        run: docker build --tag d8n:ci .
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -42,7 +55,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres
+        image: postgres:17
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

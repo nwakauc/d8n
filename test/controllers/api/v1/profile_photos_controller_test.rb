@@ -31,6 +31,22 @@ class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
+  test "does not expose the development photo foundation when disabled" do
+    previous_value = Rails.configuration.x.profile_photos_enabled
+    Rails.configuration.x.profile_photos_enabled = false
+
+    assert_no_difference [ -> { ProfilePhoto.count }, -> { ActiveStorage::Blob.count } ] do
+      post "/api/v1/profile/photos",
+        headers: bearer_headers(@token),
+        params: { image: uploaded_image }
+    end
+
+    assert_response :not_found
+    assert_equal({ "error" => "not_found" }, JSON.parse(response.body))
+  ensure
+    Rails.configuration.x.profile_photos_enabled = previous_value
+  end
+
   test "lists current brand profile photos" do
     photo = create_photo
 

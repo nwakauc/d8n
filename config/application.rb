@@ -29,5 +29,9 @@ module D8n
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
+
+    # The current ProfilePhoto API is an intentionally local-only foundation.
+    # Production keeps it unavailable until ADR 0011's media pipeline replaces it.
+    config.x.profile_photos_enabled = false
   end
 end

@@ -20,6 +20,9 @@ Rails.application.configure do
 
   # Store uploaded files on the local file system (see config/storage.yml for options).
   config.active_storage.service = :local
+  # Profile photos are a development foundation until ADR 0011's private media
+  # pipeline ships. Do not expose Active Storage's generic upload/delivery routes.
+  config.active_storage.draw_routes = false
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   config.assume_ssl = true

@@ -58,6 +58,10 @@ class CredentialPasswordHashTest < ActiveSupport::TestCase
     assert_not Identity::PasswordEngine.matches?(credential:, password: "long enough password")
   end
 
+  test "burns a dummy password check without authenticating" do
+    assert_equal false, Identity::PasswordEngine.burn(password: "attacker supplied password")
+  end
+
   test "password hash records reject non-password credentials" do
     phone_otp = credential(kind: :phone_otp)
     password_record = CredentialPasswordHash.new(
