@@ -14,9 +14,10 @@ Build D8N into the shared, production-ready platform for the dating
 portfolio, while keeping Date9ja stable and using HookUs as the first
 brand to prove the new D8N production architecture.
 
-Immediate infrastructure objective: finish the private-media staging
-gate by deploying the completed Cloudflare R2 wiring to D8N staging and
-verifying the real upload -> authorized retrieval -> purge lifecycle.
+Immediate infrastructure objective: the Cloudflare R2 wiring is now
+deployed to a healthy D8N staging environment. The remaining private-media
+staging gate is verifying the real upload -> authorized retrieval -> purge
+lifecycle against the live bucket before any production R2 resource exists.
 
 2. Current project priority
 
@@ -54,6 +55,19 @@ Application: Rails/Puma
 Jobs: separate durable worker / Solid Queue
 
 Database: PostgreSQL 17 accessory
+
+Latest staging deploy: healthy. The Rails/Puma web role, the separate
+Solid Queue worker role, and the PostgreSQL 17 accessory are all up, and
+the API health check returns HTTP 200 at https://staging-api.d8n.tech.
+The Cloudflare R2 staging configuration is deployed (see section 4).
+
+A prior deploy failed because an env.secret list overrode
+RAILS_MASTER_KEY and D8N_DATABASE_PASSWORD; that bug was found and fixed,
+and regression coverage now proves staging preserves both the base app
+secrets and the R2 secrets together.
+
+The HookUs frontend can now use staging-api.d8n.tech as the backend
+source of truth (see section 9).
 
 Staging has already been seeded/tested and its current performance
 boundaries are understood.
@@ -108,9 +122,9 @@ test/config/kamal_staging_r2_configuration_test.rb added.
 docs/operations/private-media-storage.md updated with staging
 wiring and A-F verification procedure.
 
-Engineering verification completed
+Engineering verification completed (re-run 14 Aug 2026)
 
-Rails test suite: 309 runs, 1,604 assertions, 0 failures
+Rails test suite: 310 runs, 1,626 assertions, 0 failures
 
 RuboCop: 245 files, 0 offenses
 
@@ -122,17 +136,25 @@ bundle-audit: 0 vulnerabilities
 
 git diff --check: clean
 
+Deployed
+
+The R2 configuration is now deployed to staging (D8N_R2_ENABLED=true),
+and the staging deploy carrying it is healthy. This proves the app boots
+with R2 selected; it does not yet prove a real object lifecycle.
+
 Not done yet - immediate next gate
 
-The R2 code/config is verified but has not yet completed real staging
-activation verification.
+The real end-to-end R2 lifecycle has not been exercised. No object has
+been uploaded to, retrieved from, or purged from d8n-staging-media
+through the application service.
 
-Next: 1. Deploy the R2 configuration to D8N staging using the documented
-Kamal procedure. 2. Upload one harmless image through the supported
-application flow. 3. Confirm the object appears in d8n-staging-media.
-4. Confirm direct public R2 access is unavailable. 5. Confirm the
-application can retrieve the media through the intended authorized path.
-6. Delete/purge the record. 7. Confirm the R2 object disappears.
+Next (run against the deployed staging release, per
+docs/operations/private-media-storage.md): 1. Upload one harmless image
+through the supported application flow. 2. Confirm the object appears in
+d8n-staging-media. 3. Confirm direct public R2 access is unavailable.
+4. Confirm the application can retrieve the media through the intended
+authorized path. 5. Delete/purge the record. 6. Confirm the R2 object
+disappears.
 
 Do not create production R2 resources until this staging lifecycle is
 proven.
@@ -212,6 +234,15 @@ prove the D8N production architecture with HookUs first, then plan
 Date9ja migration separately.
 
 9. HookUs frontend state
+
+The frontend engineer is now wiring HookUs against the real staging API
+(staging-api.d8n.tech) as the backend source of truth. The frontend local
+dev server runs at http://localhost:3001. The staging backend explicitly
+allows that origin (and its 127.0.0.1 loopback form) for CORS via the
+D8N_CORS_ORIGINS env in config/deploy.staging.yml; no wildcard origin is
+used. Auth remains bearer-token (Authorization header), not cookies, so
+no CORS credentials mode is enabled. This takes effect on staging only
+after the next staging deploy.
 
 A frontend audit/fix pass is underway.
 
@@ -362,14 +393,17 @@ Do not restart planning from zero.
 
 The immediate D8N infrastructure action is:
 
-Start a fresh backend agent session, read the R2 handoff and
-docs/operations/private-media-storage.md, verify the existing
-diff/state, then deploy the already-tested R2 configuration to staging
-and execute the documented A-F private-media verification. Do not
-create production R2 resources and do not modify unrelated features.
+Start a fresh backend agent session, read
+docs/operations/private-media-storage.md, and execute the documented A-F
+private-media verification against the already-deployed, healthy R2
+staging release (upload -> confirm object -> confirm direct access
+blocked -> authorized retrieval -> purge -> confirm removal). Record the
+dated evidence. Do not create production R2 resources and do not modify
+unrelated features.
 
-In parallel, the fresh HookUs frontend Sonnet may continue its
-independently scoped frontend product-hardening work.
+In parallel, the HookUs frontend engineer continues wiring HookUs against
+staging-api.d8n.tech (CORS for http://localhost:3001 is configured and
+takes effect on the next staging deploy).
 
 17. How to use this file in a fresh ChatGPT conversation
 

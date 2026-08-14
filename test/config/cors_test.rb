@@ -1,4 +1,5 @@
 require "test_helper"
+require "yaml"
 
 class CorsTest < ActionDispatch::IntegrationTest
   test "permits the HookUs development origin to preflight auth requests" do
@@ -33,5 +34,21 @@ class CorsTest < ActionDispatch::IntegrationTest
     }
 
     assert_nil response.headers["Access-Control-Allow-Origin"]
+  end
+
+  # Staging boots with RAILS_ENV=production, so the initializer's development
+  # default origins do not apply there; the origins must be supplied explicitly
+  # through D8N_CORS_ORIGINS in the Kamal env. These assertions guard the actual
+  # deployed configuration that lets the local HookUs frontend reach staging.
+  test "staging deploy config allows the HookUs development origin without a wildcard" do
+    staging = YAML.safe_load_file(Rails.root.join("config/deploy.staging.yml"))
+    origins = staging.fetch("env").fetch("clear").fetch("D8N_CORS_ORIGINS")
+
+    permitted = origins.split(",").map(&:strip)
+
+    assert_includes permitted, "http://localhost:3001"
+    refute_includes permitted, "*", "staging CORS origins must never include a wildcard"
+    assert(permitted.none? { |origin| origin.include?("*") },
+      "staging CORS origins must not contain wildcard patterns")
   end
 end

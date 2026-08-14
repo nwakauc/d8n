@@ -32,6 +32,26 @@ The JSON URL can be imported directly into Postman, Insomnia, Bruno, Swagger Edi
 
 Every task that changes an API route, input, output, authentication rule, status code, or stable error code must update `openapi.yaml`, the integration guidance, and endpoint tests in the same change. `OpenapiContractTest` enforces route coverage, unique operation IDs, valid local references, and runtime publication.
 
+## Implementation Status
+
+Use this to plan frontend integration. It mirrors the machine-readable status at
+the API root (`GET /`) and the summary at the top of `openapi.yaml`.
+
+| Domain | Status | Notes |
+| --- | --- | --- |
+| Identity | Available | Phone/email + password register, login, session, identifier verification. |
+| Profiles | Available | Profile, configuration, options, preferences, location, publication. |
+| Matching | Available | Discovery, likes, passes, matches. |
+| Messaging | Preview | Conversation **metadata only**; no message-content endpoint yet. |
+| Trust | Preview | **Blocking only**; reporting and enforcement are planned. |
+| Media | In development | Private R2 backend wired; photo upload returns `404` in production/staging until the media pipeline ships. |
+| Verification | Planned | Identity/selfie verification; no endpoints yet. |
+| Billing / Notifications / Analytics / Admin | Planned | No endpoints yet. |
+
+Every path in `openapi.yaml` is implemented; the "Preview" and "In development"
+notes above describe deliberate scope limits, not missing documentation. Do not
+build UI against a domain marked Planned — those endpoints do not exist yet.
+
 ## Brand And Tenant Context
 
 D8N resolves the brand from the request host. Client applications do not send `brand_id`.

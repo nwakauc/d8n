@@ -35,7 +35,7 @@ class KamalStagingR2ConfigurationTest < ActiveSupport::TestCase
 
     mapping = lines.filter_map do |line|
       match = SECRET_LINE.match(line)
-      [match[1], match[2]] if match
+      [ match[1], match[2] ] if match
     end.to_h
 
     assert_equal "RAILS_MASTER_KEY", mapping.fetch("RAILS_MASTER_KEY")

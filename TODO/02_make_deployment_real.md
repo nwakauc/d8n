@@ -69,9 +69,17 @@ recoverable, observable, and capable of processing private media safely.
   Regression tests prove the default disabled state, fail-closed environment
   contract, R2 service selection, disabled generic Active Storage routes, and
   disabled unfinished profile-photo API. `docs/operations/private-media-storage.md`
-  documents least-privilege setup and the rollback boundary. No provider resource
-  or network behavior is claimed as proven; processing, delivery, and purge gates
-  remain outstanding.
+  documents least-privilege setup and the rollback boundary. The staging Kamal
+  destination (`d8n-staging-media`, public access disabled, bucket-scoped
+  credential) is now deployed with `D8N_R2_ENABLED=true`, and the staging deploy
+  carrying it is healthy with the API health check returning 200. A prior deploy
+  failure caused by an `env.secret` list overriding `RAILS_MASTER_KEY` and
+  `D8N_DATABASE_PASSWORD` was diagnosed and fixed, with regression coverage
+  proving staging preserves both the base app secrets and the R2 secrets. Still
+  outstanding before Done: the real end-to-end R2 object lifecycle
+  (upload -> confirm object -> direct access blocked -> authorized retrieval ->
+  purge -> object removed) has not been exercised, and processing, delivery, and
+  purge gates remain unimplemented.
 
 ### DR-05 — Establish backups and prove one restore
 

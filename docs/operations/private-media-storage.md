@@ -152,9 +152,12 @@ authorization source of truth.
 ## What is not yet proven
 
 - The `d8n-staging-media` bucket and its bucket-scoped credential exist and are
-  now wired through Kamal, but no deploy has run with `D8N_R2_ENABLED=true` and
-  no network operation against R2 has actually been executed. The staging
-  verification procedure above is written but not yet performed.
+  wired through Kamal, and a staging deploy has now run with
+  `D8N_R2_ENABLED=true` and is healthy (the app boots with R2 selected). However,
+  no network operation against R2 has been executed yet: nothing has been
+  uploaded to, retrieved from, or purged from the bucket through the application
+  service. The staging A-F verification procedure above is written but not yet
+  performed.
 - Safe decode/re-encoding, EXIF removal, moderation, signed delivery, and purge
   retries are not implemented yet.
 - The production photo HTTP API remains disabled in every environment,

@@ -18,20 +18,20 @@
 
 ### Create D8N Staging
 
-* [ ] Create isolated D8N staging environment
-* [ ] Create separate D8N staging database
-* [ ] Create separate PostgreSQL user
-* [ ] Create staging environment variables/secrets
-* [ ] Create staging domain
-* [ ] Configure HTTPS
-* [ ] Deploy D8N staging
-* [ ] Configure Rails/Puma
-* [ ] Configure separate durable worker
-* [ ] Configure Solid Queue properly
-* [ ] Verify Rails restart
-* [ ] Verify worker restart
-* [ ] Verify jobs survive process restart
-* [ ] Never copy real production user data into staging
+* [x] Create isolated D8N staging environment
+* [x] Create separate D8N staging database
+* [x] Create separate PostgreSQL user
+* [x] Create staging environment variables/secrets
+* [x] Create staging domain (staging-api.d8n.tech)
+* [x] Configure HTTPS
+* [x] Deploy D8N staging (latest deploy healthy, health check 200)
+* [x] Configure Rails/Puma
+* [x] Configure separate durable worker
+* [x] Configure Solid Queue properly
+* [x] Verify Rails restart
+* [x] Verify worker restart
+* [x] Verify jobs survive process restart (durable execution previously verified)
+* [ ] Never copy real production user data into staging (standing rule)
 
 ---
 
@@ -72,11 +72,11 @@ Before we trust staging or production:
 
 ### AWS SES
 
-* [ ] Set up AWS SES
-* [ ] Configure sending domain
-* [ ] Configure DNS authentication
-* [ ] Configure SPF/DKIM/required records
-* [ ] Configure SES production access if required
+* [x] Set up AWS SES (D8N-owned AWS account; d8n.tech identity verified)
+* [x] Configure sending domain (custom MAIL FROM mail.d8n.tech)
+* [x] Configure DNS authentication
+* [x] Configure SPF/DKIM/required records (SPF/DKIM/DMARC configured)
+* [ ] Configure SES production access if required (production-access request pending)
 * [ ] Configure SNS/delivery-status plumbing where required
 * [ ] Connect useSend → AWS SES
 
@@ -97,10 +97,10 @@ Before we trust staging or production:
 
 ### Storage
 
-* [ ] Create D8N staging R2 bucket
-* [ ] Create D8N production R2 bucket
-* [ ] Keep buckets private
-* [ ] Create separate staging credentials
+* [x] Create D8N staging R2 bucket (d8n-staging-media)
+* [ ] Create D8N production R2 bucket (not until staging lifecycle proven)
+* [x] Keep buckets private (staging bucket public access disabled)
+* [x] Create separate staging credentials (bucket-scoped)
 * [ ] Create separate production credentials
 
 ### Media Safety

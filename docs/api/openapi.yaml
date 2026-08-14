@@ -7,6 +7,27 @@ info:
     D8N resolves the active brand from the request host. Never send a brand ID in
     client-controlled input. Bearer sessions are brand-bound, and profile identifiers
     exposed by dating endpoints are public UUIDs rather than internal database IDs.
+
+    ## Implementation status (for frontend integration)
+
+    Every path documented in this contract is implemented and callable. Use this
+    summary to see which product domains are complete versus intentionally limited:
+
+    - **Available now:** Identity (register, login, session, identifier
+      verification), Profiles (profile, configuration, options, preferences,
+      location, publication), Matching (discovery, likes, passes, matches).
+    - **Preview (limited scope):** Messaging exposes conversation *metadata only* —
+      there is no message-content endpoint yet, so do not build or simulate a chat
+      transcript against D8N. Trust exposes *blocking only*; reporting and
+      enforcement are not implemented.
+    - **In development (not callable in production):** Media profile-photo upload is
+      a local-development foundation only. The private R2 storage backend is wired,
+      but the photo endpoints return `404` under `RAILS_ENV=production` (including
+      staging) until the media pipeline gates ship.
+    - **Planned (no endpoints yet):** Verification (identity/selfie), Billing,
+      Notifications, Analytics, Admin.
+
+    The live API root (`GET /`) returns the same per-service status machine-readably.
 servers:
   - url: /
     description: Current API origin (use this for the self-hosted Swagger UI)
