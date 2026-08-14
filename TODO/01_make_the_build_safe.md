@@ -55,13 +55,14 @@ production upload surface.
 - Priority: P1
 - Beta blocker: Yes
 - Owner: Codex
-- Status: In progress
+- Status: Done
 - Work: Add the Linux Bundler platform used by CI and production without removing
   developers' supported local platforms.
 - Evidence: A clean Linux dependency installation completes from `Gemfile.lock`.
-- Evidence recorded: `x86_64-linux` is locked. A clean Linux install remains
-  outstanding because the local Docker daemon was unavailable; CI now contains
-  the required image-build gate.
+- Evidence recorded: `aarch64-linux` and `x86_64-linux` are locked. Kamal built
+  and deployed revision `8be05b1` as an ARM64 Linux production image on staging,
+  where both the web and separate job containers booted successfully on
+  2026-08-14.
 
 ### SB-05 — Prove Docker and CI from a clean checkout
 
@@ -74,8 +75,10 @@ production upload surface.
 - Evidence: CI links showing image build, migrations, complete tests, RuboCop,
   Zeitwerk, Brakeman, and dependency audit passing from a clean checkout.
 - Evidence recorded: CI now pins PostgreSQL 17, audits dependencies, and builds
-  the production image. Local Docker verification was blocked because Docker
-  Desktop's daemon was not running; a successful CI run is still required.
+  the production image. The ARM64 staging image for `8be05b1` built and booted,
+  but GitHub CI had no run because direct `dev` pushes were not included in its
+  trigger. CI now includes `dev`; a successful hosted run after this change is
+  committed and pushed is still required before this task is Done.
 
 ### SB-06 — Make the Brakeman gate reproducible
 

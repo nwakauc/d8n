@@ -22,10 +22,6 @@ module Matching
         LEFT JOIN hookus_viewer_options
           ON hookus_viewer_options.profile_option_id = profile_option_selections.profile_option_id
       SQL
-      STATS_JOIN_SQL = <<~SQL.squish.freeze
-        LEFT JOIN hookus_candidate_option_stats
-          ON hookus_candidate_option_stats.profile_id = profiles.id
-      SQL
       INTENT_AVAILABLE_SQL = <<~SQL.squish.freeze
         hookus_viewer_option_counts.intent_count > 0 AND
           COALESCE(hookus_candidate_option_stats.intent_count, 0) > 0
@@ -117,14 +113,15 @@ module Matching
           SQL
         candidate_stats = selections
           .joins(OPTION_JOIN_SQL)
-          .group("profile_option_selections.profile_id")
-          .select("profile_option_selections.profile_id", OPTION_STATS_SQL)
+          .where("profile_option_selections.profile_id = profiles.id")
+          .select(OPTION_STATS_SQL)
 
         scope.with(
           hookus_viewer_options: viewer_options,
-          hookus_viewer_option_counts: viewer_counts,
-          hookus_candidate_option_stats: candidate_stats
-        ).joins("CROSS JOIN hookus_viewer_option_counts").joins(STATS_JOIN_SQL)
+          hookus_viewer_option_counts: viewer_counts
+        ).joins("CROSS JOIN hookus_viewer_option_counts").joins(<<~SQL.squish)
+          LEFT JOIN LATERAL (#{candidate_stats.to_sql}) hookus_candidate_option_stats ON TRUE
+        SQL
       end
       private_class_method :with_option_scores
 

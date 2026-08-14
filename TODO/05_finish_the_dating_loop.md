@@ -60,8 +60,8 @@ registration through a safe text conversation.
 
 - Priority: P1
 - Beta blocker: Yes
-- Owner: Unassigned
-- Status: Not started
+- Owner: Codex
+- Status: In progress
 - Work: Test the expected controlled-beta workload plus reasonable headroom. Cover
   login/registration, discovery, likes/matches, polling messages, uploads, worker
   backlog, provider timeouts, web restart, and database pressure. Do not claim a
@@ -70,6 +70,11 @@ registration through a safe text conversation.
   database connections/slow queries, queue depth/retries, resource saturation,
   and the bottlenecks actually observed. Resolve safety/correctness failures and
   agree explicit beta limits for capacity issues.
+- Evidence recorded: The 2026-08-14 staging baseline and query-plan investigation
+  are recorded in `docs/performance/staging-capacity-2026-08-14.md`. The current
+  two-core shared host saturates between 25 and 50 VUs; a candidate Hetzner run,
+  messaging/media workload, failure tests, queue metrics, and explicit beta
+  limits remain outstanding.
 
 ### DL-06 — Conduct the private-beta go/no-go review
 
@@ -82,4 +87,3 @@ registration through a safe text conversation.
   coverage, moderation coverage, and rollback/stop conditions.
 - Evidence: Founder/CTO records `Go` or `No go`, date, accepted residual risks,
   owners, and review date. An undocumented verbal acceptance is not completion.
-

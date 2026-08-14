@@ -3,6 +3,8 @@ import { check, group, sleep } from "k6";
 import { Rate, Trend } from "k6/metrics";
 
 const BASE_URL = __ENV.D8N_LOAD_TEST_BASE_URL || "https://staging-api.d8n.tech";
+const TARGET_HOST = __ENV.D8N_LOAD_TEST_TARGET;
+const TARGET_CONFIRMATION = "RUN_D8N_AUTHENTICATED_LOAD_TEST";
 const PASSWORD = __ENV.D8N_LOAD_TEST_PASSWORD;
 const USER_COUNT = requiredInteger("D8N_LOAD_TEST_USERS", 3000, 1, 5000);
 const MAX_VUS = requiredInteger("D8N_LOAD_TEST_MAX_VUS", 500, 1, 5000);
@@ -39,6 +41,7 @@ let token;
 let accountNumber;
 
 export function setup() {
+  validateTarget();
   if (!PASSWORD) {
     throw new Error("D8N_LOAD_TEST_PASSWORD is required");
   }
@@ -49,6 +52,18 @@ export function setup() {
   }
 
   return { ready: true };
+}
+
+function validateTarget() {
+  if (!TARGET_HOST || !/^[a-z0-9.-]+$/.test(TARGET_HOST)) {
+    throw new Error("D8N_LOAD_TEST_TARGET must be the exact target hostname");
+  }
+  if (BASE_URL.replace(/\/+$/, "") !== `https://${TARGET_HOST}`) {
+    throw new Error("D8N_LOAD_TEST_BASE_URL must be HTTPS and match D8N_LOAD_TEST_TARGET exactly");
+  }
+  if (__ENV.D8N_LOAD_TEST_CONFIRM !== TARGET_CONFIRMATION) {
+    throw new Error(`D8N_LOAD_TEST_CONFIRM must equal ${TARGET_CONFIRMATION}`);
+  }
 }
 
 export default function () {

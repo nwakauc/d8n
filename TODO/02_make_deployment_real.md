@@ -45,7 +45,10 @@ recoverable, observable, and capable of processing private media safely.
   official schema/configuration and `bin/jobs` supervisor are installed,
   production Active Job uses the separate `queue` database, Puma does not run the
   supervisor, and the staging Kamal configuration defines a separate `job` role.
-  A real staging enqueue/restart/perform rehearsal remains outstanding.
+  The founder-reported enqueue/restart/perform rehearsal succeeded, and the
+  queue database independently records `Infrastructure::SmokeTestJob` job 1 as
+  created at 2026-08-14 04:30:20 UTC and finished at 04:30:20 UTC. A deliberate
+  failed/retried-job visibility rehearsal remains outstanding before Done.
 
 ### DR-04 — Implement private R2 media storage and delivery
 

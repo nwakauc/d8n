@@ -16,9 +16,17 @@ when errors, latency, swapping, or database connection pressure becomes unsafe.
 
 ```sh
 export D8N_LOAD_TEST_PASSWORD='set-this-outside-the-repository'
+export D8N_LOAD_TEST_TARGET=staging-api.d8n.tech
+export D8N_LOAD_TEST_CONFIRM=RUN_D8N_AUTHENTICATED_LOAD_TEST
 export D8N_LOAD_TEST_USERS=3000
 export D8N_LOAD_TEST_MAX_VUS=500
 ```
+
+The authenticated workload refuses to start unless the HTTPS base URL exactly
+matches `D8N_LOAD_TEST_TARGET` and the explicit confirmation is present. For a
+future non-production Hetzner proving environment, set both
+`D8N_LOAD_TEST_BASE_URL` and `D8N_LOAD_TEST_TARGET` to that environment. Do not
+use this script against a live production hostname.
 
 ## Run
 
@@ -43,3 +51,8 @@ not artificially shared between virtual users.
 Capture server CPU, memory, swapping, container usage, PostgreSQL connections,
 slow queries, request latency, and error logs throughout the run. Client-side k6
 latency alone is not enough to choose production hardware.
+
+The workload never calls registration, verification, media, messaging, or
+provider endpoints. It only authenticates already-tagged synthetic accounts and
+uses profile/discovery/match/like/pass endpoints, none of which currently invoke
+email, SMS, media processing, webhooks, or external HTTP services.

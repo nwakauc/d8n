@@ -63,6 +63,29 @@ module Matching
       end
     end
 
+    test "HookUs computes option statistics per eligible candidate" do
+      hookus = Brand.create!(slug: "hookus", name: "HookUs")
+      Profiles::HookusProfileCatalog.install!(brand: hookus)
+      viewer = create_profile(
+        brand: hookus, gender: "woman", age: 30,
+        interested_in: [ "man" ], min_age: 25, max_age: 40
+      )
+      candidate = create_profile(
+        brand: hookus, gender: "man", age: 30,
+        interested_in: [ "woman" ], min_age: 25, max_age: 40
+      )
+      Profiles::OptionSelections.replace!(profile: viewer, selections: { intents: [ "hookups" ], vibes: [ "chill" ] })
+      Profiles::OptionSelections.replace!(profile: candidate, selections: { intents: [ "hookups" ], vibes: [ "chill" ] })
+
+      sql = Strategies::Hookus.rank(scope: hookus.profiles.where(id: candidate.id), viewer:).to_sql
+      ranked = Strategies::Hookus.rank(scope: hookus.profiles.where(id: candidate.id), viewer:).sole
+
+      assert_includes sql, "LEFT JOIN LATERAL"
+      assert_includes sql, "profile_option_selections.profile_id = profiles.id"
+      assert_not_includes sql, '"hookus_candidate_option_stats" AS ('
+      assert_equal 100, ranked[:matching_score]
+    end
+
     private
 
     def create_candidate(brand:)
