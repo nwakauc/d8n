@@ -1,0 +1,34 @@
+1ST RUN
+
+set -a
+source .env
+set +a
+
+THEN RUN 
+
+for v in \
+  KAMAL_REGISTRY_PASSWORD \
+  RAILS_MASTER_KEY \
+  D8N_DATABASE_PASSWORD \
+  STAGING_R2_ACCESS_KEY_ID \
+  STAGING_R2_SECRET_ACCESS_KEY \
+  STAGING_R2_ENDPOINT \
+  STAGING_R2_BUCKET
+do
+  [[ -n "${(P)v}" ]] && echo "$v = SET" || echo "$v = MISSING"
+done
+
+
+THEN 
+
+bundle exec kamal build push -d staging
+
+AND 
+
+bundle exec kamal deploy -d staging
+
+CONFIRM
+
+bundle exec kamal details -d staging
+
+curl -I https://staging-api.d8n.tech

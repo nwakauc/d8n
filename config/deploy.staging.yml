@@ -22,10 +22,11 @@ env:
     D8N_QUEUE_DATABASE_NAME: d8n_production_queue
     D8N_DATABASE_USERNAME: d8n
     JOB_CONCURRENCY: "1"
-    # Selects the private R2 Active Storage service for the staging destination
-    # only. See docs/operations/private-media-storage.md for the activation gate.
     D8N_R2_ENABLED: "true"
+
   secret:
+    - RAILS_MASTER_KEY
+    - D8N_DATABASE_PASSWORD
     - D8N_R2_ACCESS_KEY_ID
     - D8N_R2_SECRET_ACCESS_KEY
     - D8N_R2_BUCKET
