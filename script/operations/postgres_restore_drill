@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${D8N_RESTORE_BACKUP:?Set D8N_RESTORE_BACKUP to a custom-format pg_dump file}"
+: "${D8N_RESTORE_TARGET:?Set D8N_RESTORE_TARGET to a new disposable database name}"
+: "${D8N_RESTORE_KIND:?Set D8N_RESTORE_KIND to primary or queue}"
+
+if [[ "${D8N_RESTORE_CONFIRM:-}" != "CREATE_DISPOSABLE_RESTORE_DATABASE" ]]; then
+  echo "Refusing restore: set D8N_RESTORE_CONFIRM=CREATE_DISPOSABLE_RESTORE_DATABASE" >&2
+  exit 64
+fi
+
+if [[ ! "${D8N_RESTORE_TARGET}" =~ ^d8n_restore_[a-zA-Z0-9_]+$ ]]; then
+  echo "Refusing restore: target must begin with d8n_restore_" >&2
+  exit 64
+fi
+
+if [[ "${D8N_RESTORE_KIND}" != "primary" && "${D8N_RESTORE_KIND}" != "queue" ]]; then
+  echo "D8N_RESTORE_KIND must be primary or queue" >&2
+  exit 64
+fi
+
+if [[ ! -f "${D8N_RESTORE_BACKUP}" ]]; then
+  echo "Backup file does not exist: ${D8N_RESTORE_BACKUP}" >&2
+  exit 66
+fi
+
+for tool in createdb pg_restore psql; do
+  if ! command -v "${tool}" >/dev/null 2>&1; then
+    echo "${tool} is required" >&2
+    exit 69
+  fi
+done
+
+pg_restore --list "${D8N_RESTORE_BACKUP}" >/dev/null
+
+# createdb intentionally fails if the target already exists. This script never
+# drops or overwrites a database.
+PGDATABASE=postgres createdb --template=template0 "${D8N_RESTORE_TARGET}"
+pg_restore \
+  --exit-on-error \
+  --no-owner \
+  --no-acl \
+  --dbname="${D8N_RESTORE_TARGET}" \
+  "${D8N_RESTORE_BACKUP}"
+
+if [[ "${D8N_RESTORE_KIND}" == "primary" ]]; then
+  verification_sql="SELECT 'brands', count(*) FROM brands UNION ALL SELECT 'users', count(*) FROM users UNION ALL SELECT 'profiles', count(*) FROM profiles;"
+else
+  verification_sql="SELECT 'jobs', count(*) FROM solid_queue_jobs UNION ALL SELECT 'failed_executions', count(*) FROM solid_queue_failed_executions;"
+fi
+
+psql --dbname="${D8N_RESTORE_TARGET}" --set=ON_ERROR_STOP=1 --command="${verification_sql}"
+
+echo "Restore drill succeeded into disposable database: ${D8N_RESTORE_TARGET}"
+echo "The database was intentionally retained for inspection; remove it only after recording evidence."
+

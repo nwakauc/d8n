@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+: "${D8N_BACKUP_DATABASE:?Set D8N_BACKUP_DATABASE to the exact PostgreSQL database name}"
+: "${D8N_BACKUP_OUTPUT_DIR:?Set D8N_BACKUP_OUTPUT_DIR to an off-host mounted directory}"
+
+backup_label="${D8N_BACKUP_LABEL:-${D8N_BACKUP_DATABASE}}"
+if [[ ! "${backup_label}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+  echo "D8N_BACKUP_LABEL may contain only letters, numbers, underscores, and hyphens" >&2
+  exit 64
+fi
+
+if ! command -v pg_dump >/dev/null 2>&1; then
+  echo "pg_dump is required" >&2
+  exit 69
+fi
+
+mkdir -p "${D8N_BACKUP_OUTPUT_DIR}"
+chmod 700 "${D8N_BACKUP_OUTPUT_DIR}"
+
+timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+backup_path="${D8N_BACKUP_OUTPUT_DIR}/${backup_label}-${timestamp}.dump"
+if [[ -e "${backup_path}" || -e "${backup_path}.sha256" ]]; then
+  echo "Refusing to overwrite an existing backup: ${backup_path}" >&2
+  exit 73
+fi
+partial_path="${backup_path}.partial.$$"
+trap 'rm -f "${partial_path}"' EXIT
+
+PGDATABASE="${D8N_BACKUP_DATABASE}" pg_dump \
+  --format=custom \
+  --compress=6 \
+  --no-owner \
+  --no-acl \
+  --file="${partial_path}"
+mv "${partial_path}" "${backup_path}"
+trap - EXIT
+chmod 600 "${backup_path}"
+
+backup_directory="$(dirname "${backup_path}")"
+backup_filename="$(basename "${backup_path}")"
+if command -v sha256sum >/dev/null 2>&1; then
+  (cd "${backup_directory}" && sha256sum "${backup_filename}" > "${backup_filename}.sha256")
+else
+  (cd "${backup_directory}" && shasum -a 256 "${backup_filename}" > "${backup_filename}.sha256")
+fi
+chmod 600 "${backup_path}.sha256"
+
+echo "Backup created: ${backup_path}"
+echo "Checksum created: ${backup_path}.sha256"

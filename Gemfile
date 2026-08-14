@@ -38,6 +38,10 @@ gem "thruster", require: false
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
 # gem "image_processing", "~> 1.2"
 
+# Private S3-compatible object storage (Cloudflare R2) for production media.
+# The service remains disabled until its complete environment contract is present.
+gem "aws-sdk-s3", require: false
+
 # Permit explicitly configured browser origins to call the JSON API.
 gem "rack-cors", "~> 3.0"
 

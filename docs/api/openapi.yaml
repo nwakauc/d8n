@@ -29,11 +29,22 @@ paths:
     get:
       operationId: getHealth
       tags: [System]
-      summary: Check API availability
+      summary: Check API dependency readiness
+      description: |
+        Reports whether the web process can reach both the primary PostgreSQL
+        database and the Solid Queue database. Use `/up` for boot/liveness and
+        this endpoint for readiness. It is intentionally independent of brand
+        host resolution and exposes no connection details.
       security: []
       responses:
         "200":
           description: API is available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: One or more required database dependencies are unavailable.
           content:
             application/json:
               schema:
@@ -870,14 +881,25 @@ components:
   schemas:
     HealthResponse:
       type: object
-      required: [status, app, api_version]
+      required: [status, app, api_version, checks]
       properties:
         status:
-          const: ok
+          type: string
+          enum: [ok, degraded]
         app:
           const: d8n
         api_version:
           const: v1
+        checks:
+          type: object
+          required: [primary_database, queue_database]
+          properties:
+            primary_database:
+              type: string
+              enum: [ok, unavailable]
+            queue_database:
+              type: string
+              enum: [ok, unavailable]
     ErrorResponse:
       type: object
       required: [error]

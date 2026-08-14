@@ -23,6 +23,11 @@ Use **Authorize** with a brand-bound bearer token, then execute requests directl
 
 The repository contract is authoritative for the deployed commit. Clients may generate types or API clients from it, but should keep generated output in their own repositories.
 
+`GET /up` is the Rails boot/liveness probe. `GET /api/v1/health` is the public
+readiness probe: it returns `200` only when the primary and Solid Queue PostgreSQL
+connections respond, otherwise a bounded `503` without connection details. The
+readiness route does not require a recognized brand host.
+
 The JSON URL can be imported directly into Postman, Insomnia, Bruno, Swagger Editor, or an OpenAPI code generator. For local development, start Rails and import `http://localhost:3000/api/v1/openapi.json`; configure requests to use the required brand host as described below.
 
 Every task that changes an API route, input, output, authentication rule, status code, or stable error code must update `openapi.yaml`, the integration guidance, and endpoint tests in the same change. `OpenapiContractTest` enforces route coverage, unique operation IDs, valid local references, and runtime publication.

@@ -18,8 +18,25 @@ Rails.application.configure do
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.asset_host = "http://assets.example.com"
 
-  # Store uploaded files on the local file system (see config/storage.yml for options).
-  config.active_storage.service = :local
+  # Production media storage is fail-closed. Selecting R2 requires a complete
+  # private configuration and never enables the unfinished photo API by itself.
+  r2_storage_enabled = ENV["D8N_R2_ENABLED"] == "true"
+  if r2_storage_enabled
+    required_r2_environment = %w[
+      D8N_R2_ACCESS_KEY_ID
+      D8N_R2_SECRET_ACCESS_KEY
+      D8N_R2_BUCKET
+      D8N_R2_ENDPOINT
+    ]
+    missing_r2_environment = required_r2_environment.select { |name| ENV[name].blank? }
+    if missing_r2_environment.any?
+      raise "Private media storage requires R2 configuration: #{missing_r2_environment.join(', ')}"
+    end
+  end
+
+  config.active_storage.service = r2_storage_enabled ? :r2 : :local
+  config.active_storage.variant_processor = :disabled
+  config.x.profile_photos_enabled = false
   # Profile photos are a development foundation until ADR 0011's private media
   # pipeline ships. Do not expose Active Storage's generic upload/delivery routes.
   config.active_storage.draw_routes = false
