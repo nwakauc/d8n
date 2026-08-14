@@ -12,6 +12,8 @@ registry:
 
 builder:
   arch: arm64
+  local: false
+  remote: ssh://ubuntu@145.241.185.41
 
 ssh:
   user: ubuntu
