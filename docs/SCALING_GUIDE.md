@@ -64,7 +64,7 @@ Suggested infrastructure:
 - 1 Rails API web instance
 - 1 Rails worker instance
 - Managed PostgreSQL small instance
-- Managed Redis small instance
+- Solid Queue on the PostgreSQL instance, using its own queue database
 - Cloudflare R2 for media
 - Cloudflare CDN/WAF
 - Error tracking

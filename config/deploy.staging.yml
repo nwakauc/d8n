@@ -1,0 +1,38 @@
+service: d8n-staging
+
+servers:
+  web:
+    - 145.241.185.41
+  job:
+    hosts:
+      - 145.241.185.41
+    cmd: bin/jobs
+    stop_timeout: 30
+
+proxy:
+  ssl: true
+  host: staging-api.d8n.tech
+
+env:
+  clear:
+    RAILS_ENV: production
+    D8N_DATABASE_HOST: d8n-staging-db
+    D8N_DATABASE_PORT: "5432"
+    D8N_DATABASE_NAME: d8n_production
+    D8N_QUEUE_DATABASE_NAME: d8n_production_queue
+    D8N_DATABASE_USERNAME: d8n
+    JOB_CONCURRENCY: "1"
+
+accessories:
+  db:
+    image: postgres:17
+    host: 145.241.185.41
+    port: "127.0.0.1:5434:5432"
+    env:
+      clear:
+        POSTGRES_USER: d8n
+        POSTGRES_DB: d8n_production
+      secret:
+        - POSTGRES_PASSWORD:D8N_DATABASE_PASSWORD
+    directories:
+      - /home/ubuntu/d8n-staging-db/data:/var/lib/postgresql/data

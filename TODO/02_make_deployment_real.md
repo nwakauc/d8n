@@ -33,14 +33,19 @@ recoverable, observable, and capable of processing private media safely.
 
 - Priority: P1
 - Beta blocker: Yes
-- Owner: Unassigned
-- Status: Not started
+- Owner: Codex
+- Status: In progress
 - Work: Choose and fully wire one Rails-compatible durable queue. Remove or defer
   unused competing queue infrastructure instead of maintaining two patterns.
   Define bounded retries and idempotency for verification, notification, media,
   and deletion jobs.
 - Evidence: A staging job survives a web restart and is completed by the worker;
   failed/retried jobs are visible; deployment runs web and worker separately.
+- Evidence recorded: Solid Queue 1.4.0 is the sole retained Solid component. Its
+  official schema/configuration and `bin/jobs` supervisor are installed,
+  production Active Job uses the separate `queue` database, Puma does not run the
+  supervisor, and the staging Kamal configuration defines a separate `job` role.
+  A real staging enqueue/restart/perform rehearsal remains outstanding.
 
 ### DR-04 — Implement private R2 media storage and delivery
 
@@ -90,4 +95,3 @@ recoverable, observable, and capable of processing private media safely.
   procedures in staging.
 - Evidence: Dated runbook output records what worked, what failed, and the exact
   rollback boundary for schema changes.
-

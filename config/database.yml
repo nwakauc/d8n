@@ -81,18 +81,12 @@ test:
 production:
   primary: &primary_production
     <<: *default
-    database: d8n_production
-    username: d8n
+    host: <%= ENV.fetch("D8N_DATABASE_HOST", "localhost") %>
+    port: <%= ENV.fetch("D8N_DATABASE_PORT", 5432) %>
+    database: <%= ENV.fetch("D8N_DATABASE_NAME", "d8n_production") %>
+    username: <%= ENV.fetch("D8N_DATABASE_USERNAME", "d8n") %>
     password: <%= ENV["D8N_DATABASE_PASSWORD"] %>
-  cache:
-    <<: *primary_production
-    database: d8n_production_cache
-    migrations_paths: db/cache_migrate
   queue:
     <<: *primary_production
-    database: d8n_production_queue
+    database: <%= ENV.fetch("D8N_QUEUE_DATABASE_NAME", "d8n_production_queue") %>
     migrations_paths: db/queue_migrate
-  cable:
-    <<: *primary_production
-    database: d8n_production_cable
-    migrations_paths: db/cable_migrate

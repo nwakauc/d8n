@@ -82,6 +82,12 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
 
+      - name: Verify autoloading
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+        run: bin/rails zeitwerk:check
+
       - name: Run tests
         env:
           RAILS_ENV: test

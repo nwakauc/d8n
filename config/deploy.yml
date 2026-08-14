@@ -1,0 +1,22 @@
+service: d8n
+
+image: nwakauc/d8n
+
+require_destination: true
+
+registry:
+  server: ghcr.io
+  username: nwakauc
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+builder:
+  arch: arm64
+
+ssh:
+  user: ubuntu
+
+env:
+  secret:
+    - RAILS_MASTER_KEY
+    - D8N_DATABASE_PASSWORD
