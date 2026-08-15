@@ -19,8 +19,30 @@
 The owner-scoped profile-photo API is enabled exactly when private R2 storage is
 selected (`config.x.profile_photos_enabled = r2_storage_enabled`). It supports
 direct-to-R2 upload intent, verified attachment, short-lived signed retrieval,
-and soft-delete/purge. Uploaded photos are **owner-only, `pending_review`, and
-`hidden`**.
+and soft-delete/purge. Attached photos are **owner-only** and begin
+`pending_review`. Initial visibility is a per-brand policy
+(`Media::PhotoPolicy`): **HookUs photos are `visible` immediately** and moderated
+asynchronously, while any brand without an explicit policy stays `hidden`
+(moderate-first) — the safe default and the model-level column default. This
+makes a normal HookUs photo usable on upload without weakening moderation
+capability or making any other brand's media public by default.
+
+**Object keys are D8N-allocated and human-organized.** The client never chooses
+the key. `Media::ObjectKey` builds a stable, PII-free, `/`-delimited prefix so
+R2's flat keyspace renders as readable folders in the Cloudflare dashboard:
+
+```
+brands/<brand_slug>/users/<user_id>/profiles/<profile_public_uuid>/photos/<object_uuid>/original.<ext>
+```
+
+Only the brand slug, the internal user id, the profile's public UUID, and a
+freshly minted per-object UUID appear — no email, name, phone, username, or
+secret. Uniqueness comes from the per-object UUID. The key is allocated at
+intent time and passed to `create_before_direct_upload!(key:)`, so direct-upload
+signing, signed retrieval, and delete/purge all operate on it unchanged. The
+convention applies to **new** objects only; no existing blob is renamed (the
+staging bucket was returned to an empty baseline after the E2E, so there is
+nothing to migrate).
 
 Still gated (see `docs/architecture/media-and-verification.md` and ADR 0011):
 public/other-user delivery, safe decode/re-encode, EXIF/metadata removal, and
@@ -191,11 +213,27 @@ Do not collapse these into one "media done" status.
    permanent once `config/storage.yml` is committed and redeployed (the Kamal
    remote builder builds from committed git state).
 
-2. **Profile-photo backend E2E — pending staging deploy.** The direct-upload API
-   (intent → presigned PUT → verified attach → signed retrieval → delete/purge)
-   is implemented and covered by request/unit/job tests, but the end-to-end
-   staging proof through the deployed API must run after the deploy that carries
-   both the checksum fix and this API.
+2. **Profile-photo backend E2E — PROVEN (2026-08-15, deployed rev
+   `a9e09fcede2d867099769a8bd55a4437394fd80e`).** The full HTTP lifecycle ran
+   against the deployed staging API with a disposable `hookus` user, using the
+   real R2 staging bucket:
+   - upload intent (`POST /profile/photos/uploads`) → `201` with a short-lived
+     presigned PUT (`expires_in=600s`) and no credential exposed;
+   - direct `PUT` of a real PNG straight to private R2 → `200` (bytes never
+     traversed Rails);
+   - attach (`POST /profile/photos`) → `201`, bound to the authenticated
+     profile/brand, `pending_review` + `hidden`;
+   - signed GET (`url_expires_in=300s`) returned the exact bytes (SHA match);
+   - anonymous GET of the object → blocked (`400`, no bytes);
+   - `GET /profile/photos` listed the photo with a signed URL;
+   - delete (`DELETE /profile/photos/:id`) → `200`, soft-deleted, removed from
+     the list; the durable worker purge job removed the backing R2 object
+     (out-of-band `HEAD` → `404`);
+   - negative boundaries held: unauthenticated intent `401`, reused `signed_id`
+     `422 upload_already_used`, non-image object `422 invalid_image`, and no R2
+     credential in any response.
+   Staging was returned to its pre-test baseline (0 photos, 0 blobs, empty
+   bucket). No defect was found in the deployed build.
 
 3. **HookUs browser/product E2E — not started.** The frontend integration
    against staging has not been exercised.

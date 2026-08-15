@@ -69,6 +69,22 @@ class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/access_key|secret/i, response.body)
   end
 
+  test "upload intent allocates a server-controlled, brand/profile-scoped, PII-free key" do
+    post "/api/v1/profile/photos/uploads", headers: bearer_headers(@token), params: valid_intent_params
+
+    assert_response :created
+    blob = ActiveStorage::Blob.last
+    assert_equal(
+      "brands/#{@brand.slug}/users/#{@user.id}/profiles/#{@profile.public_id}",
+      blob.key.split("/photos/").first
+    )
+    assert_match %r{\Abrands/hookus/users/\d+/profiles/[0-9a-f-]{36}/photos/[0-9a-f-]{36}/original\.png\z}, blob.key
+    # The client never sees or chooses the key.
+    assert_no_match(/#{Regexp.escape(blob.key)}/, response.body)
+    # No PII (declared filename, and there is no email/name in scope) leaks in.
+    assert_not_includes blob.key, "photo.png"
+  end
+
   test "upload intent rejects an unsupported content type" do
     post "/api/v1/profile/photos/uploads",
       headers: bearer_headers(@token),
@@ -124,8 +140,10 @@ class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
     assert_equal @user, photo.user
     assert_equal @profile, photo.profile
     assert photo.image.attached?
+    # HookUs policy: an ordinary valid photo is usable immediately (visible),
+    # still pending an asynchronous moderation pass.
     assert_equal "pending_review", body.fetch("status")
-    assert_equal "hidden", body.fetch("visibility")
+    assert_equal "visible", body.fetch("visibility")
     assert_equal @profile.public_id, body.fetch("profile_id")
     assert_equal "image/png", body.fetch("image").fetch("content_type")
     assert body.fetch("image").fetch("url").present?

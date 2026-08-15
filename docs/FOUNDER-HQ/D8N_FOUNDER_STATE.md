@@ -153,17 +153,52 @@ Direct-to-R2 profile-photo API implemented (control plane / data plane):
 authenticated upload intent -> short-lived presigned PUT -> client uploads
 bytes straight to private R2 -> D8N verifies the real object and attaches
 it to the owner's profile -> short-lived signed retrieval. R2 credentials
-never reach the client; D8N allocates the object key. Owner-only photos are
-pending_review/hidden; public delivery, re-encode, EXIF removal, and
-moderation remain gated (ADR 0011). Full local gates green.
+never reach the client; D8N allocates the object key. Owner-only photos
+begin pending_review; HookUs makes them visible immediately (per-brand
+policy), other brands stay hidden. Public delivery, re-encode, EXIF removal,
+and moderation enforcement remain gated (ADR 0011). Full local gates green.
 
-Pending (needs founder commit + deploy): the Kamal remote builder builds
-from committed git state, so the storage.yml fix and the new API are not
-yet in the deployed image. After commit + redeploy, two proofs remain:
-profile-photo backend HTTP E2E on staging, then HookUs browser E2E.
+Profile-photo backend HTTP E2E - PROVEN 2026-08-15 against deployed rev
+a9e09fcede2d867099769a8bd55a4437394fd80e. Full lifecycle exercised over
+HTTP against the real R2 staging bucket with a disposable hookus user:
+intent -> short-lived presigned PUT -> direct PUT of a real PNG to private
+R2 (200) -> attach bound to the authenticated hookus profile
+(pending_review/hidden) -> short-lived signed GET returned the exact bytes
+-> anonymous object access blocked (400) -> API list showed the photo ->
+delete (200, soft-deleted, delisted) -> worker purge removed the backing R2
+object (head 404). Negatives held: unauth intent 401, reused upload 422,
+non-image 422, no credential exposed. Staging returned to baseline (0
+photos, 0 blobs, empty bucket). No defect in the deployed build; no
+redeploy needed.
 
-Do not create production R2 resources until the profile-photo backend E2E
-passes on staging.
+Two backend policy changes landed 2026-08-15 (not yet deployed; needs
+founder commit + redeploy):
+
+- HookUs photo visibility policy. Normal HookUs profile photos are now
+  `visible` immediately after attach (still `pending_review`, moderated
+  asynchronously) instead of waiting hidden for manual approval. This is a
+  per-brand policy (Media::PhotoPolicy): any brand without an explicit
+  policy stays hidden/moderate-first (the safe default and the DB column
+  default), so Date9ja and future brands are unaffected and moderation
+  capability is fully preserved.
+- Human-organized R2 object keys. D8N now allocates keys under
+  `brands/{slug}/users/{id}/profiles/{uuid}/photos/{uuid}/original.{ext}`
+  (Media::ObjectKey) so the Cloudflare dashboard groups objects into
+  readable, brand-scoped folders. Keys are server-controlled, PII-free
+  (only brand slug + internal user id + profile UUID + per-object UUID),
+  unique, and applied to new objects only (no migration). API capability
+  docs (root status, OpenAPI, docs/api/README) were corrected to report the
+  owner-scoped photo API as live (preview) rather than disabled.
+
+Remaining media proof: HookUs browser/product E2E (frontend integration).
+This backend agent cannot drive a real browser; the definitive
+browser->intent->PUT->attach->display->delete->purge run must be executed by
+the HookUs frontend after the founder's R2 CORS update. Backend contract is
+ready and unchanged by the above (response shapes identical).
+Still gated (separate tickets): public/other-user delivery, re-encode, EXIF
+removal, moderation enforcement, video. Do not create production R2 resources
+until the HookUs product loop and the remaining ADR 0011 media gates are
+addressed.
 
 5. AWS / Amazon SES - current state
 

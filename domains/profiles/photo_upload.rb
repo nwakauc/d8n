@@ -30,7 +30,7 @@ module Profiles
     # Control plane: allocate a D8N-controlled object key and return a short-lived
     # presigned PUT the client uses to upload bytes straight to private R2.
     def self.create_intent(user:, brand:, filename:, byte_size:, checksum:, content_type:)
-      require_profile!(user:, brand:)
+      profile = require_profile!(user:, brand:)
 
       content_type = content_type.to_s
       raise InvalidContentType unless ALLOWED_CONTENT_TYPES.include?(content_type)
@@ -41,7 +41,14 @@ module Profiles
       checksum = checksum.to_s
       raise InvalidUpload if checksum.blank?
 
+      # D8N — not the client — allocates the object key. It is a stable, PII-free,
+      # brand/user/profile-scoped path so R2 groups objects into readable folders.
+      key = Media::ObjectKey.profile_photo_original(
+        brand:, user:, profile:, content_type:
+      )
+
       blob = ActiveStorage::Blob.create_before_direct_upload!(
+        key:,
         filename: filename.to_s.presence || "photo",
         byte_size:,
         checksum:,
@@ -70,11 +77,14 @@ module Profiles
 
       verify_uploaded_object!(blob)
 
+      initial = Media::PhotoPolicy.initial_state(brand:)
       photo = ProfilePhoto.new(
         profile:,
         user:,
         brand:,
-        position: position.presence || next_position(profile)
+        position: position.presence || next_position(profile),
+        status: initial.status,
+        visibility: initial.visibility
       )
       photo.image.attach(blob)
       photo.save!

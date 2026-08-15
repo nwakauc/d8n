@@ -23,8 +23,9 @@ class WelcomeController < ApplicationController
       detail: "Conversation metadata only; message content is not yet available." },
     { key: "trust", name: "D8N Trust", domain: "Trust", status: "preview",
       detail: "Blocking is available; reporting and enforcement are planned." },
-    { key: "media", name: "D8N Media", domain: "Media", status: "in_development",
-      detail: "Private R2 storage backend is wired; the user upload API stays disabled pre-beta." },
+    { key: "media", name: "D8N Media", domain: "Media", status: "preview",
+      detail: "Owner-scoped profile photos: direct-to-R2 upload, signed retrieval, delete/purge. " \
+        "Public delivery, re-encode, EXIF removal, and moderation enforcement are gated." },
     { key: "verification", name: "D8N Verify", domain: "Verification", status: "planned",
       detail: "Identity/selfie verification is not yet implemented." },
     { key: "billing", name: "D8N Pay", domain: "Billing", status: "planned" },

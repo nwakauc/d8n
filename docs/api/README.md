@@ -44,7 +44,7 @@ the API root (`GET /`) and the summary at the top of `openapi.yaml`.
 | Matching | Available | Discovery, likes, passes, matches. |
 | Messaging | Preview | Conversation **metadata only**; no message-content endpoint yet. |
 | Trust | Preview | **Blocking only**; reporting and enforcement are planned. |
-| Media | In development | Private R2 backend wired; photo upload returns `404` in production/staging until the media pipeline ships. |
+| Media | Preview | Owner-scoped profile-photo upload/retrieval is live on private R2 (direct-to-R2 intent → attach → short-lived signed GET → delete/purge). Public/other-user delivery, re-encode, EXIF removal, and moderation enforcement remain gated. Endpoints require R2, so they return `404` when R2 is disabled. |
 | Verification | Planned | Identity/selfie verification; no endpoints yet. |
 | Billing / Notifications / Analytics / Admin | Planned | No endpoints yet. |
 
@@ -179,12 +179,19 @@ points to publication, and `complete` enters the normal product. A suspended
 profile has no next step. The API does not create empty profile rows during
 identity registration; the first profile patch creates the current-brand draft.
 
-The current profile-photo upload is a local-development foundation. Do not enable
-it for production until ADR 0011's private storage, verified image processing,
-metadata stripping, moderation, authorized delivery, and purge gates are
-implemented. Production disables the profile-photo controller surface and Rails'
-generic Active Storage routes; photo endpoints return `404` until that gate is
-replaced by the approved media API.
+The owner-scoped profile-photo API is live wherever private R2 storage is
+selected (staging today). The flow is direct-to-R2: request an upload intent,
+`PUT` the bytes to a short-lived presigned URL, then attach the returned
+`signed_id`. D8N — never the client — allocates the object key
+(`brands/<slug>/users/<id>/profiles/<uuid>/photos/<uuid>/original.<ext>`), sniffs
+the real file signature, and stores an owner-only record. Retrieval is a
+short-lived signed GET; delete soft-deletes and asynchronously purges the R2
+object. Rails' generic Active Storage routes stay disabled; object identity and
+delivery are mediated only by this API. Attached photos begin `pending_review`;
+HookUs makes them `visible` immediately and moderates asynchronously, while
+brands without an explicit policy stay `hidden` until moderated. Still gated per
+ADR 0011: public/other-user delivery, safe re-encode, EXIF/metadata stripping,
+and moderation enforcement. When R2 is disabled the endpoints return `404`.
 
 Phase 5 Slice 1 exposes conversation metadata only. No frontend should simulate or persist chat messages against D8N until the documented message-content endpoints ship with block/report and privacy controls.
 

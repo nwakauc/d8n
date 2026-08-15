@@ -22,11 +22,13 @@ info:
       enforcement are not implemented.
     - **Available (owner-scoped, private):** Profile photos use a direct-to-R2
       upload — request an intent, `PUT` the bytes to the returned short-lived
-      presigned URL, then attach the returned `signed_id`. Uploaded photos are
-      owner-only, `pending_review`, and `hidden`; delivery is a short-lived signed
-      URL. Public/other-user delivery, safe re-encoding, EXIF removal, and
-      moderation remain gated (ADR 0011). The endpoints require private R2 storage,
-      so they return `404` when R2 is disabled.
+      presigned URL, then attach the returned `signed_id`. Attached photos begin
+      `pending_review`; initial visibility is a per-brand policy — HookUs photos
+      are `visible` immediately and moderated asynchronously, while brands without
+      an explicit policy stay `hidden` until moderated. Delivery is a short-lived
+      signed URL. Public/other-user delivery, safe re-encoding, EXIF removal, and
+      moderation enforcement remain gated (ADR 0011). The endpoints require private
+      R2 storage, so they return `404` when R2 is disabled.
     - **Planned (no endpoints yet):** Verification (identity/selfie), Billing,
       Notifications, Analytics, Admin.
 
@@ -544,7 +546,9 @@ paths:
         presigned URL. D8N confirms the object exists in private R2, verifies its
         real file signature and size (the declared MIME is only a hint), and
         attaches it to the authenticated owner's profile. New photos begin
-        `pending_review` and `hidden`. A `signed_id` may be attached only once.
+        `pending_review`; initial visibility follows the brand policy (HookUs:
+        `visible` immediately with asynchronous moderation; other brands: `hidden`
+        until moderated). A `signed_id` may be attached only once.
       requestBody:
         required: true
         content:
