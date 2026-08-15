@@ -1,6 +1,7 @@
 class Api::V1::ProfilePhotosController < ApplicationController
   before_action :ensure_profile_photos_enabled!
   before_action :authenticate_user!
+  before_action :set_active_storage_url_options, only: %i[index create create_upload]
 
   def index
     photos = Profiles::PhotoLibrary.list(user: Current.user, brand: Current.brand)
@@ -8,21 +9,64 @@ class Api::V1::ProfilePhotosController < ApplicationController
     render json: { photos: photos.map { |photo| photo_payload(photo) } }
   end
 
-  def create
-    photo = Profiles::PhotoLibrary.add!(
+  # Control plane: authorize the caller and return a short-lived presigned PUT so
+  # the client can upload bytes directly to private R2. D8N allocates the object
+  # identity; the client never sees R2 credentials or chooses the object key.
+  def create_upload
+    intent = Profiles::PhotoUpload.create_intent(
       user: Current.user,
       brand: Current.brand,
-      image: photo_params.fetch(:image),
-      position: photo_params[:position]
+      filename: upload_params[:filename],
+      byte_size: upload_params.fetch(:byte_size),
+      checksum: upload_params.fetch(:checksum),
+      content_type: upload_params.fetch(:content_type)
+    )
+
+    render json: { upload: intent }, status: :created
+  rescue ActionController::ParameterMissing
+    render json: { error: "upload_parameters_required" }, status: :unprocessable_entity
+  rescue Profiles::PhotoUpload::ProfileRequired
+    render json: { error: "profile_required" }, status: :forbidden
+  rescue Profiles::PhotoUpload::InvalidContentType
+    render json: {
+      error: "unsupported_content_type",
+      allowed_content_types: Profiles::PhotoUpload::ALLOWED_CONTENT_TYPES
+    }, status: :unprocessable_entity
+  rescue Profiles::PhotoUpload::InvalidSize
+    render json: { error: "invalid_byte_size", byte_size_limit: Profiles::PhotoUpload::MAX_FILE_SIZE },
+      status: :unprocessable_entity
+  rescue Profiles::PhotoUpload::InvalidUpload
+    render json: { error: "checksum_required" }, status: :unprocessable_entity
+  end
+
+  # Data plane completion: attach a verified, already-uploaded object to the
+  # authenticated owner's profile.
+  def create
+    photo = Profiles::PhotoUpload.attach!(
+      user: Current.user,
+      brand: Current.brand,
+      signed_id: attach_params.fetch(:signed_id),
+      position: attach_params[:position]
     )
 
     render json: { photo: photo_payload(photo) }, status: :created
   rescue ActionController::ParameterMissing
-    render json: { error: "image_required" }, status: :unprocessable_entity
+    render json: { error: "signed_id_required" }, status: :unprocessable_entity
+  rescue Profiles::PhotoUpload::ProfileRequired
+    render json: { error: "profile_required" }, status: :forbidden
+  rescue Profiles::PhotoUpload::InvalidUpload
+    render json: { error: "invalid_upload" }, status: :unprocessable_entity
+  rescue Profiles::PhotoUpload::AlreadyAttached
+    render json: { error: "upload_already_used" }, status: :unprocessable_entity
+  rescue Profiles::PhotoUpload::MissingObject
+    render json: { error: "upload_not_found" }, status: :unprocessable_entity
+  rescue Profiles::PhotoUpload::InvalidObject
+    render json: { error: "invalid_image" }, status: :unprocessable_entity
+  rescue Profiles::PhotoUpload::InvalidSize
+    render json: { error: "invalid_byte_size", byte_size_limit: Profiles::PhotoUpload::MAX_FILE_SIZE },
+      status: :unprocessable_entity
   rescue ActiveRecord::RecordInvalid => e
     render json: { error: "invalid_photo", details: e.record.errors.to_hash }, status: :unprocessable_entity
-  rescue ActiveRecord::RecordNotFound
-    render json: { error: "profile_required" }, status: :forbidden
   end
 
   def destroy
@@ -41,8 +85,22 @@ class Api::V1::ProfilePhotosController < ApplicationController
     render json: { error: "not_found" }, status: :not_found
   end
 
-  def photo_params
-    params.permit(:image, :position)
+  # Presigned R2 retrieval URLs need no host, but the Disk service used in
+  # development/test builds a routed URL that does. Derive it from the request.
+  def set_active_storage_url_options
+    ActiveStorage::Current.url_options = {
+      protocol: request.protocol,
+      host: request.host,
+      port: request.optional_port
+    }
+  end
+
+  def upload_params
+    params.permit(:filename, :byte_size, :checksum, :content_type)
+  end
+
+  def attach_params
+    params.permit(:signed_id, :position)
   end
 
   def photo_payload(photo)
@@ -57,14 +115,19 @@ class Api::V1::ProfilePhotosController < ApplicationController
     }
   end
 
+  # Private media is served through a short-lived signed retrieval URL straight
+  # from R2 — never a permanent public object path, and never proxied through
+  # Puma.
   def image_payload(photo)
     return unless photo.image.attached?
 
+    blob = photo.image.blob
     {
-      filename: photo.image.filename.to_s,
-      content_type: photo.image.content_type,
-      byte_size: photo.image.byte_size,
-      url: Rails.application.routes.url_helpers.rails_blob_path(photo.image, only_path: true)
+      filename: blob.filename.to_s,
+      content_type: blob.content_type,
+      byte_size: blob.byte_size,
+      url: photo.image.url(expires_in: Profiles::PhotoUpload::RETRIEVAL_URL_EXPIRES_IN),
+      url_expires_in: Profiles::PhotoUpload::RETRIEVAL_URL_EXPIRES_IN.to_i
     }
   end
 end

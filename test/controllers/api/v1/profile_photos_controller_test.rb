@@ -6,6 +6,7 @@ class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
   teardown do
     clear_enqueued_jobs
     clear_performed_jobs
+    ActiveStorage::Blob.all.each { |blob| blob.purge rescue nil }
   end
 
   setup do
@@ -25,81 +26,189 @@ class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
     host! "hookus.test"
   end
 
-  test "requires authentication" do
+  # --- gating / auth ---------------------------------------------------------
+
+  test "index requires authentication" do
     get "/api/v1/profile/photos"
 
     assert_response :unauthorized
   end
 
-  test "does not expose the development photo foundation when disabled" do
-    previous_value = Rails.configuration.x.profile_photos_enabled
-    Rails.configuration.x.profile_photos_enabled = false
+  test "upload intent requires authentication" do
+    post "/api/v1/profile/photos/uploads", params: valid_intent_params
 
-    assert_no_difference [ -> { ProfilePhoto.count }, -> { ActiveStorage::Blob.count } ] do
-      post "/api/v1/profile/photos",
-        headers: bearer_headers(@token),
-        params: { image: uploaded_image }
-    end
-
-    assert_response :not_found
-    assert_equal({ "error" => "not_found" }, JSON.parse(response.body))
-  ensure
-    Rails.configuration.x.profile_photos_enabled = previous_value
+    assert_response :unauthorized
   end
 
-  test "lists current brand profile photos" do
-    photo = create_photo
+  test "endpoints are closed when the photo API is disabled" do
+    with_photos_disabled do
+      post "/api/v1/profile/photos/uploads", headers: bearer_headers(@token), params: valid_intent_params
+      assert_response :not_found
+
+      post "/api/v1/profile/photos", headers: bearer_headers(@token), params: { signed_id: "x" }
+      assert_response :not_found
+    end
+  end
+
+  # --- upload intent (control plane) ----------------------------------------
+
+  test "upload intent returns a short-lived direct upload authorization" do
+    assert_difference -> { ActiveStorage::Blob.count }, 1 do
+      post "/api/v1/profile/photos/uploads", headers: bearer_headers(@token), params: valid_intent_params
+    end
+
+    assert_response :created
+    upload = JSON.parse(response.body).fetch("upload")
+    assert upload.fetch("signed_id").present?
+    assert upload.fetch("url").present?
+    assert_kind_of Hash, upload.fetch("headers")
+    assert_operator upload.fetch("expires_in"), :>, 0
+    assert_equal ProfilePhoto::MAX_FILE_SIZE, upload.fetch("byte_size_limit")
+    assert_equal ProfilePhoto::ALLOWED_CONTENT_TYPES, upload.fetch("allowed_content_types")
+    # The client is never handed the object key or any credential.
+    assert_no_match(/access_key|secret/i, response.body)
+  end
+
+  test "upload intent rejects an unsupported content type" do
+    post "/api/v1/profile/photos/uploads",
+      headers: bearer_headers(@token),
+      params: valid_intent_params(content_type: "image/gif")
+
+    assert_response :unprocessable_entity
+    assert_equal "unsupported_content_type", JSON.parse(response.body).fetch("error")
+  end
+
+  test "upload intent rejects an oversized declared byte size" do
+    post "/api/v1/profile/photos/uploads",
+      headers: bearer_headers(@token),
+      params: valid_intent_params(byte_size: ProfilePhoto::MAX_FILE_SIZE + 1)
+
+    assert_response :unprocessable_entity
+    assert_equal "invalid_byte_size", JSON.parse(response.body).fetch("error")
+  end
+
+  test "upload intent requires a checksum" do
+    params = valid_intent_params
+    params.delete(:checksum)
+
+    post "/api/v1/profile/photos/uploads", headers: bearer_headers(@token), params: params
+
+    assert_response :unprocessable_entity
+    assert_equal "upload_parameters_required", JSON.parse(response.body).fetch("error")
+  end
+
+  test "upload intent is forbidden without a profile" do
+    @profile.destroy!
+
+    assert_no_difference -> { ActiveStorage::Blob.count } do
+      post "/api/v1/profile/photos/uploads", headers: bearer_headers(@token), params: valid_intent_params
+    end
+
+    assert_response :forbidden
+    assert_equal "profile_required", JSON.parse(response.body).fetch("error")
+  end
+
+  # --- attach (data plane completion) ---------------------------------------
+
+  test "attaches a completed upload to the current profile" do
+    signed_id = complete_upload(png_bytes)
+
+    assert_difference -> { ProfilePhoto.count }, 1 do
+      post "/api/v1/profile/photos", headers: bearer_headers(@token), params: { signed_id: signed_id }
+    end
+
+    assert_response :created
+    body = JSON.parse(response.body).fetch("photo")
+    photo = ProfilePhoto.last
+    assert_equal @brand, photo.brand
+    assert_equal @user, photo.user
+    assert_equal @profile, photo.profile
+    assert photo.image.attached?
+    assert_equal "pending_review", body.fetch("status")
+    assert_equal "hidden", body.fetch("visibility")
+    assert_equal @profile.public_id, body.fetch("profile_id")
+    assert_equal "image/png", body.fetch("image").fetch("content_type")
+    assert body.fetch("image").fetch("url").present?
+    assert_operator body.fetch("image").fetch("url_expires_in"), :>, 0
+    # Delivery is not a permanent generic Active Storage blob path.
+    assert_not_includes body.fetch("image").fetch("url"), "/rails/active_storage/blobs"
+  end
+
+  test "attach requires a signed id" do
+    post "/api/v1/profile/photos", headers: bearer_headers(@token), params: {}
+
+    assert_response :unprocessable_entity
+    assert_equal "signed_id_required", JSON.parse(response.body).fetch("error")
+  end
+
+  test "attach rejects an invalid signed id" do
+    post "/api/v1/profile/photos", headers: bearer_headers(@token), params: { signed_id: "not-a-real-id" }
+
+    assert_response :unprocessable_entity
+    assert_equal "invalid_upload", JSON.parse(response.body).fetch("error")
+  end
+
+  test "attach rejects a signed id whose object was never uploaded" do
+    signed_id = create_intent_signed_id(png_bytes) # intent only, no direct PUT
+
+    assert_no_difference -> { ProfilePhoto.count } do
+      post "/api/v1/profile/photos", headers: bearer_headers(@token), params: { signed_id: signed_id }
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "upload_not_found", JSON.parse(response.body).fetch("error")
+  end
+
+  test "attach rejects an object that is not a supported image" do
+    signed_id = complete_upload("this is not an image", content_type: "image/png")
+
+    assert_no_difference -> { ProfilePhoto.count } do
+      post "/api/v1/profile/photos", headers: bearer_headers(@token), params: { signed_id: signed_id }
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "invalid_image", JSON.parse(response.body).fetch("error")
+  end
+
+  test "attach rejects a reused signed id" do
+    signed_id = complete_upload(png_bytes)
+    post "/api/v1/profile/photos", headers: bearer_headers(@token), params: { signed_id: signed_id }
+    assert_response :created
+
+    post "/api/v1/profile/photos", headers: bearer_headers(@token), params: { signed_id: signed_id }
+    assert_response :unprocessable_entity
+    assert_equal "upload_already_used", JSON.parse(response.body).fetch("error")
+  end
+
+  test "attach is forbidden without a profile" do
+    signed_id = complete_upload(png_bytes)
+    @profile.destroy!
+
+    post "/api/v1/profile/photos", headers: bearer_headers(@token), params: { signed_id: signed_id }
+
+    assert_response :forbidden
+    assert_equal "profile_required", JSON.parse(response.body).fetch("error")
+  end
+
+  # --- retrieval / deletion --------------------------------------------------
+
+  test "lists current brand photos with signed retrieval urls" do
+    photo = create_attached_photo
 
     get "/api/v1/profile/photos", headers: bearer_headers(@token)
 
     assert_response :success
     photos = JSON.parse(response.body).fetch("photos")
     assert_equal 1, photos.size
+    image = photos.first.fetch("image")
     assert_equal photo.id, photos.first.fetch("id")
-    assert_equal "image/png", photos.first.fetch("image").fetch("content_type")
+    assert_equal "image/png", image.fetch("content_type")
+    assert image.fetch("url").present?
+    assert_operator image.fetch("url_expires_in"), :>, 0
   end
 
-  test "uploads a current profile photo" do
-    assert_difference -> { ProfilePhoto.count }, 1 do
-      post "/api/v1/profile/photos",
-        headers: bearer_headers(@token),
-        params: { image: uploaded_image }
-    end
-
-    assert_response :created
-    photo = ProfilePhoto.last
-    response_body = JSON.parse(response.body).fetch("photo")
-
-    assert_equal @brand, photo.brand
-    assert_equal @user, photo.user
-    assert_equal @profile, photo.profile
-    assert photo.image.attached?
-    assert_equal "pending_review", response_body.fetch("status")
-    assert_equal "hidden", response_body.fetch("visibility")
-    assert_equal @profile.public_id, response_body.fetch("profile_id")
-    assert_equal "/rails/active_storage/blobs", response_body.fetch("image").fetch("url")[0, 27]
-  end
-
-  test "rejects uploads before a profile exists" do
-    @profile.destroy!
-
-    post "/api/v1/profile/photos",
-      headers: bearer_headers(@token),
-      params: { image: uploaded_image }
-
-    assert_response :forbidden
-    assert_equal({ "error" => "profile_required" }, JSON.parse(response.body))
-  end
-
-  test "rejects uploads without an image" do
-    post "/api/v1/profile/photos", headers: bearer_headers(@token)
-
-    assert_response :unprocessable_entity
-    assert_equal({ "error" => "image_required" }, JSON.parse(response.body))
-  end
-
-  test "soft deletes current brand profile photo" do
-    photo = create_photo
+  test "soft deletes a current brand photo and enqueues purge" do
+    photo = create_attached_photo
 
     assert_enqueued_with(job: ActiveStorage::PurgeJob) do
       delete "/api/v1/profile/photos/#{photo.id}", headers: bearer_headers(@token)
@@ -109,7 +218,6 @@ class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
     photo.reload
     assert photo.deleted_at.present?
     assert photo.hidden?
-    assert JSON.parse(response.body).fetch("photo").fetch("deleted_at").present?
   end
 
   test "does not delete another brand photo for the same user" do
@@ -123,7 +231,7 @@ class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
       birthdate: 25.years.ago.to_date,
       gender: "woman"
     )
-    other_photo = create_photo(brand: other_brand, profile: other_profile)
+    other_photo = build_attached_photo(brand: other_brand, profile: other_profile)
 
     delete "/api/v1/profile/photos/#{other_photo.id}", headers: bearer_headers(@token)
 
@@ -137,14 +245,61 @@ class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
     { "Authorization" => "Bearer #{token}" }
   end
 
-  def uploaded_image
-    fixture_file_upload("profile_photo.png", "image/png")
+  # A real 1x1 PNG. The checked-in profile_photo.png fixture is a text
+  # placeholder, so it cannot exercise the server-side image verification.
+  def png_bytes
+    @png_bytes ||= Base64.decode64(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    ).b
   end
 
-  def create_photo(brand: @brand, profile: @profile)
-    photo = ProfilePhoto.new(brand:, user: @user, profile:)
-    photo.image.attach(uploaded_image)
+  def valid_intent_params(content_type: "image/png", byte_size: nil, bytes: nil)
+    bytes ||= png_bytes
+    {
+      content_type: content_type,
+      byte_size: byte_size || bytes.bytesize,
+      checksum: Digest::MD5.base64digest(bytes),
+      filename: "photo.png"
+    }
+  end
+
+  # Runs the control-plane intent and returns the signed id, without uploading.
+  def create_intent_signed_id(bytes, content_type: "image/png")
+    post "/api/v1/profile/photos/uploads",
+      headers: bearer_headers(@token),
+      params: valid_intent_params(content_type: content_type, bytes: bytes)
+    JSON.parse(response.body).fetch("upload").fetch("signed_id")
+  end
+
+  # Simulates the client's direct PUT to R2 by writing the bytes to the
+  # configured storage service under the D8N-allocated key.
+  def complete_upload(bytes, content_type: "image/png")
+    signed_id = create_intent_signed_id(bytes, content_type: content_type)
+    blob = ActiveStorage::Blob.find_signed!(signed_id)
+    blob.service.upload(blob.key, StringIO.new(bytes), checksum: blob.checksum)
+    signed_id
+  end
+
+  def create_attached_photo(brand: @brand, profile: @profile)
+    build_attached_photo(brand: brand, profile: profile)
+  end
+
+  def build_attached_photo(brand:, profile:)
+    photo = ProfilePhoto.new(brand: brand, user: @user, profile: profile)
+    photo.image.attach(
+      io: StringIO.new(png_bytes),
+      filename: "profile_photo.png",
+      content_type: "image/png"
+    )
     photo.save!
     photo
+  end
+
+  def with_photos_disabled
+    previous = Rails.configuration.x.profile_photos_enabled
+    Rails.configuration.x.profile_photos_enabled = false
+    yield
+  ensure
+    Rails.configuration.x.profile_photos_enabled = previous
   end
 end

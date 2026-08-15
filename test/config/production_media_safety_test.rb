@@ -37,10 +37,17 @@ class ProductionMediaSafetyTest < ActiveSupport::TestCase
     assert_includes "#{stdout}\n#{stderr}", "Private media storage requires R2 configuration"
   end
 
-  test "complete R2 configuration selects private object storage without exposing photo routes" do
+  test "complete R2 configuration selects private storage and the photo API without generic routes" do
     script = <<~'RUBY'
       abort "R2 service not selected" unless Rails.configuration.active_storage.service == :r2
-      abort "unfinished profile API enabled" if Rails.configuration.x.profile_photos_enabled
+      abort "photo API not enabled with R2" unless Rails.configuration.x.profile_photos_enabled
+
+      active_storage_paths = Rails.application.routes.routes.filter_map do |route|
+        path = route.path.spec.to_s
+        path if path.start_with?("/rails/active_storage")
+      end
+      abort "generic Active Storage routes are mounted" if active_storage_paths.any?
+
       service = ActiveStorage::Blob.service
       abort "S3 service not instantiated" unless service.is_a?(ActiveStorage::Service::S3Service)
       abort "R2 service is public" if service.public?

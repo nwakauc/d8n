@@ -36,9 +36,15 @@ Rails.application.configure do
 
   config.active_storage.service = r2_storage_enabled ? :r2 : :local
   config.active_storage.variant_processor = :disabled
-  config.x.profile_photos_enabled = false
-  # Profile photos are a development foundation until ADR 0011's private media
-  # pipeline ships. Do not expose Active Storage's generic upload/delivery routes.
+  # The direct-to-R2 profile-photo API (owner-scoped upload intent, verified
+  # attachment, and short-lived signed retrieval) is enabled exactly when private
+  # R2 storage is selected. Without R2 the only storage is local disk, whose
+  # direct-upload/delivery depends on the generic Active Storage routes disabled
+  # below, so the API stays closed and fail-safe. Public/other-user delivery,
+  # safe re-encoding, EXIF removal, and moderation remain gated (ADR 0011).
+  config.x.profile_photos_enabled = r2_storage_enabled
+  # Never expose Active Storage's generic upload/delivery routes: object identity
+  # and delivery are mediated only by the D8N-controlled profile-photo API.
   config.active_storage.draw_routes = false
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.

@@ -20,10 +20,13 @@ info:
       there is no message-content endpoint yet, so do not build or simulate a chat
       transcript against D8N. Trust exposes *blocking only*; reporting and
       enforcement are not implemented.
-    - **In development (not callable in production):** Media profile-photo upload is
-      a local-development foundation only. The private R2 storage backend is wired,
-      but the photo endpoints return `404` under `RAILS_ENV=production` (including
-      staging) until the media pipeline gates ship.
+    - **Available (owner-scoped, private):** Profile photos use a direct-to-R2
+      upload — request an intent, `PUT` the bytes to the returned short-lived
+      presigned URL, then attach the returned `signed_id`. Uploaded photos are
+      owner-only, `pending_review`, and `hidden`; delivery is a short-lived signed
+      URL. Public/other-user delivery, safe re-encoding, EXIF removal, and
+      moderation remain gated (ADR 0011). The endpoints require private R2 storage,
+      so they return `404` when R2 is disabled.
     - **Planned (no endpoints yet):** Verification (identity/selfie), Billing,
       Notifications, Analytics, Admin.
 
@@ -511,6 +514,9 @@ paths:
       operationId: listProfilePhotos
       tags: [Profile]
       summary: List the current profile's photos
+      description: |
+        Each attached image carries a short-lived signed retrieval `url` (direct
+        from private R2) plus its `url_expires_in` seconds. Refetch to renew.
       responses:
         "200":
           description: Owner photo library.
@@ -531,24 +537,25 @@ paths:
     post:
       operationId: createProfilePhoto
       tags: [Profile]
-      summary: Upload a profile photo
+      summary: Attach a completed direct upload to the profile
       description: |
-        Development foundation only; production uploads remain gated on ADR 0011.
-        Accepts declared JPEG, PNG, or WebP uploads up to 10 MB. New photos begin
-        pending review and hidden. The current endpoint does not yet provide the
-        verified processing, moderation, private object storage, or revocable
-        delivery required for production media.
+        Second step of the direct-to-R2 upload. Submit the `signed_id` returned by
+        `POST /api/v1/profile/photos/uploads` after the bytes have been `PUT` to the
+        presigned URL. D8N confirms the object exists in private R2, verifies its
+        real file signature and size (the declared MIME is only a hint), and
+        attaches it to the authenticated owner's profile. New photos begin
+        `pending_review` and `hidden`. A `signed_id` may be attached only once.
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
               type: object
-              required: [image]
+              required: [signed_id]
               properties:
-                image:
+                signed_id:
                   type: string
-                  format: binary
+                  description: Opaque signed id from the upload-intent response.
                 position:
                   type: integer
                   minimum: 0
@@ -563,6 +570,58 @@ paths:
                 properties:
                   photo:
                     $ref: "#/components/schemas/ProfilePhoto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /api/v1/profile/photos/uploads:
+    post:
+      operationId: createProfilePhotoUpload
+      tags: [Profile]
+      summary: Request a direct-to-R2 photo upload authorization
+      description: |
+        First step of the direct-to-R2 upload (control plane). Declare the file's
+        `content_type`, `byte_size`, and base64 MD5 `checksum`. D8N authorizes the
+        caller, validates the declared media, allocates the object identity, and
+        returns a short-lived presigned `PUT` `url` plus the exact `headers` to send
+        with it. Upload the bytes directly to that URL, then attach the returned
+        `signed_id` via `POST /api/v1/profile/photos`. D8N chooses the object key;
+        the client never receives R2 credentials.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content_type, byte_size, checksum]
+              properties:
+                content_type:
+                  type: string
+                  enum: [image/jpeg, image/png, image/webp]
+                byte_size:
+                  type: integer
+                  minimum: 1
+                  description: Exact byte size of the file to upload (max 10 MB).
+                checksum:
+                  type: string
+                  description: Base64-encoded MD5 digest of the file bytes.
+                filename:
+                  type: string
+      responses:
+        "201":
+          description: Short-lived upload authorization.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [upload]
+                properties:
+                  upload:
+                    $ref: "#/components/schemas/ProfilePhotoUpload"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1381,7 +1440,7 @@ components:
             - type: "null"
     ProfilePhotoImage:
       type: object
-      required: [filename, content_type, byte_size, url]
+      required: [filename, content_type, byte_size, url, url_expires_in]
       properties:
         filename:
           type: string
@@ -1392,6 +1451,34 @@ components:
           type: integer
         url:
           type: string
+          description: Short-lived signed retrieval URL (direct from private R2).
+        url_expires_in:
+          type: integer
+          description: Seconds until the signed retrieval URL expires.
+    ProfilePhotoUpload:
+      type: object
+      required: [signed_id, url, headers, expires_in, byte_size_limit, allowed_content_types]
+      properties:
+        signed_id:
+          type: string
+          description: Opaque id to submit when attaching the completed upload.
+        url:
+          type: string
+          description: Short-lived presigned PUT URL for the media bytes.
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          description: Exact headers to send with the PUT (includes Content-MD5).
+        expires_in:
+          type: integer
+          description: Seconds until the presigned upload URL expires.
+        byte_size_limit:
+          type: integer
+        allowed_content_types:
+          type: array
+          items:
+            type: string
     ProfileConfigurationResponse:
       type: object
       required: [configuration]

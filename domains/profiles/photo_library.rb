@@ -7,19 +7,6 @@ module Profiles
       profile.profile_photos.kept.ordered.with_attached_image
     end
 
-    def self.add!(user:, brand:, image:, position: nil)
-      profile = Profile.kept.find_by!(user:, brand:)
-      photo = ProfilePhoto.new(
-        profile:,
-        user:,
-        brand:,
-        position: position.presence || next_position(profile)
-      )
-      photo.image.attach(image)
-      photo.save!
-      photo
-    end
-
     def self.soft_delete!(user:, brand:, id:)
       profile = Profile.kept.find_by!(user:, brand:)
       photo = nil
@@ -32,10 +19,6 @@ module Profiles
 
       photo.image.purge_later if photo.image.attached?
       photo
-    end
-
-    def self.next_position(profile)
-      profile.profile_photos.kept.maximum(:position).to_i + 1
     end
   end
 end

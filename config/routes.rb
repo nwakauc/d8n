@@ -27,6 +27,7 @@ Rails.application.routes.draw do
       get "profile/preferences" => "profile_preferences#show"
       patch "profile/preferences" => "profile_preferences#update"
       get "profile/photos" => "profile_photos#index"
+      post "profile/photos/uploads" => "profile_photos#create_upload"
       post "profile/photos" => "profile_photos#create"
       delete "profile/photos/:id" => "profile_photos#destroy"
       get "auth/methods" => "auth/methods#show"

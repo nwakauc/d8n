@@ -136,28 +136,34 @@ bundle-audit: 0 vulnerabilities
 
 git diff --check: clean
 
-Deployed
+R2 lifecycle gate - PROVEN 2026-08-15
 
-The R2 configuration is now deployed to staging (D8N_R2_ENABLED=true),
-and the staging deploy carrying it is healthy. This proves the app boots
-with R2 selected; it does not yet prove a real object lifecycle.
+The genuine Active Storage A-F lifecycle (upload -> object present ->
+public access blocked -> authorized read-back -> purge -> object gone) ran
+green against live d8n-staging-media. The drill caught a real defect: every
+upload was failing with "InvalidRequest: You can only specify one
+non-default checksum at a time" because a newer aws-sdk-s3 adds a CRC32
+checksum on top of Active Storage's Content-MD5 and R2 rejects two
+checksums. The boots-with-R2 deploy never actually wrote an object. Fix:
+config/storage.yml now sets request_checksum_calculation and
+response_checksum_validation to when_required (scoped to the R2 service).
+Proven against the live bucket with the deployed SDK.
 
-Not done yet - immediate next gate
+Direct-to-R2 profile-photo API implemented (control plane / data plane):
+authenticated upload intent -> short-lived presigned PUT -> client uploads
+bytes straight to private R2 -> D8N verifies the real object and attaches
+it to the owner's profile -> short-lived signed retrieval. R2 credentials
+never reach the client; D8N allocates the object key. Owner-only photos are
+pending_review/hidden; public delivery, re-encode, EXIF removal, and
+moderation remain gated (ADR 0011). Full local gates green.
 
-The real end-to-end R2 lifecycle has not been exercised. No object has
-been uploaded to, retrieved from, or purged from d8n-staging-media
-through the application service.
+Pending (needs founder commit + deploy): the Kamal remote builder builds
+from committed git state, so the storage.yml fix and the new API are not
+yet in the deployed image. After commit + redeploy, two proofs remain:
+profile-photo backend HTTP E2E on staging, then HookUs browser E2E.
 
-Next (run against the deployed staging release, per
-docs/operations/private-media-storage.md): 1. Upload one harmless image
-through the supported application flow. 2. Confirm the object appears in
-d8n-staging-media. 3. Confirm direct public R2 access is unavailable.
-4. Confirm the application can retrieve the media through the intended
-authorized path. 5. Delete/purge the record. 6. Confirm the R2 object
-disappears.
-
-Do not create production R2 resources until this staging lifecycle is
-proven.
+Do not create production R2 resources until the profile-photo backend E2E
+passes on staging.
 
 5. AWS / Amazon SES - current state
 
