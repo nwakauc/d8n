@@ -15,11 +15,12 @@ info:
 
     - **Available now:** Identity (register, login, session, identifier
       verification), Profiles (profile, configuration, options, preferences,
-      location, publication), Matching (discovery, likes, passes, matches).
+      location, publication), Matching (discovery, likes, passes, matches), Trust
+      (block, unblock, list blocked, report — enforced in either direction across
+      discovery, likes, passes, matches, and conversation access).
     - **Preview (limited scope):** Messaging exposes conversation *metadata only* —
       there is no message-content endpoint yet, so do not build or simulate a chat
-      transcript against D8N. Trust exposes *blocking only*; reporting and
-      enforcement are not implemented.
+      transcript against D8N.
     - **Available (owner-scoped, private):** Profile photos use a direct-to-R2
       upload — request an intent, `PUT` the bytes to the returned short-lived
       presigned URL, then attach the returned `signed_id`. Attached photos begin
@@ -771,6 +772,27 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/InteractionConflict"
+  /api/v1/blocks:
+    get:
+      operationId: listBlockedProfiles
+      tags: [Trust]
+      summary: List the profiles the current member has blocked
+      description: |
+        Returns only outgoing blocks (blocker is the current member), newest
+        first, for the Settings / Safety "Blocked users" surface. Blocks whose
+        target account was since removed are omitted. Each entry exposes the
+        minimum profile information needed to recognise and unblock the target.
+      responses:
+        "200":
+          description: The current member's blocked profiles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockedProfilesResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
   /api/v1/profiles/{profile_id}/block:
     post:
       operationId: blockProfile
@@ -1734,6 +1756,30 @@ components:
           const: true
         created:
           type: boolean
+    BlockedProfilesResponse:
+      type: object
+      required: [blocks]
+      properties:
+        blocks:
+          type: array
+          description: Profiles the current member has blocked, newest first.
+          items:
+            type: object
+            required: [profile, blocked_at]
+            properties:
+              profile:
+                type: object
+                required: [id, display_name]
+                description: Minimum information needed to recognise and unblock the target.
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  display_name:
+                    type: [string, "null"]
+              blocked_at:
+                type: string
+                format: date-time
     ReportRequest:
       type: object
       required: [reason]

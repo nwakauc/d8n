@@ -17,6 +17,37 @@ class Api::V1::ProfileBlocksControllerTest < ActionDispatch::IntegrationTest
 
     delete "/api/v1/profiles/#{@target.public_id}/block"
     assert_response :unauthorized
+
+    get "/api/v1/blocks"
+    assert_response :unauthorized
+  end
+
+  test "lists only my outgoing blocks newest first with minimal profile info" do
+    other = create_profile(brand: @brand, display_name: "Kai")
+    older = ProfileBlock.create!(brand: @brand, blocker_profile: @viewer, blocked_profile: @target, created_at: 2.days.ago)
+    newer = ProfileBlock.create!(brand: @brand, blocker_profile: @viewer, blocked_profile: other, created_at: 1.hour.ago)
+    # Incoming block against the viewer must never be disclosed to them.
+    ProfileBlock.create!(brand: @brand, blocker_profile: other, blocked_profile: @viewer)
+
+    get "/api/v1/blocks", headers: bearer_headers(@token)
+
+    assert_response :success
+    blocks = JSON.parse(response.body).fetch("blocks")
+    assert_equal [ other.public_id, @target.public_id ], blocks.map { |b| b.fetch("profile").fetch("id") }
+    assert_equal({ "id" => other.public_id, "display_name" => "Kai" }, blocks.first.fetch("profile"))
+    assert blocks.first.key?("blocked_at")
+    assert_equal newer.created_at.iso8601, blocks.first.fetch("blocked_at")
+    assert_equal older.created_at.iso8601, blocks.last.fetch("blocked_at")
+  end
+
+  test "omits soft-deleted targets and other-brand blocks from the list" do
+    ProfileBlock.create!(brand: @brand, blocker_profile: @viewer, blocked_profile: @target)
+    @target.update!(deleted_at: Time.current)
+
+    get "/api/v1/blocks", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert_empty JSON.parse(response.body).fetch("blocks")
   end
 
   test "blocks idempotently and removes positive relationship state" do
