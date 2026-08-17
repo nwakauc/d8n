@@ -1029,6 +1029,118 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/admin/reports:
+    get:
+      operationId: listReports
+      tags: [Admin]
+      summary: List the moderation queue for the current brand
+      description: |
+        Authorized-moderator only. Returns reports for the request's brand
+        (resolved from the host — a brand id is never accepted from the client),
+        oldest-first by (created_at, id) so the longest-waiting reports surface
+        first, cursor-paginated and bounded. Access requires an active AdminUser
+        with an active assignment for this brand: unauthenticated callers get 401,
+        ordinary users and admins assigned elsewhere get 403. Cross-brand reports
+        are simply absent, never disclosed.
+      parameters:
+        - $ref: "#/components/parameters/ReportStatusFilter"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/AdminReportLimit"
+      responses:
+        "200":
+          description: A page of reports and an opaque next cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReportListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+  /api/v1/admin/reports/{id}:
+    get:
+      operationId: getReport
+      tags: [Admin]
+      summary: Inspect one report
+      description: |
+        Authorized-moderator only. The read is audited (a sensitive-read
+        SecurityEvent is recorded). Unknown and cross-brand ids share the neutral
+        `report_unavailable` (404). Only moderator-relevant fields are returned;
+        no credentials, sessions, email/phone, private location, or media.
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReportResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: Report is unknown or belongs to another brand.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateReport
+      tags: [Admin]
+      summary: Apply a moderation lifecycle transition
+      description: |
+        Authorized-moderator only. Applies one lifecycle transition and records the
+        decision (audited; `reviewed_by`/`reviewed_at`/`resolution_note` set). Only
+        `status` and an optional short `note` are accepted; report internals
+        (reporter, target, brand, reason, timestamps) can never be mass-assigned.
+        Transitions: `open → reviewing | dismissed`, `reviewing → actioned |
+        dismissed | open`. `actioned`/`dismissed` are terminal. `actioned` means
+        "resolved as warranting action" — it does NOT suspend or ban the account;
+        account enforcement is a separate capability (TS-04). A disallowed target
+        from a non-terminal state is `invalid_transition` (422); a transition out of
+        a terminal state (e.g. another moderator already resolved it) is
+        `report_conflict` (409).
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReportRequest"
+      responses:
+        "200":
+          description: The updated report.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReportResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: Report is unknown or belongs to another brand.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The report is already in a terminal state (`report_conflict`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Invalid `status`, `invalid_transition`, or an oversized `note`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -1128,9 +1240,40 @@ components:
         minimum: 1
         maximum: 100
         default: 30
+    ReportId:
+      name: id
+      in: path
+      required: true
+      description: Internal report id (admin-only; scoped to the moderator's brand).
+      schema:
+        type: integer
+    ReportStatusFilter:
+      name: status
+      in: query
+      required: false
+      description: Narrow the queue to one lifecycle status. Unknown values return 422 `invalid_filter`.
+      schema:
+        type: string
+        enum: [open, reviewing, actioned, dismissed]
+    AdminReportLimit:
+      name: limit
+      in: query
+      required: false
+      description: Page size for the moderation queue.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
   responses:
     Unauthorized:
       description: Missing, invalid, expired, revoked, or wrong-brand bearer token.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    AdminForbidden:
+      description: Authenticated, but not an authorized moderator for this brand (`forbidden`).
       content:
         application/json:
           schema:
@@ -2006,6 +2149,81 @@ components:
       properties:
         message:
           $ref: "#/components/schemas/Message"
+    AdminReportParty:
+      description: Minimal identity of a report participant, or null if unresolved.
+      oneOf:
+        - type: object
+          required: [id, display_name]
+          properties:
+            id:
+              type: string
+              format: uuid
+            display_name:
+              type: [string, "null"]
+        - type: "null"
+    AdminReport:
+      type: object
+      required:
+        [id, status, reason, reporter, reported, note, resolution_note,
+         reviewed_by_admin_user_id, reviewed_at, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+          enum: [open, reviewing, actioned, dismissed]
+        reason:
+          type: string
+          enum: [inappropriate_content, harassment, spam, fake_profile, underage, other]
+        reporter:
+          $ref: "#/components/schemas/AdminReportParty"
+        reported:
+          $ref: "#/components/schemas/AdminReportParty"
+        note:
+          type: [string, "null"]
+          description: Reporter-supplied context.
+        resolution_note:
+          type: [string, "null"]
+          description: Moderator's short decision note.
+        reviewed_by_admin_user_id:
+          type: [integer, "null"]
+        reviewed_at:
+          type: [string, "null"]
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AdminReportListResponse:
+      type: object
+      required: [reports, next_cursor]
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminReport"
+        next_cursor:
+          type: [string, "null"]
+    AdminReportResponse:
+      type: object
+      required: [report]
+      properties:
+        report:
+          $ref: "#/components/schemas/AdminReport"
+    UpdateReportRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [reviewing, actioned, dismissed, open]
+          description: Target lifecycle status. Server enforces valid transitions.
+        note:
+          type: [string, "null"]
+          maxLength: 2000
+          description: Optional short moderator decision note.
     StartConversationResponse:
       type: object
       required: [conversation, created]

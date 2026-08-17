@@ -22,10 +22,18 @@ Shipped and verified against code/tests since this file was written:
   brand enforcement reusing MatchAccess. IMPLEMENTED + TESTED (18 request tests, all
   gates green); NOT yet staging-proven — DL-04 staging two-user run is the remainder.
 
-Confirmed remaining P0 gaps to complete + responsibly operate the loop (no routes
-or models exist for these — verified, not assumed):
-- TS-03 admin moderation review queue (reports are filed but unreadable/unactionable).
-- TS-04 suspend/ban action + session revocation (enforcement half already exists).
+- TS-03 admin moderation review queue (2026-08-17, uncommitted): moderators can
+  list/inspect/decide reports. Admin auth REUSES the existing session — new
+  `admin_users.user_id` link + active AdminAssignment for the host brand (no new
+  auth system); 401 unauth / 403 non-moderator; brand isolation inherent. Audited
+  lifecycle via SecurityEvent; decision provenance on the report. IMPLEMENTED +
+  TESTED (17 request tests); NOT staging-proven. **Admin MFA is still a pre-launch
+  gate** (admins can read report content). The admin-auth model likely warrants an
+  ADR — founder to confirm.
+
+Confirmed remaining P0 gaps to complete + responsibly operate the loop (verified):
+- TS-04 suspend/ban action + session revocation (enforcement half exists; attaches
+  to TS-03's `actioned` decision).
 - TS-06 account closure/deletion + media purge (data-protection blocker, EU-hosted).
 - ID-04 signed-out password recovery and ID-02 registration throttling.
 
@@ -482,11 +490,13 @@ staging release was executed and passed (see section 4, "R2 lifecycle gate -
 PROVEN 2026-08-15"). Do not re-run as a blocker.
 
 The current primary action is the product loop, not infrastructure. DL-03
-(persisted text messaging) is now built (uncommitted, awaiting founder commit +
-staging QA). Per docs/FOUNDER-HQ/D8N_NOW_NEXT_LATER.md the next engineering ticket
-is TS-03 (admin moderation), followed by TS-04 (suspend/ban) and TS-06 (account
-deletion). Production R2 resources are still not to be created until the HookUs
-product loop and remaining ADR 0011 media gates are addressed.
+(persisted text messaging) and TS-03 (admin moderation review) are now built
+(uncommitted, awaiting founder commit + staging QA). Per
+docs/FOUNDER-HQ/D8N_NOW_NEXT_LATER.md the next engineering ticket is TS-04
+(suspend/ban + session revocation), followed by TS-06 (account deletion) and
+ID-04/ID-02 (identity hardening); admin MFA is a pre-launch gate. Production R2
+resources are still not to be created until the HookUs product loop and remaining
+ADR 0011 media gates are addressed.
 
 In parallel, the HookUs frontend engineer continues wiring HookUs against
 staging-api.d8n.tech (CORS for http://localhost:3001 is configured and

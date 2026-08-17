@@ -40,7 +40,7 @@ Legend: **GONE** = does not exist · **PARTIAL** = some code, real gap · **QA**
 | Messaging (text content) | QA | — | **DL-03 built 2026-08-17** — `Message` + `GET/POST …/conversations/:id/messages`, cursor history, block/suspend/brand enforcement via `ConversationAccess`; 18 tests green. Needs staging proof |
 | Block / Unblock / List | QA | — | full directional block + mutual enforcement across surfaces; list added `b02f4f4` |
 | Report | QA | — | create-only, idempotent per open report, audit event |
-| **Admin moderation** | **GONE** | **Yes** | `AdminUser/Role/Assignment` models exist but no admin controllers/routes; reports are unreadable/unactionable → **TS-03** |
+| Admin moderation | QA | — | **TS-03 built 2026-08-17** — `GET /admin/reports`, `GET/PATCH /admin/reports/:id`, session-based moderator auth (`admin_users.user_id` link + assignment), audited lifecycle; 17 tests green. Admin MFA still a pre-launch gate. Needs staging proof |
 | **Suspend / ban** | **PARTIAL** | **Yes** | `suspended` status is *enforced* in matching/messaging, but no action to set it + no session revocation → **TS-04** |
 | **Account closure / deletion** | **GONE** | **Yes** | soft-delete columns exist; no self-service flow, recovery window, or media-purge-on-close → **TS-06** |
 | Notifications (user-facing) | **GONE** | No | only internal `NotificationDelivery` (verification email/SMS). Polling beta needs none → LATER |
@@ -52,8 +52,8 @@ Legend: **GONE** = does not exist · **PARTIAL** = some code, real gap · **QA**
 These are the only things that genuinely stop us inviting 10–50 controlled beta users.
 
 1. ~~**DL-03 — Persisted text messaging.**~~ **BUILT 2026-08-17 (IMPLEMENTED + TESTED, awaiting staging proof).** The core loop now closes end-to-end. Remaining: DL-04 staging two-user proof.
-2. **TS-03 — Minimal admin moderation review queue.** *Now the top open P0.* Users can report harm today with nobody able to see or act on it. Authorized moderators list/view/decide reports for permitted brands, with sensitive-read + decision auditing. Unblocks TS-04.
-3. **TS-04 — Suspend/ban enforcement.** Once reports are reviewable, we must be able to remove a bad actor and revoke their sessions. The enforcement half already exists; the action + session-kill + audit do not. (Messaging already denies suspended users, so this composes cleanly.)
+2. ~~**TS-03 — Minimal admin moderation review queue.**~~ **BUILT 2026-08-17 (IMPLEMENTED + TESTED, awaiting staging proof).** Moderators can list/inspect/decide reports with audit. **Admin MFA remains a pre-launch gate** (not built; not a TS-03 code gap).
+3. **TS-04 — Suspend/ban enforcement.** *Now the top open P0.* Once reports are reviewable (they are), we must be able to remove a bad actor and revoke their sessions. The enforcement half already exists (`suspended` honored across discovery/likes/matches/messaging); the moderator action + session-kill + audit do not. Attaches cleanly to TS-03's `actioned` decision. See the TS-04 integration boundary in the TS-03 report.
 4. **TS-06 — Account closure & deletion.** EU-hosted; a user must be able to leave and have media purged. Data-protection P0 even though invisible in the happy path.
 5. **ID-04 — Password recovery** and **ID-02 — registration throttling.** Users will lock themselves out; unthrottled distinct-identifier signup is an abuse hole. (ID-04 could be support-manual at 10–50 users if truly time-boxed.)
 
@@ -69,6 +69,8 @@ These are the only things that genuinely stop us inviting 10–50 controlled bet
 - **DL-01/02/04** the staging QA proofs that move the many **QA** rows above to **READY**.
 - **DL-05** finish beta-shape load/failure testing on *dedicated* infra (not shared with Date9ja).
 - **Message send rate-limiting** — lightweight per-sender throttle on `POST …/messages` (DL-03 shipped without one; document-and-defer decision).
+- **Admin MFA** — TS-03 pre-launch gate: admins can read reporter/reported identities + report content, so MFA must be enabled before real user data is exposed in a live beta. Not built.
+- **Admin provisioning + an ADR for the admin-auth model** — TS-03 introduced session-based admin auth (`AdminUser.user_id` link). Worth an ADR; admin accounts are provisioned manually (User + brand membership + AdminUser + assignment).
 
 ## LATER — improve while users arrive / after beta
 
@@ -86,6 +88,6 @@ For every candidate blocker ask: *"Would we genuinely refuse to let 10–50 cont
 If no → it is not P0, even if it would improve the product. Safety, legal, data-loss, and security issues can be P0
 even when invisible to users.
 
-**Shortest path to "invite controlled beta users": ~~DL-03~~ (done) → TS-03 → TS-04 → TS-06 → ID-04/ID-02**, in parallel
-with the DR/DL staging-QA proofs. Messaging (the product gate) is now built; the trust/account items are the
-remaining responsible-operation gate.
+**Shortest path to "invite controlled beta users": ~~DL-03~~ (done) → ~~TS-03~~ (done) → TS-04 → TS-06 → ID-04/ID-02**,
+in parallel with the DR/DL staging-QA proofs + admin MFA (pre-launch gate). Messaging (product gate) and moderation
+review are now built; suspend/ban, account deletion, and identity hardening are the remaining responsible-operation gate.

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_17_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_17_020100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -70,6 +70,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_010000) do
     t.datetime "deleted_at"
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["user_id"], name: "index_admin_users_on_user_id", unique: true
   end
 
   create_table "auth_attempts", force: :cascade do |t|
@@ -494,6 +496,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_010000) do
     t.integer "reason", null: false
     t.bigint "reported_profile_id", null: false
     t.bigint "reporter_profile_id", null: false
+    t.text "resolution_note"
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_admin_user_id"
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["brand_id", "reported_profile_id"], name: "index_reports_on_brand_id_and_reported_profile_id"
@@ -502,6 +507,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_010000) do
     t.index ["brand_id"], name: "index_reports_on_brand_id"
     t.index ["reported_profile_id"], name: "index_reports_on_reported_profile_id"
     t.index ["reporter_profile_id"], name: "index_reports_on_reporter_profile_id"
+    t.index ["reviewed_by_admin_user_id"], name: "index_reports_on_reviewed_by_admin_user_id"
     t.check_constraint "reporter_profile_id <> reported_profile_id", name: "chk_reports_not_self"
   end
 
@@ -554,6 +560,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_010000) do
   add_foreign_key "admin_assignments", "admin_roles"
   add_foreign_key "admin_assignments", "admin_users"
   add_foreign_key "admin_assignments", "brands"
+  add_foreign_key "admin_users", "users"
   add_foreign_key "auth_attempts", "brands"
   add_foreign_key "auth_attempts", "credentials"
   add_foreign_key "auth_attempts", "identity_identifiers"
@@ -618,6 +625,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_010000) do
   add_foreign_key "profiles", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_profiles_membership_tenant"
   add_foreign_key "profiles", "brands"
   add_foreign_key "profiles", "users"
+  add_foreign_key "reports", "admin_users", column: "reviewed_by_admin_user_id"
   add_foreign_key "reports", "brands"
   add_foreign_key "reports", "profiles", column: ["reported_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_reports_reported_tenant"
   add_foreign_key "reports", "profiles", column: ["reporter_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_reports_reporter_tenant"

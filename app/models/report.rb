@@ -2,6 +2,9 @@ class Report < ApplicationRecord
   belongs_to :brand
   belongs_to :reporter_profile, class_name: "Profile"
   belongs_to :reported_profile, class_name: "Profile"
+  # The admin who last transitioned the report. Nil until a moderator acts.
+  belongs_to :reviewed_by, class_name: "AdminUser",
+    foreign_key: :reviewed_by_admin_user_id, optional: true
 
   # Why the reporter flagged the target. Kept small and extensible; the frontend
   # maps these to human-readable labels.
@@ -22,6 +25,7 @@ class Report < ApplicationRecord
 
   validates :reason, presence: true
   validates :note, length: { maximum: 2_000 }, allow_blank: true
+  validates :resolution_note, length: { maximum: 2_000 }, allow_blank: true
   # At most one open report per reporter -> target (DB-enforced too). Only guards
   # open records so a resolved report never blocks filing a fresh one.
   validates :reporter_profile_id,

@@ -52,14 +52,34 @@ operations organization are not beta requirements.
 
 - Priority: P1
 - Beta blocker: Yes
-- Owner: Unassigned
-- Status: Not started
+- Owner: Claude
+- Status: In progress (IMPLEMENTED + TESTED; not yet STAGING-PROVEN)
 - Work: Allow explicitly authorized D8N beta moderators to list and review reports
   for permitted brands and record a decision. Use a small permission model for the
   actual beta team; do not build enterprise RBAC or external-operator support now.
 - Evidence: Admin authentication, brand authorization, sensitive-read auditing,
   decision auditing, and denial tests exist. Admin MFA is enabled before real user
   data is accessible.
+- Evidence recorded (2026-08-17): `GET /api/v1/admin/reports`, `GET/PATCH
+  /api/v1/admin/reports/:id`. Admin auth **reuses the existing session** — new
+  `admin_users.user_id` link + `Admin::ModeratorContext` (active AdminUser + active
+  AdminAssignment for the host-resolved brand); 401 unauth / 403 non-moderator.
+  Brand isolation is inherent (brand from host; queue scoped to `Current.brand`;
+  cross-brand → neutral `report_unavailable`). Queue is oldest-first, status-
+  filtered, signed-cursor paginated, preloaded (no N+1). Lifecycle
+  `Admin::TransitionReport` (open→reviewing|dismissed, reviewing→actioned|dismissed|
+  open; terminal→409 conflict via row lock; disallowed→422); only `status`+`note`
+  mutable (no mass-assignment). Decision provenance on the report
+  (`reviewed_by`/`reviewed_at`/`resolution_note`) + immutable `SecurityEvent` audit
+  for detail reads and transitions (no report content in metadata). 17 request
+  tests incl. the full report→decision loop; OpenAPI documented; all gates green.
+- **Decisions needing founder ack (see report):** (1) admins authenticate as a
+  brand-member `User` linked to an `AdminUser` — no separate admin auth system;
+  worth an ADR. (2) Any active admin assignment currently grants moderation (role
+  differentiation deferred). (3) **Admin MFA is still NOT built** — it remains the
+  documented pre-launch gate ("enabled before real user data is accessible") and is
+  a launch blocker, not a code gap in this slice.
+- Remaining before Done: admin MFA, and the staging moderation drill (DL-04/DL-06).
 
 ### TS-04 — Enforce suspend and ban decisions
 
