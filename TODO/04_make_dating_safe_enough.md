@@ -85,13 +85,32 @@ operations organization are not beta requirements.
 
 - Priority: P1
 - Beta blocker: Yes
-- Owner: Unassigned
-- Status: Not started
+- Owner: Claude
+- Status: In progress (IMPLEMENTED + TESTED; not yet STAGING-PROVEN)
 - Work: Support brand-level suspension/ban with reason, actor, and timestamps;
   revoke or reject affected sessions and prevent discovery, interaction, and
   messaging access. Keep network-level bans as a separate explicit decision.
 - Evidence: Enforcement tests cover existing sessions and all relevant endpoints;
   an audit record identifies who acted and why; restore/unban behavior is explicit.
+- Evidence recorded (2026-08-17): `POST/DELETE /api/v1/admin/profiles/:profile_id/
+  suspension` (suspend/reinstate). **Brand-level** enforcement: suspends the
+  `BrandMembership` (the gate every access object already checks — discovery,
+  likes/passes, matches, conversations, messaging) + explicitly revokes the user's
+  sessions **for that brand** via `Identity::SessionRevoker` + durable
+  `AccountEnforcement` record + `SecurityEvent` audit, all in one transaction.
+  Report state stays separate (optional `report_id` link, no lifecycle coupling).
+  Reinstatement restores only membership (not revoked sessions/ended matches/blocks).
+  One active enforcement per (brand,user) DB-enforced (idempotency → 409). Neutral
+  errors; reason never exposed publicly. Reuses TS-03 admin auth. 16 request tests
+  incl. the full report→enforce→sessions-dead→gone-from-discovery→can't-message
+  centerpiece; OpenAPI documented; **ADR 0013** records the admin-identity +
+  enforcement architecture; all gates green.
+- **Deferred / needs founder ack:** **platform-level (cross-brand) ban** is NOT
+  built — it needs a global admin authority that doesn't exist (only brand-scoped
+  `AdminAssignment`). Brand-level is the safe existing level. **Admin MFA** remains
+  the separate pre-launch gate.
+- Remaining before Done: platform-ban decision (if needed for beta), admin MFA, and
+  the staging enforcement drill (DL-04/DL-06).
 
 ### TS-05 — Define the beta appeals path through support
 
@@ -107,8 +126,8 @@ operations organization are not beta requirements.
 
 - Priority: P1
 - Beta blocker: Yes
-- Owner: Unassigned
-- Status: Not started
+- Owner: Claude
+- Status: In progress (IMPLEMENTED + TESTED; not yet STAGING-PROVEN)
 - Work: Separate brand departure, platform account closure, immediate visibility
   revocation, recovery window, media purge, and legal erasure. For beta, choose
   clear minimal retention periods with legal/product approval and durable purge
@@ -116,4 +135,20 @@ operations organization are not beta requirements.
 - Evidence: Tests cover sessions, profiles, discovery, matches, conversations,
   reports, media, retryable provider deletion, cross-brand behavior, restoration
   within the approved window, and irreversible erasure boundaries.
+- Evidence recorded (2026-08-17): `DELETE /api/v1/me` (requires `confirmation:
+  "close"`). **Brand-level** closure, atomic: membership tombstoned (`status: left`),
+  profile discarded + anonymized (display_name/bio cleared), matches ended,
+  likes/passes discarded, locations hard-deleted, photos discarded, brand sessions
+  revoked, `AccountClosure` recorded + `account.closed` audit — then async
+  `Media::PurgeProfileMediaJob` physically purges R2 media (display + raw), idempotent/
+  retry-safe, outcome tracked on `account_closures.media_purge_state`. **Retained:**
+  User/credentials/identifiers (cross-brand identity), conversations, messages,
+  blocks, reports, enforcements, security events. `Accounts::CloseAccount`. Idempotent
+  per membership. 13 controller + 5 job tests incl. mixed photo states + centerpiece;
+  data-retention policy doc + **ADR 0014**; all gates green.
+- **Deferred / policy decisions required (documented in docs/operations/data-
+  retention.md):** platform-wide identity deletion (email/phone/credential erasure);
+  finalized legal retention periods; re-registration semantics for a returning
+  identity; time-boxed anti-abuse retention. Closure is one-way (no reinstate).
+- Remaining before Done: the above policy decisions + staging closure/purge drill.
 

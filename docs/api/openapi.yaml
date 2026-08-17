@@ -304,6 +304,50 @@ paths:
                 $ref: "#/components/schemas/MeResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+    delete:
+      operationId: closeAccount
+      tags: [Authentication]
+      summary: Close the current user's account for this brand
+      description: |
+        Brand-level account closure (the user leaves this brand). Requires an
+        explicit `confirmation: "close"` so it can never be triggered accidentally.
+        Effects are immediate and one-way: the brand membership is tombstoned, the
+        profile is discarded and anonymized, active matches end, and **every session
+        for this brand is revoked** (including the caller's — a retry with the same
+        token returns 401). Profile media is physically purged from object storage
+        **asynchronously**; `media_purge_state` starts `pending`. The user's D8N
+        network identity (credentials/identifiers) and other brands are untouched —
+        platform-wide identity deletion is a separate future capability. Shared and
+        safety records (conversations, messages, blocks, reports, enforcements,
+        audit) are retained. Re-joining requires fresh registration; closure is not
+        reversible through this API.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseAccountRequest"
+      responses:
+        "200":
+          description: The account was closed (or was already closed).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloseAccountResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: No active membership for this brand (`account_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Missing or wrong confirmation (`confirmation_required`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/profile/configuration:
     get:
       operationId: getProfileConfiguration
@@ -1141,6 +1185,94 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/admin/profiles/{profile_id}/suspension:
+    post:
+      operationId: suspendProfile
+      tags: [Admin]
+      summary: Apply a brand-level suspension to a profile's owner
+      description: |
+        Authorized-moderator only. Brand-level enforcement: suspends the target's
+        membership in this brand, revokes all of their sessions for this brand, and
+        records an audited, reversible `AccountEnforcement`. Everything happens in
+        one transaction. The target's network identity and any other-brand access
+        are untouched (platform-wide bans are not modelled yet). Enforcement is
+        deliberately separate from the report lifecycle: an optional `report_id`
+        links the cause without changing that report's status. Idempotent-by-
+        conflict: a second suspension of an already-suspended user returns 409
+        `already_suspended`. Cross-brand/unknown targets return neutral
+        `profile_unavailable` (404).
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuspendProfileRequest"
+      responses:
+        "201":
+          description: The suspension was applied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEnforcementResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: Target is unknown or belongs to another brand (`profile_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The target is already suspended (`already_suspended`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: An unknown `report_id` (`invalid_report`) or an oversized `reason`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: reinstateProfile
+      tags: [Admin]
+      summary: Lift a brand-level suspension
+      description: |
+        Authorized-moderator only. Reactivates the membership and marks the
+        enforcement reverted, audited, in one transaction. Restores ONLY what
+        suspension changed — it does not revive revoked sessions (the user logs in
+        again), ended matches, blocks, or deleted data. Reinstating a profile that
+        is not suspended returns 409 `not_suspended`.
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      responses:
+        "200":
+          description: The suspension was lifted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEnforcementResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: Target is unknown or belongs to another brand (`profile_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The target is not currently suspended (`not_suspended`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -1509,6 +1641,27 @@ components:
             expires_at:
               type: string
               format: date-time
+    CloseAccountRequest:
+      type: object
+      required: [confirmation]
+      properties:
+        confirmation:
+          type: string
+          enum: [close]
+          description: Must equal "close" to authorize this one-way destructive action.
+    CloseAccountResponse:
+      type: object
+      required: [closed, already_closed, media_purge_state]
+      properties:
+        closed:
+          const: true
+        already_closed:
+          type: boolean
+          description: True when the account was already closed (idempotent).
+        media_purge_state:
+          type: string
+          enum: [pending, completed, failed]
+          description: Async physical media-purge status; starts pending.
     Completion:
       type: object
       required: [complete, percent, missing]
@@ -2224,6 +2377,51 @@ components:
           type: [string, "null"]
           maxLength: 2000
           description: Optional short moderator decision note.
+    SuspendProfileRequest:
+      type: object
+      properties:
+        reason:
+          type: [string, "null"]
+          maxLength: 500
+          description: Optional short moderator reason (audited, never exposed publicly).
+        report_id:
+          type: [integer, "null"]
+          description: Optional id of the report that motivated the enforcement (same brand).
+    AdminEnforcement:
+      type: object
+      required:
+        [id, state, profile_id, reason, report_id, admin_user_id,
+         reverted_by_admin_user_id, created_at, reverted_at]
+      properties:
+        id:
+          type: integer
+        state:
+          type: string
+          enum: [active, reverted]
+          description: The enforcement's own state, distinct from account/report status.
+        profile_id:
+          type: [string, "null"]
+          format: uuid
+        reason:
+          type: [string, "null"]
+        report_id:
+          type: [integer, "null"]
+        admin_user_id:
+          type: integer
+        reverted_by_admin_user_id:
+          type: [integer, "null"]
+        created_at:
+          type: string
+          format: date-time
+        reverted_at:
+          type: [string, "null"]
+          format: date-time
+    AdminEnforcementResponse:
+      type: object
+      required: [enforcement]
+      properties:
+        enforcement:
+          $ref: "#/components/schemas/AdminEnforcement"
     StartConversationResponse:
       type: object
       required: [conversation, created]

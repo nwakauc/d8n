@@ -8,6 +8,7 @@ Rails.application.routes.draw do
       get "health" => "health#show"
       get "openapi.json" => "openapi#show"
       get "me" => "me#show"
+      delete "me" => "me#destroy"
       get "discovery" => "discovery#index"
       get "matches" => "matches#index"
       get "conversations" => "conversations#index"
@@ -24,6 +25,8 @@ Rails.application.routes.draw do
         get "reports" => "reports#index"
         get "reports/:id" => "reports#show"
         patch "reports/:id" => "reports#update"
+        post "profiles/:profile_id/suspension" => "suspensions#create"
+        delete "profiles/:profile_id/suspension" => "suspensions#destroy"
       end
       get "profile" => "profile#show"
       patch "profile" => "profile#update"

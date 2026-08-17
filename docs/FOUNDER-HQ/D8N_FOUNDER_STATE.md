@@ -31,11 +31,26 @@ Shipped and verified against code/tests since this file was written:
   gate** (admins can read report content). The admin-auth model likely warrants an
   ADR — founder to confirm.
 
+- TS-04 brand-level suspend/ban enforcement (2026-08-17, uncommitted): `POST/DELETE
+  /api/v1/admin/profiles/:profile_id/suspension`. Suspends the BrandMembership +
+  revokes the user's brand sessions + durable `AccountEnforcement` + audit, atomic;
+  enforced across all surfaces; reinstatement restores only membership. Report state
+  stays separate. Reuses TS-03 admin auth. Platform-wide ban deferred (no global
+  admin authority). ADR 0013 records the admin-identity + enforcement architecture.
+  IMPLEMENTED + TESTED (16 request tests); NOT staging-proven.
+
+- TS-06 brand-level account closure + media purge (2026-08-17, uncommitted):
+  `DELETE /api/v1/me` (needs `confirmation:"close"`). Atomic membership tombstone +
+  profile discard/anonymize + matches ended + likes/passes discarded + locations
+  hard-deleted + brand sessions revoked + `AccountClosure` record + audit, then async
+  `Media::PurgeProfileMediaJob` physically purges R2 media (tracked outcome).
+  Retained: User/credentials/identifiers (cross-brand), conversations, messages,
+  blocks, reports, enforcements, audit. Platform-wide identity deletion deferred
+  (policy). ADR 0014 + docs/operations/data-retention.md. IMPLEMENTED + TESTED (18
+  tests); NOT staging-proven.
+
 Confirmed remaining P0 gaps to complete + responsibly operate the loop (verified):
-- TS-04 suspend/ban action + session revocation (enforcement half exists; attaches
-  to TS-03's `actioned` decision).
-- TS-06 account closure/deletion + media purge (data-protection blocker, EU-hosted).
-- ID-04 signed-out password recovery and ID-02 registration throttling.
+- ID-04 signed-out password recovery and ID-02 registration throttling (last P0 code).
 
 Production hosting remains deliberately sequenced AFTER the product loop; staging
 is the current proving ground.
@@ -490,13 +505,13 @@ staging release was executed and passed (see section 4, "R2 lifecycle gate -
 PROVEN 2026-08-15"). Do not re-run as a blocker.
 
 The current primary action is the product loop, not infrastructure. DL-03
-(persisted text messaging) and TS-03 (admin moderation review) are now built
-(uncommitted, awaiting founder commit + staging QA). Per
-docs/FOUNDER-HQ/D8N_NOW_NEXT_LATER.md the next engineering ticket is TS-04
-(suspend/ban + session revocation), followed by TS-06 (account deletion) and
-ID-04/ID-02 (identity hardening); admin MFA is a pre-launch gate. Production R2
-resources are still not to be created until the HookUs product loop and remaining
-ADR 0011 media gates are addressed.
+(messaging), TS-03 (moderation review), TS-04 (brand-level suspend/ban), and TS-06
+(account closure + media purge) are now built (uncommitted, awaiting founder commit +
+staging QA). Per docs/FOUNDER-HQ/D8N_NOW_NEXT_LATER.md the last P0 code is ID-04
+(password recovery) + ID-02 (registration throttling); then the DR/DL staging proofs
+and go/no-go. Admin MFA, platform-wide identity deletion, and a platform-wide-ban
+authority are separate gates. Production R2 resources are still not to be created
+until the HookUs product loop and remaining ADR 0011 media gates are addressed.
 
 In parallel, the HookUs frontend engineer continues wiring HookUs against
 staging-api.d8n.tech (CORS for http://localhost:3001 is configured and

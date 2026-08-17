@@ -10,9 +10,46 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_17_020100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_17_040000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "account_closures", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "brand_membership_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "media_purge_state", default: 0, null: false
+    t.datetime "media_purged_at"
+    t.bigint "profile_id"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["brand_id"], name: "index_account_closures_on_brand_id"
+    t.index ["brand_membership_id"], name: "index_account_closures_on_brand_membership_id", unique: true
+    t.index ["profile_id"], name: "index_account_closures_on_profile_id"
+    t.index ["user_id"], name: "index_account_closures_on_user_id"
+  end
+
+  create_table "account_enforcements", force: :cascade do |t|
+    t.bigint "admin_user_id", null: false
+    t.bigint "brand_id", null: false
+    t.bigint "brand_membership_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "profile_id"
+    t.text "reason"
+    t.bigint "report_id"
+    t.datetime "reverted_at"
+    t.bigint "reverted_by_admin_user_id"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["admin_user_id"], name: "index_account_enforcements_on_admin_user_id"
+    t.index ["brand_id", "user_id"], name: "idx_account_enforcements_active_unique", unique: true, where: "(reverted_at IS NULL)"
+    t.index ["brand_id"], name: "index_account_enforcements_on_brand_id"
+    t.index ["brand_membership_id"], name: "index_account_enforcements_on_brand_membership_id"
+    t.index ["profile_id"], name: "index_account_enforcements_on_profile_id"
+    t.index ["report_id"], name: "index_account_enforcements_on_report_id"
+    t.index ["reverted_by_admin_user_id"], name: "index_account_enforcements_on_reverted_by_admin_user_id"
+    t.index ["user_id"], name: "index_account_enforcements_on_user_id"
+  end
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -555,6 +592,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_020100) do
     t.datetime "updated_at", null: false
   end
 
+  add_foreign_key "account_closures", "brand_memberships"
+  add_foreign_key "account_closures", "brands"
+  add_foreign_key "account_closures", "profiles"
+  add_foreign_key "account_closures", "users"
+  add_foreign_key "account_enforcements", "admin_users"
+  add_foreign_key "account_enforcements", "admin_users", column: "reverted_by_admin_user_id"
+  add_foreign_key "account_enforcements", "brand_memberships"
+  add_foreign_key "account_enforcements", "brands"
+  add_foreign_key "account_enforcements", "profiles"
+  add_foreign_key "account_enforcements", "reports"
+  add_foreign_key "account_enforcements", "users"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "admin_assignments", "admin_roles"
