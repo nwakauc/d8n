@@ -7,7 +7,10 @@ class Api::V1::DiscoveryController < ApplicationController
       user: Current.user,
       brand: Current.brand,
       cursor: params[:cursor],
-      limit: params[:limit]
+      limit: params[:limit],
+      mode: params[:mode],
+      vibe: params[:vibe],
+      online: params[:online]
     )
     render json: {
       profiles: result.profiles.map { |profile| Matching::CandidateSerializer.call(profile:, strategy: result.strategy) },
@@ -19,6 +22,10 @@ class Api::V1::DiscoveryController < ApplicationController
     render json: { error: "invalid_limit" }, status: :unprocessable_entity
   rescue Matching::Cursor::Invalid
     render json: { error: "invalid_cursor" }, status: :unprocessable_entity
+  rescue Matching::StrategyRegistry::UnsupportedMode
+    render json: { error: "invalid_mode" }, status: :unprocessable_entity
+  rescue Matching::FacetFilter::InvalidFilter
+    render json: { error: "invalid_filter" }, status: :unprocessable_entity
   rescue Matching::StrategyRegistry::UnsupportedBrand
     render json: { error: "matching_not_configured" }, status: :not_found
   end

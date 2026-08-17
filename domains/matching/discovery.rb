@@ -8,24 +8,29 @@ module Matching
 
     Result = Data.define(:profiles, :next_cursor, :strategy)
 
-    def self.call(user:, brand:, cursor: nil, limit: nil)
-      new(user:, brand:, cursor:, limit:).call
+    def self.call(user:, brand:, cursor: nil, limit: nil, mode: nil, vibe: nil, online: nil)
+      new(user:, brand:, cursor:, limit:, mode:, vibe:, online:).call
     end
 
-    def initialize(user:, brand:, cursor:, limit:)
+    def initialize(user:, brand:, cursor:, limit:, mode: nil, vibe: nil, online: nil)
       @user = user
       @brand = brand
       @cursor = cursor
       @limit = normalize_limit(limit)
+      @mode = mode
+      @vibe = vibe
+      @online = online
     end
 
     def call
       viewer = current_viewer!
-      strategy = StrategyRegistry.fetch(brand:)
+      strategy = StrategyRegistry.fetch(brand:, mode:)
+      filter = FacetFilter.parse(brand:, vibe:, online:)
       scope = EligibilityScope.call(brand:, viewer:, location_max_age: strategy.location_max_age)
       scope = ExclusionsScope.call(scope:, viewer:)
+      scope = FacetFilter.apply(scope:, brand:, filter:)
       scope = strategy.rank(scope:, viewer:)
-      scope = Cursor.apply(scope:, value: cursor, brand:, strategy:)
+      scope = Cursor.apply(scope:, value: cursor, brand:, strategy:, filter:)
       profiles = scope.includes(
         { profile_option_selections: [ :profile_option, :profile_option_group ] },
         { profile_photos: { display_image_attachment: :blob } }
@@ -35,14 +40,14 @@ module Matching
 
       Result.new(
         profiles:,
-        next_cursor: has_more ? Cursor.encode(brand:, strategy:, profile: profiles.last) : nil,
+        next_cursor: has_more ? Cursor.encode(brand:, strategy:, profile: profiles.last, filter:) : nil,
         strategy:
       )
     end
 
     private
 
-    attr_reader :user, :brand, :cursor, :limit
+    attr_reader :user, :brand, :cursor, :limit, :mode, :vibe, :online
 
     def current_viewer!
       profile = Profile.kept.find_by(user:, brand:)

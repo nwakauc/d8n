@@ -22,7 +22,7 @@ class WelcomeController < ApplicationController
     { key: "messaging", name: "D8N Chat", domain: "Messaging", status: "preview",
       detail: "Conversation metadata only; message content is not yet available." },
     { key: "trust", name: "D8N Trust", domain: "Trust", status: "preview",
-      detail: "Blocking is available; reporting and enforcement are planned." },
+      detail: "Blocking and profile reporting are available; administrative enforcement is planned." },
     { key: "media", name: "D8N Media", domain: "Media", status: "preview",
       detail: "Owner-scoped profile photos: direct-to-R2 upload, signed retrieval, delete/purge. " \
         "Public delivery, re-encode, EXIF removal, and moderation enforcement are gated." },

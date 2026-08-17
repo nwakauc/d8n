@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_15_000100) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -470,6 +470,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_15_000100) do
     t.index ["user_id"], name: "index_profiles_on_user_id"
   end
 
+  create_table "reports", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "reporter_profile_id", null: false
+    t.bigint "reported_profile_id", null: false
+    t.integer "reason", null: false
+    t.integer "status", default: 0, null: false
+    t.text "note"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "reported_profile_id"], name: "index_reports_on_brand_id_and_reported_profile_id"
+    t.index ["brand_id", "reporter_profile_id", "reported_profile_id"], name: "idx_reports_open_pair", unique: true, where: "(status = 0)"
+    t.index ["brand_id", "status", "created_at"], name: "index_reports_on_brand_id_and_status_and_created_at"
+    t.index ["brand_id"], name: "index_reports_on_brand_id"
+    t.index ["reported_profile_id"], name: "index_reports_on_reported_profile_id"
+    t.index ["reporter_profile_id"], name: "index_reports_on_reporter_profile_id"
+    t.check_constraint "reporter_profile_id <> reported_profile_id", name: "chk_reports_not_self"
+  end
+
   create_table "security_events", force: :cascade do |t|
     t.bigint "brand_id"
     t.bigint "user_id"
@@ -580,6 +598,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_15_000100) do
   add_foreign_key "profiles", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_profiles_membership_tenant"
   add_foreign_key "profiles", "brands"
   add_foreign_key "profiles", "users"
+  add_foreign_key "reports", "brands"
+  add_foreign_key "reports", "profiles", column: ["reported_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_reports_reported_tenant"
+  add_foreign_key "reports", "profiles", column: ["reporter_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_reports_reporter_tenant"
   add_foreign_key "security_events", "brands"
   add_foreign_key "security_events", "users"
   add_foreign_key "sessions", "brands"

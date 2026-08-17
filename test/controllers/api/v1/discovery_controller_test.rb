@@ -312,6 +312,218 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_empty JSON.parse(response.body).fetch("profiles")
   end
 
+  test "explicit for_you mode is backward compatible with the default feed" do
+    Profiles::HookusProfileCatalog.install!(brand: @brand)
+    require_only_public_options
+    select_options(@viewer, intents: %w[hookups casual], vibes: %w[chill])
+    strong = create_candidate(display_name: "Strong")
+    select_options(strong, intents: %w[hookups casual], vibes: %w[chill])
+    weak = create_candidate(display_name: "Weak")
+    select_options(weak, intents: %w[relationship], vibes: %w[gaming])
+
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+    default_ids = JSON.parse(response.body).fetch("profiles").pluck("id")
+
+    get "/api/v1/discovery", headers: bearer_headers(@token), params: { mode: "for_you" }
+    assert_response :success
+    assert_equal default_ids, JSON.parse(response.body).fetch("profiles").pluck("id")
+    assert_equal [ strong.public_id, weak.public_id ], default_ids
+  end
+
+  test "new_here orders by recency while the default feed prefers the stronger match" do
+    Profiles::HookusProfileCatalog.install!(brand: @brand)
+    require_only_public_options
+    select_options(@viewer, intents: %w[hookups casual], vibes: %w[chill music])
+
+    older_compatible = create_candidate(display_name: "Older")
+    select_options(older_compatible, intents: %w[hookups casual], vibes: %w[chill music])
+    older_compatible.update_columns(created_at: Time.utc(2026, 1, 1, 12, 0, 0), updated_at: Time.current)
+
+    newer_eligible = create_candidate(display_name: "Newer")
+    select_options(newer_eligible, intents: %w[relationship], vibes: %w[gaming])
+    newer_eligible.update_columns(created_at: Time.utc(2026, 8, 1, 12, 0, 0), updated_at: Time.current)
+
+    # Default (For You) prefers the higher-compatibility candidate.
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+    assert_response :success
+    assert_equal [ older_compatible.public_id, newer_eligible.public_id ],
+      JSON.parse(response.body).fetch("profiles").pluck("id")
+
+    # New Here prefers the newer candidate regardless of compatibility, but still
+    # returns the identical compatibility payload shape.
+    get "/api/v1/discovery", headers: bearer_headers(@token), params: { mode: "new_here" }
+    assert_response :success
+    profiles = JSON.parse(response.body).fetch("profiles")
+    assert_equal [ newer_eligible.public_id, older_compatible.public_id ], profiles.pluck("id")
+    assert profiles.first.fetch("compatibility").key?("score")
+  end
+
+  test "new_here respects the same eligibility rules as the default feed" do
+    eligible = create_candidate(display_name: "Eligible")
+    create_profile(
+      brand: @brand, gender: "woman", age: 30,
+      interested_in: [ "man" ], min_age: 25, max_age: 40, display_name: "WrongGender"
+    )
+    create_candidate(display_name: "Hidden").update!(visibility: :hidden)
+    create_candidate(display_name: "Inactive").update!(status: :draft)
+    other_brand = Brand.create!(slug: "other", name: "Other")
+    create_profile(
+      brand: other_brand, gender: "man", age: 30,
+      interested_in: [ "woman" ], min_age: 25, max_age: 40, display_name: "OtherBrand"
+    )
+    blocked = create_candidate(display_name: "Blocked")
+    ProfileBlock.create!(brand: @brand, blocker_profile: @viewer, blocked_profile: blocked)
+
+    get "/api/v1/discovery", headers: bearer_headers(@token), params: { mode: "new_here" }
+
+    assert_response :success
+    assert_equal [ eligible.public_id ], JSON.parse(response.body).fetch("profiles").pluck("id")
+  end
+
+  test "new_here paginates deterministically newest-first and preserves the mode" do
+    candidates = 3.times.map { |index| create_candidate(display_name: "C#{index}") }
+    candidates.each_with_index do |candidate, index|
+      candidate.update_columns(created_at: Time.utc(2026, 8, 13, 12, 0, index), updated_at: Time.current)
+    end
+
+    ids = []
+    cursor = nil
+    3.times do
+      get "/api/v1/discovery",
+        headers: bearer_headers(@token), params: { mode: "new_here", limit: 1, cursor: }.compact
+      assert_response :success
+      page = JSON.parse(response.body)
+      ids << page.fetch("profiles").sole.fetch("id")
+      cursor = page.fetch("next_cursor")
+    end
+
+    assert_equal [ candidates[2].public_id, candidates[1].public_id, candidates[0].public_id ], ids
+    assert_nil cursor
+  end
+
+  test "a new_here cursor cannot be replayed against the default feed" do
+    3.times { |index| create_candidate(display_name: "C#{index}") }
+
+    get "/api/v1/discovery",
+      headers: bearer_headers(@token), params: { mode: "new_here", limit: 1 }
+    cursor = JSON.parse(response.body).fetch("next_cursor")
+    assert cursor.present?
+
+    # Replaying the New Here cursor without the mode must not silently switch to
+    # the default ranking — the strategy encoded in the cursor no longer matches.
+    get "/api/v1/discovery", headers: bearer_headers(@token), params: { cursor:, limit: 1 }
+    assert_response :unprocessable_entity
+    assert_equal({ "error" => "invalid_cursor" }, JSON.parse(response.body))
+  end
+
+  test "rejects an unsupported discovery mode" do
+    get "/api/v1/discovery", headers: bearer_headers(@token), params: { mode: "online_now" }
+
+    assert_response :unprocessable_entity
+    assert_equal({ "error" => "invalid_mode" }, JSON.parse(response.body))
+  end
+
+  test "new_here exposes only the safe display derivative, never the raw original" do
+    candidate = create_candidate(display_name: "Sam")
+    photo = attach_photo(candidate, visibility: :visible, processing_state: :ready)
+    raw_key = photo.image.blob.key
+
+    get "/api/v1/discovery", headers: bearer_headers(@token), params: { mode: "new_here" }
+
+    assert_response :success
+    photos = JSON.parse(response.body).fetch("profiles").sole.fetch("photos")
+    assert_equal 1, photos.size
+    assert_includes photos.sole.fetch("url"), "display.jpg"
+    assert_not_includes response.body, raw_key
+  end
+
+  test "filters discovery to a public vibe, combinable with a mode and still eligibility-bound" do
+    Profiles::HookusProfileCatalog.install!(brand: @brand)
+    require_only_public_options
+    four_twenty = create_candidate(display_name: "FourTwenty")
+    select_options(four_twenty, intents: %w[hookups], vibes: %w[420_friendly])
+    other_vibe = create_candidate(display_name: "OtherVibe")
+    select_options(other_vibe, intents: %w[hookups], vibes: %w[chill])
+    # 420-friendly but hidden: the facet must not override eligibility.
+    hidden = create_candidate(display_name: "Hidden420")
+    select_options(hidden, intents: %w[hookups], vibes: %w[420_friendly])
+    hidden.update!(visibility: :hidden)
+
+    get "/api/v1/discovery",
+      headers: bearer_headers(@token), params: { mode: "new_here", vibe: "420_friendly" }
+
+    assert_response :success
+    assert_equal [ four_twenty.public_id ], JSON.parse(response.body).fetch("profiles").pluck("id")
+  end
+
+  test "rejects an unknown vibe filter" do
+    Profiles::HookusProfileCatalog.install!(brand: @brand)
+    require_only_public_options
+
+    get "/api/v1/discovery", headers: bearer_headers(@token), params: { vibe: "not_a_real_vibe" }
+
+    assert_response :unprocessable_entity
+    assert_equal({ "error" => "invalid_filter" }, JSON.parse(response.body))
+  end
+
+  test "a vibe-filtered cursor cannot be replayed without the same vibe" do
+    Profiles::HookusProfileCatalog.install!(brand: @brand)
+    require_only_public_options
+    2.times.map { |index| create_candidate(display_name: "V#{index}") }
+      .each { |candidate| select_options(candidate, intents: %w[hookups], vibes: %w[420_friendly]) }
+
+    get "/api/v1/discovery",
+      headers: bearer_headers(@token), params: { vibe: "420_friendly", limit: 1 }
+    cursor = JSON.parse(response.body).fetch("next_cursor")
+    assert cursor.present?
+
+    # Same facet → valid next page.
+    get "/api/v1/discovery",
+      headers: bearer_headers(@token), params: { vibe: "420_friendly", limit: 1, cursor: }
+    assert_response :success
+    assert_equal 1, JSON.parse(response.body).fetch("profiles").size
+
+    # Dropping the facet changes the selection; the cursor is bound to it.
+    get "/api/v1/discovery", headers: bearer_headers(@token), params: { limit: 1, cursor: }
+    assert_response :unprocessable_entity
+    assert_equal({ "error" => "invalid_cursor" }, JSON.parse(response.body))
+  end
+
+  test "online filter narrows to recently active profiles and combines with a vibe" do
+    Profiles::HookusProfileCatalog.install!(brand: @brand)
+    require_only_public_options
+    online = create_candidate(display_name: "Online")
+    select_options(online, intents: %w[hookups], vibes: %w[420_friendly])
+    Session.issue!(brand: @brand, user: online.user)
+    offline = create_candidate(display_name: "Offline")
+    select_options(offline, intents: %w[hookups], vibes: %w[420_friendly])
+    # An active session that has gone quiet is not "online now".
+    _token, stale = Session.issue!(brand: @brand, user: offline.user)
+    stale.update_columns(last_used_at: 20.minutes.ago)
+
+    get "/api/v1/discovery", headers: bearer_headers(@token), params: { online: "true" }
+    assert_response :success
+    assert_equal [ online.public_id ], JSON.parse(response.body).fetch("profiles").pluck("id")
+
+    # Facets stack: online AND 420-friendly.
+    get "/api/v1/discovery", headers: bearer_headers(@token), params: { online: "true", vibe: "420_friendly" }
+    assert_response :success
+    assert_equal [ online.public_id ], JSON.parse(response.body).fetch("profiles").pluck("id")
+  end
+
+  test "an online-filtered cursor cannot be replayed without the online facet" do
+    3.times.map { |index| create_candidate(display_name: "O#{index}") }
+      .each { |candidate| Session.issue!(brand: @brand, user: candidate.user) }
+
+    get "/api/v1/discovery", headers: bearer_headers(@token), params: { online: "true", limit: 1 }
+    cursor = JSON.parse(response.body).fetch("next_cursor")
+    assert cursor.present?
+
+    get "/api/v1/discovery", headers: bearer_headers(@token), params: { limit: 1, cursor: }
+    assert_response :unprocessable_entity
+    assert_equal({ "error" => "invalid_cursor" }, JSON.parse(response.body))
+  end
+
   private
 
   def bearer_headers(token)

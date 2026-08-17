@@ -664,11 +664,36 @@ paths:
     get:
       operationId: getDiscovery
       tags: [Matching]
-      summary: Get a ranked page of eligible public profiles
+      summary: Get a page of eligible public profiles for the selected mode
       description: |
+        `mode` selects the discovery feed. All modes apply the **same**
+        eligibility rules (brand isolation, active/visible profiles,
+        current-user exclusion, reciprocal age/gender/preference, distance,
+        blocking/exclusions) — they differ only in ordering:
+          * `for_you` (default) — the compatibility-ranked HookUs feed.
+          * `new_here` — the newest eligible profiles first, deterministic on
+            recency; the compatibility payload is still included.
+        A request without `mode` behaves exactly as before (`for_you`).
+
+        `vibe` and `online` are optional facet filters, orthogonal to `mode` and
+        to each other; they narrow the feed without relaxing eligibility and
+        combine freely (e.g. `?mode=new_here&vibe=420_friendly&online=true`):
+          * `vibe` — profiles that publicly selected that "vibes" option. An
+            unknown vibe yields `invalid_filter`.
+          * `online=true` — profiles whose user has been active within the last
+            10 minutes (session activity), i.e. "online now".
+
+        The returned `next_cursor` encodes the mode and every active facet, so a
+        later page cannot switch strategy or silently drop/change a filter:
+        replaying a cursor under a different mode/vibe/online yields
+        `invalid_cursor`. An unknown mode yields `invalid_mode`.
+
         Each profile includes `photos`: safe, EXIF-stripped display derivatives
         with short-lived signed URLs. Raw originals are never exposed.
       parameters:
+        - $ref: "#/components/parameters/DiscoveryMode"
+        - $ref: "#/components/parameters/DiscoveryVibe"
+        - $ref: "#/components/parameters/DiscoveryOnline"
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
       responses:
@@ -791,6 +816,48 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/ProfileOrMembershipRequired"
+  /api/v1/profiles/{profile_id}/report:
+    post:
+      operationId: reportProfile
+      tags: [Trust]
+      summary: File a safety report against a current-brand profile
+      description: |
+        Reporting is independent of blocking and does not change the target's
+        visibility, moderation status, or photo processing — it records an audit
+        signal for administrative review. It is idempotent per open report: while
+        an earlier report from the same reporter against the same target is still
+        open, repeat submissions return `created: false` and do not stack.
+        Unknown, cross-brand, and self targets share the `profile_unavailable`
+        (404) response so target existence is never disclosed.
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportRequest"
+      responses:
+        "200":
+          description: An open report from this reporter against this target already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportResponse"
+        "201":
+          description: The report was filed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
   /api/v1/matches:
     get:
       operationId: listMatches
@@ -870,6 +937,40 @@ components:
       bearerFormat: opaque
       description: Opaque brand-bound D8N session token.
   parameters:
+    DiscoveryMode:
+      name: mode
+      in: query
+      required: false
+      description: |
+        Discovery feed selector. Omitted or `for_you` returns the default
+        compatibility-ranked feed; `new_here` returns the newest eligible
+        profiles first. Eligibility is identical across modes. An unsupported
+        value returns 422 `invalid_mode`.
+      schema:
+        type: string
+        enum: [for_you, new_here]
+        default: for_you
+    DiscoveryVibe:
+      name: vibe
+      in: query
+      required: false
+      description: |
+        Optional facet filter: a public "vibes" option code (e.g.
+        `420_friendly`). Narrows the feed to profiles that selected it, on top of
+        the normal eligibility rules, and combines with any `mode`. An
+        unsupported value returns 422 `invalid_filter`.
+      schema:
+        type: string
+    DiscoveryOnline:
+      name: online
+      in: query
+      required: false
+      description: |
+        Optional "online now" facet. When `true`, narrows the feed to profiles
+        whose user has been active in the last 10 minutes. Combines with `mode`
+        and `vibe`.
+      schema:
+        type: boolean
     Cursor:
       name: cursor
       in: query
@@ -1633,6 +1734,27 @@ components:
           const: true
         created:
           type: boolean
+    ReportRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: Why the profile is being reported.
+          enum: [inappropriate_content, harassment, spam, fake_profile, underage, other]
+        note:
+          type: [string, "null"]
+          maxLength: 2000
+          description: Optional free-text detail from the reporter.
+    ReportResponse:
+      type: object
+      required: [reported, created]
+      properties:
+        reported:
+          const: true
+        created:
+          type: boolean
+          description: True when a new report was filed; false when an open report already existed.
     Match:
       type: object
       required: [id, matched_at, profile]

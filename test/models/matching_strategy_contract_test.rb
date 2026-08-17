@@ -15,15 +15,15 @@ module Matching
       assert_equal Strategies::Date9jaContract, StrategyRegistry.contract_for(brand: @date9ja)
       assert_not Strategies::Date9jaContract.production_ready?
       assert Strategies::Hookus.production_ready?
-      assert StrategyRegistry::STRATEGIES.values.all?(&:production_ready?)
+      assert StrategyRegistry::MODES.values.flat_map(&:values).all?(&:production_ready?)
     end
 
-    test "both strategies implement the discovery contract" do
+    test "every discovery strategy implements the discovery contract" do
       required_methods = %i[
         key location_max_age production_ready? rank cursor_payload apply_cursor compatibility
       ]
 
-      [ Strategies::Hookus, Strategies::Date9jaContract ].each do |strategy|
+      [ Strategies::Hookus, Strategies::HookusNewHere, Strategies::Date9jaContract ].each do |strategy|
         required_methods.each { |method| assert_respond_to strategy, method }
       end
     end
