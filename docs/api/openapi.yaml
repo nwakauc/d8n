@@ -906,7 +906,10 @@ paths:
       operationId: listConversations
       tags: [Messaging]
       summary: List conversations for the current brand profile
-      description: Slice 1 returns conversation metadata only; no message-content endpoint is available yet.
+      description: |
+        Participant-scoped conversation cards, newest-first, each with a preview of
+        its latest message (or null). Read the full history via the per-conversation
+        messages endpoint.
       parameters:
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
@@ -947,6 +950,81 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           description: Match is unavailable, cross-brand, or does not include the current profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/conversations/{conversation_id}/messages:
+    get:
+      operationId: listMessages
+      tags: [Messaging]
+      summary: List a conversation's messages, newest first
+      description: |
+        Participant-scoped, cursor-paginated plain-text message history for one
+        conversation, ordered newest-first by (created_at, id). Only the two
+        conversation participants may read. Unknown, cross-brand, non-participant,
+        ended, unavailable (suspended/deleted participant), and blocked
+        conversations all return the same neutral 404 `conversation_unavailable`;
+        the block is never disclosed. History is always bounded by `limit`; page
+        backward into older messages with `next_cursor`. A message cursor is bound
+        to its brand, viewer, and conversation and cannot be replayed elsewhere.
+      parameters:
+        - $ref: "#/components/parameters/PublicConversationId"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/MessageLimit"
+      responses:
+        "200":
+          description: A page of messages, newest first, and an opaque next cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Conversation is unavailable, cross-brand, ended, blocked, or not the current profile's.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+    post:
+      operationId: sendMessage
+      tags: [Messaging]
+      summary: Send a plain-text message to a conversation
+      description: |
+        Appends one plain-text message after re-authorizing the sender
+        (participant, active match, both participants available, neither side
+        blocking the other). The body is treated as untrusted input, NFC-normalized,
+        and must be non-blank and at most 2000 characters; Unicode/emoji is
+        preserved. Content never enters logs. Beta accepts at-least-once client
+        sends (no idempotency key), so a retried request creates a second message.
+      parameters:
+        - $ref: "#/components/parameters/PublicConversationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+      responses:
+        "201":
+          description: The message was persisted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendMessageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Conversation is unavailable, cross-brand, ended, blocked, or not the current profile's.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Body is blank (`message_blank`) or too long (`message_too_long`).
           content:
             application/json:
               schema:
@@ -1032,6 +1110,24 @@ components:
       schema:
         type: string
         format: uuid
+    PublicConversationId:
+      name: conversation_id
+      in: path
+      required: true
+      description: Stable public conversation UUID from the conversation list or start-conversation response.
+      schema:
+        type: string
+        format: uuid
+    MessageLimit:
+      name: limit
+      in: query
+      required: false
+      description: Page size for message history.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 30
   responses:
     Unauthorized:
       description: Missing, invalid, expired, revoked, or wrong-brand bearer token.
@@ -1825,7 +1921,7 @@ components:
           type: [string, "null"]
     Conversation:
       type: object
-      required: [id, match_id, status, created_at, profile]
+      required: [id, match_id, status, created_at, profile, last_message]
       properties:
         id:
           type: string
@@ -1841,6 +1937,75 @@ components:
           format: date-time
         profile:
           $ref: "#/components/schemas/PublicProfile"
+        last_message:
+          description: Preview of the newest message, or null for an empty conversation.
+          oneOf:
+            - $ref: "#/components/schemas/MessagePreview"
+            - type: "null"
+    MessagePreview:
+      type: object
+      required: [id, sender_id, body, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        sender_id:
+          type: [string, "null"]
+          format: uuid
+          description: Public profile id of the author.
+        body:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    Message:
+      type: object
+      required: [id, conversation_id, sender_id, body, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        conversation_id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+          description: |
+            Public profile id of the author. The client identifies its own
+            messages by comparing against the counterpart profile id on the
+            conversation (there are exactly two participants).
+        body:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    MessageListResponse:
+      type: object
+      required: [messages, next_cursor]
+      properties:
+        messages:
+          type: array
+          description: Newest-first page of messages.
+          items:
+            $ref: "#/components/schemas/Message"
+        next_cursor:
+          type: [string, "null"]
+    SendMessageRequest:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Plain-text message. Non-blank, NFC-normalized, Unicode preserved.
+    SendMessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          $ref: "#/components/schemas/Message"
     StartConversationResponse:
       type: object
       required: [conversation, created]

@@ -5,5 +5,7 @@
 # See the ActiveSupport::ParameterFilter documentation for supported notations and behaviors.
 Rails.application.config.filter_parameters += [
   :passw, :email, :phone, :secret, :token, :_key, :crypt, :salt, :certificate, :otp, :code, :ssn, :cvv, :cvc,
-  :latitude, :longitude, :coordinates
+  :latitude, :longitude, :coordinates,
+  # Private message content must never reach request logs (ADR 0010).
+  :body, :message
 ]

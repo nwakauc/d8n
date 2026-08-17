@@ -12,7 +12,11 @@ class Api::V1::ConversationsController < ApplicationController
 
     render json: {
       conversations: result.conversations.map do |conversation|
-        Messaging::ConversationSerializer.call(conversation:, viewer: result.viewer)
+        Messaging::ConversationSerializer.call(
+          conversation:,
+          viewer: result.viewer,
+          last_message: result.last_messages[conversation.id]
+        )
       end,
       next_cursor: result.next_cursor
     }

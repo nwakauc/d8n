@@ -10,25 +10,43 @@ operations organization are not beta requirements.
 
 - Priority: P1
 - Beta blocker: Yes
-- Owner: Unassigned
-- Status: Not started
+- Owner: Codex / Claude
+- Status: In progress
 - Work: Keep existing brand-scoped directional blocks and prove they prevent
   discovery, likes/passes, match access, conversation access, and future message
   sends in either direction where required.
 - Evidence: Cross-endpoint request tests cover both block directions, existing
   matches/conversations, suspended/deleted participants, and tenant isolation.
+- Evidence recorded (2026-08-17): Fully implemented and unit/request-tested.
+  `ProfileBlock` (directional, soft-delete, partial-unique active-pair index,
+  self-block check constraint), `Trust::BlockProfile/UnblockProfile`, central
+  `Trust::BlockPolicy` (`exclude_profiles`/`exclude_matches`/`blocked_between?`)
+  wired into `EligibilityScope` (discovery all modes, likes, passes), `MatchList`,
+  `ConversationList`, and `MatchAccess`. Blocked-user management list shipped in
+  `b02f4f4` (`GET /api/v1/blocks`). Block/report/enforcement tests green
+  (`test/controllers/api/v1/profile_blocks_controller_test.rb`, model +
+  concurrency tests). Message-send enforcement is deferred until DL-03 exists.
+  Remaining before Done: the staging cross-endpoint proof folded into DL-04.
 
 ### TS-02 — Add bounded user reporting
 
 - Priority: P1
 - Beta blocker: Yes
-- Owner: Unassigned
-- Status: Not started
+- Owner: Codex
+- Status: In progress
 - Work: Implement brand-scoped profile/photo/message reporting with bounded reason
   codes and optional bounded user context. Preserve only the evidence required for
   review; never copy private message content into generic logs or audit metadata.
 - Evidence: Authorization, tenant-isolation, duplicate/abuse-limit, evidence-access,
   deletion interaction, and serialization tests pass.
+- Evidence recorded (2026-08-17): **Profile** reporting shipped (`55454be`).
+  `Report` (bounded reason enum, status lifecycle, note ≤2000, DB partial-unique
+  one-open-report-per-pair, self-report check constraint), `Trust::ReportProfile`
+  (idempotent, brand-isolated, independent of blocking/visibility, writes a
+  `SecurityEvent` audit signal), `POST /api/v1/profiles/:id/report`, OpenAPI +
+  request tests green. Remaining scope: **photo and message reporting** (message
+  reporting is gated on DL-03), and moderator evidence-access which is TS-03. No
+  private content is copied into logs/metadata (verified).
 
 ### TS-03 — Provide a minimal admin review queue
 

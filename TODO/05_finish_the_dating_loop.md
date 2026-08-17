@@ -3,6 +3,14 @@
 Outcome: a controlled HookUs user can complete the real product journey from
 registration through a safe text conversation.
 
+> **Reconciliation (2026-08-17):** DL-01/DL-02 are *proof/QA* tasks, not build
+> tasks — profile, publication, safe photos, discovery (For You + New Here +
+> filters), likes, passes, and canonical matching are all implemented and
+> unit/concurrency-tested; what remains is the staging end-to-end proof. **DL-03
+> (persisted text messaging) is the one genuine unbuilt product gap** — no
+> `Message` model or endpoint exists; conversations are metadata-only. DL-03 is the
+> highest-priority NOW item in `docs/FOUNDER-HQ/D8N_NOW_NEXT_LATER.md`.
+
 ## Tasks
 
 ### DL-01 — Prove profile and discovery readiness with safe photos
@@ -33,8 +41,8 @@ registration through a safe text conversation.
 
 - Priority: P1
 - Beta blocker: Yes
-- Owner: Unassigned
-- Status: Not started
+- Owner: Claude
+- Status: In progress (IMPLEMENTED + TESTED; not yet STAGING-PROVEN)
 - Work: Follow ADR 0010 Slice 2: bounded text only, opaque public IDs,
   persistence-before-delivery, idempotent client sends, stable cursor pagination,
   sender/participant authorization, and polling first. Do not add attachments,
@@ -42,6 +50,29 @@ registration through a safe text conversation.
 - Evidence: Request and concurrency tests prove authorization, ordering,
   idempotency, pagination, match lifecycle behavior, block/suspension enforcement,
   report evidence access, and absence of message bodies from logs/analytics/errors.
+- Evidence recorded (2026-08-17): `messages` table (tenant-safe composite FKs to
+  conversations + profiles, partial cursor index), `Message` model (plain text,
+  `MAX_BODY_LENGTH` 2000, soft-delete column for future erasure). Endpoints
+  `GET/POST /api/v1/conversations/:conversation_id/messages`. Authorization reuses
+  `Messaging::MatchAccess` via new `Messaging::ConversationAccess` (participant +
+  active match + availability + both block directions), so outsiders/cross-brand/
+  blocked/suspended all get neutral 404 `conversation_unavailable`. Newest-first,
+  signed brand+viewer+conversation-bound `MessageCursor`; body NFC-normalized,
+  blank/oversized rejected, Unicode preserved; content added to
+  `filter_parameters`. Conversation list now carries a last-message preview via one
+  batched `DISTINCT ON` query. 18 request tests incl. the full like→match→converse
+  loop; OpenAPI updated (`listMessages`/`sendMessage` + schemas). All gates green.
+- **Deferred beyond this beta subset (report, do not silently skip):** ADR 0010
+  Slice 2 also listed **per-participant read state**, **send throttling/abuse
+  limits**, **message-reporting evidence handoff**, and **retention/export/
+  soft-deletion/legal-erasure** as ship-together items. Per the founder DL-03
+  ticket these are intentionally out of this slice: read receipts are explicitly
+  excluded; message-reporting is TS-02 remainder; erasure ties to TS-06; message
+  rate-limiting is an early-beta safety follow-up (no reusable app-wide limiter
+  exists yet). Reading an ended-but-unblocked match returns unavailable rather than
+  read-only history, because the only current path to `ended` is a block (which
+  must hide history). These need founder acknowledgement or an ADR 0010 update.
+- Remaining before Done: staging two-user proof (folded into DL-04).
 
 ### DL-04 — Run the complete two-user beta journey
 

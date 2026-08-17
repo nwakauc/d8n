@@ -5,6 +5,16 @@
 Proposed for Phase 6 review on 2026-08-13. No production media or verification
 provider is approved by this ADR.
 
+Reconciliation note (2026-08-17): the **media-storage half** of this ADR has been
+implemented and staging-proven ahead of formal acceptance — private R2, direct
+client uploads with server-allocated PII-free keys, verified decode + safe
+re-encode, EXIF/GPS stripping, stranger-safe signed display derivatives, and
+durable raw purge (A-F lifecycle proven on staging 2026-08-15). Still Proposed /
+not built: **moderation enforcement** on the media states and the **verification
+assertion** boundary. The per-brand photo-visibility policy (HookUs visible-on-
+attach vs default hidden, `Media::PhotoPolicy`) is a durable decision made under
+this ADR. Founder/CTO to confirm whether to promote the media half to Accepted.
+
 ## Context
 
 D8N handles dating-profile photos, future private verification evidence, and

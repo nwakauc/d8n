@@ -4,6 +4,17 @@ This folder is the accountable execution tracker for the smallest responsible
 HookUs private beta. It complements the architecture documents and ADRs; it does
 not replace them or authorize architecture changes.
 
+> **Reconciliation (2026-08-17):** The single authoritative NOW/NEXT/LATER view is
+> [`docs/FOUNDER-HQ/D8N_NOW_NEXT_LATER.md`](../docs/FOUNDER-HQ/D8N_NOW_NEXT_LATER.md).
+> The strict "milestones in order" gate below has in practice been superseded by
+> **beta-loop-first** prioritization: Milestone 4/5 product features (blocking,
+> reporting, discovery filters, safe media) shipped ahead of some Milestone 1–3
+> operational items because they define the product. Milestones 1–3 items remain
+> real beta blockers and stay open; they are now tracked as **NEXT** rather than a
+> hard predecessor. The confirmed remaining P0 loop gaps are **DL-03 (messaging)**,
+> **TS-03 (admin moderation)**, **TS-04 (suspend/ban)**, and **TS-06 (account
+> deletion)**.
+
 ## Working Principle
 
 D8N is a dating platform, not a bank. Build the simplest responsible

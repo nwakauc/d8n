@@ -4,6 +4,7 @@ class Conversation < ApplicationRecord
 
   has_many :conversation_participants, dependent: :restrict_with_exception
   has_many :profiles, through: :conversation_participants
+  has_many :messages, dependent: :restrict_with_exception
 
   enum :status, { active: 0, closed: 1 }, prefix: true
 

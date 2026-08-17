@@ -5,7 +5,7 @@ module Messaging
 
     class InvalidLimit < StandardError; end
 
-    Result = Data.define(:conversations, :viewer, :next_cursor)
+    Result = Data.define(:conversations, :viewer, :next_cursor, :last_messages)
 
     def self.call(user:, brand:, cursor: nil, limit: nil)
       new(user:, brand:, cursor:, limit:).call
@@ -50,7 +50,8 @@ module Messaging
       Result.new(
         conversations:,
         viewer:,
-        next_cursor: has_more ? ConversationCursor.encode(brand:, viewer:, conversation: conversations.last) : nil
+        next_cursor: has_more ? ConversationCursor.encode(brand:, viewer:, conversation: conversations.last) : nil,
+        last_messages: latest_messages_by_conversation(conversations)
       )
     rescue Matching::InteractionError
       raise AccessError, :conversation_unavailable
@@ -59,6 +60,18 @@ module Messaging
     private
 
     attr_reader :user, :brand, :cursor, :limit
+
+    # One query returns the newest kept message per listed conversation via
+    # Postgres DISTINCT ON, keeping the list query count independent of page size.
+    def latest_messages_by_conversation(conversations)
+      return {} if conversations.empty?
+
+      Message.kept
+        .where(conversation_id: conversations.map(&:id))
+        .select("DISTINCT ON (messages.conversation_id) messages.*")
+        .order("messages.conversation_id", "messages.created_at DESC", "messages.id DESC")
+        .index_by(&:conversation_id)
+    end
 
     def participant_availability_joins
       <<~SQL.squish

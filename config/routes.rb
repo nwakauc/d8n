@@ -12,6 +12,8 @@ Rails.application.routes.draw do
       get "matches" => "matches#index"
       get "conversations" => "conversations#index"
       post "matches/:match_id/conversation" => "conversations#create"
+      get "conversations/:conversation_id/messages" => "messages#index"
+      post "conversations/:conversation_id/messages" => "messages#create"
       post "profiles/:profile_id/likes" => "likes#create"
       post "profiles/:profile_id/pass" => "profile_passes#create"
       get "blocks" => "profile_blocks#index"

@@ -1,7 +1,36 @@
 D8N Founder State
 
 Operational handoff / source of current truth
-Updated: 14 August 2026
+Updated: 14 August 2026 (reconciliation appended 17 August 2026)
+
+Update 2026-08-17 — product/loop reconciliation
+
+Primary milestone is now stated as HookUs Beta Ready. The single one-screen
+NOW/NEXT/LATER view is docs/FOUNDER-HQ/D8N_NOW_NEXT_LATER.md; read it first.
+
+Shipped and verified against code/tests since this file was written:
+- R2 A-F private-media lifecycle PROVEN on live staging (2026-08-15); the old
+  "immediate next action" in section 16 is DONE.
+- Safe media processing + stranger-safe display delivery (EXIF/GPS strip,
+  re-encode, purge raw) implemented; needs deploy + staging + frontend browser E2E.
+- Discovery modes/facets (for_you default, new_here, vibe, online) shipped.
+- Trust: blocking, unblocking, blocked-user list (b02f4f4), and profile reporting
+  shipped with cross-surface enforcement; all local gates green.
+- DL-03 persisted text messaging (2026-08-17, uncommitted): the core loop now
+  closes end-to-end. `Message` model + `GET/POST /api/v1/conversations/:id/messages`,
+  cursor history, last-message preview on the conversation list, and block/suspend/
+  brand enforcement reusing MatchAccess. IMPLEMENTED + TESTED (18 request tests, all
+  gates green); NOT yet staging-proven — DL-04 staging two-user run is the remainder.
+
+Confirmed remaining P0 gaps to complete + responsibly operate the loop (no routes
+or models exist for these — verified, not assumed):
+- TS-03 admin moderation review queue (reports are filed but unreadable/unactionable).
+- TS-04 suspend/ban action + session revocation (enforcement half already exists).
+- TS-06 account closure/deletion + media purge (data-protection blocker, EU-hosted).
+- ID-04 signed-out password recovery and ID-02 registration throttling.
+
+Production hosting remains deliberately sequenced AFTER the product loop; staging
+is the current proving ground.
 
 Purpose: A short, portable state file for a fresh founder/AI session.
 Read this before relying on old chat history. This file records
@@ -448,13 +477,16 @@ Do not restart planning from zero.
 
 The immediate D8N infrastructure action is:
 
-Start a fresh backend agent session, read
-docs/operations/private-media-storage.md, and execute the documented A-F
-private-media verification against the already-deployed, healthy R2
-staging release (upload -> confirm object -> confirm direct access
-blocked -> authorized retrieval -> purge -> confirm removal). Record the
-dated evidence. Do not create production R2 resources and do not modify
-unrelated features.
+[DONE 2026-08-15] The A-F private-media verification against the healthy R2
+staging release was executed and passed (see section 4, "R2 lifecycle gate -
+PROVEN 2026-08-15"). Do not re-run as a blocker.
+
+The current primary action is the product loop, not infrastructure. DL-03
+(persisted text messaging) is now built (uncommitted, awaiting founder commit +
+staging QA). Per docs/FOUNDER-HQ/D8N_NOW_NEXT_LATER.md the next engineering ticket
+is TS-03 (admin moderation), followed by TS-04 (suspend/ban) and TS-06 (account
+deletion). Production R2 resources are still not to be created until the HookUs
+product loop and remaining ADR 0011 media gates are addressed.
 
 In parallel, the HookUs frontend engineer continues wiring HookUs against
 staging-api.d8n.tech (CORS for http://localhost:3001 is configured and

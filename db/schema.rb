@@ -10,29 +10,29 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_17_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
   create_table "active_storage_attachments", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "record_type", null: false
-    t.bigint "record_id", null: false
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.bigint "record_id", null: false
+    t.string "record_type", null: false
     t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
     t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
   end
 
   create_table "active_storage_blobs", force: :cascade do |t|
-    t.string "key", null: false
-    t.string "filename", null: false
-    t.string "content_type"
-    t.text "metadata"
-    t.string "service_name", null: false
     t.bigint "byte_size", null: false
     t.string "checksum"
+    t.string "content_type"
     t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.string "key", null: false
+    t.text "metadata"
+    t.string "service_name", null: false
     t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
   end
 
@@ -43,12 +43,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "admin_assignments", force: :cascade do |t|
+    t.bigint "admin_role_id", null: false
     t.bigint "admin_user_id", null: false
     t.bigint "brand_id", null: false
-    t.bigint "admin_role_id", null: false
-    t.integer "status", default: 0, null: false
-    t.datetime "deleted_at"
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["admin_role_id"], name: "index_admin_assignments_on_admin_role_id"
     t.index ["admin_user_id", "brand_id", "admin_role_id"], name: "index_admin_assignments_on_active_role_scope", unique: true, where: "(deleted_at IS NULL)"
@@ -57,34 +57,34 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "admin_roles", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "description"
-    t.datetime "deleted_at"
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.string "description"
+    t.string "name", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_admin_roles_on_name", unique: true, where: "(deleted_at IS NULL)"
   end
 
   create_table "admin_users", force: :cascade do |t|
-    t.integer "status", default: 0, null: false
-    t.datetime "deleted_at"
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
   end
 
   create_table "auth_attempts", force: :cascade do |t|
     t.bigint "brand_id"
-    t.bigint "user_id"
-    t.bigint "identity_identifier_id"
-    t.bigint "credential_id"
-    t.integer "kind", null: false
-    t.integer "result", null: false
-    t.string "identifier", null: false
-    t.string "ip_address"
-    t.text "user_agent"
-    t.jsonb "metadata", default: {}, null: false
     t.datetime "created_at", null: false
+    t.bigint "credential_id"
+    t.string "identifier", null: false
+    t.bigint "identity_identifier_id"
+    t.string "ip_address"
+    t.integer "kind", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "result", null: false
     t.datetime "updated_at", null: false
+    t.text "user_agent"
+    t.bigint "user_id"
     t.index ["brand_id", "identifier", "created_at"], name: "index_auth_attempts_on_brand_id_and_identifier_and_created_at"
     t.index ["brand_id"], name: "index_auth_attempts_on_brand_id"
     t.index ["credential_id"], name: "index_auth_attempts_on_credential_id"
@@ -95,22 +95,22 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
 
   create_table "brand_domains", force: :cascade do |t|
     t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
     t.string "host", null: false
     t.integer "status", default: 0, null: false
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["brand_id"], name: "index_brand_domains_on_brand_id"
     t.index ["host"], name: "index_brand_domains_on_host", unique: true, where: "(deleted_at IS NULL)"
   end
 
   create_table "brand_memberships", force: :cascade do |t|
-    t.bigint "user_id", null: false
     t.bigint "brand_id", null: false
-    t.integer "status", default: 0, null: false
-    t.datetime "deleted_at"
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
     t.index ["brand_id"], name: "index_brand_memberships_on_brand_id"
     t.index ["id", "user_id", "brand_id"], name: "idx_memberships_on_id_user_brand", unique: true
     t.index ["user_id", "brand_id"], name: "index_brand_memberships_on_user_id_and_brand_id", unique: true, where: "(deleted_at IS NULL)"
@@ -118,30 +118,30 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "brands", force: :cascade do |t|
-    t.string "slug", null: false
-    t.string "name", null: false
-    t.integer "status", default: 0, null: false
-    t.string "owner_type", default: "D8n", null: false
-    t.bigint "owner_id"
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.jsonb "profile_requirements", default: {"collections"=>["photos"], "profile_fields"=>["display_name", "birthdate", "gender"], "preference_fields"=>["min_age", "max_age", "interested_in"]}, null: false
     t.jsonb "auth_methods", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.string "name", null: false
+    t.bigint "owner_id"
+    t.string "owner_type", default: "D8n", null: false
+    t.jsonb "profile_requirements", default: {"collections"=>["photos"], "profile_fields"=>["display_name", "birthdate", "gender"], "preference_fields"=>["min_age", "max_age", "interested_in"]}, null: false
+    t.string "slug", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
     t.index ["owner_type", "owner_id"], name: "index_brands_on_owner_type_and_owner_id"
     t.index ["slug"], name: "index_brands_on_slug", unique: true, where: "(deleted_at IS NULL)"
   end
 
   create_table "conversation_participants", force: :cascade do |t|
-    t.bigint "conversation_id", null: false
-    t.bigint "profile_id", null: false
-    t.bigint "user_id", null: false
-    t.bigint "brand_id", null: false
-    t.datetime "last_read_at"
     t.datetime "archived_at"
-    t.datetime "deleted_at"
+    t.bigint "brand_id", null: false
+    t.bigint "conversation_id", null: false
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.datetime "last_read_at"
+    t.bigint "profile_id", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
     t.index ["brand_id", "profile_id", "conversation_id"], name: "idx_conversation_participants_profile_list"
     t.index ["brand_id"], name: "index_conversation_participants_on_brand_id"
     t.index ["conversation_id", "profile_id"], name: "idx_conversation_participants_unique_profile", unique: true
@@ -152,11 +152,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
 
   create_table "conversations", force: :cascade do |t|
     t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
     t.bigint "match_id", null: false
     t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
     t.integer "status", default: 0, null: false
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["brand_id", "created_at", "public_id"], name: "idx_conversations_brand_cursor"
     t.index ["brand_id"], name: "index_conversations_on_brand_id"
@@ -166,25 +166,25 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "credential_password_hashes", primary_key: "credential_id", force: :cascade do |t|
-    t.integer "credential_kind", default: 0, null: false
-    t.string "password_hash", null: false
-    t.datetime "password_changed_at", null: false
     t.datetime "created_at", null: false
+    t.integer "credential_kind", default: 0, null: false
+    t.datetime "password_changed_at", null: false
+    t.string "password_hash", null: false
     t.datetime "updated_at", null: false
     t.check_constraint "credential_kind = 0", name: "chk_password_hash_credential_kind"
   end
 
   create_table "credentials", force: :cascade do |t|
-    t.bigint "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
     t.bigint "identity_identifier_id", null: false
     t.integer "kind", null: false
-    t.integer "status", default: 0, null: false
-    t.datetime "verified_at"
     t.datetime "last_used_at"
     t.jsonb "metadata", default: {}, null: false
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
+    t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.datetime "verified_at"
     t.index ["id", "kind"], name: "idx_credentials_on_id_kind", unique: true
     t.index ["identity_identifier_id"], name: "index_credentials_on_identity_identifier_id"
     t.index ["user_id", "kind", "identity_identifier_id"], name: "index_credentials_on_active_user_kind_identifier", unique: true, where: "(deleted_at IS NULL)"
@@ -192,26 +192,26 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "identity_identifiers", force: :cascade do |t|
-    t.bigint "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
     t.integer "kind", null: false
-    t.string "normalized_value", null: false
-    t.datetime "verified_at"
     t.datetime "last_seen_at"
     t.jsonb "metadata", default: {}, null: false
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
+    t.string "normalized_value", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.datetime "verified_at"
     t.index ["kind", "normalized_value"], name: "index_identity_identifiers_on_kind_and_normalized_value", unique: true, where: "(deleted_at IS NULL)"
     t.index ["user_id"], name: "index_identity_identifiers_on_user_id"
   end
 
   create_table "likes", force: :cascade do |t|
     t.bigint "brand_id", null: false
-    t.bigint "liker_profile_id", null: false
-    t.bigint "liked_profile_id", null: false
-    t.integer "kind", default: 0, null: false
-    t.datetime "deleted_at"
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.integer "kind", default: 0, null: false
+    t.bigint "liked_profile_id", null: false
+    t.bigint "liker_profile_id", null: false
     t.datetime "updated_at", null: false
     t.index ["brand_id", "liker_profile_id", "liked_profile_id"], name: "idx_likes_active_pair", unique: true, where: "(deleted_at IS NULL)"
     t.index ["brand_id"], name: "index_likes_on_brand_id"
@@ -222,12 +222,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
 
   create_table "matches", force: :cascade do |t|
     t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
     t.bigint "profile_a_id", null: false
     t.bigint "profile_b_id", null: false
     t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
     t.integer "status", default: 0, null: false
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["brand_id", "profile_a_id", "created_at"], name: "index_matches_on_brand_id_and_profile_a_id_and_created_at"
     t.index ["brand_id", "profile_a_id", "profile_b_id"], name: "idx_matches_active_pair", unique: true, where: "((deleted_at IS NULL) AND (status = 0))"
@@ -240,21 +240,38 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
     t.check_constraint "profile_a_id < profile_b_id", name: "chk_matches_canonical_pair"
   end
 
+  create_table "messages", force: :cascade do |t|
+    t.text "body", null: false
+    t.bigint "brand_id", null: false
+    t.bigint "conversation_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.bigint "sender_profile_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id"], name: "index_messages_on_brand_id"
+    t.index ["conversation_id", "created_at", "id"], name: "idx_messages_conversation_cursor", where: "(deleted_at IS NULL)"
+    t.index ["conversation_id"], name: "index_messages_on_conversation_id"
+    t.index ["id", "brand_id"], name: "idx_messages_on_id_brand", unique: true
+    t.index ["public_id"], name: "index_messages_on_public_id", unique: true
+    t.index ["sender_profile_id"], name: "index_messages_on_sender_profile_id"
+  end
+
   create_table "notification_deliveries", force: :cascade do |t|
     t.bigint "brand_id", null: false
-    t.bigint "user_id"
     t.integer "channel", null: false
-    t.string "provider", null: false
-    t.string "recipient", null: false
-    t.integer "status", default: 0, null: false
-    t.string "external_id"
+    t.datetime "created_at", null: false
     t.string "error_code"
     t.text "error_message"
-    t.datetime "sent_at"
+    t.string "external_id"
     t.datetime "failed_at"
     t.jsonb "metadata", default: {}, null: false
-    t.datetime "created_at", null: false
+    t.string "provider", null: false
+    t.string "recipient", null: false
+    t.datetime "sent_at"
+    t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id"
     t.index ["brand_id", "channel", "status", "created_at"], name: "idx_on_brand_id_channel_status_created_at_a9a03f5e6e"
     t.index ["brand_id"], name: "index_notification_deliveries_on_brand_id"
     t.index ["provider", "external_id"], name: "index_notification_deliveries_on_provider_and_external_id"
@@ -263,19 +280,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "otp_challenges", force: :cascade do |t|
-    t.bigint "brand_id", null: false
-    t.bigint "identity_identifier_id"
-    t.integer "kind", null: false
-    t.string "identifier", null: false
-    t.string "code_digest", null: false
-    t.datetime "expires_at", null: false
-    t.datetime "consumed_at"
     t.integer "attempt_count", default: 0, null: false
-    t.string "ip_address"
-    t.text "user_agent"
-    t.jsonb "metadata", default: {}, null: false
+    t.bigint "brand_id", null: false
+    t.string "code_digest", null: false
+    t.datetime "consumed_at"
     t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "identifier", null: false
+    t.bigint "identity_identifier_id"
+    t.string "ip_address"
+    t.integer "kind", null: false
+    t.jsonb "metadata", default: {}, null: false
     t.datetime "updated_at", null: false
+    t.text "user_agent"
     t.index ["brand_id", "identifier", "kind", "created_at"], name: "idx_on_brand_id_identifier_kind_created_at_7a5f2a0ce9"
     t.index ["brand_id", "identifier", "kind"], name: "index_otp_challenges_on_active_lookup", where: "(consumed_at IS NULL)"
     t.index ["brand_id"], name: "index_otp_challenges_on_brand_id"
@@ -283,11 +300,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "profile_blocks", force: :cascade do |t|
-    t.bigint "brand_id", null: false
-    t.bigint "blocker_profile_id", null: false
     t.bigint "blocked_profile_id", null: false
-    t.datetime "deleted_at"
+    t.bigint "blocker_profile_id", null: false
+    t.bigint "brand_id", null: false
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
     t.datetime "updated_at", null: false
     t.index ["blocked_profile_id"], name: "index_profile_blocks_on_blocked_profile_id"
     t.index ["blocker_profile_id"], name: "index_profile_blocks_on_blocker_profile_id"
@@ -299,17 +316,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "profile_locations", force: :cascade do |t|
-    t.bigint "profile_id", null: false
-    t.bigint "user_id", null: false
+    t.integer "accuracy_meters", null: false
     t.bigint "brand_id", null: false
+    t.datetime "captured_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
     t.decimal "latitude", precision: 10, scale: 7, null: false
     t.decimal "longitude", precision: 10, scale: 7, null: false
-    t.integer "accuracy_meters", null: false
+    t.bigint "profile_id", null: false
     t.string "source", limit: 32, null: false
-    t.datetime "captured_at", null: false
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
     t.index ["brand_id", "latitude", "longitude"], name: "idx_profile_locations_active_coordinates", where: "(deleted_at IS NULL)"
     t.index ["brand_id"], name: "index_profile_locations_on_brand_id"
     t.index ["profile_id"], name: "idx_profile_locations_active_profile", unique: true, where: "(deleted_at IS NULL)"
@@ -318,21 +335,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
     t.check_constraint "accuracy_meters >= 0 AND accuracy_meters <= 100000", name: "chk_profile_locations_accuracy"
     t.check_constraint "latitude >= '-90'::integer::numeric AND latitude <= 90::numeric", name: "chk_profile_locations_latitude"
     t.check_constraint "longitude >= '-180'::integer::numeric AND longitude <= 180::numeric", name: "chk_profile_locations_longitude"
-    t.check_constraint "source::text = ANY (ARRAY['device'::character varying, 'manual'::character varying, 'imported'::character varying]::text[])", name: "chk_profile_locations_source"
+    t.check_constraint "source::text = ANY (ARRAY['device'::character varying::text, 'manual'::character varying::text, 'imported'::character varying::text])", name: "chk_profile_locations_source"
   end
 
   create_table "profile_option_groups", force: :cascade do |t|
     t.bigint "brand_id", null: false
+    t.integer "cardinality", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
     t.string "key", limit: 80, null: false
     t.string "label", limit: 120, null: false
-    t.integer "cardinality", default: 0, null: false
     t.integer "max_selections", default: 1, null: false
-    t.integer "visibility", default: 0, null: false
-    t.integer "status", default: 0, null: false
     t.integer "position", default: 0, null: false
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
+    t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.integer "visibility", default: 0, null: false
     t.index ["brand_id", "key"], name: "idx_profile_option_groups_active_key", unique: true, where: "(deleted_at IS NULL)"
     t.index ["brand_id"], name: "index_profile_option_groups_on_brand_id"
     t.index ["id", "brand_id"], name: "idx_profile_option_groups_id_brand", unique: true
@@ -341,14 +358,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "profile_option_selections", force: :cascade do |t|
-    t.bigint "profile_id", null: false
-    t.bigint "user_id", null: false
     t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.bigint "profile_id", null: false
     t.bigint "profile_option_group_id", null: false
     t.bigint "profile_option_id", null: false
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
     t.index ["brand_id", "profile_option_group_id"], name: "idx_on_brand_id_profile_option_group_id_415cfbaf56"
     t.index ["brand_id"], name: "index_profile_option_selections_on_brand_id"
     t.index ["profile_id", "profile_option_group_id", "profile_option_id"], name: "idx_profile_option_selections_active", unique: true, where: "(deleted_at IS NULL)"
@@ -359,14 +376,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "profile_options", force: :cascade do |t|
-    t.bigint "profile_option_group_id", null: false
     t.bigint "brand_id", null: false
     t.string "code", limit: 80, null: false
-    t.string "label", limit: 120, null: false
-    t.integer "status", default: 0, null: false
-    t.integer "position", default: 0, null: false
-    t.datetime "deleted_at"
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.string "label", limit: 120, null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "profile_option_group_id", null: false
+    t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["brand_id"], name: "index_profile_options_on_brand_id"
     t.index ["id", "profile_option_group_id", "brand_id"], name: "idx_profile_options_id_group_brand", unique: true
@@ -377,10 +394,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
 
   create_table "profile_passes", force: :cascade do |t|
     t.bigint "brand_id", null: false
-    t.bigint "passer_profile_id", null: false
-    t.bigint "passed_profile_id", null: false
-    t.datetime "deleted_at"
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.bigint "passed_profile_id", null: false
+    t.bigint "passer_profile_id", null: false
     t.datetime "updated_at", null: false
     t.index ["brand_id", "passer_profile_id", "passed_profile_id"], name: "idx_profile_passes_active_pair", unique: true, where: "(deleted_at IS NULL)"
     t.index ["brand_id"], name: "index_profile_passes_on_brand_id"
@@ -390,18 +407,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "profile_photos", force: :cascade do |t|
-    t.bigint "profile_id", null: false
-    t.bigint "user_id", null: false
     t.bigint "brand_id", null: false
-    t.integer "position", default: 0, null: false
-    t.integer "status", default: 0, null: false
-    t.integer "visibility", default: 0, null: false
-    t.jsonb "metadata", default: {}, null: false
-    t.datetime "deleted_at"
     t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.integer "processing_state", default: 0, null: false
+    t.datetime "deleted_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "position", default: 0, null: false
     t.datetime "processed_at"
+    t.integer "processing_state", default: 0, null: false
+    t.bigint "profile_id", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.integer "visibility", default: 0, null: false
     t.index ["brand_id", "processing_state"], name: "index_profile_photos_on_brand_id_and_processing_state"
     t.index ["brand_id", "status", "created_at"], name: "index_profile_photos_on_brand_id_and_status_and_created_at"
     t.index ["brand_id", "user_id", "deleted_at"], name: "index_profile_photos_on_brand_id_and_user_id_and_deleted_at"
@@ -412,19 +429,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "profile_preferences", force: :cascade do |t|
-    t.bigint "profile_id", null: false
-    t.bigint "user_id", null: false
     t.bigint "brand_id", null: false
-    t.integer "min_age"
-    t.integer "max_age"
-    t.jsonb "interested_in", default: [], null: false
-    t.integer "max_distance_km"
     t.string "country"
-    t.string "relationship_intent"
-    t.jsonb "metadata", default: {}, null: false
-    t.datetime "deleted_at"
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.jsonb "interested_in", default: [], null: false
+    t.integer "max_age"
+    t.integer "max_distance_km"
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "min_age"
+    t.bigint "profile_id", null: false
+    t.string "relationship_intent"
     t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
     t.index ["brand_id", "min_age", "max_age"], name: "index_profile_preferences_on_brand_id_and_min_age_and_max_age"
     t.index ["brand_id"], name: "index_profile_preferences_on_brand_id"
     t.index ["deleted_at"], name: "index_profile_preferences_on_deleted_at"
@@ -435,29 +452,29 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "profiles", force: :cascade do |t|
-    t.bigint "user_id", null: false
-    t.bigint "brand_id", null: false
-    t.bigint "brand_membership_id", null: false
-    t.string "display_name"
     t.text "bio"
     t.date "birthdate"
-    t.string "gender"
-    t.integer "status", default: 0, null: false
-    t.integer "visibility", default: 0, null: false
-    t.jsonb "metadata", default: {}, null: false
-    t.datetime "deleted_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "country_code", limit: 2
-    t.string "city", limit: 120
-    t.string "occupation", limit: 120
-    t.integer "height_cm"
     t.string "body_type", limit: 80
-    t.jsonb "languages_spoken", default: [], null: false
-    t.string "smoking", limit: 32
+    t.bigint "brand_id", null: false
+    t.bigint "brand_membership_id", null: false
+    t.string "city", limit: 120
+    t.string "country_code", limit: 2
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.string "display_name"
     t.string "drinking", limit: 32
     t.string "fitness", limit: 32
+    t.string "gender"
+    t.integer "height_cm"
+    t.jsonb "languages_spoken", default: [], null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.string "occupation", limit: 120
     t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.string "smoking", limit: 32
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.integer "visibility", default: 0, null: false
     t.index ["brand_id", "country_code", "city"], name: "index_profiles_on_brand_id_and_country_code_and_city"
     t.index ["brand_id", "status", "visibility", "created_at"], name: "idx_on_brand_id_status_visibility_created_at_3574045134"
     t.index ["brand_id"], name: "index_profiles_on_brand_id"
@@ -472,12 +489,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
 
   create_table "reports", force: :cascade do |t|
     t.bigint "brand_id", null: false
-    t.bigint "reporter_profile_id", null: false
-    t.bigint "reported_profile_id", null: false
-    t.integer "reason", null: false
-    t.integer "status", default: 0, null: false
-    t.text "note"
     t.datetime "created_at", null: false
+    t.text "note"
+    t.integer "reason", null: false
+    t.bigint "reported_profile_id", null: false
+    t.bigint "reporter_profile_id", null: false
+    t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["brand_id", "reported_profile_id"], name: "index_reports_on_brand_id_and_reported_profile_id"
     t.index ["brand_id", "reporter_profile_id", "reported_profile_id"], name: "idx_reports_open_pair", unique: true, where: "(status = 0)"
@@ -490,14 +507,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
 
   create_table "security_events", force: :cascade do |t|
     t.bigint "brand_id"
-    t.bigint "user_id"
-    t.string "event_type", null: false
-    t.integer "severity", default: 0, null: false
-    t.string "ip_address"
-    t.text "user_agent"
-    t.jsonb "metadata", default: {}, null: false
     t.datetime "created_at", null: false
+    t.string "event_type", null: false
+    t.string "ip_address"
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "severity", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.text "user_agent"
+    t.bigint "user_id"
     t.index ["brand_id", "event_type", "created_at"], name: "idx_on_brand_id_event_type_created_at_eb4d608a37"
     t.index ["brand_id"], name: "index_security_events_on_brand_id"
     t.index ["user_id", "event_type", "created_at"], name: "index_security_events_on_user_id_and_event_type_and_created_at"
@@ -505,19 +522,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "sessions", force: :cascade do |t|
-    t.bigint "user_id", null: false
     t.bigint "brand_id", null: false
-    t.string "token_digest", null: false
-    t.string "device_name"
-    t.string "ip_address"
-    t.text "user_agent"
-    t.datetime "last_used_at", null: false
-    t.datetime "expires_at", null: false
-    t.datetime "revoked_at"
-    t.jsonb "metadata", default: {}, null: false
     t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
     t.bigint "credential_id"
+    t.string "device_name"
+    t.datetime "expires_at", null: false
+    t.string "ip_address"
+    t.datetime "last_used_at", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "revoked_at"
+    t.string "token_digest", null: false
+    t.datetime "updated_at", null: false
+    t.text "user_agent"
+    t.bigint "user_id", null: false
     t.index ["brand_id", "user_id", "revoked_at"], name: "index_sessions_on_brand_id_and_user_id_and_revoked_at"
     t.index ["brand_id"], name: "index_sessions_on_brand_id"
     t.index ["credential_id"], name: "index_sessions_on_credential_id"
@@ -526,9 +543,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   end
 
   create_table "users", force: :cascade do |t|
-    t.integer "status", default: 0, null: false
-    t.datetime "deleted_at"
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
   end
 
@@ -560,6 +577,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_17_000100) do
   add_foreign_key "matches", "brands"
   add_foreign_key "matches", "profiles", column: ["profile_a_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_matches_profile_a_tenant"
   add_foreign_key "matches", "profiles", column: ["profile_b_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_matches_profile_b_tenant"
+  add_foreign_key "messages", "brands"
+  add_foreign_key "messages", "conversations", column: ["conversation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_conversation_tenant"
+  add_foreign_key "messages", "profiles", column: ["sender_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_sender_tenant"
   add_foreign_key "notification_deliveries", "brands"
   add_foreign_key "notification_deliveries", "users"
   add_foreign_key "otp_challenges", "brands"
