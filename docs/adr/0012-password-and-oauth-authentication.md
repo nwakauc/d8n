@@ -6,7 +6,8 @@ Accepted through Phase 2 Slice 4A on 2026-08-13. The Rodauth integration proof,
 dedicated brand authentication policy, and zero-friction phone/email password
 registration and login are implemented. Authenticated post-signup phone/email
 identifier verification and authenticated password change are also implemented.
-Signed-out recovery, credential linking, brand joining, and Google remain behind
+Signed-out password recovery (Slice 4B) is implemented and tested against fake/
+adapter delivery; credential linking, brand joining, and Google remain behind
 their documented slice and human gates.
 
 ## Context
@@ -253,9 +254,32 @@ Implemented Slice 4A result: `PATCH /api/v1/auth/password` changes the password
 only for a current password-backed session after checking the current password in
 the same request. It retains that freshly reauthenticated session, revokes other
 active sessions issued from the affected credential, rate-limits failures, and
-audits without secrets. Signed-out recovery by verified phone/email remains a
-separate unimplemented part of Slice 4 because delivery and recovery policy still
-requires the human gates below.
+audits without secrets.
+
+Implemented Slice 4B result (signed-out recovery): a three-step, session-less flow
+`POST /api/v1/auth/password/recovery` → `.../recovery/verify` → `.../recovery/reset`.
+Step 1 delivers a single-use, 10-minute, attempt-limited recovery code — reusing
+the existing `OtpChallenge`/throttle/advisory-lock machinery under new
+`password_recovery`/`password_reset` challenge kinds and the existing SMS/email
+adapters — but **only** for an already-verified identifier that owns an active
+password credential and a kept membership in the requesting brand. The request
+endpoint is enumeration-resistant: every ineligible or throttled case returns the
+same neutral `202`, and throttling is silent non-delivery rather than a `429`.
+Step 2 verifies the code and mints a single-use, 15-minute reset authorization
+stored only as an HMAC digest. Step 3 reuses the shared password policy, is
+single-use, and audits without secrets.
+
+Session-revocation decision (resolves the human gate below for reset): a
+successful signed-out reset revokes **every** active session issued from the
+affected password credential **across all brands**, because the D8N password is a
+platform-wide identity secret shared by every brand-scoped session it backs. This
+matches authenticated password change. Recovery does not modify `BrandMembership`;
+login re-checks lifecycle, so a suspended or `left`/closed membership is never
+reactivated by a reset.
+
+Production delivery (approved provider/transport and final recovery copy) remains
+behind the human gates below; the domain and API are implemented and tested with
+adapters/fakes and fail closed in production until a provider is configured.
 
 ### Slice 5: Explicit Credential Linking And Brand Join
 
@@ -277,7 +301,9 @@ Before production password recovery or identifier verification ships:
 - approve breached-password handling and recovery/support policy;
 - select the email delivery provider and approve phone/email verification copy;
 - decide verification challenge expiry and resend policy;
-- approve session revocation rules after reset, change, or linking;
+- ~~approve session revocation rules after reset, change, or linking~~ — decided:
+  reset and change revoke every session issued from the affected credential across
+  all brands (see Slice 4B result);
 - complete the Date9ja legacy password-hash inventory before migration behavior.
 
 Before Google ships:

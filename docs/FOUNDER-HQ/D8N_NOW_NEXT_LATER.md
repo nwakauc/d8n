@@ -27,7 +27,7 @@ Legend: **GONE** = does not exist · **PARTIAL** = some code, real gap · **QA**
 | Capability | Status | Beta blocker | Evidence / gap |
 | --- | --- | --- | --- |
 | Registration / auth | QA | — | password register/login, brand-scoped sessions, verification create/update endpoints + tests |
-| Password recovery (signed-out) | **GONE** | **Yes** | no reset route; `auth/passwords` is register/login/authenticated-update only → **ID-04** |
+| Password recovery (signed-out) | QA | — | **ID-04 built 2026-08-17** — `POST /auth/password/recovery` → `/verify` → `/reset`; verified-identifier-only, enumeration-resistant neutral `202`, single-use expiring code + reset token (reuses `OtpChallenge`/throttle/adapters), cross-brand session revocation, membership-state-preserving; 18 tests green. Needs staging proof + provider gate |
 | Onboarding | QA | — | `onboarding_status`, profile configuration/options/preferences endpoints + tests |
 | Profile | QA | — | show/update, options, preferences, publication, location |
 | Photo upload | READY | — | direct-to-R2 intent→PUT→attach→signed GET; HTTP E2E proven on staging 2026-08-15 |
@@ -55,7 +55,7 @@ These are the only things that genuinely stop us inviting 10–50 controlled bet
 2. ~~**TS-03 — Minimal admin moderation review queue.**~~ **BUILT 2026-08-17 (IMPLEMENTED + TESTED, awaiting staging proof).** Moderators can list/inspect/decide reports with audit. **Admin MFA remains a pre-launch gate** (not built; not a TS-03 code gap).
 3. ~~**TS-04 — Suspend/ban enforcement.**~~ **BUILT 2026-08-17 (IMPLEMENTED + TESTED, awaiting staging proof).** Brand-level suspend/reinstate with session revocation + audit; enforced across all surfaces. Platform-wide ban deferred (needs a global admin authority).
 4. ~~**TS-06 — Account closure & deletion.**~~ **BUILT 2026-08-17 (IMPLEMENTED + TESTED, awaiting staging proof).** Brand-level `DELETE /me` with async R2 media purge; identity + shared/safety records retained. Platform-wide identity deletion deferred (policy decision).
-5. **ID-04 — Password recovery** and **ID-02 — registration throttling.** *Now the top open P0.* Users will lock themselves out; unthrottled distinct-identifier signup is an abuse hole. (ID-04 could be support-manual at 10–50 users if truly time-boxed.)
+5. ~~**ID-04 — Password recovery.**~~ **BUILT 2026-08-17 (IMPLEMENTED + TESTED, awaiting staging proof).** Signed-out three-step verified-identifier recovery; enumeration-resistant; cross-brand session revocation; never reactivates a left/closed membership. Production delivery gated on the SMS/email provider (shared with ID-03). **ID-02 — registration throttling** is now the top open P0 code: unthrottled distinct-identifier signup is an abuse hole.
 
 **Early-beta safety follow-up surfaced by DL-03:** message send rate-limiting (no reusable app-wide limiter exists yet; deferred deliberately — see NEXT).
 
@@ -89,6 +89,6 @@ For every candidate blocker ask: *"Would we genuinely refuse to let 10–50 cont
 If no → it is not P0, even if it would improve the product. Safety, legal, data-loss, and security issues can be P0
 even when invisible to users.
 
-**Shortest path to "invite controlled beta users": ~~DL-03~~ → ~~TS-03~~ → ~~TS-04~~ → ~~TS-06~~ (all done) → ID-04/ID-02**,
-in parallel with the DR/DL staging-QA proofs + admin MFA (pre-launch gate). The trust/safety/account loop is now built;
-**identity hardening (ID-04 recovery, ID-02 throttling) is the last P0 code**, then the DR/DL staging proofs + go/no-go.
+**Shortest path to "invite controlled beta users": ~~DL-03~~ → ~~TS-03~~ → ~~TS-04~~ → ~~TS-06~~ → ~~ID-04~~ (all done) → ID-02**,
+in parallel with the DR/DL staging-QA proofs + admin MFA (pre-launch gate). The trust/safety/account loop and signed-out
+recovery are now built; **ID-02 registration throttling is the last P0 code**, then the DR/DL staging proofs + go/no-go.

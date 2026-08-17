@@ -50,7 +50,11 @@ Shipped and verified against code/tests since this file was written:
   tests); NOT staging-proven.
 
 Confirmed remaining P0 gaps to complete + responsibly operate the loop (verified):
-- ID-04 signed-out password recovery and ID-02 registration throttling (last P0 code).
+- ~~ID-04 signed-out password recovery~~ BUILT 2026-08-17 (IMPLEMENTED + TESTED, 18
+  tests; awaiting founder commit + staging QA). Three-step verified-identifier flow,
+  enumeration-resistant, cross-brand session revocation, membership-state-preserving;
+  reuses `OtpChallenge`/throttle/adapters; production delivery gated on the provider.
+- ID-02 registration throttling (last P0 code).
 
 Production hosting remains deliberately sequenced AFTER the product loop; staging
 is the current proving ground.
@@ -505,11 +509,11 @@ staging release was executed and passed (see section 4, "R2 lifecycle gate -
 PROVEN 2026-08-15"). Do not re-run as a blocker.
 
 The current primary action is the product loop, not infrastructure. DL-03
-(messaging), TS-03 (moderation review), TS-04 (brand-level suspend/ban), and TS-06
-(account closure + media purge) are now built (uncommitted, awaiting founder commit +
-staging QA). Per docs/FOUNDER-HQ/D8N_NOW_NEXT_LATER.md the last P0 code is ID-04
-(password recovery) + ID-02 (registration throttling); then the DR/DL staging proofs
-and go/no-go. Admin MFA, platform-wide identity deletion, and a platform-wide-ban
+(messaging), TS-03 (moderation review), TS-04 (brand-level suspend/ban), TS-06
+(account closure + media purge), and ID-04 (signed-out password recovery) are now
+built (uncommitted, awaiting founder commit + staging QA). Per
+docs/FOUNDER-HQ/D8N_NOW_NEXT_LATER.md the last P0 code is now ID-02 (registration
+throttling); then the DR/DL staging proofs and go/no-go. Admin MFA, platform-wide identity deletion, and a platform-wide-ban
 authority are separate gates. Production R2 resources are still not to be created
 until the HookUs product loop and remaining ADR 0011 media gates are addressed.
 

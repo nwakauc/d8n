@@ -79,6 +79,40 @@ Logout revokes only the current brand session and records a security event. Susp
 - Concurrent requests for the same brand/channel/identifier or IP are serialized
   with HMAC-keyed PostgreSQL transaction advisory locks before throttle checks.
 
+## Signed-Out Password Recovery
+
+A user who forgot their password recovers through a three-step, signed-out flow
+under `POST /api/v1/auth/password/recovery`, `.../recovery/verify`, and
+`.../recovery/reset`. No bearer session is involved.
+
+- Recovery is offered **only through an already-verified identifier that owns an
+  active password credential** and has a kept membership in the requesting brand.
+  An unverified identifier can log in with its password but can never be a
+  recovery channel (ADR 0012). The recovery channel is the identifier the password
+  credential is attached to.
+- The request endpoint is account-enumeration resistant: every ineligible case
+  (unknown, unverified, no credential, no membership, suspended, closed/left) and
+  every throttled case returns the **same** neutral `202`. Throttling manifests as
+  silent non-delivery, never a `429`, so rate-limit behavior cannot probe which
+  identifiers exist. Throttling reuses the existing OTP throttle/advisory-lock
+  primitives keyed on a `password_recovery` challenge kind.
+- A delivered recovery code is a single-use, 10-minute, attempt-limited
+  `OtpChallenge` (`password_recovery` kind), delivered through the existing SMS /
+  email adapters. Verifying it consumes the code and mints a single-use, 15-minute
+  reset authorization — a high-entropy token stored only as an HMAC digest in an
+  `OtpChallenge` (`password_reset` kind), never in plaintext or logs.
+- The reset step reuses the shared password policy, consumes the authorization
+  (replay is rejected), and **revokes every active session issued from the affected
+  password credential across all brands.** The D8N password is a platform-wide
+  identity secret shared by every brand-scoped session it backs, so rotating it
+  must invalidate all of them — this matches authenticated password change.
+- Recovery operates at the identity/credential level and **never touches
+  `BrandMembership`.** A suspended or `left`/closed membership stays in its current
+  state; a successful reset does not restore access. Login independently re-checks
+  brand membership, so recovery can never silently reactivate a left HookUs
+  membership or recreate a profile. Rejoining a left brand still requires the
+  explicit (future) join/registration flow.
+
 ## Identity Identifiers
 
 Identity identifiers normalize emails, phones, provider IDs, and other identity signals.

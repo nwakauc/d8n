@@ -51,12 +51,29 @@ not bank-grade user authentication.
 - Priority: P1
 - Beta blocker: Yes
 - Owner: Unassigned
-- Status: Not started
+- Status: **IMPLEMENTED + TESTED** (2026-08-17) — awaiting founder commit/deploy/staging QA.
 - Work: Provide a recovery flow only through a verified identifier, prevent
   account enumeration, use single-use expiring challenges, and make an explicit
   session-revocation decision. Do not create an automatic account-merging path.
-- Evidence: End-to-end tests cover valid recovery, unknown/unverified identifiers,
-  replay, expiry, throttling, session behavior, and cross-brand privacy.
+- Delivered: Three-step signed-out flow `POST /api/v1/auth/password/recovery` →
+  `.../recovery/verify` → `.../recovery/reset`. Verified-identifier-only,
+  enumeration-resistant neutral `202` (throttle = silent non-delivery, never
+  `429`), single-use 10-min recovery code + single-use 15-min HMAC-digested reset
+  authorization reusing `OtpChallenge`/throttle/lock and SMS/email adapters.
+  Reset reuses the shared password policy and revokes every session from the
+  affected credential **across all brands** (D8N-wide password). Recovery never
+  touches `BrandMembership`, so suspended/left/closed state and login gating are
+  unchanged. No new ADR (fits ADR 0012 Slice 4B); no migration.
+- Evidence: `test/controllers/api/v1/auth/password_recoveries_controller_test.rb`
+  (18 tests) covers valid recovery, unknown/unverified identifiers, replay, expiry,
+  attempt-lock, throttling, single-use, password policy, cross-brand session
+  revocation, suspended-user and left-membership boundaries, and secret-free logs.
+- Production gate (not code): approved SMS/email provider + final recovery copy
+  (shared with ID-03). Email fails closed in production until configured.
+- Follow-up product decision: recovery requires a *verified* identifier, so users
+  who never verified their signup identifier cannot self-serve recover — routes to
+  ID-03 (productionize verification) and ID-05 (support/squatting policy). Rejoin
+  after `left`/closed membership is intentionally out of scope.
 
 ### ID-05 — Define the beta identifier-squatting response
 
