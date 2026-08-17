@@ -44,6 +44,39 @@ convention applies to **new** objects only; no existing blob is renamed (the
 staging bucket was returned to an empty baseline after the E2E, so there is
 nothing to migrate).
 
+## Safe display derivatives (raw vs. delivered)
+
+Raw user uploads are never delivered to another user. After attach, D8N
+asynchronously produces a safe, D8N-owned **display derivative** and only that
+derivative may appear in another user's discovery/match/conversation view.
+
+- **RAW ORIGINAL** — the untrusted upload (`ProfilePhoto#image`). Private,
+  owner-only, and purged once the derivative exists. Key: `.../photos/<uuid>/original.<ext>`.
+- **SAFE DERIVATIVE** — decoded and re-encoded from pixels by `Media::ImageProcessor`
+  (libvips), resized to a display bound, and stripped of EXIF/GPS/IPTC/XMP/ICC and
+  all other metadata. Always JPEG. Key: sibling `.../photos/<uuid>/display.jpg`.
+
+`Media::ProcessProfilePhotoJob` runs the pipeline: decode → validate (signature,
+not declared MIME; dimension/pixel bomb guard) → re-encode → attach the
+derivative → mark `processing_state = ready` → purge the raw original. It is
+idempotent, tolerant of deletion mid-flight, retries only transient storage
+failures, and marks a malformed/oversized image terminally `failed` (never
+retried forever, no derivative produced).
+
+`processing_state` (`pending`/`processing`/`ready`/`failed`) is **separate from**
+`status` (moderation) and `visibility`. Other-user delivery fails closed: a photo
+is exposed only when it is `visible` **and** `ready` (`ProfilePhoto.deliverable`).
+A HookUs photo that is `visible` but not yet processed is still withheld from
+strangers; the owner sees their raw upload until the derivative is ready, then the
+derivative. Delivery is always a short-lived signed URL to the derivative — never
+the raw object, its key, or a public URL. Deleting a photo purges both the raw
+(if present) and the derivative.
+
+This needs **libvips** in the runtime image (already installed in the Dockerfile)
+and the `ruby-vips` gem. Active Storage variants stay disabled
+(`variant_processor = :disabled`); the derivative is an independent stored blob,
+not an on-the-fly variant.
+
 Still gated (see `docs/architecture/media-and-verification.md` and ADR 0011):
 public/other-user delivery, safe decode/re-encode, EXIF/metadata removal, and
 moderation approval. Because photos never appear in discovery, matches, or any

@@ -6,19 +6,41 @@ class ProfilePhoto < ApplicationRecord
   belongs_to :user
   belongs_to :brand
 
+  # RAW ORIGINAL: untrusted user upload. Private, owner-only, and never
+  # delivered to another user. Purged once the safe derivative is persisted.
   has_one_attached :image
+  # SAFE DERIVATIVE: D8N-owned, decoded/re-encoded, metadata-stripped display
+  # image. The only representation eligible for delivery to other users.
+  has_one_attached :display_image
 
   enum :status, { pending_review: 0, approved: 1, rejected: 2 }
   enum :visibility, { hidden: 0, visible: 1 }
+  # Async safe-derivative pipeline state — orthogonal to status/visibility.
+  enum :processing_state, { pending: 0, processing: 1, ready: 2, failed: 3 }, prefix: :processing
 
   scope :kept, -> { where(deleted_at: nil) }
   scope :ordered, -> { order(:position, :id) }
+  # Photos eligible for delivery to other eligible users: shown by moderation
+  # policy AND with a completed safe derivative. Fails closed on anything else.
+  scope :deliverable, -> { kept.visible.processing_ready }
 
   validates :position, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :profile_matches_scope
-  validate :image_is_attached
-  validate :image_has_allowed_content_type
-  validate :image_has_allowed_size
+  # The raw-image guarantees are enforced at attach time (:create). They are not
+  # re-checked on later lifecycle updates (processing, moderation, soft-delete),
+  # because the raw original is intentionally purged once the derivative exists.
+  validate :image_is_attached, on: :create
+  validate :image_has_allowed_content_type, on: :create
+  validate :image_has_allowed_size, on: :create
+
+  # True when a safe derivative exists and this photo may be shown to others.
+  def deliverable?
+    kept? && visible? && processing_ready? && display_image.attached?
+  end
+
+  def kept?
+    deleted_at.nil?
+  end
 
   private
 

@@ -35,8 +35,10 @@ gem "kamal", require: false
 # Add HTTP asset caching/compression and X-Sendfile acceleration to Puma [https://github.com/basecamp/thruster/]
 gem "thruster", require: false
 
-# Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
-# gem "image_processing", "~> 1.2"
+# Decode/re-encode uploaded images into safe, metadata-stripped display
+# derivatives (libvips is already installed in the production image). Used
+# directly by Media::ImageProcessor, not via Active Storage variants.
+gem "ruby-vips", "~> 2.2"
 
 # Private S3-compatible object storage (Cloudflare R2) for production media.
 # The service remains disabled until its complete environment contract is present.

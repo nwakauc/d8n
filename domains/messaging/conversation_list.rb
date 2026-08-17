@@ -39,7 +39,10 @@ module Messaging
       scope = ConversationCursor.apply(scope:, value: cursor, brand:, viewer:)
       conversations = scope.preload(
         :match,
-        conversation_participants: { profile: { profile_option_selections: [ :profile_option, :profile_option_group ] } }
+        conversation_participants: { profile: [
+          { profile_option_selections: [ :profile_option, :profile_option_group ] },
+          { profile_photos: { display_image_attachment: :blob } }
+        ] }
       ).limit(limit + 1).to_a
       has_more = conversations.length > limit
       conversations = conversations.first(limit)

@@ -144,12 +144,52 @@ class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
     # still pending an asynchronous moderation pass.
     assert_equal "pending_review", body.fetch("status")
     assert_equal "visible", body.fetch("visibility")
+    # Processing has not run in this request: the owner sees their raw upload and
+    # the photo is not yet deliverable to other users.
+    assert_equal "pending", body.fetch("processing_state")
     assert_equal @profile.public_id, body.fetch("profile_id")
     assert_equal "image/png", body.fetch("image").fetch("content_type")
     assert body.fetch("image").fetch("url").present?
     assert_operator body.fetch("image").fetch("url_expires_in"), :>, 0
     # Delivery is not a permanent generic Active Storage blob path.
     assert_not_includes body.fetch("image").fetch("url"), "/rails/active_storage/blobs"
+  end
+
+  test "processes the upload into a safe derivative the owner then sees as ready" do
+    signed_id = complete_upload(png_bytes)
+
+    perform_enqueued_jobs do
+      post "/api/v1/profile/photos", headers: bearer_headers(@token), params: { signed_id: signed_id }
+    end
+    assert_response :created
+
+    photo = ProfilePhoto.last.reload
+    assert photo.processing_ready?
+    assert photo.display_image.attached?
+    assert_not photo.image.attached?, "raw original is purged once the derivative exists"
+
+    get "/api/v1/profile/photos", headers: bearer_headers(@token)
+    body = JSON.parse(response.body).fetch("photos").sole
+    assert_equal "ready", body.fetch("processing_state")
+    assert_equal "image/jpeg", body.fetch("image").fetch("content_type")
+    assert body.fetch("image").fetch("url").present?
+  end
+
+  test "deleting a processed photo purges both the raw original and the derivative" do
+    signed_id = complete_upload(png_bytes)
+    perform_enqueued_jobs do
+      post "/api/v1/profile/photos", headers: bearer_headers(@token), params: { signed_id: signed_id }
+    end
+    photo = ProfilePhoto.last.reload
+    display_blob_id = photo.display_image.blob.id
+    assert_not photo.image.attached?
+
+    perform_enqueued_jobs do
+      delete "/api/v1/profile/photos/#{photo.id}", headers: bearer_headers(@token)
+    end
+
+    assert_response :success
+    assert_nil ActiveStorage::Blob.find_by(id: display_blob_id), "derivative blob must be purged on delete"
   end
 
   test "attach requires a signed id" do

@@ -55,6 +55,21 @@ module Media
       assert_match(/\A[0-9a-f-]{36}\z/, segments[5])
     end
 
+    test "display derivative key is a sibling of the original under the same photo folder" do
+      original = ObjectKey.profile_photo_original(
+        brand: @brand, user: @user, profile: @profile, content_type: "image/png"
+      )
+
+      display = ObjectKey.profile_photo_display(original)
+
+      assert_equal "#{File.dirname(original)}/display.jpg", display
+      assert display.end_with?("/photos/#{original.split('/photos/').last.split('/').first}/display.jpg")
+    end
+
+    test "display key falls back to a nested basename for a non-conforming original key" do
+      assert_equal "flatkey/display.jpg", ObjectKey.profile_photo_display("flatkey")
+    end
+
     test "the profile prefix is shared by every photo of one profile" do
       prefix = "brands/hookus/users/#{@user.id}/profiles/#{@profile.public_id}"
       key = ObjectKey.profile_photo_original(

@@ -24,6 +24,7 @@ module Profiles
         smoking: profile.smoking,
         drinking: profile.drinking,
         fitness: profile.fitness,
+        photos: public_photos,
         options: public_options
       }
     end
@@ -31,6 +32,25 @@ module Profiles
     private
 
     attr_reader :profile
+
+    # Only safe display derivatives of deliverable photos are exposed to other
+    # users — never the raw original, its object key, or a permanent URL. Any
+    # photo that is deleted, hidden, or not yet processed fails closed (omitted).
+    def public_photos
+      photos = if profile.profile_photos.loaded?
+        profile.profile_photos.select(&:deliverable?).sort_by { |photo| [ photo.position, photo.id ] }
+      else
+        profile.profile_photos.deliverable.ordered.with_attached_display_image
+      end
+
+      photos.map do |photo|
+        {
+          position: photo.position,
+          url: photo.display_image.url(expires_in: Profiles::PhotoUpload::RETRIEVAL_URL_EXPIRES_IN),
+          url_expires_in: Profiles::PhotoUpload::RETRIEVAL_URL_EXPIRES_IN.to_i
+        }
+      end
+    end
 
     def age
       return if profile.birthdate.blank?

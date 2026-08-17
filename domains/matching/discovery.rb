@@ -26,7 +26,10 @@ module Matching
       scope = ExclusionsScope.call(scope:, viewer:)
       scope = strategy.rank(scope:, viewer:)
       scope = Cursor.apply(scope:, value: cursor, brand:, strategy:)
-      profiles = scope.includes(profile_option_selections: [ :profile_option, :profile_option_group ]).limit(limit + 1).to_a
+      profiles = scope.includes(
+        { profile_option_selections: [ :profile_option, :profile_option_group ] },
+        { profile_photos: { display_image_attachment: :blob } }
+      ).limit(limit + 1).to_a
       has_more = profiles.length > limit
       profiles = profiles.first(limit)
 

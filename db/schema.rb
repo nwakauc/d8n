@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_13_072000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_15_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -400,6 +400,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_072000) do
     t.datetime "deleted_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "processing_state", default: 0, null: false
+    t.datetime "processed_at"
+    t.index ["brand_id", "processing_state"], name: "index_profile_photos_on_brand_id_and_processing_state"
     t.index ["brand_id", "status", "created_at"], name: "index_profile_photos_on_brand_id_and_status_and_created_at"
     t.index ["brand_id", "user_id", "deleted_at"], name: "index_profile_photos_on_brand_id_and_user_id_and_deleted_at"
     t.index ["brand_id"], name: "index_profile_photos_on_brand_id"

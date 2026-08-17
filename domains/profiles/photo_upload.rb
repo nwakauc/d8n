@@ -88,6 +88,11 @@ module Profiles
       )
       photo.image.attach(blob)
       photo.save!
+
+      # Kick off async safe-derivative generation. The photo stays
+      # processing-pending (fail-closed for other-user delivery) until the
+      # EXIF-stripped display image exists.
+      Media::ProcessProfilePhotoJob.perform_later(photo.id)
       photo
     end
 

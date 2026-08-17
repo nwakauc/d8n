@@ -1,4 +1,5 @@
 require "test_helper"
+require "vips"
 
 class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
   setup do
@@ -263,6 +264,39 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_equal 5, JSON.parse(response.body).fetch("profiles").size
   end
 
+  test "exposes only the safe display derivative to eligible viewers, never the raw original" do
+    candidate = create_candidate(display_name: "Sam")
+    photo = attach_photo(candidate, visibility: :visible, processing_state: :ready)
+    raw_key = photo.image.blob.key
+
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+
+    assert_response :success
+    profile = JSON.parse(response.body).fetch("profiles").sole
+    photos = profile.fetch("photos")
+    assert_equal 1, photos.size
+    entry = photos.sole
+    assert_equal 0, entry.fetch("position")
+    assert entry.fetch("url").present?
+    assert_operator entry.fetch("url_expires_in"), :>, 0
+    # The raw original's key/object is never revealed; only the safe derivative.
+    assert_not_includes response.body, raw_key
+    assert_not_includes entry.fetch("url"), raw_key
+    assert_includes entry.fetch("url"), "display.jpg"
+  end
+
+  test "fails closed: hidden, still-processing, and failed photos are not exposed" do
+    candidate = create_candidate
+    attach_photo(candidate, position: 0, visibility: :hidden, processing_state: :ready)
+    attach_photo(candidate, position: 1, visibility: :visible, processing_state: :pending)
+    attach_photo(candidate, position: 2, visibility: :visible, processing_state: :failed)
+
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert_empty JSON.parse(response.body).fetch("profiles").sole.fetch("photos")
+  end
+
   test "excludes profiles with an existing like pass or match" do
     liked = create_candidate
     passed = create_candidate
@@ -300,6 +334,20 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     )
     ProfilePreference.create!(brand:, user:, profile:, interested_in:, min_age:, max_age:)
     profile
+  end
+
+  # Simulates a processed photo: a raw original plus (when ready) the safe
+  # display derivative other users may see.
+  def attach_photo(profile, position: 0, visibility: :visible, processing_state: :ready)
+    jpeg = Vips::Image.black(60, 40).add([ 120 ]).cast("uchar").write_to_buffer(".jpg")
+    photo = ProfilePhoto.new(brand: profile.brand, user: profile.user, profile:, position:, visibility:)
+    photo.image.attach(io: StringIO.new(jpeg), filename: "original.jpg", content_type: "image/jpeg")
+    photo.save!
+    if processing_state.to_sym == :ready
+      photo.display_image.attach(io: StringIO.new(jpeg), filename: "display.jpg", content_type: "image/jpeg")
+    end
+    photo.update!(processing_state:)
+    photo
   end
 
   def create_location(profile)

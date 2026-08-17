@@ -1,4 +1,5 @@
 require "test_helper"
+require "vips"
 
 class Api::V1::MatchesControllerTest < ActionDispatch::IntegrationTest
   setup do
@@ -63,6 +64,26 @@ class Api::V1::MatchesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_empty JSON.parse(response.body).fetch("matches")
+  end
+
+  test "exposes the matched profile's safe display derivative, never the raw original" do
+    candidate = create_profile(gender: "man", interested_in: [ "woman" ], display_name: "Sam")
+    create_match(@viewer, candidate)
+    jpeg = Vips::Image.black(60, 40).add([ 120 ]).cast("uchar").write_to_buffer(".jpg")
+    photo = ProfilePhoto.new(brand: @brand, user: candidate.user, profile: candidate, position: 0, visibility: :visible)
+    photo.image.attach(io: StringIO.new(jpeg), filename: "original.jpg", content_type: "image/jpeg")
+    photo.save!
+    photo.display_image.attach(io: StringIO.new(jpeg), filename: "display.jpg", content_type: "image/jpeg")
+    photo.update!(processing_state: :ready)
+
+    get "/api/v1/matches", headers: bearer_headers(@token)
+
+    assert_response :success
+    photos = JSON.parse(response.body).fetch("matches").sole.fetch("profile").fetch("photos")
+    assert_equal 1, photos.size
+    assert photos.sole.fetch("url").present?
+    assert_includes photos.sole.fetch("url"), "display.jpg"
+    assert_not_includes response.body, photo.image.blob.key
   end
 
   test "rejects invalid cursors and limits" do

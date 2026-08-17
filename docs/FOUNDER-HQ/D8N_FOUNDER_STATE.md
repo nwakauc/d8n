@@ -195,10 +195,24 @@ This backend agent cannot drive a real browser; the definitive
 browser->intent->PUT->attach->display->delete->purge run must be executed by
 the HookUs frontend after the founder's R2 CORS update. Backend contract is
 ready and unchanged by the above (response shapes identical).
-Still gated (separate tickets): public/other-user delivery, re-encode, EXIF
-removal, moderation enforcement, video. Do not create production R2 resources
-until the HookUs product loop and the remaining ADR 0011 media gates are
-addressed.
+Still gated (separate tickets): moderation enforcement, video. Do not create
+production R2 resources until the HookUs product loop and the remaining ADR 0011
+media gates are addressed.
+
+Safe public photo delivery landed 2026-08-15 (not yet deployed; needs founder
+commit + redeploy + staging verification). Other eligible users can now see
+profile photos in discovery/match/conversation surfaces, but never the raw
+upload. After attach, Media::ProcessProfilePhotoJob (libvips/ruby-vips) decodes
+the raw original, re-encodes a D8N-owned JPEG display derivative, strips
+EXIF/GPS/all metadata, stores it privately beside the original
+(`.../photos/{uuid}/display.jpg`), marks processing_state=ready, and purges the
+raw. A new processing_state (pending/processing/ready/failed) is separate from
+moderation status and visibility; delivery fails closed (only visible AND ready
+photos are exposed, via short-lived signed URLs to the derivative). This closes
+the EXIF/GPS privacy gate that blocked showing photos to strangers. Requires
+libvips in the image (already in the Dockerfile). Remaining media gate:
+moderation enforcement (flag/hide acts on the same states). Owner upload/delete
+API and response shapes are backward compatible (only added processing_state).
 
 5. AWS / Amazon SES - current state
 

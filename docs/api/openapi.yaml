@@ -548,7 +548,11 @@ paths:
         attaches it to the authenticated owner's profile. New photos begin
         `pending_review`; initial visibility follows the brand policy (HookUs:
         `visible` immediately with asynchronous moderation; other brands: `hidden`
-        until moderated). A `signed_id` may be attached only once.
+        until moderated). A `signed_id` may be attached only once. The upload is
+        then processed asynchronously into a safe, EXIF-stripped display
+        derivative (`processing_state`); other users only ever see that
+        derivative, and only once it is `ready`. Until then the photo is not
+        exposed in discovery/matches even if visible.
       requestBody:
         required: true
         content:
@@ -661,6 +665,9 @@ paths:
       operationId: getDiscovery
       tags: [Matching]
       summary: Get a ranked page of eligible public profiles
+      description: |
+        Each profile includes `photos`: safe, EXIF-stripped display derivatives
+        with short-lived signed URLs. Raw originals are never exposed.
       parameters:
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
@@ -1264,9 +1271,27 @@ components:
         type: array
         items:
           type: string
+    PublicProfilePhoto:
+      type: object
+      required: [position, url, url_expires_in]
+      description: |
+        A safe, D8N-generated display derivative of a profile photo. It is
+        decoded, re-encoded, and stripped of EXIF/GPS/other metadata. Only
+        deliverable photos (visible and finished processing) appear; the raw
+        original and its storage key are never exposed. The `url` is a
+        short-lived signed URL — refetch the profile to renew it.
+      properties:
+        position:
+          type: integer
+          minimum: 0
+        url:
+          type: string
+          format: uri
+        url_expires_in:
+          type: integer
     PublicProfile:
       type: object
-      required: [id, age, languages_spoken, options]
+      required: [id, age, languages_spoken, photos, options]
       properties:
         id:
           type: string
@@ -1300,6 +1325,13 @@ components:
           type: [string, "null"]
         fitness:
           type: [string, "null"]
+        photos:
+          type: array
+          description: |
+            Safe display derivatives, ordered by position. Empty when the profile
+            has no photo that is both visible and finished processing.
+          items:
+            $ref: "#/components/schemas/PublicProfilePhoto"
         options:
           $ref: "#/components/schemas/ProfileOptionSelections"
     Compatibility:
@@ -1420,7 +1452,7 @@ components:
           $ref: "#/components/schemas/ProfileLocationState"
     ProfilePhoto:
       type: object
-      required: [id, profile_id, position, status, visibility, deleted_at, image]
+      required: [id, profile_id, position, status, visibility, processing_state, deleted_at, image]
       properties:
         id:
           type: integer
@@ -1431,10 +1463,19 @@ components:
           type: integer
         status:
           type: string
+          description: Moderation lifecycle; independent of processing_state and visibility.
           enum: [pending_review, approved, rejected]
         visibility:
           type: string
           enum: [hidden, visible]
+        processing_state:
+          type: string
+          description: |
+            Safe-derivative pipeline state. Only `ready` photos are eligible for
+            delivery to other users. `image` shows the owner their raw upload
+            while `pending`/`processing`, and the safe display derivative once
+            `ready`. `failed` marks a permanently unprocessable image.
+          enum: [pending, processing, ready, failed]
         deleted_at:
           type: [string, "null"]
           format: date-time

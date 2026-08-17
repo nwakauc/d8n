@@ -36,4 +36,15 @@ class ApplicationController < ActionController::API
 
     token.presence
   end
+
+  # Presigned R2 retrieval URLs need no host, but the Disk service used in
+  # development/test builds a routed URL that does. Derive it from the request so
+  # any controller that serializes signed media URLs produces usable links.
+  def set_active_storage_url_options
+    ActiveStorage::Current.url_options = {
+      protocol: request.protocol,
+      host: request.host,
+      port: request.optional_port
+    }
+  end
 end

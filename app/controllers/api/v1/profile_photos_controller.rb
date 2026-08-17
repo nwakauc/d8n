@@ -85,16 +85,6 @@ class Api::V1::ProfilePhotosController < ApplicationController
     render json: { error: "not_found" }, status: :not_found
   end
 
-  # Presigned R2 retrieval URLs need no host, but the Disk service used in
-  # development/test builds a routed URL that does. Derive it from the request.
-  def set_active_storage_url_options
-    ActiveStorage::Current.url_options = {
-      protocol: request.protocol,
-      host: request.host,
-      port: request.optional_port
-    }
-  end
-
   def upload_params
     params.permit(:filename, :byte_size, :checksum, :content_type)
   end
@@ -110,6 +100,7 @@ class Api::V1::ProfilePhotosController < ApplicationController
       position: photo.position,
       status: photo.status,
       visibility: photo.visibility,
+      processing_state: photo.processing_state,
       deleted_at: photo.deleted_at&.iso8601,
       image: image_payload(photo)
     }
@@ -117,17 +108,26 @@ class Api::V1::ProfilePhotosController < ApplicationController
 
   # Private media is served through a short-lived signed retrieval URL straight
   # from R2 — never a permanent public object path, and never proxied through
-  # Puma.
+  # Puma. The owner sees the safe display derivative once processing is ready and
+  # otherwise their own raw upload while it is still pending.
   def image_payload(photo)
-    return unless photo.image.attached?
+    attachment = owner_attachment(photo)
+    return if attachment.nil?
 
-    blob = photo.image.blob
+    blob = attachment.blob
     {
       filename: blob.filename.to_s,
       content_type: blob.content_type,
       byte_size: blob.byte_size,
-      url: photo.image.url(expires_in: Profiles::PhotoUpload::RETRIEVAL_URL_EXPIRES_IN),
+      url: attachment.url(expires_in: Profiles::PhotoUpload::RETRIEVAL_URL_EXPIRES_IN),
       url_expires_in: Profiles::PhotoUpload::RETRIEVAL_URL_EXPIRES_IN.to_i
     }
+  end
+
+  def owner_attachment(photo)
+    return photo.display_image if photo.processing_ready? && photo.display_image.attached?
+    return photo.image if photo.image.attached?
+
+    nil
   end
 end

@@ -19,6 +19,10 @@ module Media
     }.freeze
     DEFAULT_EXTENSION = "bin".freeze
 
+    # Fixed basename for the safe, D8N-owned display derivative. Always JPEG.
+    DISPLAY_BASENAME = "display.jpg".freeze
+    ORIGINAL_BASENAME_PREFIX = "original.".freeze
+
     class << self
       # Key for the untouched original of a profile photo.
       def profile_photo_original(brand:, user:, profile:, content_type:, object_uuid: SecureRandom.uuid)
@@ -26,6 +30,19 @@ module Media
           photo_prefix(brand:, user:, profile:, object_uuid:),
           "original.#{extension_for(content_type)}"
         )
+      end
+
+      # Key for the safe display derivative, derived from the original's key so
+      # it lands in the same `photos/<object_uuid>/` folder as its source. The
+      # derivative is D8N-generated, so it never depends on client input.
+      def profile_photo_display(original_key)
+        segments = original_key.to_s.split("/")
+        last = segments.last.to_s
+        segments[-1] = DISPLAY_BASENAME if last.start_with?(ORIGINAL_BASENAME_PREFIX)
+        # If the original basename is not where expected, keep the object folder
+        # and append the display basename rather than silently colliding.
+        segments << DISPLAY_BASENAME unless last.start_with?(ORIGINAL_BASENAME_PREFIX)
+        segments.join("/")
       end
 
       # Logical folder for one photo object; variants hang off this prefix.
