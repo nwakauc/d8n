@@ -19,11 +19,13 @@ module Messaging
       raise AccessError, :conversation_unavailable
     end
 
+    # Public: a reusable "this profile may participate in messaging right now"
+    # predicate (kept, unsuspended, active user + active membership). Also used by
+    # Hooks::ReplyToHook when it promotes an accepted Hook into a conversation.
     def self.profile_available?(profile)
       profile.deleted_at.nil? && !profile.suspended? &&
         profile.user.deleted_at.nil? && profile.user.active? &&
         profile.brand_membership.deleted_at.nil? && profile.brand_membership.active?
     end
-    private_class_method :profile_available?
   end
 end

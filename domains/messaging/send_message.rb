@@ -12,19 +12,12 @@ module Messaging
 
     def self.call(user:, brand:, conversation_public_id:, body:)
       access = ConversationAccess.find!(user:, brand:, conversation_public_id:)
-      content = normalize(body)
-      raise MessageError, :message_blank if content.blank?
-      raise MessageError, :message_too_long if content.length > Message::MAX_BODY_LENGTH
+      content = MessageBody.prepare(body)
 
       message = Message.create!(
         brand:, conversation: access.conversation, sender_profile: access.viewer, body: content
       )
       Result.new(message:, viewer: access.viewer)
     end
-
-    def self.normalize(raw)
-      raw.to_s.unicode_normalize(:nfc)
-    end
-    private_class_method :normalize
   end
 end

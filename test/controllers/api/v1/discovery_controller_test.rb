@@ -51,6 +51,50 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "18.4241"
   end
 
+  test "decorates each candidate with viewer-relative status fields" do
+    candidate = create_candidate(display_name: "Sam")
+    IdentityIdentifier.create!(user: candidate.user, kind: :email, normalized_value: "sam@example.com", verified_at: Time.current)
+    Session.issue!(brand: @brand, user: candidate.user).last.update!(last_used_at: 1.minute.ago)
+    create_location(@viewer)
+    create_location(candidate)
+
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+
+    assert_response :success
+    profile = JSON.parse(response.body).fetch("profiles").sole
+    assert profile.fetch("verified")
+    assert profile.fetch("online")
+    assert profile.fetch("last_active_at").present?
+    assert_equal 1, profile.fetch("distance_km")
+  end
+
+  test "reports honest falsy status for a plain candidate" do
+    candidate = create_candidate(display_name: "Sam")
+
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+
+    assert_response :success
+    profile = JSON.parse(response.body).fetch("profiles").sole
+    assert_not profile.fetch("verified")
+    assert_not profile.fetch("online")
+    assert_nil profile.fetch("last_active_at")
+    assert_nil profile.fetch("distance_km")
+    assert_equal "available", profile.fetch("hook_state")
+  end
+
+  test "a live outgoing hook removes the target from discovery" do
+    candidate = create_candidate(display_name: "Sam")
+    Hooks::SendHook.call(
+      user: @viewer.user, brand: @brand, target_public_id: candidate.public_id,
+      message: "hey 🔥", strategy: Matching::Strategies::Hookus
+    )
+
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert_empty JSON.parse(response.body).fetch("profiles")
+  end
+
   test "paginates deterministically with a signed brand-bound cursor" do
     candidates = 3.times.map { |index| create_candidate(display_name: "Candidate #{index}") }
     candidates.each_with_index do |candidate, index|

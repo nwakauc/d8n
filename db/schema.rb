@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_17_040000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_18_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -228,6 +228,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_040000) do
     t.index ["identity_identifier_id"], name: "index_credentials_on_identity_identifier_id"
     t.index ["user_id", "kind", "identity_identifier_id"], name: "index_credentials_on_active_user_kind_identifier", unique: true, where: "(deleted_at IS NULL)"
     t.index ["user_id"], name: "index_credentials_on_user_id"
+  end
+
+  create_table "hooks", force: :cascade do |t|
+    t.datetime "accepted_at"
+    t.bigint "brand_id", null: false
+    t.bigint "conversation_id"
+    t.datetime "created_at", null: false
+    t.datetime "declined_at"
+    t.datetime "deleted_at"
+    t.datetime "expires_at", null: false
+    t.text "message", null: false
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.bigint "recipient_profile_id", null: false
+    t.bigint "sender_profile_id", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "recipient_profile_id", "status", "created_at"], name: "idx_hooks_recipient_inbox"
+    t.index ["brand_id", "sender_profile_id", "created_at"], name: "idx_hooks_sender_created"
+    t.index ["brand_id", "sender_profile_id", "recipient_profile_id"], name: "idx_hooks_sender_recipient", unique: true
+    t.index ["brand_id"], name: "index_hooks_on_brand_id"
+    t.index ["conversation_id"], name: "index_hooks_on_conversation_id"
+    t.index ["id", "brand_id"], name: "idx_hooks_on_id_brand", unique: true
+    t.index ["public_id"], name: "index_hooks_on_public_id", unique: true
+    t.index ["recipient_profile_id"], name: "index_hooks_on_recipient_profile_id"
+    t.index ["sender_profile_id"], name: "index_hooks_on_sender_profile_id"
+    t.check_constraint "sender_profile_id <> recipient_profile_id", name: "chk_hooks_not_self"
   end
 
   create_table "identity_identifiers", force: :cascade do |t|
@@ -625,6 +651,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_040000) do
   add_foreign_key "credential_password_hashes", "credentials", column: ["credential_id", "credential_kind"], primary_key: ["id", "kind"], name: "fk_password_hash_credential_kind"
   add_foreign_key "credentials", "identity_identifiers"
   add_foreign_key "credentials", "users"
+  add_foreign_key "hooks", "brands"
+  add_foreign_key "hooks", "conversations", column: ["conversation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_conversation_tenant"
+  add_foreign_key "hooks", "profiles", column: ["recipient_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_recipient_tenant"
+  add_foreign_key "hooks", "profiles", column: ["sender_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_sender_tenant"
   add_foreign_key "identity_identifiers", "users"
   add_foreign_key "likes", "brands"
   add_foreign_key "likes", "profiles", column: ["liked_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_likes_liked_profile_tenant"

@@ -14,7 +14,13 @@ class Api::V1::ProfilesController < ApplicationController
       public_id: params[:profile_id]
     )
 
-    render json: { profile: Profiles::PublicSerializer.call(profile:) }
+    # PublicProfile has already proven the viewer is an eligible member, so this
+    # is always present; it supplies the viewer-relative distance.
+    viewer = Profile.kept.find_by(user: Current.user, brand: Current.brand)
+    status = Profiles::StatusFields.call(viewer:, profiles: [ profile ]).fetch(profile.id, {})
+    hook_state = Hooks::ViewerStates.call(viewer:, profiles: [ profile ]).fetch(profile.id, Hooks::ViewerStates::UNAVAILABLE)
+
+    render json: { profile: Profiles::PublicSerializer.call(profile:).merge(status).merge(hook_state:) }
   rescue Profiles::PublicProfile::ViewerIneligible
     render json: { error: "discoverable_profile_required" }, status: :forbidden
   rescue Profiles::PublicProfile::Unavailable

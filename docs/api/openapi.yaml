@@ -51,6 +51,13 @@ tags:
   - name: Matching
   - name: Messaging
   - name: Trust
+  - name: Hooks
+    description: |
+      🔥 Hook — a stronger-intent interaction than a Like. The sender gets exactly
+      ONE unsolicited opening message to a recipient and is then locked out until
+      the recipient engages. The recipient's first reply IS acceptance: it creates
+      a normal Match + Conversation, after which all further chat flows through the
+      standard Messaging endpoints. See ADR 0015.
 paths:
   /api/v1/health:
     get:
@@ -990,6 +997,172 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/InteractionConflict"
+  /api/v1/profiles/{profile_id}/hook:
+    post:
+      operationId: sendHook
+      tags: [Hooks]
+      summary: Send a 🔥 Hook (one opener) to an eligible profile
+      description: |
+        Creates the sender's single unsolicited opener to a recipient. The body is
+        the FINAL text the sender chose — the default copy is a frontend concern
+        and receiving it means nothing special. No Match/Conversation/Message is
+        created yet: the opener is held on the Hook, and the sender is locked out
+        from any further message until the recipient replies (there is literally no
+        conversation to message through, and a second Hook to the same person is
+        rejected).
+
+        Reachability matches Like exactly: blocked (either direction), suspended,
+        closed, hidden, cross-brand, self, and otherwise-ineligible targets all
+        fail closed as `profile_unavailable` (404), never revealing which.
+
+        V1 anti-spam: exactly one Hook per (sender → recipient) pair, ever — a
+        second attempt (including after decline/expiry) returns `already_hooked`
+        (409). Sending is also bounded by a per-sender daily allowance
+        (`hook_rate_limited`, 429, with `Retry-After`).
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendHookRequest"
+      responses:
+        "201":
+          description: The Hook was created and is pending the recipient's reply.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendHookResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: |
+            Interaction conflict: `already_hooked` (already used your one Hook to
+            this person), `already_matched`, `already_liked`, or `incoming_hook`
+            (they Hooked you — reply from your inbox instead).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Blank (`message_blank`) or oversized (`message_too_long`) opener.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: The sender's daily Hook allowance is exhausted (`hook_rate_limited`).
+          headers:
+            Retry-After:
+              description: Seconds until the sender may Hook again.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hooks:
+    get:
+      operationId: listReceivedHooks
+      tags: [Hooks]
+      summary: List Hooks received and awaiting the current member's reply
+      description: |
+        The recipient inbox: live (pending, unexpired) Hooks addressed to the
+        current member, newest-first and cursor-paginated. Each entry carries the
+        opener text and the sender's safe public profile. Hooks are private — only
+        the recipient sees them; a sender never sees their own sent Hooks here.
+        Senders who became unavailable (blocked, suspended, closed) silently drop
+        off without disclosure.
+      parameters:
+        - $ref: "#/components/parameters/HookLimit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of live received Hooks.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HookInboxResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "422":
+          description: Invalid `limit` (`invalid_limit`) or `cursor` (`invalid_cursor`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hooks/{hook_id}/reply:
+    post:
+      operationId: replyToHook
+      tags: [Hooks]
+      summary: Reply to a Hook — accepts it and unlocks a conversation
+      description: |
+        The recipient's first reply. There is no separate accept step: replying IS
+        acceptance. Atomically creates the canonical Match + Conversation,
+        materializes the sender's opener as the first message and this text as the
+        second, and returns the unlocked conversation. All further messages flow
+        through the standard `POST /conversations/{conversation_id}/messages`.
+
+        A Hook that is not live for this member — already accepted/declined,
+        expired, blocked either way, or not addressed to the caller — returns the
+        neutral `hook_unavailable` (404), never revealing which.
+      parameters:
+        - $ref: "#/components/parameters/HookId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HookReplyRequest"
+      responses:
+        "201":
+          description: The Hook was accepted; the conversation is unlocked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HookReplyResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: The Hook is not live for this member (`hook_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Blank (`message_blank`) or oversized (`message_too_long`) reply.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hooks/{hook_id}/decline:
+    post:
+      operationId: declineHook
+      tags: [Hooks]
+      summary: Decline a pending Hook
+      description: |
+        The recipient declines. Terminal and private: the sender is never told a
+        decline happened (their `hook_state` simply collapses to `unavailable`,
+        indistinguishable from being ignored-then-expired or blocked). A Hook that
+        is not live for this member returns the neutral `hook_unavailable` (404).
+      parameters:
+        - $ref: "#/components/parameters/HookId"
+      responses:
+        "204":
+          description: The Hook was declined; nothing is disclosed to the sender.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: The Hook is not live for this member (`hook_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/blocks:
     get:
       operationId: listBlockedProfiles
@@ -1546,6 +1719,24 @@ components:
         minimum: 1
         maximum: 100
         default: 30
+    HookId:
+      name: hook_id
+      in: path
+      required: true
+      description: Stable public Hook UUID from the received-Hooks inbox.
+      schema:
+        type: string
+        format: uuid
+    HookLimit:
+      name: limit
+      in: query
+      required: false
+      description: Page size for the received-Hooks inbox.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
     ReportId:
       name: id
       in: path
@@ -2084,9 +2275,56 @@ components:
           items:
             type: string
             enum: [shared_intent, similar_vibe, mutual_age_fit]
+    ProfileStatus:
+      type: object
+      description: |
+        Viewer-relative status signals, recomputed per request. Present only on the
+        discovery feed and the single-profile detail endpoint — NOT on match or
+        conversation payloads, which carry the base public profile only.
+      required: [verified, online, last_active_at, distance_km, hook_state]
+      properties:
+        verified:
+          type: boolean
+          description: |
+            The member has proven ownership of at least one contact identifier
+            (email or phone). This is CONTACT verification, not photo/identity
+            ("it's really them") verification, which does not exist yet — treat it
+            as a "reachable" signal rather than a strong trust badge.
+        hook_state:
+          type: string
+          enum: [available, pending, hooked, unavailable]
+          description: |
+            The viewer's 🔥 Hook button state toward this profile:
+            `available` (may Hook), `pending` (viewer has a live outgoing Hook
+            awaiting their reply), `hooked` (an active Match already exists — use
+            the conversation), `unavailable` (cannot Hook: already used their one
+            Hook to this person, this person has a live Hook waiting on the viewer,
+            already Liked, or otherwise not Hookable). Deliberately does not
+            distinguish declined/expired/blocked — all collapse to `unavailable`.
+        online:
+          type: boolean
+          description: An active brand session was used within the last 10 minutes.
+        last_active_at:
+          type: [string, "null"]
+          format: date-time
+          description: |
+            Most recent active-session use (ISO8601), or null when the member has
+            no active session (never signed in on this brand, revoked, or expired).
+        distance_km:
+          type: [integer, "null"]
+          minimum: 1
+          description: |
+            Whole-kilometre great-circle distance from the viewer, floored to 1km
+            (never 0, which would read as exact co-location). null unless BOTH the
+            viewer and the member have a location no older than 24h.
+    ProfileWithStatus:
+      allOf:
+        - $ref: "#/components/schemas/PublicProfile"
+        - $ref: "#/components/schemas/ProfileStatus"
     DiscoveryProfile:
       allOf:
         - $ref: "#/components/schemas/PublicProfile"
+        - $ref: "#/components/schemas/ProfileStatus"
         - type: object
           required: [compatibility]
           properties:
@@ -2107,7 +2345,7 @@ components:
       required: [profile]
       properties:
         profile:
-          $ref: "#/components/schemas/PublicProfile"
+          $ref: "#/components/schemas/ProfileWithStatus"
     ProfilePreferencesUpdate:
       type: object
       properties:
@@ -2524,6 +2762,92 @@ components:
       type: object
       required: [message]
       properties:
+        message:
+          $ref: "#/components/schemas/Message"
+    SendHookRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: |
+            The opener the sender chose to submit (the pre-filled default or an
+            edited version). Plain text, non-blank, NFC-normalized, Unicode
+            preserved. Same constraints as a chat message.
+    SendHookResponse:
+      type: object
+      required: [hook]
+      properties:
+        hook:
+          $ref: "#/components/schemas/HookAcknowledgement"
+    HookAcknowledgement:
+      type: object
+      description: |
+        Minimal sender-facing acknowledgement. The sender learns only that their
+        opener is pending and when it lapses — never anything the recipient does.
+      required: [id, status, created_at, expires_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending]
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          description: When the pending Hook expires if the recipient never engages.
+    ReceivedHook:
+      type: object
+      description: One received Hook in the recipient inbox.
+      required: [id, message, created_at, expires_at, sender]
+      properties:
+        id:
+          type: string
+          format: uuid
+        message:
+          type: string
+          description: The sender's opener.
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        sender:
+          $ref: "#/components/schemas/PublicProfile"
+    HookInboxResponse:
+      type: object
+      required: [hooks, next_cursor]
+      properties:
+        hooks:
+          type: array
+          description: Newest-first page of live received Hooks.
+          items:
+            $ref: "#/components/schemas/ReceivedHook"
+        next_cursor:
+          type: [string, "null"]
+    HookReplyRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: The recipient's reply text. Same constraints as a chat message.
+    HookReplyResponse:
+      type: object
+      description: The unlocked conversation plus the recipient's stored reply message.
+      required: [conversation, message]
+      properties:
+        conversation:
+          $ref: "#/components/schemas/Conversation"
         message:
           $ref: "#/components/schemas/Message"
     AdminReportParty:

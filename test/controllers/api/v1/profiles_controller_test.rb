@@ -52,6 +52,38 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_not profile.key?("compatibility")
   end
 
+  test "includes viewer-relative status fields on the profile detail" do
+    target = create_candidate(display_name: "Sam")
+    IdentityIdentifier.create!(user: target.user, kind: :email, normalized_value: "sam@example.com", verified_at: Time.current)
+    Session.issue!(brand: @brand, user: target.user).last.update!(last_used_at: 1.minute.ago)
+    create_location(@viewer)
+    create_location(target)
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    assert_response :success
+    profile = JSON.parse(response.body).fetch("profile")
+    assert profile.fetch("verified")
+    assert profile.fetch("online")
+    assert profile.fetch("last_active_at").present?
+    # @viewer and target share create_location's coordinates, so distance floors to 1.
+    assert_equal 1, profile.fetch("distance_km")
+    assert_equal "available", profile.fetch("hook_state")
+  end
+
+  test "profile detail reflects a live outgoing hook as pending" do
+    target = create_candidate(display_name: "Sam")
+    Hooks::SendHook.call(
+      user: @viewer.user, brand: @brand, target_public_id: target.public_id,
+      message: "hey 🔥", strategy: Matching::Strategies::Hookus
+    )
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert_equal "pending", JSON.parse(response.body).fetch("profile").fetch("hook_state")
+  end
+
   test "does not expose email, phone, credentials, internal ids, or coordinates" do
     target = create_candidate(display_name: "Sam")
     create_location(target)
@@ -245,7 +277,11 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    assert_operator select_count, :<, 20
+    # Budget guards against an N+1 that scales with photos/options. The viewer
+    # status fields (verified, presence, viewer + candidate location) and the
+    # viewer-relative hook state (matches/outgoing/incoming/likes) each add a
+    # small *fixed* number of queries that does not grow with either.
+    assert_operator select_count, :<, 30
   end
 
   # Centerpiece: B is discoverable by A and directly retrievable; once B blocks A

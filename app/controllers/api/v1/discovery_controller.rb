@@ -12,8 +12,13 @@ class Api::V1::DiscoveryController < ApplicationController
       vibe: params[:vibe],
       online: params[:online]
     )
+    statuses = Profiles::StatusFields.call(viewer: result.viewer, profiles: result.profiles)
+    hook_states = Hooks::ViewerStates.call(viewer: result.viewer, profiles: result.profiles)
     render json: {
-      profiles: result.profiles.map { |profile| Matching::CandidateSerializer.call(profile:, strategy: result.strategy) },
+      profiles: result.profiles.map do |profile|
+        status = statuses.fetch(profile.id, {}).merge(hook_state: hook_states.fetch(profile.id, Hooks::ViewerStates::UNAVAILABLE))
+        Matching::CandidateSerializer.call(profile:, strategy: result.strategy, status:)
+      end,
       next_cursor: result.next_cursor
     }
   rescue Matching::Discovery::ViewerIneligible
