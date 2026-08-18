@@ -58,6 +58,16 @@ tags:
       the recipient engages. The recipient's first reply IS acceptance: it creates
       a normal Match + Conversation, after which all further chat flows through the
       standard Messaging endpoints. See ADR 0015.
+  - name: Hook Tonight
+    description: |
+      Hook Tonight — a TEMPORARY "I'm available/open to meeting tonight"
+      availability signal (distinct from a 🔥 Hook, which says "I specifically
+      want you"). Activating surfaces a member in the Hook Tonight discovery pool
+      of other compatible, currently-available members; it never creates a match
+      or conversation on its own. To approach someone found there, the member
+      sends the existing 🔥 Hook. Availability lapses automatically and is checked
+      against the clock at read time, so a stale activation never makes anyone
+      appear available.
 paths:
   /api/v1/health:
     get:
@@ -1163,6 +1173,130 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hook_tonight:
+    get:
+      operationId: getHookTonight
+      tags: [Hook Tonight]
+      summary: Get the current member's Hook Tonight availability
+      description: |
+        Authoritative current availability, computed against the clock: a lapsed
+        or deactivated activation reports `active: false`. Drives the CTA state
+        ("🔥 Hook Tonight" when inactive, "🔥 You're available tonight" with the
+        expiry when active).
+      responses:
+        "200":
+          description: The current availability state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HookTonightState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: activateHookTonight
+      tags: [Hook Tonight]
+      summary: Activate (or refresh) Hook Tonight availability
+      description: |
+        Turns Hook Tonight on for the current member and (re)stamps the expiry,
+        surfacing them in the Hook Tonight discovery pool. Idempotent: re-posting
+        while active simply refreshes the same single state row (no history is
+        accumulated, safe under concurrent calls). Requires an active, discoverable
+        member — a suspended, closed, or incomplete profile is rejected with
+        `discoverable_profile_required`. A Hook Tonight activation grants NO extra
+        Hook allowance; approaching someone still spends a normal 🔥 Hook.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HookTonightActivateRequest"
+      responses:
+        "201":
+          description: Hook Tonight is active.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HookTonightState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The member is not active and discoverable (`discoverable_profile_required`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The requested `intent` is not supported (`invalid_intent`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deactivateHookTonight
+      tags: [Hook Tonight]
+      summary: Deactivate Hook Tonight availability
+      description: |
+        Turns Hook Tonight off; the member immediately leaves the pool. The normal
+        profile, existing Hooks, matches, and conversations are untouched.
+        Idempotent — deactivating when already off is a safe no-op.
+      responses:
+        "204":
+          description: Hook Tonight is off (or was already off).
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/hook_tonight/discovery:
+    get:
+      operationId: getHookTonightDiscovery
+      tags: [Hook Tonight]
+      summary: Get a page of members who are available tonight
+      description: |
+        The exact same eligible, ranked discovery population as `GET
+        /api/v1/discovery` — identical brand isolation, active/visible lifecycle,
+        blocking (either direction), reciprocal age/gender/preference, distance,
+        exclusions (including live Hooks), facet filters, safe photos, and
+        pagination — narrowed to members who currently have a live Hook Tonight
+        availability. Each profile carries the same viewer-relative `hook_state`,
+        so the client renders the correct 🔥 Hook action; approaching still goes
+        through the existing Hook endpoints. `mode`, `vibe`, `online`, `cursor`,
+        and `limit` behave exactly as on `GET /api/v1/discovery`.
+
+        Access is **reciprocal**: the viewer must have a live Hook Tonight
+        activation to see the pool (to browse who's available tonight you must be
+        available tonight). A viewer without one gets 403 `hook_tonight_required`;
+        activate via `POST /api/v1/hook_tonight` first. Normal discovery
+        (`GET /api/v1/discovery`) is unaffected and open to any eligible member.
+      parameters:
+        - $ref: "#/components/parameters/DiscoveryMode"
+        - $ref: "#/components/parameters/DiscoveryVibe"
+        - $ref: "#/components/parameters/DiscoveryOnline"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Available-tonight profiles and an opaque next cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiscoveryResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            The viewer is not active and discoverable
+            (`discoverable_profile_required`), or has no live Hook Tonight
+            activation (`hook_tonight_required`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Production matching is not configured for this brand.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
   /api/v1/blocks:
     get:
       operationId: listBlockedProfiles
@@ -2764,6 +2898,35 @@ components:
       properties:
         message:
           $ref: "#/components/schemas/Message"
+    HookTonightActivateRequest:
+      type: object
+      description: |
+        Optional activation body. V1 accepts a single availability `intent`;
+        omitting the body activates with the default.
+      properties:
+        intent:
+          type: string
+          enum: [open_to_meeting]
+          default: open_to_meeting
+          description: The availability intent. Unsupported values yield `invalid_intent`.
+    HookTonightState:
+      type: object
+      description: |
+        Current Hook Tonight availability, authoritative and clock-checked. When
+        `active` is false, `expires_at` and `intent` are null.
+      required: [active, expires_at, intent]
+      properties:
+        active:
+          type: boolean
+          description: Whether the member is currently live in the Hook Tonight pool.
+        expires_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the current availability lapses, or null when inactive.
+        intent:
+          type: [string, "null"]
+          enum: [open_to_meeting, null]
+          description: The active availability intent, or null when inactive.
     SendHookRequest:
       type: object
       required: [message]

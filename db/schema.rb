@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_18_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_18_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -228,6 +228,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_000000) do
     t.index ["identity_identifier_id"], name: "index_credentials_on_identity_identifier_id"
     t.index ["user_id", "kind", "identity_identifier_id"], name: "index_credentials_on_active_user_kind_identifier", unique: true, where: "(deleted_at IS NULL)"
     t.index ["user_id"], name: "index_credentials_on_user_id"
+  end
+
+  create_table "hook_tonight_states", force: :cascade do |t|
+    t.datetime "activated_at", null: false
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deactivated_at"
+    t.datetime "expires_at", null: false
+    t.string "intent", default: "open_to_meeting", null: false
+    t.bigint "profile_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "expires_at"], name: "idx_hook_tonight_states_live"
+    t.index ["brand_id", "profile_id"], name: "index_hook_tonight_states_on_brand_and_profile", unique: true
+    t.index ["brand_id"], name: "index_hook_tonight_states_on_brand_id"
+    t.index ["id", "brand_id"], name: "idx_hook_tonight_states_on_id_brand", unique: true
+    t.index ["profile_id"], name: "index_hook_tonight_states_on_profile_id"
   end
 
   create_table "hooks", force: :cascade do |t|
@@ -651,6 +667,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_000000) do
   add_foreign_key "credential_password_hashes", "credentials", column: ["credential_id", "credential_kind"], primary_key: ["id", "kind"], name: "fk_password_hash_credential_kind"
   add_foreign_key "credentials", "identity_identifiers"
   add_foreign_key "credentials", "users"
+  add_foreign_key "hook_tonight_states", "brands"
+  add_foreign_key "hook_tonight_states", "profiles", column: ["profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hook_tonight_states_profile_tenant"
   add_foreign_key "hooks", "brands"
   add_foreign_key "hooks", "conversations", column: ["conversation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_conversation_tenant"
   add_foreign_key "hooks", "profiles", column: ["recipient_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_recipient_tenant"

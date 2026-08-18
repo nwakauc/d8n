@@ -8,11 +8,11 @@ module Matching
 
     Result = Data.define(:profiles, :next_cursor, :strategy, :viewer)
 
-    def self.call(user:, brand:, cursor: nil, limit: nil, mode: nil, vibe: nil, online: nil)
-      new(user:, brand:, cursor:, limit:, mode:, vibe:, online:).call
+    def self.call(user:, brand:, cursor: nil, limit: nil, mode: nil, vibe: nil, online: nil, restrict: nil, guard: nil)
+      new(user:, brand:, cursor:, limit:, mode:, vibe:, online:, restrict:, guard:).call
     end
 
-    def initialize(user:, brand:, cursor:, limit:, mode: nil, vibe: nil, online: nil)
+    def initialize(user:, brand:, cursor:, limit:, mode: nil, vibe: nil, online: nil, restrict: nil, guard: nil)
       @user = user
       @brand = brand
       @cursor = cursor
@@ -20,13 +20,26 @@ module Matching
       @mode = mode
       @vibe = vibe
       @online = online
+      @restrict = restrict
+      @guard = guard
     end
 
     def call
       viewer = current_viewer!
+      # Optional caller-supplied authorization on the resolved viewer, run AFTER
+      # base eligibility so a non-discoverable viewer still fails with the usual
+      # ViewerIneligible rather than a surface-specific reason. Any exception it
+      # raises propagates to the caller (e.g. Hook Tonight's "must be in the pool
+      # to view the pool").
+      guard&.call(viewer)
       strategy = StrategyRegistry.fetch(brand:, mode:)
       filter = FacetFilter.parse(brand:, vibe:, online:)
       scope = EligibilityScope.call(brand:, viewer:, location_max_age: strategy.location_max_age)
+      # Optional caller-supplied narrowing (e.g. Hook Tonight's "only members live
+      # in the availability pool"). Applied on top of the shared eligible
+      # population so an alternate surface reuses this one discovery engine rather
+      # than forking it; it can only remove candidates, never relax eligibility.
+      scope = restrict.call(scope, viewer) if restrict
       scope = ExclusionsScope.call(scope:, viewer:)
       scope = FacetFilter.apply(scope:, brand:, filter:)
       scope = strategy.rank(scope:, viewer:)
@@ -48,7 +61,7 @@ module Matching
 
     private
 
-    attr_reader :user, :brand, :cursor, :limit, :mode, :vibe, :online
+    attr_reader :user, :brand, :cursor, :limit, :mode, :vibe, :online, :restrict, :guard
 
     def current_viewer!
       profile = Profile.kept.find_by(user:, brand:)
