@@ -19,6 +19,12 @@ module Profiles
   #                    rounded to whole km with a 1km floor (never 0, which would
   #                    read as exact co-location). nil unless BOTH the viewer and
   #                    the member have a location no older than LOCATION_MAX_AGE.
+  #   active_today   — the member had an active brand session within the last day
+  #                    (derived from the same activity query as `online`).
+  #   new_here       — the member's profile was created within NEW_HERE_WINDOW.
+  #                    Derived from the profile row already in hand (no query).
+  #   hook_tonight_active — the member currently has a live Hook Tonight state in
+  #                    this brand (one bulk query for the whole page).
   #
   # Everything is computed in a fixed, small number of bulk queries regardless of
   # how many profiles are passed, so it can decorate a whole discovery page
@@ -29,6 +35,8 @@ module Profiles
     LOCATION_MAX_AGE = Matching::Strategies::Hookus::LOCATION_MAX_AGE
     EARTH_RADIUS_KM = Matching::EligibilityScope::EARTH_RADIUS_KM
     MIN_DISTANCE_KM = 1
+    ACTIVE_TODAY_WINDOW = 24.hours
+    NEW_HERE_WINDOW = 7.days
 
     def self.call(...)
       new(...).call
@@ -47,13 +55,19 @@ module Profiles
       verified = verified_user_ids
       activity = last_active_by_user
       distances = distance_by_profile
-      threshold = ONLINE_WINDOW.ago
+      hook_tonight = hook_tonight_active_profile_ids
+      online_threshold = ONLINE_WINDOW.ago
+      active_today_threshold = ACTIVE_TODAY_WINDOW.ago
+      new_here_threshold = NEW_HERE_WINDOW.ago
 
       profiles.each_with_object({}) do |profile, acc|
         last_active = activity[profile.user_id]
         acc[profile.id] = {
           verified: verified.include?(profile.user_id),
-          online: last_active.present? && last_active >= threshold,
+          online: last_active.present? && last_active >= online_threshold,
+          active_today: last_active.present? && last_active >= active_today_threshold,
+          new_here: profile.created_at.present? && profile.created_at >= new_here_threshold,
+          hook_tonight_active: hook_tonight.include?(profile.id),
           last_active_at: last_active&.iso8601,
           distance_km: distances[profile.id]
         }
@@ -76,6 +90,17 @@ module Profiles
         .where.not(verified_at: nil)
         .distinct
         .pluck(:user_id)
+        .to_set
+    end
+
+    # Live Hook Tonight availability for the whole page in one query, brand-scoped
+    # (HookTonightState.live re-checks expiry against the clock, so a stale row
+    # never lights up). Mirrors HookTonight::CurrentState's liveness definition.
+    def hook_tonight_active_profile_ids
+      HookTonightState.live
+        .where(brand_id: viewer.brand_id, profile_id: profiles.map(&:id))
+        .distinct
+        .pluck(:profile_id)
         .to_set
     end
 

@@ -108,6 +108,21 @@ module Profiles
       assert_equal 100, complete.percent
     end
 
+    test "reports informational sections without affecting completeness" do
+      profile = build_profile(display_name: "Ada", bio: "Hello", smoking: "never")
+
+      completion = Completion.call(profile:)
+      sections = completion.sections
+
+      assert_equal %w[ photos bio basics intent lifestyle interests prompts verification ].to_set,
+        sections.keys.to_set
+      assert sections.fetch("bio").fetch(:complete)
+      assert sections.fetch("lifestyle").fetch(:complete) # smoking column counts
+      assert_not sections.fetch("photos").fetch(:complete)
+      assert_not sections.fetch("prompts").fetch(:complete)
+      assert_not sections.fetch("verification").fetch(:complete)
+    end
+
     private
 
     def build_profile(attributes = {})

@@ -67,7 +67,14 @@ module LoadTesting
       assert_equal 2, result.users
       brand = Brand.kept.find_by!(slug: "hookus")
       assert_equal %w[email_password phone_password], brand.auth_methods.sort
-      assert_equal %w[intents vibes], brand.profile_option_groups.kept.status_active.order(:key).pluck(:key)
+      # The canonical HookUs catalogue installs its brand groups plus the composed
+      # generic capabilities + interests (see Profiles::HookusProfileCatalog).
+      active_group_keys = brand.profile_option_groups.kept.status_active.pluck(:key)
+      assert_includes active_group_keys, "intents"
+      assert_includes active_group_keys, "vibes"
+      expected_group_count = Profiles::HookusProfileCatalog::BRAND_GROUPS.size +
+        Profiles::HookusProfileCatalog::ENABLED_CAPABILITIES.size + 1
+      assert_equal expected_group_count, active_group_keys.size
       assert_equal brand, BrandDomain.kept.active.find_by!(host: SyntheticDataset::STAGING_HOST).brand
 
       cleanup_env = create_env.merge("D8N_LOAD_TEST_CONFIRM" => SyntheticDataset::CLEANUP_CONFIRMATION)

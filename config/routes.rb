@@ -45,6 +45,8 @@ Rails.application.routes.draw do
       delete "profile/location" => "profile_locations#destroy"
       get "profile/configuration" => "profile_configuration#show"
       patch "profile/options" => "profile_options#update"
+      get "profile/prompts" => "profile_prompts#show"
+      put "profile/prompts" => "profile_prompts#update"
       get "profile/preferences" => "profile_preferences#show"
       patch "profile/preferences" => "profile_preferences#update"
       get "profile/photos" => "profile_photos#index"

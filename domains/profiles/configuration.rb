@@ -5,12 +5,19 @@ module Profiles
       "bio" => "About me",
       "birthdate" => "Date of birth",
       "gender" => "Gender",
+      "pronouns" => "Pronouns",
       "country_code" => "Country",
       "city" => "City",
       "occupation" => "Occupation",
+      "job_title" => "Job title",
+      "company_name" => "Company",
+      "school_or_institution" => "School",
+      "looking_for_text" => "What you're looking for",
+      "children_count" => "Number of children",
       "height_cm" => "Height",
       "body_type" => "Body type",
-      "languages_spoken" => "Languages",
+      "languages" => "Languages",
+      "languages_spoken" => "Languages (legacy)",
       "smoking" => "Smoking",
       "drinking" => "Drinking",
       "fitness" => "Fitness"
@@ -42,13 +49,20 @@ module Profiles
         profile_fields: fields(PROFILE_FIELD_LABELS, requirements.fetch("profile_fields")),
         preference_fields: fields(PREFERENCE_FIELD_LABELS, requirements.fetch("preference_fields")),
         collections: fields(COLLECTION_LABELS, requirements.fetch("collections")),
-        option_groups: option_groups(requirements.fetch("option_groups"))
+        option_groups: option_groups(requirements.fetch("option_groups")),
+        prompts: prompts
       }
     end
 
     private
 
     attr_reader :brand
+
+    def prompts
+      brand.profile_prompts.kept.status_active.ordered.map do |prompt|
+        { key: prompt.key, text: prompt.text, category: prompt.category }
+      end
+    end
 
     def fields(labels, required_keys)
       labels.map do |key, label|
@@ -67,7 +81,7 @@ module Profiles
           visibility: group.visibility,
           options: group.profile_options.select { |option| option.deleted_at.nil? && option.status_active? }
             .sort_by { |option| [ option.position, option.id ] }
-            .map { |option| { code: option.code, label: option.label } }
+            .map { |option| { code: option.code, label: option.label, category: option.category } }
         }
       end
     end

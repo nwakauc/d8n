@@ -1,0 +1,52 @@
+# Controlled language taxonomy for structured profile languages (see ADR 0017 and
+# Profiles::Languages). Config-driven on purpose: the allowed set and labels are
+# data, not hardcoded in controllers/models, so it can grow or be curated per
+# deployment without a code change. Codes are ISO 639-1 (two-letter) lowercase.
+# Any brand can present a subset in onboarding; storage accepts any code listed
+# here.
+languages:
+  - { code: en, label: English }
+  - { code: es, label: Spanish }
+  - { code: fr, label: French }
+  - { code: pt, label: Portuguese }
+  - { code: de, label: German }
+  - { code: it, label: Italian }
+  - { code: nl, label: Dutch }
+  - { code: ru, label: Russian }
+  - { code: uk, label: Ukrainian }
+  - { code: pl, label: Polish }
+  - { code: ro, label: Romanian }
+  - { code: el, label: Greek }
+  - { code: tr, label: Turkish }
+  - { code: ar, label: Arabic }
+  - { code: he, label: Hebrew }
+  - { code: fa, label: Persian }
+  - { code: ur, label: Urdu }
+  - { code: hi, label: Hindi }
+  - { code: bn, label: Bengali }
+  - { code: pa, label: Punjabi }
+  - { code: ta, label: Tamil }
+  - { code: te, label: Telugu }
+  - { code: zh, label: Chinese }
+  - { code: ja, label: Japanese }
+  - { code: ko, label: Korean }
+  - { code: vi, label: Vietnamese }
+  - { code: th, label: Thai }
+  - { code: id, label: Indonesian }
+  - { code: ms, label: Malay }
+  - { code: tl, label: Tagalog }
+  - { code: sw, label: Swahili }
+  - { code: am, label: Amharic }
+  - { code: ha, label: Hausa }
+  - { code: yo, label: Yoruba }
+  - { code: ig, label: Igbo }
+  - { code: zu, label: Zulu }
+  - { code: xh, label: Xhosa }
+  - { code: af, label: Afrikaans }
+  - { code: so, label: Somali }
+  - { code: sv, label: Swedish }
+  - { code: no, label: Norwegian }
+  - { code: da, label: Danish }
+  - { code: fi, label: Finnish }
+  - { code: cs, label: Czech }
+  - { code: hu, label: Hungarian }

@@ -20,7 +20,7 @@ class Api::V1::ProfilesController < ApplicationController
     status = Profiles::StatusFields.call(viewer:, profiles: [ profile ]).fetch(profile.id, {})
     hook_state = Hooks::ViewerStates.call(viewer:, profiles: [ profile ]).fetch(profile.id, Hooks::ViewerStates::UNAVAILABLE)
 
-    render json: { profile: Profiles::PublicSerializer.call(profile:).merge(status).merge(hook_state:) }
+    render json: { profile: Profiles::DetailSerializer.call(profile:, viewer:).merge(status).merge(hook_state:) }
   rescue Profiles::PublicProfile::ViewerIneligible
     render json: { error: "discoverable_profile_required" }, status: :forbidden
   rescue Profiles::PublicProfile::Unavailable

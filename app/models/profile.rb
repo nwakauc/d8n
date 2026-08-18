@@ -10,6 +10,7 @@ class Profile < ApplicationRecord
   has_many :profile_photos, dependent: :restrict_with_exception
   has_many :profile_option_selections, dependent: :restrict_with_exception
   has_many :selected_profile_options, through: :profile_option_selections, source: :profile_option
+  has_many :prompt_answers, class_name: "ProfilePromptAnswer", dependent: :restrict_with_exception
   has_many :profile_locations, dependent: :restrict_with_exception
   has_many :likes_given, class_name: "Like", foreign_key: :liker_profile_id, dependent: :restrict_with_exception
   has_many :likes_received, class_name: "Like", foreign_key: :liked_profile_id, dependent: :restrict_with_exception
@@ -47,9 +48,17 @@ class Profile < ApplicationRecord
   validates :smoking, :drinking, :fitness,
     inclusion: { in: %w[ never occasionally regularly ] },
     allow_blank: true
+  validates :pronouns, length: { maximum: 40 }, allow_blank: true
+  validates :job_title, :company_name, length: { maximum: 120 }, allow_blank: true
+  validates :school_or_institution, length: { maximum: 160 }, allow_blank: true
+  validates :looking_for_text, length: { maximum: 600 }, allow_blank: true
+  validates :children_count,
+    numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 30 },
+    allow_nil: true
   validate :birthdate_meets_minimum_age
   validate :brand_membership_matches_profile_scope
   validate :languages_spoken_are_valid
+  validate :languages_are_valid
 
   before_validation :ensure_public_id, on: :create
   before_validation :normalize_profile_details
@@ -84,15 +93,40 @@ class Profile < ApplicationRecord
     errors.add(:languages_spoken, "contains an invalid value") if languages_spoken.any? { |value| !value.is_a?(String) || value.length > 40 }
   end
 
+  # Structured languages (canonical going forward — `languages_spoken` is the
+  # retained legacy free-text array, see Profiles::Languages / ADR 0017). The
+  # taxonomy + rules live in Profiles::Languages so nothing is hardcoded here.
+  def languages_are_valid
+    Profiles::Languages.normalize(languages).errors.each do |message|
+      errors.add(:languages, message)
+    end
+  end
+
   def normalize_profile_details
     self.country_code = country_code.to_s.strip.upcase.presence
     self.city = city.to_s.strip.presence
     self.occupation = occupation.to_s.strip.presence
     self.body_type = body_type.to_s.strip.presence
+    self.pronouns = pronouns.to_s.strip.presence
+    self.job_title = job_title.to_s.strip.presence
+    self.company_name = company_name.to_s.strip.presence
+    self.school_or_institution = school_or_institution.to_s.strip.presence
+    self.looking_for_text = looking_for_text.to_s.strip.presence
+    normalize_languages
     return unless languages_spoken.is_a?(Array)
 
     self.languages_spoken = languages_spoken.map do |value|
       value.is_a?(String) ? value.strip.presence : value
     end.compact.uniq
+  end
+
+  # Only rewrite to canonical form when the input is structurally valid; leaving
+  # invalid input untouched lets `languages_are_valid` surface a precise error
+  # instead of silently discarding it.
+  def normalize_languages
+    return unless languages.is_a?(Array)
+
+    result = Profiles::Languages.normalize(languages)
+    self.languages = result.entries if result.errors.empty?
   end
 end

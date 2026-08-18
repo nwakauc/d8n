@@ -615,6 +615,62 @@ paths:
           $ref: "#/components/responses/ProfileOrMembershipRequired"
         "422":
           $ref: "#/components/responses/ValidationFailed"
+  /api/v1/profile/prompts:
+    get:
+      operationId: getProfilePrompts
+      tags: [Profile]
+      summary: The member's current prompt answers
+      responses:
+        "200":
+          description: The member's answered prompts, ordered by position.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [prompts]
+                properties:
+                  prompts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PromptAnswer"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+    put:
+      operationId: replaceProfilePrompts
+      tags: [Profile]
+      summary: Replace the member's prompt answers
+      description: |
+        Replaces the full ordered set of prompt answers. Array order becomes the
+        display position. Unknown or duplicate prompt keys are rejected; at most
+        five answers are allowed and each answer is length-limited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answers]
+              properties:
+                answers:
+                  type: array
+                  maxItems: 5
+                  items:
+                    $ref: "#/components/schemas/PromptAnswerInput"
+      responses:
+        "200":
+          description: Updated owner profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerProfileResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
   /api/v1/profile/publication:
     post:
       operationId: activateProfile
@@ -2219,6 +2275,19 @@ components:
           type: array
           items:
             type: string
+        sections:
+          type: object
+          description: |
+            Informational per-section completeness (photos, bio, basics, intent,
+            lifestyle, interests, prompts, verification). Present on the owner
+            profile only. Purely a client nudge — never affects requirements,
+            publication, or visibility.
+          additionalProperties:
+            type: object
+            required: [complete]
+            properties:
+              complete:
+                type: boolean
     ProfileUpdate:
       type: object
       properties:
@@ -2234,6 +2303,9 @@ components:
         gender:
           type: [string, "null"]
           maxLength: 40
+        pronouns:
+          type: [string, "null"]
+          maxLength: 40
         visibility:
           type: string
           enum: [hidden, visible]
@@ -2246,6 +2318,24 @@ components:
         occupation:
           type: [string, "null"]
           maxLength: 120
+        job_title:
+          type: [string, "null"]
+          maxLength: 120
+        company_name:
+          type: [string, "null"]
+          maxLength: 120
+          description: Employer. Optional and NEVER exposed to other members (owner-only).
+        school_or_institution:
+          type: [string, "null"]
+          maxLength: 160
+        looking_for_text:
+          type: [string, "null"]
+          maxLength: 600
+        children_count:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 30
+          description: Optional; owner-only. No other child detail is stored or exposed.
         height_cm:
           type: [integer, "null"]
           minimum: 100
@@ -2256,9 +2346,18 @@ components:
         languages_spoken:
           type: array
           maxItems: 15
+          description: Legacy free-text languages, retained for backward compatibility. Prefer `languages`.
           items:
             type: string
             maxLength: 40
+        languages:
+          type: array
+          maxItems: 15
+          description: |
+            Canonical structured languages. `code` must be a supported taxonomy
+            code; `proficiency` and `primary` are optional (at most one primary).
+          items:
+            $ref: "#/components/schemas/Language"
         smoking:
           type: [string, "null"]
           enum: [never, occasionally, regularly, null]
@@ -2287,6 +2386,10 @@ components:
               enum: [hidden, visible]
             options:
               $ref: "#/components/schemas/ProfileOptionSelections"
+            prompts:
+              type: array
+              items:
+                $ref: "#/components/schemas/PromptAnswer"
             completion:
               $ref: "#/components/schemas/Completion"
     OwnerProfileResponse:
@@ -2329,6 +2432,72 @@ components:
         type: array
         items:
           type: string
+    Language:
+      type: object
+      required: [code]
+      description: |
+        A structured language entry. On write, only `code` is required (`proficiency`
+        and `primary` optional; at most one primary). On read, `label` is included.
+      properties:
+        code:
+          type: string
+          description: Supported taxonomy code (ISO 639-1), e.g. "en".
+        label:
+          type: string
+          readOnly: true
+          description: Human-readable label from the taxonomy (read-only).
+        proficiency:
+          type: [string, "null"]
+          enum: [native, fluent, conversational, learning, null]
+        primary:
+          type: boolean
+    ProfileLocation:
+      type: object
+      required: [precision]
+      description: |
+        Safe, approximate location metadata for presentation — never raw
+        coordinates. Viewer-relative `distance_km` is supplied separately in status.
+      properties:
+        city:
+          type: [string, "null"]
+        country_code:
+          type: [string, "null"]
+        precision:
+          type: string
+          enum: [approximate]
+    ProfileInterest:
+      type: object
+      required: [slug, label]
+      properties:
+        slug:
+          type: string
+        label:
+          type: string
+        category:
+          type: [string, "null"]
+    PromptAnswer:
+      type: object
+      required: [key, prompt, answer, position]
+      properties:
+        key:
+          type: string
+        prompt:
+          type: string
+          description: The prompt text (copy) at read time.
+        answer:
+          type: string
+        position:
+          type: integer
+          minimum: 0
+    PromptAnswerInput:
+      type: object
+      required: [key, answer]
+      properties:
+        key:
+          type: string
+        answer:
+          type: string
+          maxLength: 300
     PublicProfilePhoto:
       type: object
       required: [position, url, url_expires_in]
@@ -2363,11 +2532,23 @@ components:
           type: [string, "null"]
         gender:
           type: [string, "null"]
+        pronouns:
+          type: [string, "null"]
         country_code:
           type: [string, "null"]
         city:
           type: [string, "null"]
+        location:
+          oneOf:
+            - $ref: "#/components/schemas/ProfileLocation"
+            - type: "null"
         occupation:
+          type: [string, "null"]
+        job_title:
+          type: [string, "null"]
+        school_or_institution:
+          type: [string, "null"]
+        looking_for_text:
           type: [string, "null"]
         height_cm:
           type: [integer, "null"]
@@ -2375,8 +2556,14 @@ components:
           type: [string, "null"]
         languages_spoken:
           type: array
+          description: Legacy free-text languages, retained for backward compatibility.
           items:
             type: string
+        languages:
+          type: array
+          description: Canonical structured languages (with taxonomy label).
+          items:
+            $ref: "#/components/schemas/Language"
         smoking:
           type: [string, "null"]
         drinking:
@@ -2391,6 +2578,10 @@ components:
           items:
             $ref: "#/components/schemas/PublicProfilePhoto"
         options:
+          description: |
+            Selections for public_profile-visibility groups. On the profile-detail
+            endpoint this ALSO includes matches_only groups when an active Match
+            exists. company_name and owner-only groups are never included.
           $ref: "#/components/schemas/ProfileOptionSelections"
     Compatibility:
       type: object
@@ -2415,7 +2606,7 @@ components:
         Viewer-relative status signals, recomputed per request. Present only on the
         discovery feed and the single-profile detail endpoint — NOT on match or
         conversation payloads, which carry the base public profile only.
-      required: [verified, online, last_active_at, distance_km, hook_state]
+      required: [verified, online, active_today, new_here, hook_tonight_active, last_active_at, distance_km, hook_state]
       properties:
         verified:
           type: boolean
@@ -2424,6 +2615,15 @@ components:
             (email or phone). This is CONTACT verification, not photo/identity
             ("it's really them") verification, which does not exist yet — treat it
             as a "reachable" signal rather than a strong trust badge.
+        active_today:
+          type: boolean
+          description: An active brand session was used within the last 24 hours.
+        new_here:
+          type: boolean
+          description: The member's profile was created within the last 7 days.
+        hook_tonight_active:
+          type: boolean
+          description: The member currently has a live Hook Tonight availability state.
         hook_state:
           type: string
           enum: [available, pending, hooked, unavailable]
@@ -2474,12 +2674,32 @@ components:
             $ref: "#/components/schemas/DiscoveryProfile"
         next_cursor:
           type: [string, "null"]
+    ProfileDetail:
+      description: |
+        The rich single-profile view (GET /profiles/:id): the public profile with
+        viewer-relative status, plus the heavier detail-only sections (prompts and a
+        categorized interests view). matches_only option groups appear under
+        `options` only when an active Match exists between the viewer and member.
+      allOf:
+        - $ref: "#/components/schemas/ProfileWithStatus"
+        - type: object
+          required: [prompts, interests]
+          properties:
+            prompts:
+              type: array
+              items:
+                $ref: "#/components/schemas/PromptAnswer"
+            interests:
+              type: array
+              description: Categorized interests derived from the `interests` group's selections.
+              items:
+                $ref: "#/components/schemas/ProfileInterest"
     ProfileDetailResponse:
       type: object
       required: [profile]
       properties:
         profile:
-          $ref: "#/components/schemas/ProfileWithStatus"
+          $ref: "#/components/schemas/ProfileDetail"
     ProfilePreferencesUpdate:
       type: object
       properties:
@@ -2643,7 +2863,7 @@ components:
           $ref: "#/components/schemas/ProfileConfiguration"
     ProfileConfiguration:
       type: object
-      required: [profile_fields, preference_fields, collections, option_groups]
+      required: [profile_fields, preference_fields, collections, option_groups, prompts]
       properties:
         profile_fields:
           type: array
@@ -2661,6 +2881,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ConfiguredOptionGroup"
+        prompts:
+          type: array
+          description: Brand-enabled prompt definitions a member may answer.
+          items:
+            $ref: "#/components/schemas/ConfiguredPrompt"
     ConfiguredField:
       type: object
       required: [key, label, required]
@@ -2688,7 +2913,7 @@ components:
           type: boolean
         visibility:
           type: string
-          enum: [owner_only, public_profile]
+          enum: [owner_only, public_profile, matches_only]
         options:
           type: array
           items:
@@ -2699,6 +2924,18 @@ components:
                 type: string
               label:
                 type: string
+              category:
+                type: [string, "null"]
+    ConfiguredPrompt:
+      type: object
+      required: [key, text]
+      properties:
+        key:
+          type: string
+        text:
+          type: string
+        category:
+          type: [string, "null"]
     IncompleteProfileError:
       allOf:
         - $ref: "#/components/schemas/ErrorResponse"

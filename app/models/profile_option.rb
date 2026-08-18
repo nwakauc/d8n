@@ -14,6 +14,9 @@ class ProfileOption < ApplicationRecord
   validates :code, presence: true, format: { with: CODE_FORMAT },
     uniqueness: { scope: :profile_option_group_id, conditions: -> { kept } }
   validates :label, presence: true, length: { maximum: 120 }
+  # Optional taxonomy grouping (e.g. interest categories food/music/travel). Only
+  # meaningful for groups that opt into categorized options; null otherwise.
+  validates :category, length: { maximum: 40 }, allow_blank: true
   validates :position, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :group_matches_brand
   validate :code_is_immutable, on: :update

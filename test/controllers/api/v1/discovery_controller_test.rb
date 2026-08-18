@@ -80,6 +80,21 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_nil profile.fetch("last_active_at")
     assert_nil profile.fetch("distance_km")
     assert_equal "available", profile.fetch("hook_state")
+    # New additive badges are present and honestly falsy for a plain new candidate,
+    # except new_here which is true for a just-created profile.
+    assert_not profile.fetch("active_today")
+    assert profile.fetch("new_here")
+    assert_not profile.fetch("hook_tonight_active")
+  end
+
+  test "surfaces a live Hook Tonight availability badge on discovery" do
+    candidate = create_candidate(display_name: "Sam")
+    HookTonight::Activate.call(user: candidate.user, brand: @brand)
+
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert JSON.parse(response.body).fetch("profiles").sole.fetch("hook_tonight_active")
   end
 
   test "a live outgoing hook removes the target from discovery" do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_18_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_18_020200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -458,6 +458,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_010000) do
 
   create_table "profile_options", force: :cascade do |t|
     t.bigint "brand_id", null: false
+    t.string "category", limit: 40
     t.string "code", limit: 80, null: false
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
@@ -468,6 +469,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_010000) do
     t.datetime "updated_at", null: false
     t.index ["brand_id"], name: "index_profile_options_on_brand_id"
     t.index ["id", "profile_option_group_id", "brand_id"], name: "idx_profile_options_id_group_brand", unique: true
+    t.index ["profile_option_group_id", "category"], name: "index_profile_options_on_group_and_category", where: "(category IS NOT NULL)"
     t.index ["profile_option_group_id", "code"], name: "idx_profile_options_active_code", unique: true, where: "(deleted_at IS NULL)"
     t.index ["profile_option_group_id"], name: "index_profile_options_on_profile_option_group_id"
     t.check_constraint "\"position\" >= 0", name: "chk_profile_options_position"
@@ -532,13 +534,47 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_010000) do
     t.index ["user_id"], name: "index_profile_preferences_on_user_id"
   end
 
+  create_table "profile_prompt_answers", force: :cascade do |t|
+    t.text "answer", null: false
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.integer "position", default: 0, null: false
+    t.bigint "profile_id", null: false
+    t.bigint "profile_prompt_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id"], name: "index_profile_prompt_answers_on_brand_id"
+    t.index ["profile_id", "profile_prompt_id"], name: "idx_profile_prompt_answers_active", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["profile_id"], name: "index_profile_prompt_answers_on_profile_id"
+    t.index ["profile_prompt_id"], name: "index_profile_prompt_answers_on_profile_prompt_id"
+    t.check_constraint "\"position\" >= 0", name: "chk_profile_prompt_answers_position"
+  end
+
+  create_table "profile_prompts", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.string "category", limit: 40
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.string "key", limit: 80, null: false
+    t.integer "position", default: 0, null: false
+    t.integer "status", default: 0, null: false
+    t.string "text", limit: 160, null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "key"], name: "idx_profile_prompts_active_key", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["brand_id"], name: "index_profile_prompts_on_brand_id"
+    t.index ["id", "brand_id"], name: "idx_profile_prompts_on_id_brand", unique: true
+    t.check_constraint "\"position\" >= 0", name: "chk_profile_prompts_position"
+  end
+
   create_table "profiles", force: :cascade do |t|
     t.text "bio"
     t.date "birthdate"
     t.string "body_type", limit: 80
     t.bigint "brand_id", null: false
     t.bigint "brand_membership_id", null: false
+    t.integer "children_count"
     t.string "city", limit: 120
+    t.string "company_name", limit: 120
     t.string "country_code", limit: 2
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
@@ -547,10 +583,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_010000) do
     t.string "fitness", limit: 32
     t.string "gender"
     t.integer "height_cm"
+    t.string "job_title", limit: 120
+    t.jsonb "languages", default: [], null: false
     t.jsonb "languages_spoken", default: [], null: false
+    t.text "looking_for_text"
     t.jsonb "metadata", default: {}, null: false
     t.string "occupation", limit: 120
+    t.string "pronouns", limit: 40
     t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.string "school_or_institution", limit: 160
     t.string "smoking", limit: 32
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
@@ -566,6 +607,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_010000) do
     t.index ["public_id"], name: "index_profiles_on_public_id", unique: true
     t.index ["user_id", "brand_id"], name: "index_profiles_on_user_id_and_brand_id", unique: true, where: "(deleted_at IS NULL)"
     t.index ["user_id"], name: "index_profiles_on_user_id"
+    t.check_constraint "children_count IS NULL OR children_count >= 0 AND children_count <= 30", name: "chk_profiles_children_count"
   end
 
   create_table "reports", force: :cascade do |t|
@@ -717,6 +759,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_010000) do
   add_foreign_key "profile_preferences", "profiles"
   add_foreign_key "profile_preferences", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_preferences_profile_tenant"
   add_foreign_key "profile_preferences", "users"
+  add_foreign_key "profile_prompt_answers", "brands"
+  add_foreign_key "profile_prompt_answers", "profile_prompts", column: ["profile_prompt_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_prompt_answers_prompt_tenant"
+  add_foreign_key "profile_prompt_answers", "profiles", column: ["profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_prompt_answers_profile_tenant"
+  add_foreign_key "profile_prompts", "brands"
   add_foreign_key "profiles", "brand_memberships"
   add_foreign_key "profiles", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_profiles_membership_tenant"
   add_foreign_key "profiles", "brands"

@@ -310,6 +310,29 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ "error" => "profile_unavailable" }, JSON.parse(response.body))
   end
 
+  test "detail exposes prompts and interests but never company_name or matches_only without a match" do
+    Profiles::HookusProfileCatalog.install!(brand: @brand)
+    require_only_public_options
+    target = create_candidate(display_name: "Sam")
+    target.update!(company_name: "Secret Corp")
+    Profiles::OptionSelections.replace!(profile: target, selections: {
+      "intents" => %w[ hookups ], "vibes" => %w[ chill ],
+      "interests" => %w[ foodie ], "physical_affection" => %w[ high ]
+    })
+    Profiles::PromptAnswers.replace!(profile: target, answers: [ { "key" => "perfect_night", "answer" => "Live music." } ])
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    assert_response :success
+    profile = JSON.parse(response.body).fetch("profile")
+    assert_equal %w[ foodie ], profile.fetch("interests").map { |i| i.fetch("slug") }
+    assert_equal [ "Live music." ], profile.fetch("prompts").map { |p| p.fetch("answer") }
+    # Sensitive/owner-only data never leaks to a non-matched viewer.
+    assert_not profile.key?("company_name")
+    assert_not_includes response.body, "Secret Corp"
+    assert_not profile.fetch("options").key?("physical_affection")
+  end
+
   private
 
   def bearer_headers(token)

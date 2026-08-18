@@ -21,6 +21,8 @@ class Brand < ApplicationRecord
   has_many :profile_option_groups, dependent: :restrict_with_exception
   has_many :profile_options, dependent: :restrict_with_exception
   has_many :profile_option_selections, dependent: :restrict_with_exception
+  has_many :profile_prompts, dependent: :restrict_with_exception
+  has_many :profile_prompt_answers, dependent: :restrict_with_exception
   has_many :profile_locations, dependent: :restrict_with_exception
   has_many :likes, dependent: :restrict_with_exception
   has_many :profile_passes, dependent: :restrict_with_exception

@@ -105,4 +105,33 @@ class ProfileTest < ActiveSupport::TestCase
     assert profile.errors[:height_cm].present?
     assert profile.errors[:smoking].present?
   end
+
+  test "new rich fields are optional, normalized, and length/range validated" do
+    brand = Brand.create!(slug: "hookus", name: "HookUs")
+    user = User.create!
+    membership = BrandMembership.create!(user:, brand:)
+
+    # A minimal profile with none of the new fields remains valid (existing users).
+    bare = Profile.new(user:, brand:, brand_membership: membership)
+    assert bare.valid?, bare.errors.full_messages.to_sentence
+
+    profile = Profile.new(
+      user:, brand:, brand_membership: membership,
+      pronouns: " she/her ", job_title: " Engineer ", looking_for_text: " Someone fun ",
+      children_count: 2, languages: [ { "code" => "EN", "primary" => true } ]
+    )
+    assert profile.valid?, profile.errors.full_messages.to_sentence
+    assert_equal "she/her", profile.pronouns
+    assert_equal "Engineer", profile.job_title
+    assert_equal "Someone fun", profile.looking_for_text
+    assert_equal [ { "code" => "en", "primary" => true } ], profile.languages
+
+    profile.looking_for_text = "x" * 601
+    profile.children_count = 99
+    profile.languages = [ { "code" => "zz" } ]
+    assert_not profile.valid?
+    assert profile.errors[:looking_for_text].present?
+    assert profile.errors[:children_count].present?
+    assert profile.errors[:languages].present?
+  end
 end

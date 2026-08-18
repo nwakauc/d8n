@@ -163,6 +163,49 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
     assert Profile.last.draft?
   end
 
+  test "accepts the new optional identity and structured language fields" do
+    patch "/api/v1/profile",
+      headers: bearer_headers(@token),
+      params: {
+        display_name: "Ada", pronouns: "she/her", job_title: "Engineer",
+        company_name: "D8N", school_or_institution: "UCT",
+        looking_for_text: "Someone curious.", children_count: 1,
+        languages: [ { code: "en", proficiency: "fluent", primary: true }, { code: "zu" } ]
+      }
+
+    assert_response :success
+    profile = JSON.parse(response.body).fetch("profile")
+    assert_equal "she/her", profile.fetch("pronouns")
+    assert_equal "Engineer", profile.fetch("job_title")
+    assert_equal "D8N", profile.fetch("company_name")
+    assert_equal 1, profile.fetch("children_count")
+    assert_equal %w[ en zu ], profile.fetch("languages").map { |l| l.fetch("code") }
+    assert_equal "English", profile.fetch("languages").first.fetch("label")
+  end
+
+  test "rejects invalid structured languages" do
+    patch "/api/v1/profile",
+      headers: bearer_headers(@token),
+      params: { languages: [ { code: "en", primary: true }, { code: "zu", primary: true } ] }
+
+    assert_response :unprocessable_entity
+    assert_equal "invalid_profile", JSON.parse(response.body).fetch("error")
+  end
+
+  test "partial update of one field does not erase unrelated fields" do
+    patch "/api/v1/profile", headers: bearer_headers(@token),
+      params: { display_name: "Ada", job_title: "Engineer", pronouns: "she/her" }
+    assert_response :success
+
+    patch "/api/v1/profile", headers: bearer_headers(@token), params: { bio: "Just a bio." }
+    assert_response :success
+
+    profile = Profile.last
+    assert_equal "Just a bio.", profile.bio
+    assert_equal "Engineer", profile.job_title
+    assert_equal "she/her", profile.pronouns
+  end
+
   private
 
   def bearer_headers(token)

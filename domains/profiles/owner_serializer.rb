@@ -16,18 +16,28 @@ module Profiles
         bio: profile.bio,
         birthdate: profile.birthdate&.iso8601,
         gender: profile.gender,
+        pronouns: profile.pronouns,
         country_code: profile.country_code,
         city: profile.city,
         occupation: profile.occupation,
+        job_title: profile.job_title,
+        company_name: profile.company_name,
+        school_or_institution: profile.school_or_institution,
         height_cm: profile.height_cm,
         body_type: profile.body_type,
+        looking_for_text: profile.looking_for_text,
+        children_count: profile.children_count,
+        # Legacy free-text languages (retained) + canonical structured languages.
         languages_spoken: profile.languages_spoken,
+        languages: Profiles::Languages.serialize(profile.languages),
         smoking: profile.smoking,
         drinking: profile.drinking,
         fitness: profile.fitness,
         status: profile.status,
         visibility: profile.visibility,
+        # The owner sees ALL their selections regardless of group visibility.
         options: selected_options,
+        prompts: Profiles::PromptPresenter.call(profile:),
         completion: completion_payload
       }
     end
@@ -47,7 +57,12 @@ module Profiles
 
     def completion_payload
       completion = Completion.call(profile:)
-      { complete: completion.complete?, percent: completion.percent, missing: completion.missing.map(&:to_s) }
+      {
+        complete: completion.complete?,
+        percent: completion.percent,
+        missing: completion.missing.map(&:to_s),
+        sections: completion.sections
+      }
     end
   end
 end

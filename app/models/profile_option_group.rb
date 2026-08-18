@@ -8,7 +8,13 @@ class ProfileOptionGroup < ApplicationRecord
   has_many :profile_option_selections, dependent: :restrict_with_exception
 
   enum :cardinality, { single: 0, multiple: 1 }, prefix: true
-  enum :visibility, { owner_only: 0, public_profile: 1 }, prefix: true
+  # Visibility governs who may see a group's selections:
+  #   owner_only      — only the member themselves (never serialized to others)
+  #   public_profile  — any member who can already see the profile
+  #   matches_only     — only a member with an active, still-reachable Match
+  # `matches_only` lets sensitive-but-shareable capabilities (e.g. intimacy
+  # preferences) exist without being locked into the public serializer (ADR 0017).
+  enum :visibility, { owner_only: 0, public_profile: 1, matches_only: 2 }, prefix: true
   enum :status, { active: 0, retired: 1 }, prefix: true
 
   scope :kept, -> { where(deleted_at: nil) }

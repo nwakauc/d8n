@@ -15,12 +15,20 @@ module Profiles
         age: age,
         bio: profile.bio,
         gender: profile.gender,
+        pronouns: profile.pronouns,
         country_code: profile.country_code,
         city: profile.city,
+        location: location,
         occupation: profile.occupation,
+        job_title: profile.job_title,
+        school_or_institution: profile.school_or_institution,
+        looking_for_text: profile.looking_for_text,
         height_cm: profile.height_cm,
         body_type: profile.body_type,
+        # Legacy free-text languages (retained) + canonical structured languages.
+        # `company_name` is deliberately NOT exposed to other members (owner-only).
         languages_spoken: profile.languages_spoken,
+        languages: Profiles::Languages.serialize(profile.languages),
         smoking: profile.smoking,
         drinking: profile.drinking,
         fitness: profile.fitness,
@@ -32,6 +40,15 @@ module Profiles
     private
 
     attr_reader :profile
+
+    # Safe, approximate location metadata only — never raw coordinates. The
+    # viewer-relative `distance_km` is supplied separately by Profiles::StatusFields
+    # (it depends on the viewer), so it is not duplicated here.
+    def location
+      return if profile.city.blank? && profile.country_code.blank?
+
+      { city: profile.city, country_code: profile.country_code, precision: "approximate" }
+    end
 
     # Only safe display derivatives of deliverable photos are exposed to other
     # users — never the raw original, its object key, or a permanent URL. Any
