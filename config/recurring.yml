@@ -17,3 +17,7 @@ production:
     class: Media::PurgeUnattachedUploadsJob
     queue: default
     schedule: every day at 3am
+  purge_rate_limit_counters:
+    class: AbuseProtection::PurgeRateLimitCountersJob
+    queue: default
+    schedule: every hour at minute 27

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_18_020200) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_18_030000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -608,6 +608,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_020200) do
     t.index ["user_id", "brand_id"], name: "index_profiles_on_user_id_and_brand_id", unique: true, where: "(deleted_at IS NULL)"
     t.index ["user_id"], name: "index_profiles_on_user_id"
     t.check_constraint "children_count IS NULL OR children_count >= 0 AND children_count <= 30", name: "chk_profiles_children_count"
+  end
+
+  create_table "rate_limit_counters", force: :cascade do |t|
+    t.integer "count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "throttle_key", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "window_started_at", null: false
+    t.index ["expires_at"], name: "idx_rate_limit_counters_expiry"
+    t.index ["throttle_key", "window_started_at"], name: "idx_rate_limit_counters_bucket", unique: true
+    t.check_constraint "count >= 0", name: "chk_rate_limit_counters_count"
   end
 
   create_table "reports", force: :cascade do |t|

@@ -1,6 +1,8 @@
 class Api::V1::ProfilePhotosController < ApplicationController
   before_action :ensure_profile_photos_enabled!
   before_action :authenticate_user!
+  before_action -> { enforce_rate_limit!(:media_upload_intent) }, only: :create_upload
+  before_action -> { enforce_rate_limit!(:media_attach) }, only: :create
   before_action :set_active_storage_url_options, only: %i[index create create_upload]
 
   def index

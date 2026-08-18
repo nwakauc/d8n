@@ -50,6 +50,20 @@ Rails.application.configure do
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   config.assume_ssl = true
 
+  # Client IP for abuse protection. The deployment topology is
+  # Cloudflare -> kamal-proxy -> Puma; the immediate peer is a local/private proxy
+  # that APPENDS the real client IP to X-Forwarded-For. Rails' default
+  # ActionDispatch::RemoteIp trusts only loopback/private ranges as proxies, so it
+  # returns the rightmost untrusted (real) address and a client-supplied
+  # X-Forwarded-For cannot spoof it. For non-standard topologies, additional proxy
+  # CIDRs may be trusted via D8N_TRUSTED_PROXIES (comma-separated).
+  extra_trusted_proxies = ENV["D8N_TRUSTED_PROXIES"].to_s.split(",").map(&:strip).reject(&:blank?)
+  if extra_trusted_proxies.any?
+    require "ipaddr"
+    config.action_dispatch.trusted_proxies =
+      ActionDispatch::RemoteIp::TRUSTED_PROXIES + extra_trusted_proxies.map { |proxy| IPAddr.new(proxy) }
+  end
+
   # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
   config.force_ssl = true
 

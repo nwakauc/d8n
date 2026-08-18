@@ -523,6 +523,8 @@ paths:
             schema:
               $ref: "#/components/schemas/ProfileUpdate"
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "200":
           description: Updated owner profile and resumable onboarding state.
           content:
@@ -566,6 +568,8 @@ paths:
             schema:
               $ref: "#/components/schemas/ProfilePreferencesUpdate"
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "200":
           description: Updated preferences.
           content:
@@ -603,6 +607,8 @@ paths:
                     items:
                       type: string
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "200":
           description: Updated owner profile.
           content:
@@ -659,6 +665,8 @@ paths:
                   items:
                     $ref: "#/components/schemas/PromptAnswerInput"
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "200":
           description: Updated owner profile.
           content:
@@ -805,6 +813,8 @@ paths:
                   type: integer
                   minimum: 0
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "201":
           description: Photo accepted for processing/review.
           content:
@@ -857,6 +867,8 @@ paths:
                 filename:
                   type: string
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "201":
           description: Short-lived upload authorization.
           content:
@@ -934,6 +946,8 @@ paths:
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "200":
           description: Strategy-ranked profiles and an opaque next cursor.
           content:
@@ -1019,6 +1033,8 @@ paths:
       parameters:
         - $ref: "#/components/parameters/PublicProfileId"
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "200":
           description: Existing like returned idempotently.
           content:
@@ -1045,6 +1061,8 @@ paths:
       parameters:
         - $ref: "#/components/parameters/PublicProfileId"
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "200":
           description: Existing pass returned idempotently.
           content:
@@ -1267,6 +1285,8 @@ paths:
             schema:
               $ref: "#/components/schemas/HookTonightActivateRequest"
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "201":
           description: Hook Tonight is active.
           content:
@@ -1296,6 +1316,8 @@ paths:
         profile, existing Hooks, matches, and conversations are untouched.
         Idempotent — deactivating when already off is a safe no-op.
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "204":
           description: Hook Tonight is off (or was already off).
         "401":
@@ -1328,6 +1350,8 @@ paths:
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "200":
           description: Available-tonight profiles and an opaque next cursor.
           content:
@@ -1441,6 +1465,8 @@ paths:
             schema:
               $ref: "#/components/schemas/ReportRequest"
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "200":
           description: An open report from this reporter against this target already exists.
           content:
@@ -1590,6 +1616,8 @@ paths:
             schema:
               $ref: "#/components/schemas/SendMessageRequest"
       responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "201":
           description: The message was persisted.
           content:
@@ -1978,7 +2006,12 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
     RateLimited:
-      description: Authentication rate limit exceeded.
+      description: >-
+        Rate limit exceeded (`rate_limited`). Returned by authentication throttles
+        and by the generic abuse-protection layer on write/read surfaces
+        (messaging, likes, passes, reports, media uploads, profile writes,
+        discovery, Hook Tonight). The 🔥 Hook send endpoint has its own distinct
+        product limit (`hook_rate_limited`) and is documented separately.
       headers:
         Retry-After:
           schema:

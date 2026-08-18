@@ -1,5 +1,6 @@
 class Api::V1::DiscoveryController < ApplicationController
   before_action :authenticate_user!
+  before_action -> { enforce_rate_limit!(:discovery) }, only: :index
   before_action :set_active_storage_url_options, only: :index
 
   def index

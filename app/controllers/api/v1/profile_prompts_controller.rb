@@ -1,5 +1,6 @@
 class Api::V1::ProfilePromptsController < ApplicationController
   before_action :authenticate_user!
+  before_action -> { enforce_rate_limit!(:profile_write) }, only: :update
 
   # GET /api/v1/profile/prompts — the member's current answers plus the owner
   # profile (so a client can render the prompts section standalone).

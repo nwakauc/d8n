@@ -1,4 +1,6 @@
 class ApplicationController < ActionController::API
+  include RateLimitable
+
   before_action :set_current_context
 
   private

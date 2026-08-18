@@ -1,5 +1,6 @@
 class Api::V1::ProfilePreferencesController < ApplicationController
   before_action :authenticate_user!
+  before_action -> { enforce_rate_limit!(:profile_write) }, only: :update
 
   def show
     preference = Profiles::CurrentPreferences.find(user: Current.user, brand: Current.brand)

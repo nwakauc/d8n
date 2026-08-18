@@ -1,5 +1,6 @@
 class Api::V1::MessagesController < ApplicationController
   before_action :authenticate_user!
+  before_action -> { enforce_rate_limit!(:send_message) }, only: :create
 
   def index
     result = Messaging::MessageList.call(

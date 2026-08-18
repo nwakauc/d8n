@@ -1,5 +1,7 @@
 class Api::V1::HookTonightController < ApplicationController
   before_action :authenticate_user!
+  before_action -> { enforce_rate_limit!(:hook_tonight_activation) }, only: %i[create destroy]
+  before_action -> { enforce_rate_limit!(:hook_tonight_discovery) }, only: :discovery
   # Discovery serializes counterpart profiles (photos), so it needs signed media URLs.
   before_action :set_active_storage_url_options, only: :discovery
 

@@ -1,5 +1,6 @@
 class Api::V1::ReportsController < ApplicationController
   before_action :authenticate_user!
+  before_action -> { enforce_rate_limit!(:report_profile) }, only: :create
 
   def create
     result = Trust::ReportProfile.call(

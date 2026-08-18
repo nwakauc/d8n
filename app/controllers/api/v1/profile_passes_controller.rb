@@ -1,5 +1,6 @@
 class Api::V1::ProfilePassesController < ApplicationController
   before_action :authenticate_user!
+  before_action -> { enforce_rate_limit!(:pass_profile) }, only: :create
 
   def create
     result = Matching::PassProfile.call(
