@@ -883,6 +883,61 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
           $ref: "#/components/responses/InvalidInput"
+  /api/v1/profiles/{profile_id}:
+    get:
+      operationId: getPublicProfile
+      tags: [Matching]
+      summary: Get one member's safe public profile by its public UUID
+      description: |
+        Authoritative, refreshable detail for a single profile, resolved from the
+        stable public UUID surfaced by discovery (`profiles[].id`). This is the
+        source of truth for a profile page: a browser refresh, a new tab, or a
+        deep link all resolve independently — no client-side cache is required
+        for correctness.
+
+        Requires an authenticated member with an active, discoverable profile.
+        "Public" means *safe information visible to another eligible authenticated
+        member* — it is NOT unauthenticated web-public data.
+
+        The response is the same safe public profile shape as discovery, minus the
+        ranking-only `compatibility` payload. `photos` are safe, EXIF-stripped
+        display derivatives with short-lived signed URLs, in deterministic
+        position order; raw originals and storage keys are never exposed.
+
+        Availability enforces the SAME fundamental safety rules as discovery —
+        brand isolation, active/visible lifecycle, suspension, account closure,
+        soft-deletion, and blocking in either direction — but deliberately does
+        NOT reapply reciprocal age/gender/distance, so a profile reachable from
+        discovery keeps resolving even after ranking or dating preferences change.
+        Every unavailable case (unknown, cross-brand, hidden, inactive, suspended,
+        closed, discarded, or blocked either way) returns the same neutral
+        `profile_unavailable` (404) and never reveals why.
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      responses:
+        "200":
+          description: The target member's safe public profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileDetailResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Current profile is not active and discoverable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: |
+            Target is unavailable. Unknown, cross-brand, hidden, inactive,
+            suspended, closed, discarded, and blocked targets all share the
+            neutral `profile_unavailable` response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/profiles/{profile_id}/likes:
     post:
       operationId: likeProfile
@@ -2047,6 +2102,12 @@ components:
             $ref: "#/components/schemas/DiscoveryProfile"
         next_cursor:
           type: [string, "null"]
+    ProfileDetailResponse:
+      type: object
+      required: [profile]
+      properties:
+        profile:
+          $ref: "#/components/schemas/PublicProfile"
     ProfilePreferencesUpdate:
       type: object
       properties:

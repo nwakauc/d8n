@@ -167,8 +167,9 @@ After authentication, a brand frontend should:
 3. Read or create the profile through `GET/PATCH /api/v1/profile`.
 4. Update preferences, controlled options, photos, and location through their focused endpoints.
 5. Use the profile `completion` object and activate through `POST /api/v1/profile/publication`.
-6. Request discovery only after activation, then use returned public profile UUIDs for likes, passes, and blocks.
-7. Use a public match UUID with `POST /api/v1/matches/:match_id/conversation`, then list started chats through `GET /api/v1/conversations`.
+6. Request discovery only after activation, then use returned public profile UUIDs for likes, passes, blocks, and profile detail.
+7. Open a profile page from a public profile UUID through `GET /api/v1/profiles/:profile_id`; treat this as the source of truth so refresh, new-tab, and deep-link navigation resolve without a client-side cache.
+8. Use a public match UUID with `POST /api/v1/matches/:match_id/conversation`, then list started chats through `GET /api/v1/conversations`.
 
 Frontends should render from `profile/configuration`; they should not hardcode HookUs option codes as a universal D8N schema. New semantic capabilities still require a D8N backend contract rather than arbitrary client fields.
 
@@ -200,6 +201,29 @@ Phase 5 Slice 1 exposes conversation metadata only. No frontend should simulate 
 `POST /api/v1/profiles/:profile_id/block` creates a directional block idempotently. Either block direction removes both profiles from each other's discovery, interaction, match-list, and conversation surfaces. Creating a block soft-deletes existing likes in both directions and ends an active match.
 
 `DELETE /api/v1/profiles/:profile_id/block` removes only the current profile's outgoing block. It is idempotent and returns `204` for absent, unknown, cross-brand, self, and soft-deleted targets without revealing whether the target exists. Unblocking permits future eligible interaction but never restores earlier likes or reactivates an ended match. Existing conversation metadata may become visible again under the ended-match read-only history policy; no message-content API exists yet.
+
+## Profile Detail
+
+`GET /api/v1/profiles/:profile_id` returns one member's safe public profile from
+its public UUID (the `id` discovery already returns), as `{ "profile": { … } }`.
+It is the authoritative, refreshable source for a profile page: a browser
+refresh, a new tab, and a deep link all resolve independently, so the frontend
+must not depend on a client-side Discover cache for correctness.
+
+The body is the same safe public shape as a discovery entry — public id, display
+name, derived age, bio, coarse location, occupation, gender, height/body-type,
+languages, lifestyle flags, deterministically ordered safe photos, and public
+option groups — minus the ranking-only `compatibility` payload. No email, phone,
+credentials, internal ids, coordinates, raw media, or storage keys are exposed.
+
+Availability enforces the same fundamental safety rules as discovery (brand
+isolation, active/visible lifecycle, suspension, closure, discard, and blocks in
+either direction) but deliberately drops the reciprocal age/gender/distance
+ranking, so a profile reachable from Discover keeps resolving even after ranking
+or dating preferences change. It requires an active, discoverable caller (`403`
+`discoverable_profile_required` otherwise). Every unavailable case — unknown,
+cross-brand, hidden, inactive, suspended, closed, discarded, or blocked either
+way — returns a single neutral `404` `profile_unavailable` and never reveals why.
 
 ## Pagination
 

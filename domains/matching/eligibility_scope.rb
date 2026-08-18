@@ -23,8 +23,9 @@ module Matching
     end
 
     def call
-      scope = lifecycle_scope
-      scope = Trust::BlockPolicy.exclude_profiles(scope:, viewer:)
+      # Fundamental visibility/safety rules first (shared with direct profile
+      # retrieval), then discovery-only reciprocal ranking constraints on top.
+      scope = VisibilityScope.call(brand:, viewer:)
       scope = reciprocal_gender_scope(scope)
       scope = reciprocal_age_scope(scope)
       distance_scope(scope)
@@ -33,17 +34,6 @@ module Matching
     private
 
     attr_reader :brand, :viewer, :viewer_preference, :location_cutoff
-
-    def lifecycle_scope
-      brand.profiles.kept.active.visible
-        .where.not(id: viewer.id)
-        .joins(:user, :brand_membership, :profile_preference)
-        .merge(User.kept.active)
-        .merge(BrandMembership.kept.active)
-        .where(profile_preferences: { deleted_at: nil })
-        .where.not(birthdate: nil)
-        .where("profiles.birthdate <= ?", Profile::MINIMUM_AGE.years.ago.to_date)
-    end
 
     def reciprocal_gender_scope(scope)
       scope.where(gender: viewer_preference.interested_in)
