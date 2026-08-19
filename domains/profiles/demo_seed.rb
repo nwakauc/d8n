@@ -85,13 +85,36 @@ module Profiles
         Builder::Outcome.new(created: identifier.nil?, photos_attached: to_attach)
       end
 
-      # Ensure the HookUs brand and its capability catalogue exist so option/prompt
-      # selections validate. Idempotent; mirrors brands:seed_hookus_dev.
+      # Resolve the HookUs brand and make sure its capability catalogue is present
+      # so option/prompt selections validate. A dry run is strictly READ-ONLY: it
+      # never creates the brand nor rewrites the catalogue. On an already-configured
+      # env (e.g. staging, where the catalogue exists) the install is skipped, so a
+      # rerun neither rewrites catalogue rows nor races a second container on them.
       def resolve_brand!
-        brand = Brand.kept.find_or_create_by!(slug: BRAND_SLUG) { |b| b.name = "HookUs" }
+        brand = Brand.kept.find_by(slug: BRAND_SLUG)
+
+        if brand.nil?
+          raise Catalog::Error, "HookUs brand (slug=#{BRAND_SLUG}) not found" if @dry_run
+
+          brand = Brand.create!(slug: BRAND_SLUG, name: "HookUs",
+            auth_methods: %w[ phone_password email_password ])
+        end
+
+        install_catalog!(brand) unless @dry_run || catalog_ready?(brand)
+        brand
+      end
+
+      def install_catalog!(brand)
         brand.update!(auth_methods: %w[ phone_password email_password ]) if brand.auth_methods.blank?
         Profiles::HookusProfileCatalog.install!(brand:)
-        brand
+      end
+
+      # The catalogue is ready when every option group the seeder writes to already
+      # exists for the brand (intents/vibes/interests + the lifestyle groups).
+      def catalog_ready?(brand)
+        required = (%w[ intents vibes interests pets cannabis ] + Content::LIFESTYLE_KEYS).uniq
+        present = brand.profile_option_groups.kept.where(key: required).pluck(:key)
+        (required - present).empty?
       end
 
       def group_indices(people)

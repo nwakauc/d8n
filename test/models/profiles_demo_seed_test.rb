@@ -196,12 +196,26 @@ module Profiles
     end
 
     test "dry run reports intentions without writing anything" do
-      write_dir("ladies/Maya-27", %w[ 1.jpeg 2.jpeg ])
-      assert_no_difference [ "User.count", "Profile.count", "ProfilePhoto.count" ] do
+      write_dir("ladies/Maya-27", %w[ 1.jpeg ])
+      seed! # establishes the brand, catalogue, and Maya
+      write_file("guys/Jason-34.jpeg") # a not-yet-seeded person
+
+      assert_no_difference [ "User.count", "Profile.count", "ProfilePhoto.count",
+                             "ProfileOptionGroup.count", "Brand.count" ] do
         summary = DemoSeed.call(root: @root, dry_run: true, io: StringIO.new)
         assert summary.dry_run
-        assert_equal 1, summary.created
-        assert_equal 2, summary.photos_attached
+        assert_equal 1, summary.created, "Jason would be created"
+        assert_equal 1, summary.updated, "Maya already exists"
+        assert_equal 1, summary.photos_attached, "only Jason's image would attach"
+      end
+    end
+
+    test "dry run against an unconfigured brand fails read-only rather than creating it" do
+      write_dir("ladies/Maya-27", %w[ 1.jpeg ])
+      assert_no_difference "Brand.count" do
+        assert_raises(DemoSeed::Catalog::Error) do
+          DemoSeed.call(root: @root, dry_run: true, io: StringIO.new)
+        end
       end
     end
 

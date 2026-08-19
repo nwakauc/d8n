@@ -28,3 +28,15 @@ bundle exec kamal build push -d staging
 bundle exec kamal deploy -d staging
 bundle exec kamal details -d staging
 curl -I https://staging-api.d8n.tech
+
+
+
+SEED THE DB
+
+. Dry-run inside the container (writes nothing):
+  kamal app exec -d staging "bash -c 'DRY_RUN=1 SEED_DEMO_ALLOW_PRODUCTION=1 bin/rails hookus:seed_demo_profiles'"
+  Expect: Profiles to create: 52 · Ladies: 32 · Guys: 20 · Photos to attach: 98.
+
+  4. Real run:
+  kamal app exec -d staging "bash -c 'SEED_DEMO_ALLOW_PRODUCTION=1 bin/rails hookus:seed_demo_profiles'"
+  
