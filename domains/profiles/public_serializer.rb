@@ -62,6 +62,9 @@ module Profiles
 
       photos.map do |photo|
         {
+          # Stable, opaque photo id — the reference a viewer uses to report this
+          # specific photo. Never the internal id or R2 object key.
+          id: photo.public_id,
           position: photo.position,
           url: photo.display_image.url(expires_in: Profiles::PhotoUpload::RETRIEVAL_URL_EXPIRES_IN),
           url_expires_in: Profiles::PhotoUpload::RETRIEVAL_URL_EXPIRES_IN.to_i

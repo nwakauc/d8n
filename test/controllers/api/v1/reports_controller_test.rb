@@ -16,7 +16,7 @@ class Api::V1::ReportsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "files a report and records a security event" do
-    assert_difference -> { Report.count } => 1, -> { SecurityEvent.where(event_type: "trust.profile_reported").count } => 1 do
+    assert_difference -> { Report.count } => 1, -> { SecurityEvent.where(event_type: "trust.report_created").count } => 1 do
       post "/api/v1/profiles/#{@target.public_id}/report",
         headers: bearer_headers(@token), params: { reason: "harassment", note: "sent abusive messages" }
     end

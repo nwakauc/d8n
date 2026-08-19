@@ -29,7 +29,8 @@ Rails.application.routes.draw do
       get "blocks" => "profile_blocks#index"
       post "profiles/:profile_id/block" => "profile_blocks#create"
       delete "profiles/:profile_id/block" => "profile_blocks#destroy"
-      post "profiles/:profile_id/report" => "reports#create"
+      post "reports" => "reports#create"
+      post "profiles/:profile_id/report" => "reports#profile"
       namespace :admin do
         get "reports" => "reports#index"
         get "reports/:id" => "reports#show"

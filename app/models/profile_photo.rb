@@ -24,8 +24,11 @@ class ProfilePhoto < ApplicationRecord
   # policy AND with a completed safe derivative. Fails closed on anything else.
   scope :deliverable, -> { kept.visible.processing_ready }
 
+  validates :public_id, presence: true, uniqueness: true, format: { with: Profile::PUBLIC_ID_FORMAT }
   validates :position, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :profile_matches_scope
+
+  before_validation :ensure_public_id, on: :create
   # The raw-image guarantees are enforced at attach time (:create). They are not
   # re-checked on later lifecycle updates (processing, moderation, soft-delete),
   # because the raw original is intentionally purged once the derivative exists.
@@ -43,6 +46,10 @@ class ProfilePhoto < ApplicationRecord
   end
 
   private
+
+  def ensure_public_id
+    self.public_id ||= SecureRandom.uuid
+  end
 
   def profile_matches_scope
     return if profile.blank?

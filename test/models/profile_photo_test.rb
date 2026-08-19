@@ -25,6 +25,7 @@ class ProfilePhotoTest < ActiveSupport::TestCase
 
     assert_raises ActiveRecord::InvalidForeignKey do
       ProfilePhoto.insert_all!([ {
+        public_id: SecureRandom.uuid,
         profile_id: profile.id,
         user_id: user.id,
         brand_id: other_brand.id,

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_18_030000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_19_000200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -498,6 +498,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_030000) do
     t.datetime "processed_at"
     t.integer "processing_state", default: 0, null: false
     t.bigint "profile_id", null: false
+    t.string "public_id", null: false
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
@@ -508,6 +509,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_030000) do
     t.index ["brand_id"], name: "index_profile_photos_on_brand_id"
     t.index ["profile_id", "position"], name: "index_profile_photos_on_profile_id_and_position", unique: true, where: "(deleted_at IS NULL)"
     t.index ["profile_id"], name: "index_profile_photos_on_profile_id"
+    t.index ["public_id"], name: "index_profile_photos_on_public_id", unique: true
     t.index ["user_id"], name: "index_profile_photos_on_user_id"
   end
 
@@ -625,6 +627,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_030000) do
   create_table "reports", force: :cascade do |t|
     t.bigint "brand_id", null: false
     t.datetime "created_at", null: false
+    t.jsonb "evidence", default: {}, null: false
     t.text "note"
     t.integer "reason", null: false
     t.bigint "reported_profile_id", null: false
@@ -633,10 +636,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_030000) do
     t.datetime "reviewed_at"
     t.bigint "reviewed_by_admin_user_id"
     t.integer "status", default: 0, null: false
+    t.bigint "target_id"
+    t.integer "target_type", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["brand_id", "reported_profile_id"], name: "index_reports_on_brand_id_and_reported_profile_id"
-    t.index ["brand_id", "reporter_profile_id", "reported_profile_id"], name: "idx_reports_open_pair", unique: true, where: "(status = 0)"
+    t.index ["brand_id", "reporter_profile_id", "reported_profile_id"], name: "idx_reports_open_profile", unique: true, where: "((status = 0) AND (target_id IS NULL))"
     t.index ["brand_id", "status", "created_at"], name: "index_reports_on_brand_id_and_status_and_created_at"
+    t.index ["brand_id", "target_type", "created_at"], name: "index_reports_on_brand_id_and_target_type_and_created_at"
+    t.index ["brand_id", "target_type", "target_id"], name: "idx_reports_open_target", unique: true, where: "((status = 0) AND (target_id IS NOT NULL))"
     t.index ["brand_id"], name: "index_reports_on_brand_id"
     t.index ["reported_profile_id"], name: "index_reports_on_reported_profile_id"
     t.index ["reporter_profile_id"], name: "index_reports_on_reporter_profile_id"

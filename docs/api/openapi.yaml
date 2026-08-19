@@ -1443,6 +1443,67 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/ProfileOrMembershipRequired"
+  /api/v1/reports:
+    post:
+      operationId: fileReport
+      tags: [Trust]
+      summary: File a safety report against a profile or a specific piece of content
+      description: |
+        Content-level reporting foundation. The reporter is always the
+        authenticated current-brand member (never the body); the target is
+        identified by an opaque public id and the responsible profile is derived
+        server-side from it. Supported targets: a `profile`, a chat `message`
+        (reportable by a conversation participant, and still reportable after the
+        sender is blocked/suspended/closed), a `profile_media` photo (reportable
+        while the owner is visible to the viewer), and a `hook` opener (reportable
+        by its recipient).
+
+        Idempotent per open (reporter, target): a repeat returns `created: false`.
+        Distinct content from the same person can each be reported. Unknown,
+        inaccessible, and cross-brand targets all share the neutral
+        `target_unavailable` (404) response so nothing is enumerable. The response
+        reveals only that the report was received.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileReportRequest"
+      responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "200":
+          description: An open report from this reporter against this target already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileReportResponse"
+        "201":
+          description: The report was filed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileReportResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "404":
+          description: |
+            The target is unknown, inaccessible to the reporter, or belongs to
+            another brand — returned neutrally as `target_unavailable`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: |
+            Malformed input — an unknown `reason` (`invalid_reason`) or unknown
+            `target_type` (`invalid_target_type`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/profiles/{profile_id}/report:
     post:
       operationId: reportProfile
@@ -2533,7 +2594,7 @@ components:
           maxLength: 300
     PublicProfilePhoto:
       type: object
-      required: [position, url, url_expires_in]
+      required: [id, position, url, url_expires_in]
       description: |
         A safe, D8N-generated display derivative of a profile photo. It is
         decoded, re-encoded, and stripped of EXIF/GPS/other metadata. Only
@@ -2541,6 +2602,13 @@ components:
         original and its storage key are never exposed. The `url` is a
         short-lived signed URL — refetch the profile to renew it.
       properties:
+        id:
+          type: string
+          format: uuid
+          description: |
+            Stable, opaque photo id. This is the `target_id` used to report this
+            specific photo via POST /api/v1/reports; never the internal id or the
+            R2 object key.
         position:
           type: integer
           minimum: 0
@@ -3038,14 +3106,29 @@ components:
               blocked_at:
                 type: string
                 format: date-time
+    ReportReason:
+      type: string
+      description: |
+        Stable safety-reason code. Codes are stable and never renumbered; the
+        frontend maps them to display labels and may offer a tailored subset per
+        target type. `violence_or_threat`, `non_consensual_content`, and
+        `impersonation` were added in Reporting V2.
+      enum:
+        [inappropriate_content, harassment, spam, fake_profile, underage, other,
+         violence_or_threat, non_consensual_content, impersonation]
+    ReportTargetType:
+      type: string
+      description: |
+        The kind of thing being reported. `profile` reports a person; the others
+        report a specific piece of that person's content. New types are added as
+        the underlying features ship.
+      enum: [profile, message, profile_media, hook]
     ReportRequest:
       type: object
       required: [reason]
       properties:
         reason:
-          type: string
-          description: Why the profile is being reported.
-          enum: [inappropriate_content, harassment, spam, fake_profile, underage, other]
+          $ref: "#/components/schemas/ReportReason"
         note:
           type: [string, "null"]
           maxLength: 2000
@@ -3059,6 +3142,51 @@ components:
         created:
           type: boolean
           description: True when a new report was filed; false when an open report already existed.
+    FileReportRequest:
+      type: object
+      required: [target_type, reason]
+      properties:
+        target_type:
+          $ref: "#/components/schemas/ReportTargetType"
+        target_id:
+          type: [string, "null"]
+          description: |
+            Opaque public id of the target content — a message id, photo id, or
+            Hook id (a profile's public id when `target_type` is `profile`). The
+            responsible profile is always derived server-side from this target,
+            never supplied by the client.
+        reason:
+          $ref: "#/components/schemas/ReportReason"
+        details:
+          type: [string, "null"]
+          maxLength: 2000
+          description: Optional untrusted reporter context. Normalized and length-bounded.
+        block:
+          type: boolean
+          default: false
+          description: |
+            When true, the responsible profile is also blocked after the report is
+            filed. Both actions are idempotent.
+    FileReportResponse:
+      type: object
+      required: [report, created, blocked]
+      properties:
+        report:
+          type: object
+          required: [status]
+          properties:
+            status:
+              type: string
+              const: received
+              description: |
+                Acknowledgement only. Internal moderation status/notes/evidence
+                and any offender history are never exposed to the reporter.
+        created:
+          type: boolean
+          description: True when a new report was filed; false when an open report for this target already existed.
+        blocked:
+          type: boolean
+          description: True when `block` was requested and the responsible profile is now blocked.
     Match:
       type: object
       required: [id, matched_at, profile]
@@ -3298,8 +3426,8 @@ components:
     AdminReport:
       type: object
       required:
-        [id, status, reason, reporter, reported, note, resolution_note,
-         reviewed_by_admin_user_id, reviewed_at, created_at, updated_at]
+        [id, status, reason, target_type, evidence, reporter, reported, note,
+         resolution_note, reviewed_by_admin_user_id, reviewed_at, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -3307,11 +3435,21 @@ components:
           type: string
           enum: [open, reviewing, actioned, dismissed]
         reason:
-          type: string
-          enum: [inappropriate_content, harassment, spam, fake_profile, underage, other]
+          $ref: "#/components/schemas/ReportReason"
+        target_type:
+          $ref: "#/components/schemas/ReportTargetType"
+        evidence:
+          type: object
+          additionalProperties: true
+          description: |
+            Minimal, immutable moderation snapshot captured when the report was
+            filed (e.g. message/opener text, photo identity + lifecycle). Empty
+            for a plain profile report. Survives later deletion of the target.
+            Moderator-only; never contains R2 keys, storage paths, or URLs.
         reporter:
           $ref: "#/components/schemas/AdminReportParty"
         reported:
+          description: The responsible profile, derived server-side from the target.
           $ref: "#/components/schemas/AdminReportParty"
         note:
           type: [string, "null"]
