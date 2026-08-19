@@ -2303,7 +2303,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/AuthSessionResponse"
         - type: object
-          required: [identifier, onboarding]
+          required: [identifier, verification_required, onboarding]
           properties:
             identifier:
               type: object
@@ -2315,6 +2315,18 @@ components:
                 verified:
                   type: boolean
                   description: False until D8N separately proves control of the phone or email.
+            verification_required:
+              type: boolean
+              description: |
+                True whenever the session's identifier is still unverified. On
+                register the server has asynchronously dispatched a verification
+                code to `verification_channel`; on login of an unverified
+                identifier this stays true (request a fresh code via
+                `POST /auth/verification`). Login never re-sends a code by itself.
+            verification_channel:
+              type: [string, "null"]
+              enum: [phone, email, null]
+              description: The channel a verification code is (or would be) sent to; null once verified.
             onboarding:
               $ref: "#/components/schemas/ProfileOnboardingStatus"
     MeResponse:

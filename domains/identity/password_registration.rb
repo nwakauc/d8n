@@ -24,12 +24,36 @@ module Identity
       return failure(:auth_method_unavailable) unless AuthPolicy.enabled?(brand:, method: login_identifier.auth_method)
       return invalid_registration(login_identifier) unless PasswordEngine.valid?(password:)
 
-      register(login_identifier)
+      registration = register(login_identifier)
+      deliver_verification(registration.user, login_identifier) if registration.success?
+      registration
     end
 
     private
 
     attr_reader :brand, :identifier_input, :password, :device_name, :ip_address, :user_agent
+
+    # Kicks off phone/email verification through the shared OTP delivery seam AFTER
+    # the account transaction has committed. Registration proves a password, never
+    # control of the contact identifier, so the just-created identifier stays
+    # unverified until the code is confirmed; this only creates the challenge and
+    # enqueues async delivery (Notifications::DeliverChallengeJob) — no provider I/O
+    # runs here or inside the registration transaction.
+    #
+    # The account already exists and is committed, so a throttled or misconfigured
+    # delivery here must NOT roll it back or fail the request: VerificationRequester
+    # fails closed on its own (silent non-delivery / consumed challenge), the
+    # identifier simply remains unverified, and the standard resend endpoint recovers.
+    # The result is therefore intentionally not propagated.
+    def deliver_verification(user, login_identifier)
+      VerificationRequester.call(
+        user:,
+        brand:,
+        kind: login_identifier.kind,
+        ip_address:,
+        user_agent:
+      )
+    end
 
     def register(login_identifier)
       result = nil

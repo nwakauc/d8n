@@ -49,6 +49,7 @@ module Identity
         sessions.delete_all
         AuthAttempt.where(brand:).delete_all
         SecurityEvent.where(brand:).delete_all
+        OtpChallenge.where(brand:).delete_all
         BrandMembership.where(brand:).delete_all
         CredentialPasswordHash.where(credential_id: credential_ids).delete_all
         Credential.where(user_id: user_ids).delete_all

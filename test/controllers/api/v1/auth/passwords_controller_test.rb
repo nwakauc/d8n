@@ -34,6 +34,8 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_nil credential.verified_at
     assert Identity::PasswordEngine.matches?(credential:, password: "secret")
     assert_equal({ "kind" => "phone", "verified" => false }, body.fetch("identifier"))
+    assert_equal true, body.fetch("verification_required")
+    assert_equal "phone", body.fetch("verification_channel")
     assert_equal "hookus", body.fetch("brand").fetch("slug")
     assert body.fetch("token").present?
     assert_equal "profile_required", body.fetch("onboarding").fetch("state")

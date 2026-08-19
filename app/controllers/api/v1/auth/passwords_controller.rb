@@ -85,6 +85,7 @@ class Api::V1::Auth::PasswordsController < ApplicationController
 
   def session_payload(result)
     identifier = result.credential.identity_identifier
+    verified = identifier.verified_at.present?
 
     {
       token: result.raw_token,
@@ -97,8 +98,15 @@ class Api::V1::Auth::PasswordsController < ApplicationController
       },
       identifier: {
         kind: identifier.kind,
-        verified: identifier.verified_at.present?
+        verified:
       },
+      # Explicit, stable signal so the client can route into the verification-code
+      # step and know which channel a code was sent to. On registration a code is
+      # dispatched asynchronously; on login of a still-unverified identifier this
+      # tells the client verification is outstanding (use the resend endpoint) — no
+      # code is re-sent by login itself.
+      verification_required: !verified,
+      verification_channel: verified ? nil : identifier.kind,
       onboarding: Profiles::OnboardingStatus.call(user: result.user, brand: Current.brand)
     }
   end
