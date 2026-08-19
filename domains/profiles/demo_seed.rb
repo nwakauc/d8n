@@ -7,17 +7,25 @@ module Profiles
   module DemoSeed
     DEFAULT_ROOT = Rails.root.join("docs", "user-images")
     BRAND_SLUG = "hookus".freeze
-    # Demo seeding is destructive-ish fixture data; it must never touch production.
-    # There is deliberately no production override.
+    # Demo seeding is fixture data; by default it only runs in dev/test. The D8N
+    # staging host, however, runs as RAILS_ENV=production, so seeding it (or a real
+    # production) requires a DELIBERATE, loud opt-in: SEED_DEMO_ALLOW_PRODUCTION=1.
+    # Absent that flag the task aborts, so it can never seed a real env by accident.
     ALLOWED_ENVS = %w[ development staging test ].freeze
+    PRODUCTION_OVERRIDE = "SEED_DEMO_ALLOW_PRODUCTION".freeze
 
     class EnvNotAllowed < StandardError; end
 
-    def self.guard!(env: Rails.env)
+    def self.guard!(env: Rails.env, allow_production: override_set?)
       return if ALLOWED_ENVS.include?(env.to_s)
+      return if allow_production
 
       raise EnvNotAllowed,
-        "Refusing to seed demo profiles in '#{env}'. Allowed: #{ALLOWED_ENVS.join(', ')}."
+        "Refusing to seed demo profiles in '#{env}'. Set #{PRODUCTION_OVERRIDE}=1 to override deliberately."
+    end
+
+    def self.override_set?
+      ActiveModel::Type::Boolean.new.cast(ENV[PRODUCTION_OVERRIDE])
     end
 
     Summary = Data.define(

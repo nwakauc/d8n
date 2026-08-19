@@ -187,10 +187,12 @@ module Profiles
       assert IdentityIdentifier.kept.exists?(normalized_value: "seed+lady-maya-27@hookus.test")
     end
 
-    test "guard refuses production and allows dev/staging" do
+    test "guard refuses production unless the deliberate override is set" do
       assert_raises(DemoSeed::EnvNotAllowed) { DemoSeed.guard!(env: "production") }
-      assert_nil DemoSeed.guard!(env: "staging")
       assert_nil DemoSeed.guard!(env: "development")
+      # The D8N staging host runs as RAILS_ENV=production, so the explicit opt-in
+      # is what makes a deliberate staging/production seed possible.
+      assert_nil DemoSeed.guard!(env: "production", allow_production: true)
     end
 
     test "dry run reports intentions without writing anything" do
