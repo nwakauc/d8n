@@ -95,6 +95,11 @@ module Identity
           end
         end
       end
+
+      # Enqueue the provider call only AFTER the transaction + advisory lock have
+      # committed/released, so the code is durably visible before the worker reads
+      # it and no network I/O happens while the lock is held.
+      enqueue_delivery
     end
 
     def create_and_deliver(identity_identifier)
@@ -105,6 +110,7 @@ module Identity
         kind: CHALLENGE_KIND,
         identifier: identity_identifier.normalized_value,
         code_digest: OtpChallenge.digest_code(code),
+        delivery_code: code,
         expires_at: CODE_EXPIRES_IN.from_now,
         ip_address:,
         user_agent:,
@@ -112,14 +118,26 @@ module Identity
       )
       expire_older_challenges(identity_identifier, except: challenge)
 
-      delivery = deliver(identity_identifier, code, challenge)
-      unless delivery.success?
+      # Fail closed synchronously on misconfiguration (deterministic, no network):
+      # the neutral recovery contract stays silent, and no doomed job is enqueued.
+      unless delivery_configured?(identity_identifier)
         challenge.consume!
         record_event(identity_identifier, "delivery_failed", severity: :warning, challenge:)
         return
       end
 
+      @challenge_to_deliver = challenge
       record_event(identity_identifier, "requested", challenge:)
+    end
+
+    def delivery_configured?(identity_identifier)
+      identity_identifier.phone? ? Notifications::Sms.configured? : Notifications::Email.configured?
+    end
+
+    def enqueue_delivery
+      return if @challenge_to_deliver.nil?
+
+      Notifications::DeliverChallengeJob.perform_later(@challenge_to_deliver.id)
     end
 
     def expire_older_challenges(identity_identifier, except:)
@@ -128,28 +146,6 @@ module Identity
         identity_identifier:,
         kind: CHALLENGE_KIND
       ).where.not(id: except.id).update_all(consumed_at: Time.current, updated_at: Time.current)
-    end
-
-    def deliver(identity_identifier, code, challenge)
-      metadata = { purpose: "password_recovery", challenge_id: challenge.id }
-      if identity_identifier.phone?
-        Notifications::SmsSender.call(
-          brand:,
-          user: identity_identifier.user,
-          recipient: identity_identifier.normalized_value,
-          body: "#{brand.name} password recovery code: #{code}",
-          metadata:
-        )
-      else
-        Notifications::EmailSender.call(
-          brand:,
-          user: identity_identifier.user,
-          recipient: identity_identifier.normalized_value,
-          code:,
-          mailer_action: :recovery_code,
-          metadata:
-        )
-      end
     end
 
     def record_event(identity_identifier, outcome, severity: :info, challenge: nil, retry_after: nil)

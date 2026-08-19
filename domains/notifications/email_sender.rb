@@ -1,18 +1,24 @@
 module Notifications
+  # Records a NotificationDelivery attempt, then delegates the actual send to the
+  # configured email gateway (Notifications::Email). Provider-independent: it never
+  # references Resend/SES/SMTP directly. `retryable` is propagated from the gateway
+  # so the async delivery worker can distinguish a transient failure from a
+  # permanent one.
   class EmailSender
-    Result = Data.define(:success?, :delivery)
+    Result = Data.define(:success?, :delivery, :retryable)
 
     def self.call(...)
       new(...).call
     end
 
-    def initialize(brand:, recipient:, code:, user:, mailer_action: :verification_code, metadata: {})
+    def initialize(brand:, recipient:, code:, user:, mailer_action: :verification_code, metadata: {}, idempotency_key: nil)
       @brand = brand
       @recipient = recipient
       @code = code
       @user = user
       @mailer_action = mailer_action
       @metadata = metadata
+      @idempotency_key = idempotency_key
     end
 
     def call
@@ -20,39 +26,41 @@ module Notifications
         brand:,
         user:,
         channel: :email,
-        provider: provider,
+        provider: Email.provider_name,
         recipient:,
         status: :pending,
         metadata:
       )
 
-      IdentityVerificationMailer.with(
-        brand_name: brand.name,
-        recipient:,
-        code:
-      ).public_send(mailer_action).deliver_now
-      delivery.update!(status: :sent, sent_at: Time.current)
-
-      Result.new(true, delivery)
-    rescue StandardError => e
-      delivery&.update!(
-        status: :failed,
-        error_code: e.class.name,
-        error_message: "Email delivery failed",
-        failed_at: Time.current
+      response = Email.gateway.deliver(
+        brand:, recipient:, code:, mailer_action:, delivery:, idempotency_key:
       )
-      Result.new(false, delivery)
+      update_delivery(delivery, response)
+
+      Result.new(response.success?, delivery, response.retryable)
     end
 
     private
 
-    attr_reader :brand, :recipient, :code, :user, :mailer_action, :metadata
+    attr_reader :brand, :recipient, :code, :user, :mailer_action, :metadata, :idempotency_key
 
-    def provider
-      configured = ENV.fetch("D8N_EMAIL_PROVIDER", Rails.env.production? ? "required" : "action_mailer")
-      raise "D8N email provider is not configured" if configured == "required"
-
-      configured
+    def update_delivery(delivery, response)
+      if response.success?
+        delivery.update!(
+          status: :sent,
+          provider: response.provider,
+          external_id: response.external_id,
+          sent_at: Time.current
+        )
+      else
+        delivery.update!(
+          status: :failed,
+          provider: response.provider,
+          error_code: response.error_code,
+          error_message: response.error_message,
+          failed_at: Time.current
+        )
+      end
     end
   end
 end

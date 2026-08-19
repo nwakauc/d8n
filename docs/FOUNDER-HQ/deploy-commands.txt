@@ -1,10 +1,6 @@
-1ST RUN
-
 set -a
 source .env
 set +a
-
-THEN RUN 
 
 for v in \
   KAMAL_REGISTRY_PASSWORD \
@@ -13,22 +9,21 @@ for v in \
   STAGING_R2_ACCESS_KEY_ID \
   STAGING_R2_SECRET_ACCESS_KEY \
   STAGING_R2_ENDPOINT \
-  STAGING_R2_BUCKET
+  STAGING_R2_BUCKET \
+  RESEND_API_KEY \
+  TWILIO_ACCOUNT_SID \
+  TWILIO_API_KEY_SID \
+  TWILIO_CLIENT_SECRET \
+  TWILIO_HOOKUS_MESSAGING_SERVICE_SID \
+  D8N_AR_ENCRYPTION_PRIMARY_KEY \
+  D8N_AR_ENCRYPTION_DETERMINISTIC_KEY \
+  D8N_AR_ENCRYPTION_KEY_DERIVATION_SALT
 do
   [[ -n "${(P)v}" ]] && echo "$v = SET" || echo "$v = MISSING"
 done
 
 
-THEN 
-
 bundle exec kamal build push -d staging
-
-AND 
-
 bundle exec kamal deploy -d staging
-
-CONFIRM
-
 bundle exec kamal details -d staging
-
 curl -I https://staging-api.d8n.tech

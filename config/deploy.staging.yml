@@ -23,6 +23,15 @@ env:
     D8N_DATABASE_USERNAME: d8n
     JOB_CONCURRENCY: "1"
     D8N_R2_ENABLED: "true"
+    # Transactional delivery providers (see domains/notifications). Provider NAMES
+    # are not secret; their credentials are (below). With these set, the app fails
+    # closed until the matching secrets are present: email/phone codes will not send
+    # and OTP requests surface delivery_unavailable rather than pretending to send.
+    D8N_EMAIL_PROVIDER: "resend"
+    D8N_SMS_PROVIDER: "twilio"
+    # Verified Resend sender identity (hookus.app). Not a secret — the address is
+    # public — so it lives in clear config rather than the password manager.
+    D8N_EMAIL_FROM: "HookUs <no-reply@hookus.app>"
     # Explicit browser origins permitted to call the staging API. The HookUs
     # frontend dev server runs at http://localhost:3001 and talks to the real
     # staging backend during integration. Origins are not secrets; never use
@@ -36,6 +45,21 @@ env:
     - D8N_R2_SECRET_ACCESS_KEY
     - D8N_R2_BUCKET
     - D8N_R2_ENDPOINT
+    # Resend (email) — API key only; the From identity is public clear config above.
+    - RESEND_API_KEY
+    # Twilio (SMS) — Standard API Key auth (no account auth token). Account SID +
+    # API Key SID + API Key secret (TWILIO_CLIENT_SECRET) + the HookUs Messaging
+    # Service SID.
+    - TWILIO_ACCOUNT_SID
+    - TWILIO_API_KEY_SID
+    - TWILIO_CLIENT_SECRET
+    - TWILIO_HOOKUS_MESSAGING_SERVICE_SID
+    # Active Record Encryption keys for the OTP delivery_code ciphertext. MANDATORY
+    # in production: the app raises at boot if any is missing (fail-closed). Generate
+    # once with `bin/rails db:encryption:init` and store in the password manager.
+    - D8N_AR_ENCRYPTION_PRIMARY_KEY
+    - D8N_AR_ENCRYPTION_DETERMINISTIC_KEY
+    - D8N_AR_ENCRYPTION_KEY_DERIVATION_SALT
 
 accessories:
   db:

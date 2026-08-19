@@ -10,6 +10,15 @@ module ActiveSupport
     # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
     fixtures :all
 
-    # Add more helper methods to be used by all tests here...
+    # Temporarily replace a singleton (class) method with `replacement` for the
+    # duration of the block, then restore the original. A dependency-free stand-in
+    # for mock libraries, used to swap outbound HTTP transports in gateway specs.
+    def stub_method(owner, name, replacement)
+      original = owner.method(name)
+      owner.define_singleton_method(name, replacement)
+      yield
+    ensure
+      owner.define_singleton_method(name, original)
+    end
   end
 end

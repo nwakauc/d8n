@@ -54,6 +54,11 @@ module Identity
         end
       end
 
+      # Enqueue only after the transaction + advisory lock commit/release, so the
+      # code is durably visible before the worker reads it and no provider I/O runs
+      # under the lock.
+      enqueue_delivery
+
       result
     end
 
@@ -65,6 +70,7 @@ module Identity
         kind: challenge_kind,
         identifier: identity_identifier.normalized_value,
         code_digest: OtpChallenge.digest_code(code),
+        delivery_code: code,
         expires_at: EXPIRES_IN.from_now,
         ip_address:,
         user_agent:,
@@ -72,15 +78,28 @@ module Identity
       )
       expire_older_challenges(identity_identifier, except: challenge)
 
-      delivery = deliver(identity_identifier, code, challenge)
-      unless delivery.success?
+      # Fail closed synchronously on misconfiguration (deterministic, no network):
+      # the caller owns this identifier, so a 503 here leaks nothing and keeps the
+      # existing "delivery_unavailable" contract without enqueuing a doomed job.
+      unless delivery_configured?(identity_identifier)
         challenge.consume!
         record_event(identity_identifier, "delivery_failed", severity: :warning, challenge:)
         return failure(:delivery_unavailable)
       end
 
+      @challenge_to_deliver = challenge
       record_event(identity_identifier, "requested", challenge:)
       generic_success
+    end
+
+    def delivery_configured?(identity_identifier)
+      identity_identifier.phone? ? Notifications::Sms.configured? : Notifications::Email.configured?
+    end
+
+    def enqueue_delivery
+      return if @challenge_to_deliver.nil?
+
+      Notifications::DeliverChallengeJob.perform_later(@challenge_to_deliver.id)
     end
 
     def expire_older_challenges(identity_identifier, except:)
@@ -89,27 +108,6 @@ module Identity
         identity_identifier:,
         kind: challenge_kind
       ).where.not(id: except.id).update_all(consumed_at: Time.current, updated_at: Time.current)
-    end
-
-    def deliver(identity_identifier, code, challenge)
-      metadata = { purpose: "identifier_verification", challenge_id: challenge.id }
-      if kind == "phone"
-        Notifications::SmsSender.call(
-          brand:,
-          user:,
-          recipient: identity_identifier.normalized_value,
-          body: "#{brand.name} verification code: #{code}",
-          metadata:
-        )
-      else
-        Notifications::EmailSender.call(
-          brand:,
-          user:,
-          recipient: identity_identifier.normalized_value,
-          code:,
-          metadata:
-        )
-      end
     end
 
     def owned_identifier

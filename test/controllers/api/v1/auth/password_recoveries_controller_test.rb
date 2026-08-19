@@ -18,6 +18,16 @@ class Api::V1::Auth::PasswordRecoveriesControllerTest < ActionDispatch::Integrat
     host! "hookus.test"
     Notifications::Sms::TestGateway.clear
     ActionMailer::Base.deliveries.clear
+    # Delivery is now enqueued after commit (Notifications::DeliverChallengeJob).
+    # Run it inline so these end-to-end recovery specs still observe the delivered
+    # code/email synchronously; the async contract itself is covered by the job's
+    # own tests.
+    @previous_queue_adapter = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :inline
+  end
+
+  teardown do
+    ActiveJob::Base.queue_adapter = @previous_queue_adapter
   end
 
   # --- Request step (anti-enumeration) -------------------------------------

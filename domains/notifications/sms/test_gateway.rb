@@ -2,6 +2,8 @@ module Notifications
   module Sms
     class TestGateway
       class << self
+        def configured? = true
+
         def deliveries
           @deliveries ||= []
         end
@@ -23,7 +25,7 @@ module Notifications
           delivery_id: delivery.id
         }
 
-        Response.new(true, "test", "test-#{delivery.id}", nil, nil)
+        DeliveryResponse.ok(provider: "test", external_id: "test-#{delivery.id}")
       end
     end
   end

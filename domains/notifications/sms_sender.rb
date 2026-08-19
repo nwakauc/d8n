@@ -1,6 +1,6 @@
 module Notifications
   class SmsSender
-    Result = Data.define(:success?, :delivery)
+    Result = Data.define(:success?, :delivery, :retryable)
 
     def self.call(...)
       new(...).call
@@ -28,7 +28,7 @@ module Notifications
       response = Sms.gateway.deliver(to: recipient, body:, brand:, delivery:)
       update_delivery(delivery, response)
 
-      Result.new(response.success?, delivery)
+      Result.new(response.success?, delivery, response.retryable)
     end
 
     private
@@ -36,7 +36,7 @@ module Notifications
     attr_reader :brand, :recipient, :body, :user, :metadata
 
     def gateway_name
-      ENV.fetch("D8N_SMS_PROVIDER", Rails.env.production? ? "required" : "null")
+      Sms.provider_name
     end
 
     def update_delivery(delivery, response)

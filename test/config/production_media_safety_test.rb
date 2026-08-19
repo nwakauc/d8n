@@ -73,7 +73,12 @@ class ProductionMediaSafetyTest < ActiveSupport::TestCase
   def production_runner(script, environment = {})
     env = {
       "RAILS_ENV" => "production",
-      "SECRET_KEY_BASE_DUMMY" => "1"
+      "SECRET_KEY_BASE_DUMMY" => "1",
+      # Active Record Encryption keys are mandatory in production (fail-closed);
+      # supply throwaway values so a production boot smoke test can run.
+      "D8N_AR_ENCRYPTION_PRIMARY_KEY" => "test-primary-key-000000000000000000000000",
+      "D8N_AR_ENCRYPTION_DETERMINISTIC_KEY" => "test-deterministic-key-0000000000000000000",
+      "D8N_AR_ENCRYPTION_KEY_DERIVATION_SALT" => "test-key-derivation-salt-00000000000000000"
     }.merge(environment)
     command = [ RbConfig.ruby, Rails.root.join("bin/rails").to_s, "runner", script ]
 

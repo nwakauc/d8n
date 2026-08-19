@@ -82,7 +82,11 @@ class SolidQueueConfigurationTest < ActiveSupport::TestCase
     env = {
       "RAILS_ENV" => "production",
       "SECRET_KEY_BASE_DUMMY" => "1",
-      "D8N_DATABASE_PASSWORD" => "configuration-test-only"
+      "D8N_DATABASE_PASSWORD" => "configuration-test-only",
+      # Mandatory (fail-closed) Active Record Encryption keys for a production boot.
+      "D8N_AR_ENCRYPTION_PRIMARY_KEY" => "test-primary-key-000000000000000000000000",
+      "D8N_AR_ENCRYPTION_DETERMINISTIC_KEY" => "test-deterministic-key-0000000000000000000",
+      "D8N_AR_ENCRYPTION_KEY_DERIVATION_SALT" => "test-key-derivation-salt-00000000000000000"
     }
     command = [ RbConfig.ruby, Rails.root.join("bin/rails").to_s, "runner", script ]
     stdout, stderr, status = Open3.capture3(env, *command)

@@ -10,12 +10,28 @@ class OtpChallenge < ApplicationRecord
     password_reset: 4
   }
 
+  # Plaintext one-time code, encrypted at rest. Present only between challenge
+  # creation and successful (or permanently abandoned) delivery; the async
+  # delivery worker reads it, sends, then clears it to NULL. `code_digest` — not
+  # this column — remains the authoritative verifier for the verify step.
+  encrypts :delivery_code
+
   validates :identifier, :code_digest, :expires_at, presence: true
 
   scope :active, -> { where(consumed_at: nil).where("expires_at > ?", Time.current) }
 
   def self.digest_code(code)
     Identity::HmacDigest.call(purpose: "otp-challenge", value: code)
+  end
+
+  # A code is still worth delivering only while the challenge is unconsumed,
+  # unexpired, and its plaintext has not already been sent-and-cleared.
+  def deliverable?
+    delivery_code.present? && !consumed? && !expired?
+  end
+
+  def clear_delivery_code!
+    update!(delivery_code: nil)
   end
 
   def consume!
