@@ -32,7 +32,7 @@ Use this alongside `PLAN_OF_ACTION.md`, `AGENT_RULES.md`, and future ADRs.
 - Define account recovery window.
 - Define permanent erasure/anonymization policy.
 - Define country-specific privacy requirements.
-- Review South Africa POPIA obligations before DateSA.
+- Review South Africa POPIA obligations before DateZA.
 - Review Australian Privacy Act obligations before DateAussie.
 - Review Nigerian NDPA obligations before Date9ja.
 - Define process for law-enforcement requests.

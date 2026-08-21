@@ -8,7 +8,7 @@ Accepted.
 
 D8N has one platform `User` identity that may belong to multiple brands through `BrandMembership`.
 
-That does not mean a session token issued in one brand should automatically authenticate requests in every brand. Users may expect Date9ja, HookUs, DateSA, and future third-party brands to behave as separate dating contexts even when D8N powers them underneath.
+That does not mean a session token issued in one brand should automatically authenticate requests in every brand. Users may expect Date9ja, HookUs, DateZA, and future third-party brands to behave as separate dating contexts even when D8N powers them underneath.
 
 Future auth strategies, including Rodauth-backed email/password, must converge into the same D8N session mechanism rather than creating a parallel session system.
 

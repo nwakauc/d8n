@@ -2,7 +2,7 @@ module Profiles
   # HookUs's brand catalogue: the concrete composition of the generic D8N profile
   # capabilities (Profiles::CapabilityCatalog) that HookUs enables, PLUS the few
   # brand-sensitive capabilities that must NOT be global (the HookUs "intents" and
-  # "vibes" groups and their casual/420/nightlife voice). A future brand (DateSA,
+  # "vibes" groups and their casual/420/nightlife voice). A future brand (DateZA,
   # Date9ja) ships its OWN catalogue like this one — composing a different subset,
   # labels, visibility and values — without editing the generic catalogue.
   #

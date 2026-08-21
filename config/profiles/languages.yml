@@ -43,6 +43,13 @@ languages:
   - { code: zu, label: Zulu }
   - { code: xh, label: Xhosa }
   - { code: af, label: Afrikaans }
+  - { code: nr, label: Southern Ndebele }
+  - { code: nso, label: Northern Sotho }
+  - { code: st, label: Southern Sotho }
+  - { code: ss, label: Swati }
+  - { code: tn, label: Tswana }
+  - { code: ts, label: Tsonga }
+  - { code: ve, label: Venda }
   - { code: so, label: Somali }
   - { code: sv, label: Swedish }
   - { code: no, label: Norwegian }

@@ -26,7 +26,7 @@ flowchart TB
 
   HookUs[HookUs] --> D8N
   Date9ja[Date9ja] --> D8N
-  DateSA[DateSA] --> D8N
+  DateZA[DateZA] --> D8N
   DateAussie[DateAussie] --> D8N
   Future[Future Brands] --> D8N
 ```
@@ -59,15 +59,15 @@ flowchart TB
 
   User --> HookUsMembership[HookUs Membership]
   User --> Date9jaMembership[Date9ja Membership]
-  User --> DateSAMembership[DateSA Membership]
+  User --> DateZAMembership[DateZA Membership]
 
   HookUsMembership --> HookUsProfile[HookUs Profile]
   Date9jaMembership --> Date9jaProfile[Date9ja Profile]
-  DateSAMembership --> DateSAProfile[DateSA Profile]
+  DateZAMembership --> DateZAProfile[DateZA Profile]
 
   HookUsProfile --> HookUsActivity[HookUs likes, matches, chats]
   Date9jaProfile --> Date9jaActivity[Date9ja likes, matches, chats]
-  DateSAProfile --> DateSAActivity[DateSA likes, matches, chats]
+  DateZAProfile --> DateZAActivity[DateZA likes, matches, chats]
 ```
 
 ## Brand Ownership And Operators

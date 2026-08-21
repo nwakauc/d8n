@@ -10,7 +10,7 @@ module Profiles
   #   * its display label/copy (codes stay stable; only labels change)
   #   * its public visibility (owner_only / matches_only / public_profile)
   #   * which allowed values (option codes) to offer
-  # A new brand (DateSA, Date9ja, …) is added by writing its own brand catalogue
+  # A new brand (DateZA, Date9ja, …) is added by writing its own brand catalogue
   # that calls these installers — WITHOUT editing this file.
   #
   # INVARIANT: capability keys and option/prompt codes are STABLE internal
@@ -313,14 +313,15 @@ module Profiles
       # Enable one generic controlled-vocabulary capability for a brand, with
       # optional per-brand overrides. `only` restricts to a subset of the defined
       # option codes (defaults to all), preserving the catalogue's order.
-      def enable_option_capability!(brand:, key:, position:, label: nil, visibility: nil, max_selections: nil, only: nil, option_labels: {})
+      def enable_option_capability!(brand:, key:, position:, label: nil, visibility: nil, cardinality: nil,
+        max_selections: nil, only: nil, option_labels: {})
         definition = OPTION_CAPABILITIES.fetch(key) { raise UnknownCapability, key }
         codes = only ? definition.fetch(:options).slice(*only) : definition.fetch(:options)
 
         install_option_group!(
           brand:, key:, position:,
           label: label || definition.fetch(:label),
-          cardinality: definition.fetch(:cardinality),
+          cardinality: cardinality || definition.fetch(:cardinality),
           max_selections: max_selections || definition.fetch(:max_selections),
           visibility: visibility || definition.fetch(:visibility),
           # Per-option label overrides let a brand relabel a value (e.g. "friendly"

@@ -3,6 +3,7 @@ class BrandMembership < ApplicationRecord
   belongs_to :brand
 
   has_one :profile, dependent: :restrict_with_exception
+  has_many :find_profile_exposures, dependent: :restrict_with_exception
 
   enum :status, { active: 0, suspended: 1, left: 2 }
 

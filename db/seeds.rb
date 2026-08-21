@@ -11,3 +11,7 @@
 if (hookus = Brand.kept.find_by(slug: "hookus"))
   Profiles::HookusProfileCatalog.install!(brand: hookus)
 end
+
+if (dateza = Brand.kept.find_by(slug: "dateza"))
+  Profiles::DatezaProfileCatalog.install!(brand: dateza)
+end

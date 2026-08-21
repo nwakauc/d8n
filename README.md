@@ -7,6 +7,13 @@
 - Runtime JSON contract: `GET /api/v1/openapi.json`
 - Interactive Swagger UI: `GET /api/docs`
 - Architecture decisions: [`docs/adr/`](docs/adr/)
+- DateZA product specification: [`docs/dateza/README.md`](docs/dateza/README.md)
+- DateZA holistic plan: [`docs/HOLISTIC_PLAN.md`](docs/HOLISTIC_PLAN.md)
+- DateZA MVP plan: [`docs/MVP_PLAN.md`](docs/MVP_PLAN.md)
+
+Current customer-facing naming is **DateZA**; its canonical platform slug is
+`dateza`. DateZA is the renamed version of the former South African concept and
+is the only active South African product name used in this repository.
 
 ## Company Master Blueprint
 
@@ -233,7 +240,7 @@ HookUs remains clearly separated from marriage-oriented brands such as Date9ja.
 
 ---
 
-### DateSA
+### DateZA
 
 Dating designed around South Africa.
 
@@ -738,7 +745,7 @@ Select brand:
 
 Date9ja
 HookUs
-DateSA
+DateZA
 DateAussie
 Future brands
 
@@ -758,7 +765,7 @@ Administrators can view:
 
 Permissions must be role-based.
 
-A DateSA moderator should not automatically receive access to Date9ja users.
+A DateZA moderator should not automatically receive access to Date9ja users.
 
 ---
 
@@ -1159,7 +1166,7 @@ D8N Platform
 
 Tenant: DATE9JA
 Tenant: HOOKUS
-Tenant: DATESA
+Tenant: DATEZA
 Tenant: DATEAUSSIE
 ```
 
@@ -1431,7 +1438,7 @@ Launch selected geographic brands.
 
 Potential examples:
 
-DateSA
+DateZA
 DateAussie
 Additional African markets
 Diaspora-focused products
@@ -1548,7 +1555,7 @@ Recommended corporate hierarchy:
           │              │              │
       Date9ja          D8N ID        D8N Events
       HookUs           D8N Match     Matchmaking
-      DateSA           D8N Verify    Concierge
+      DateZA           D8N Verify    Concierge
       DateAussie       D8N Trust     Communities
       Future Brands    D8N Chat      Travel
                        D8N AI

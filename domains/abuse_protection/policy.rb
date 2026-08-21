@@ -92,6 +92,13 @@ module AbuseProtection
         rule("burst",     scope: :user, limit: 40,   window: 10.seconds),
         rule("sustained", scope: :user, limit: 1200, window: 1.hour)
       ],
+      # Find has a durable product allowance in Matching::Find. This separate,
+      # deliberately high abuse ceiling only curbs replay/scraping traffic; it is
+      # never used to decide how many unique profiles a member may explore.
+      find_profiles: [
+        rule("burst",     scope: :user, limit: 40,   window: 10.seconds),
+        rule("sustained", scope: :user, limit: 1200, window: 1.hour)
+      ],
       # Hook Tonight's pool is a separate population, so it gets its own bucket
       # rather than starving (or being starved by) ordinary discovery.
       hook_tonight_discovery: [

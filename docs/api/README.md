@@ -39,14 +39,15 @@ the API root (`GET /`) and the summary at the top of `openapi.yaml`.
 
 | Domain | Status | Notes |
 | --- | --- | --- |
-| Identity | Available | Phone/email + password register, login, session, identifier verification. |
+| Identity | Available | Phone/email + password register, login, password change/recovery, brand-bound session, identifier verification. |
 | Profiles | Available | Profile, configuration, options, preferences, location, publication. |
-| Matching | Available | Discovery, likes, passes, matches. |
-| Messaging | Preview | Conversation **metadata only**; no message-content endpoint yet. |
-| Trust | Preview | **Blocking only**; reporting and enforcement are planned. |
+| Matching | Available | HookUs Discovery and DateZA Find are live on shared eligibility. DateZA Find includes deterministic `dateza_v1` compatibility; DateZA Discovery remains unimplemented. |
+| Messaging | Preview | Match-gated plain-text messages and history exist. Client idempotency, receipts, realtime and message media remain future work. |
+| Trust | Preview | Blocking, profile/content reporting, brand-scoped report review and suspension exist. DateZA public Trust standing is not implemented. |
 | Media | Preview | Owner-scoped profile-photo upload/retrieval is live on private R2 (direct-to-R2 intent → attach → short-lived signed GET → delete/purge). Public/other-user delivery, re-encode, EXIF removal, and moderation enforcement remain gated. Endpoints require R2, so they return `404` when R2 is disabled. |
-| Verification | Planned | Identity/selfie verification; no endpoints yet. |
-| Billing / Notifications / Analytics / Admin | Planned | No endpoints yet. |
+| Verification | Planned | RealMe identity/selfie verification has no endpoints yet. Identifier verification is an Identity capability, not RealMe. |
+| Admin | Preview | Brand-scoped report review and suspension endpoints exist; stronger admin auth/RBAC and a complete admin product remain gated. |
+| Billing / Product Notifications / Analytics | Planned | No consumer product endpoints yet. Identity challenge delivery does not constitute product notifications. |
 
 Every path in `openapi.yaml` is implemented; the "Preview" and "In development"
 notes above describe deliberate scope limits, not missing documentation. Do not
@@ -59,6 +60,7 @@ D8N resolves the brand from the request host. Client applications do not send `b
 ```txt
 hookus.example.com  -> HookUs
 date9ja.example.com -> Date9ja, once its production strategy is approved
+dateza.test         -> DateZA development tenant after local provisioning
 ```
 
 In local tests, set the host explicitly:
@@ -68,7 +70,83 @@ curl --resolve hookus.test:3000:127.0.0.1 \
   http://hookus.test:3000/api/v1/health
 ```
 
-Authentication tokens are brand-bound. A token issued through a HookUs host cannot authenticate a Date9ja request. Each frontend should configure one brand API origin and must not allow end users to override the host or tenant context.
+Authentication tokens are brand-bound. A token issued through HookUs cannot
+authenticate DateZA (or another brand), and a DateZA token cannot authenticate
+HookUs. Each frontend should configure one brand API origin and must not allow
+end users to override the host or tenant context.
+
+### DateZA tenant foundation
+
+DateZA is provisioned as the first-class brand named `DateZA` with slug `dateza`.
+For local development, run:
+
+```sh
+bin/rails brands:seed_dateza_dev
+```
+
+This creates or refreshes the DateZA brand, its v1 shared-capability profile
+catalog, phone/email password authentication policy, and the `dateza.test` host
+mapping. Override only the development host when needed:
+
+```sh
+DATEZA_DEV_HOST=my-dateza.test bin/rails brands:seed_dateza_dev
+```
+
+No production DateZA domain is assumed by this repository. DateZA Find and
+deterministic compatibility v1 are implemented, while daily Discovery 10,
+RealMe, public Trust standing, AI Matchmaker, product notifications, and
+subscriptions/entitlements remain future work. `GET /api/v1/discovery` therefore still returns
+`matching_not_configured` for DateZA.
+
+### DateZA Find
+
+Authenticated DateZA members use:
+
+```txt
+GET /api/v1/find
+```
+
+Optional narrowing filters are `min_age`, `max_age`, `max_distance_km`, and
+`relationship_intent`. `limit` is 1–10. The opaque `next_cursor` is bound to the
+DateZA membership and exact filter set; never construct or modify it client-side.
+
+The server records a durable exposure the first time a unique candidate is
+returned during the current Africa/Johannesburg day. Reloading, replaying from
+another client, opening profile detail, liking, or passing does not create an
+additional exposure. The response's `allowance` object is authoritative:
+
+```json
+{
+  "limit": 10,
+  "used": 7,
+  "remaining": 3,
+  "exhausted": false,
+  "resets_at": "2026-08-22T00:00:00+02:00"
+}
+```
+
+Each Find profile also has a `compatibility` property. It is either null when
+less than 35% of the versioned weighted inputs are meaningfully comparable, or:
+
+```json
+{
+  "score": 87,
+  "confidence": 0.82,
+  "confidence_level": "high",
+  "version": "dateza_v1",
+  "reasons": ["shared_long_term_intent", "compatible_family_plans"]
+}
+```
+
+Treat the score as pair-specific, not as a property of the candidate. Map only
+the documented reason codes to client-localized copy. Compatibility calculation
+does not create a Find exposure and must not be used as Trust, safety, RealMe, or
+popularity state. See [`../dateza/COMPATIBILITY_V1.md`](../dateza/COMPATIBILITY_V1.md).
+
+Find returns only safe public profile data. Exact coordinates, owner-only
+answers, moderation/risk state, raw media, and other-brand profiles are absent.
+The generic HTTP throttle is only abuse protection; it does not implement or
+replace the exposure allowance.
 
 ## Authentication Flow
 
@@ -80,7 +158,7 @@ GET /api/v1/auth/methods
 
 Only methods returned by this endpoint should be presented as usable. Planned or
 configured methods are withheld until their server-side implementation is
-available. HookUs currently exposes `phone_password` and `email_password`;
+available. HookUs and DateZA currently expose `phone_password` and `email_password`;
 Google remains behind ADR 0012's implementation gate.
 
 Register immediately with either a phone number or email address:
@@ -163,7 +241,9 @@ available API.
 After authentication, a brand frontend should:
 
 1. Call `GET /api/v1/me` to confirm the token and resolved brand.
-2. Call `GET /api/v1/profile/configuration` to obtain brand-specific fields, option groups, cardinality, limits, and requiredness.
+2. Call `GET /api/v1/profile/configuration` to obtain brand-specific fields,
+   input types, visibility, controlled choices, option groups, cardinality,
+   limits, requiredness, and the server-owned `onboarding`/`next_step` state.
 3. Read or create the profile through `GET/PATCH /api/v1/profile`.
 4. Update preferences, controlled options, photos, and location through their focused endpoints.
 5. Use the profile `completion` object and activate through `POST /api/v1/profile/publication`.
@@ -171,7 +251,11 @@ After authentication, a brand frontend should:
 7. Open a profile page from a public profile UUID through `GET /api/v1/profiles/:profile_id`; treat this as the source of truth so refresh, new-tab, and deep-link navigation resolve without a client-side cache.
 8. Use a public match UUID with `POST /api/v1/matches/:match_id/conversation`, then list started chats through `GET /api/v1/conversations`.
 
-Frontends should render from `profile/configuration`; they should not hardcode HookUs option codes as a universal D8N schema. New semantic capabilities still require a D8N backend contract rather than arbitrary client fields.
+Frontends should render from `profile/configuration`; they should not hardcode
+HookUs or DateZA option codes as a universal D8N schema. An empty field `options`
+array means the current API validates the field's shape but does not define a
+closed vocabulary. New semantic capabilities still require a D8N backend
+contract rather than arbitrary client fields.
 
 Password registration and login, plus `GET/PATCH /api/v1/profile`, return a
 resumable `onboarding` state. `profile_required` starts profile creation,

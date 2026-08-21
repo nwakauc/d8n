@@ -13,14 +13,15 @@ info:
     Every path documented in this contract is implemented and callable. Use this
     summary to see which product domains are complete versus intentionally limited:
 
-    - **Available now:** Identity (register, login, session, identifier
-      verification), Profiles (profile, configuration, options, preferences,
-      location, publication), Matching (discovery, likes, passes, matches), Trust
-      (block, unblock, list blocked, report — enforced in either direction across
-      discovery, likes, passes, matches, and conversation access).
-    - **Preview (limited scope):** Messaging exposes conversation *metadata only* —
-      there is no message-content endpoint yet, so do not build or simulate a chat
-      transcript against D8N.
+    - **Available now:** Identity (register, login, password change/recovery,
+      brand-bound session, identifier verification), Profiles (profile,
+      configuration, options, preferences, location, publication), HookUs Matching
+      (discovery, likes, passes, matches), DateZA Find (10 unique profiles per
+      Johannesburg day) with deterministic DateZA v1 compatibility, and Trust
+      foundations (block, report, brand-scoped review and suspension).
+    - **Preview (limited scope):** Messaging supports match-gated plain-text
+      messages and history. Client idempotency, delivery/read receipts, realtime,
+      and message media are not available.
     - **Available (owner-scoped, private):** Profile photos use a direct-to-R2
       upload — request an intent, `PUT` the bytes to the returned short-lived
       presigned URL, then attach the returned `signed_id`. Attached photos begin
@@ -30,8 +31,19 @@ info:
       signed URL. Public/other-user delivery, safe re-encoding, EXIF removal, and
       moderation enforcement remain gated (ADR 0011). The endpoints require private
       R2 storage, so they return `404` when R2 is disabled.
-    - **Planned (no endpoints yet):** Verification (identity/selfie), Billing,
-      Notifications, Analytics, Admin.
+    - **Preview (limited scope):** Admin exposes brand-scoped report review and
+      suspension APIs; stronger admin authentication/RBAC and the complete admin
+      product remain gated.
+    - **Planned (no consumer product endpoints yet):** RealMe verification,
+      Billing, product Notifications, and Analytics.
+
+    DateZA is a provisionable tenant (`DateZA`, slug `dateza`) with phone/email
+    password authentication, a v1 profile catalog, and Find with a durable daily
+    10-unique-profile allowance plus deterministic `dateza_v1` compatibility on
+    sufficiently informed Find cards. Daily Discovery 10, RealMe, public Trust
+    standing, AI Matchmaker, product notifications, and
+    subscriptions/entitlements are not implemented. DateZA Discovery remains
+    deliberately unconfigured.
 
     The live API root (`GET /`) returns the same per-service status machine-readably.
 servers:
@@ -491,7 +503,7 @@ paths:
       summary: Get the resolved brand's onboarding and profile contract
       responses:
         "200":
-          description: Brand-owned field and controlled-option configuration.
+          description: Brand-owned field/option configuration and current server-owned onboarding state.
           content:
             application/json:
               schema:
@@ -970,6 +982,59 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
           $ref: "#/components/responses/InvalidInput"
+  /api/v1/find:
+    get:
+      operationId: getFindProfiles
+      tags: [Matching]
+      summary: Explore DateZA-eligible profiles under the daily unique-exposure allowance
+      description: |
+        DateZA Find returns deterministic newest-first pages from the shared D8N
+        eligibility scope. For a free member, at most 10 unique candidate profiles
+        may be surfaced during one Africa/Johannesburg calendar day. Replaying a
+        page or seeing a previously exposed candidate does not consume allowance
+        again. Detail, Like, and Pass operations do not consume Find allowance.
+
+        Every returned profile has `compatibility`: a deterministic DateZA v1
+        score, confidence and bounded reason codes when at least 35% of weighted
+        dimensions are comparable, otherwise null. Compatibility is computed
+        after eligibility and exposure allocation and does not consume allowance.
+
+        The cursor is opaque, signed, and bound to the resolved brand, current
+        membership, DateZA Find policy version, and exact filter set. Filters only
+        narrow the member's stored reciprocal age/gender/distance eligibility.
+        DateZA Discovery is a separate, unimplemented product surface.
+      parameters:
+        - $ref: "#/components/parameters/FindCursor"
+        - $ref: "#/components/parameters/FindLimit"
+        - $ref: "#/components/parameters/FindMinAge"
+        - $ref: "#/components/parameters/FindMaxAge"
+        - $ref: "#/components/parameters/FindMaxDistance"
+        - $ref: "#/components/parameters/FindRelationshipIntent"
+      responses:
+        "200":
+          description: Eligible safe public profiles and authoritative daily allowance state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FindResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Current profile is not active and discoverable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Find is not configured for the resolved brand (`find_not_configured`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /api/v1/profiles/{profile_id}:
     get:
       operationId: getPublicProfile
@@ -1957,6 +2022,53 @@ components:
         minimum: 1
         maximum: 50
         default: 20
+    FindCursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque signed cursor bound to the brand, membership, policy, and filters.
+      schema:
+        type: string
+    FindLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 10
+        default: 10
+    FindMinAge:
+      name: min_age
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 18
+        maximum: 120
+    FindMaxAge:
+      name: max_age
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 18
+        maximum: 120
+    FindMaxDistance:
+      name: max_distance_km
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+    FindRelationshipIntent:
+      name: relationship_intent
+      in: query
+      required: false
+      description: Active DateZA relationship-intent option code; narrows eligible candidates.
+      schema:
+        type: string
     PublicProfileId:
       name: profile_id
       in: path
@@ -2713,6 +2825,51 @@ components:
           items:
             type: string
             enum: [shared_intent, similar_vibe, mutual_age_fit]
+    DatezaCompatibility:
+      type: [object, "null"]
+      description: |
+        Pair-specific deterministic DateZA compatibility. null means meaningful
+        comparable input weight is below the dateza_v1 publication threshold;
+        it does not mean incompatibility. Reason codes reveal no raw answers.
+      required: [score, confidence, confidence_level, version, reasons]
+      properties:
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        confidence_level:
+          type: string
+          enum: [low, medium, high]
+        version:
+          type: string
+          enum: [dateza_v1]
+        reasons:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+            enum:
+              - shared_long_term_intent
+              - compatible_relationship_goals
+              - relationship_goal_mismatch
+              - compatible_family_plans
+              - family_plan_mismatch
+              - shared_no_smoking
+              - smoking_lifestyle_mismatch
+              - compatible_drinking_style
+              - similar_faith_importance
+              - similar_social_style
+              - compatible_meeting_pace
+              - shared_interests
+              - shared_languages
+              - compatible_communication_style
+              - compatible_planning_style
+              - similar_travel_style
+              - compatible_diet
     ProfileStatus:
       type: object
       description: |
@@ -2787,6 +2944,64 @@ components:
             $ref: "#/components/schemas/DiscoveryProfile"
         next_cursor:
           type: [string, "null"]
+    FindProfileStatus:
+      type: object
+      required: [verified, online, active_today, new_here, last_active_at, distance_km]
+      properties:
+        verified:
+          type: boolean
+        online:
+          type: boolean
+        active_today:
+          type: boolean
+        new_here:
+          type: boolean
+        last_active_at:
+          type: [string, "null"]
+          format: date-time
+        distance_km:
+          type: [integer, "null"]
+          minimum: 1
+    FindProfile:
+      allOf:
+        - $ref: "#/components/schemas/PublicProfile"
+        - $ref: "#/components/schemas/FindProfileStatus"
+        - type: object
+          required: [compatibility]
+          properties:
+            compatibility:
+              $ref: "#/components/schemas/DatezaCompatibility"
+    FindAllowance:
+      type: object
+      required: [limit, used, remaining, exhausted, resets_at]
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+        used:
+          type: integer
+          minimum: 0
+        remaining:
+          type: integer
+          minimum: 0
+        exhausted:
+          type: boolean
+        resets_at:
+          type: string
+          format: date-time
+          description: Next midnight in Africa/Johannesburg, including its UTC offset.
+    FindResponse:
+      type: object
+      required: [profiles, next_cursor, allowance]
+      properties:
+        profiles:
+          type: array
+          items:
+            $ref: "#/components/schemas/FindProfile"
+        next_cursor:
+          type: [string, "null"]
+        allowance:
+          $ref: "#/components/schemas/FindAllowance"
     ProfileDetail:
       description: |
         The rich single-profile view (GET /profiles/:id): the public profile with
@@ -2970,10 +3185,12 @@ components:
             type: string
     ProfileConfigurationResponse:
       type: object
-      required: [configuration]
+      required: [configuration, onboarding]
       properties:
         configuration:
           $ref: "#/components/schemas/ProfileConfiguration"
+        onboarding:
+          $ref: "#/components/schemas/ProfileOnboardingStatus"
     ProfileConfiguration:
       type: object
       required: [profile_fields, preference_fields, collections, option_groups, prompts]
@@ -2989,7 +3206,7 @@ components:
         collections:
           type: array
           items:
-            $ref: "#/components/schemas/ConfiguredField"
+            $ref: "#/components/schemas/ConfiguredCollection"
         option_groups:
           type: array
           items:
@@ -3001,7 +3218,7 @@ components:
             $ref: "#/components/schemas/ConfiguredPrompt"
     ConfiguredField:
       type: object
-      required: [key, label, required]
+      required: [key, label, required, cardinality, input_type, visibility, options]
       properties:
         key:
           type: string
@@ -3009,6 +3226,39 @@ components:
           type: string
         required:
           type: boolean
+        cardinality:
+          type: string
+          enum: [single, multiple]
+        input_type:
+          type: string
+          enum: [text, textarea, date, integer, select, string_list, language_list]
+        visibility:
+          type: string
+          enum: [owner_only, public_profile]
+        options:
+          type: array
+          description: Controlled choices when the field has a server-owned vocabulary; otherwise empty.
+          items:
+            type: object
+            required: [code, label]
+            properties:
+              code:
+                type: string
+              label:
+                type: string
+    ConfiguredCollection:
+      type: object
+      required: [key, label, required, minimum_count]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        required:
+          type: boolean
+        minimum_count:
+          type: integer
+          minimum: 1
     ConfiguredOptionGroup:
       type: object
       required: [key, label, cardinality, max_selections, required, visibility, options]

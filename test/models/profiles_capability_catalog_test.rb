@@ -2,10 +2,10 @@ require "test_helper"
 
 module Profiles
   class CapabilityCatalogTest < ActiveSupport::TestCase
-    setup { @brand = Brand.create!(slug: "datesa", name: "DateSA") }
+    setup { @brand = Brand.create!(slug: "dateza", name: "DateZA") }
 
     test "a new brand composes generic capabilities without editing the catalogue" do
-      # Demonstrates reuse: DateSA enables a DIFFERENT subset than HookUs, using the
+      # Demonstrates reuse: DateZA enables a DIFFERENT subset than HookUs, using the
       # same generic definitions, with its own labels/visibility/values.
       CapabilityCatalog.enable_option_capability!(
         brand: @brand, key: "relationship_intent", position: 0,
@@ -21,7 +21,7 @@ module Profiles
       # Stable codes carry a fixed meaning across brands.
       assert_includes intent.profile_options.kept.pluck(:code), "marriage"
 
-      # DateSA chose to expose religion publicly (explicit), overriding the
+      # DateZA chose to expose religion publicly (explicit), overriding the
       # conservative generic default.
       assert @brand.profile_option_groups.kept.find_by!(key: "religion").visibility_public_profile?
 

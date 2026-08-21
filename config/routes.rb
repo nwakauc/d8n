@@ -10,6 +10,7 @@ Rails.application.routes.draw do
       get "me" => "me#show"
       delete "me" => "me#destroy"
       get "discovery" => "discovery#index"
+      get "find" => "find#index"
       get "profiles/:profile_id" => "profiles#show"
       get "matches" => "matches#index"
       get "conversations" => "conversations#index"

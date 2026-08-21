@@ -5,7 +5,7 @@ This guide assumes:
 - the D8N Rails API runs at `http://localhost:3000`;
 - the HookUs frontend runs at `http://localhost:3001`;
 - PostgreSQL is available locally;
-- local requests should resolve to the HookUs brand.
+- local requests should resolve to the intended brand through its host.
 
 Rails on port 3000 is the API. HookUs on port 3001 is an API client. Swagger UI
 is served by Rails, while Apidog is a separate API client.
@@ -23,6 +23,23 @@ bin/rails brands:seed_hookus_dev
 The brand task creates the HookUs brand when necessary and maps the `localhost`
 request host to it. D8N deliberately resolves brands from trusted hosts; do not
 send a `brand_id` or invent an `X-Brand` header.
+
+To provision DateZA independently on the same D8N database, run:
+
+```sh
+bin/rails brands:seed_dateza_dev
+```
+
+This maps `dateza.test` to the canonical `DateZA`/`dateza` tenant without
+changing the HookUs `localhost` mapping. No production DateZA domain is created.
+Use `DATEZA_DEV_HOST` only when a different development host is required.
+
+Test DateZA host resolution explicitly:
+
+```sh
+curl --resolve dateza.test:3000:127.0.0.1 \
+  http://dateza.test:3000/api/v1/auth/methods
+```
 
 Start Rails on port 3000:
 

@@ -27,12 +27,15 @@ class Api::V1::ProfileConfigurationControllerTest < ActionDispatch::IntegrationT
 
     assert_response :success
     configuration = JSON.parse(response.body).fetch("configuration")
+    onboarding = JSON.parse(response.body).fetch("onboarding")
     assert configuration.fetch("profile_fields").find { |field| field.fetch("key") == "bio" }.fetch("required")
     groups = configuration.fetch("option_groups").index_by { |group| group.fetch("key") }
     assert groups.fetch("intents").fetch("required")
     assert groups.fetch("vibes").fetch("required")
     assert_not_includes groups.fetch("vibes").fetch("options").pluck("code"), "raves"
     assert_not groups.key?("faith")
+    assert_equal "profile_required", onboarding.fetch("state")
+    assert_equal "profile", onboarding.fetch("next_step")
   end
 
   private

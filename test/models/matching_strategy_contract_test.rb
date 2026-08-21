@@ -18,12 +18,26 @@ module Matching
       assert StrategyRegistry::MODES.values.flat_map(&:values).all?(&:production_ready?)
     end
 
+    test "registers DateZA only as a non-production extension contract" do
+      dateza = Brand.create!(slug: "dateza", name: "DateZA")
+
+      assert_raises(StrategyRegistry::UnsupportedBrand) { StrategyRegistry.fetch(brand: dateza) }
+      assert_equal Strategies::DatezaContract, StrategyRegistry.contract_for(brand: dateza)
+      assert_not Strategies::DatezaContract.production_ready?
+      assert_equal "dateza_contract_v1", Strategies::DatezaContract.key
+    end
+
     test "every discovery strategy implements the discovery contract" do
       required_methods = %i[
         key location_max_age production_ready? rank cursor_payload apply_cursor compatibility
       ]
 
-      [ Strategies::Hookus, Strategies::HookusNewHere, Strategies::Date9jaContract ].each do |strategy|
+      [
+        Strategies::Hookus,
+        Strategies::HookusNewHere,
+        Strategies::Date9jaContract,
+        Strategies::DatezaContract
+      ].each do |strategy|
         required_methods.each { |method| assert_respond_to strategy, method }
       end
     end

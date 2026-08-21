@@ -6,7 +6,7 @@ This document defines the initial technical plan for building D8N from scratch a
 
 D8N should not be built as one dating app with many skins. It should be built as a shared platform that can power multiple dating brands, each with its own market, identity, rules, matching philosophy, monetization, and user experience.
 
-The first goal is to build a solid, reviewable foundation that can support Date9ja, HookUs, DateSA, DateAussie, and future brands without duplicating core dating infrastructure.
+The first goal is to build a solid, reviewable foundation that can support Date9ja, HookUs, DateZA, DateAussie, and future brands without duplicating core dating infrastructure.
 
 This document is intended for review by:
 
@@ -55,7 +55,7 @@ Initial brands:
 
 - HookUs
 - Date9ja
-- DateSA
+- DateZA
 - DateAussie
 
 Future brands should be provisioned by configuration and limited brand-specific code, not by cloning the entire application.
@@ -85,7 +85,7 @@ D8N Platform
 Brands
   HookUs
   Date9ja
-  DateSA
+  DateZA
   DateAussie
   Future Brands
 
@@ -123,7 +123,7 @@ Backend capabilities should be shared wherever possible.
 
 Frontend experiences should not be forced to look or feel identical.
 
-Date9ja, HookUs, and DateSA may share identity, chat, verification, media, trust, and payments while still having different onboarding, profile fields, tone, matching rules, and brand design.
+Date9ja, HookUs, and DateZA may share identity, chat, verification, media, trust, and payments while still having different onboarding, profile fields, tone, matching rules, and brand design.
 
 ### 2. Tenant Awareness From Day One
 
@@ -144,7 +144,7 @@ Examples:
 - Notification preferences
 - Analytics events
 
-The platform must always know whether an action happened on Date9ja, HookUs, DateSA, or another brand.
+The platform must always know whether an action happened on Date9ja, HookUs, DateZA, or another brand.
 
 ### 3. Identity Is Not The Same As A Dating Profile
 
@@ -158,7 +158,7 @@ One user may eventually have:
 
 - One Date9ja profile
 - One HookUs profile
-- One DateSA profile
+- One DateZA profile
 
 But joining one brand must not automatically expose the person on another brand.
 
@@ -312,7 +312,7 @@ d8n/
     brands/
       date9ja.yml
       hookus.yml
-      datesa.yml
+      dateza.yml
       dateaussie.yml
   db/
   test/
@@ -1039,7 +1039,7 @@ d8n-platform      Rails API core
 d8n-marketing     D8N public marketing site
 date9ja-web       Date9ja consumer web
 hookus-web        HookUs consumer web
-datesa-web        DateSA consumer web
+dateza-web        DateZA consumer web
 ```
 
 This allows each brand to have its own product experience without turning the platform into a white-label UI clone.
@@ -1709,7 +1709,7 @@ Tenant isolation tests are mandatory.
 Examples:
 
 - Date9ja user cannot see HookUs profile unless explicitly eligible inside HookUs
-- Date9ja moderator cannot access DateSA reports
+- Date9ja moderator cannot access DateZA reports
 - Match creation cannot cross brands accidentally
 - Conversation cannot include users from different brand contexts unless a future cross-brand feature explicitly allows it
 
@@ -1891,7 +1891,7 @@ Remaining open decisions:
 15. What is the exact policy for soft deletion, account recovery, permanent erasure, and anonymized retention?
 16. How long should deleted accounts remain recoverable?
 17. Which deleted records must remain available for moderation, fraud, billing, or legal audit?
-18. What data residency or regional data-handling requirements apply to DateSA, DateAussie, and future international brands?
+18. What data residency or regional data-handling requirements apply to DateZA, DateAussie, and future international brands?
 
 ## Recommended Initial Decisions
 

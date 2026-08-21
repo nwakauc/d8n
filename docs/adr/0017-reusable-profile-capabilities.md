@@ -4,7 +4,7 @@
 
 Accepted on 2026-08-18. Builds on ADR 0003 (identity vs brand profiles) and
 ADR 0008 (compose brand profile capabilities). HookUs is the first consumer; the
-capabilities are platform-level and intended for reuse by DateSA, Date9ja and any
+capabilities are platform-level and intended for reuse by DateZA, Date9ja and any
 future brand.
 
 ## Context
@@ -63,7 +63,7 @@ CapabilityCatalog (generic: languages, interests, prompts, lifestyle, intent,
                    children, religion, personality, intimacy, …)
         │
    ┌────┴─────┬──────────┐
- HookUs     DateSA     Date9ja      ← each brand catalogue enables a subset,
+ HookUs     DateZA     Date9ja      ← each brand catalogue enables a subset,
  catalogue  catalogue  catalogue      relabels, sets visibility, picks values
 ```
 

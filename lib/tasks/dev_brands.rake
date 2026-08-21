@@ -18,4 +18,12 @@ namespace :brands do
 
     puts "hookus brand ready: #{brand.slug} -> localhost (auth: #{brand.auth_methods.join(', ')})"
   end
+
+  desc "Provision the DateZA brand and its development BrandDomain"
+  task seed_dateza_dev: :environment do
+    host = ENV.fetch("DATEZA_DEV_HOST", "dateza.test")
+    brand = Brands::DatezaInstaller.call(hosts: [ host ])
+
+    puts "DateZA brand ready: #{brand.slug} -> #{host} (auth: #{brand.auth_methods.join(', ')})"
+  end
 end

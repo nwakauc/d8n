@@ -16,7 +16,15 @@ module Matching
       }
     }.freeze
     CONTRACT_STRATEGIES = {
-      "date9ja" => Strategies::Date9jaContract
+      "date9ja" => Strategies::Date9jaContract,
+      "dateza" => Strategies::DatezaContract
+    }.freeze
+    INTERACTION_STRATEGIES = {
+      "hookus" => Strategies::Hookus,
+      "dateza" => Find::Policies::Dateza
+    }.freeze
+    COMPATIBILITY_STRATEGIES = {
+      "dateza" => Strategies::DatezaV1
     }.freeze
 
     def self.fetch(brand:, mode: nil)
@@ -34,6 +42,24 @@ module Matching
     def self.contract_for(brand:)
       CONTRACT_STRATEGIES.fetch(brand.slug) do
         raise UnsupportedBrand, "matching contract is not configured for this brand"
+      end
+    end
+
+    # Like/Pass eligibility is distinct from discovery availability. DateZA can
+    # interact with profiles surfaced by Find while DateZA Discovery remains
+    # deliberately unregistered.
+    def self.interaction_for(brand:)
+      INTERACTION_STRATEGIES.fetch(brand.slug) do
+        raise UnsupportedBrand, "matching interactions are not configured for this brand"
+      end
+    end
+
+    # Pair compatibility is deliberately separate from discovery ranking. A
+    # brand may support compatibility in Find before it has a production
+    # Discovery strategy (as DateZA does today).
+    def self.compatibility_for(brand:)
+      COMPATIBILITY_STRATEGIES.fetch(brand.slug) do
+        raise UnsupportedBrand, "compatibility is not configured for this brand"
       end
     end
 

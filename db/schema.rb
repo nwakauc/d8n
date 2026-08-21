@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_19_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_21_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -228,6 +228,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_19_010000) do
     t.index ["identity_identifier_id"], name: "index_credentials_on_identity_identifier_id"
     t.index ["user_id", "kind", "identity_identifier_id"], name: "index_credentials_on_active_user_kind_identifier", unique: true, where: "(deleted_at IS NULL)"
     t.index ["user_id"], name: "index_credentials_on_user_id"
+  end
+
+  create_table "find_profile_exposures", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "brand_membership_id", null: false
+    t.bigint "candidate_profile_id", null: false
+    t.datetime "created_at", null: false
+    t.date "exposure_date", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "viewer_profile_id", null: false
+    t.index ["brand_id", "brand_membership_id", "candidate_profile_id", "exposure_date"], name: "idx_find_exposures_unique_member_candidate_day", unique: true
+    t.index ["brand_id", "brand_membership_id", "exposure_date"], name: "idx_find_exposures_member_day"
+    t.index ["brand_id"], name: "index_find_profile_exposures_on_brand_id"
+    t.index ["brand_membership_id"], name: "index_find_profile_exposures_on_brand_membership_id"
+    t.index ["candidate_profile_id"], name: "index_find_profile_exposures_on_candidate_profile_id"
+    t.index ["user_id"], name: "index_find_profile_exposures_on_user_id"
+    t.index ["viewer_profile_id"], name: "index_find_profile_exposures_on_viewer_profile_id"
+    t.check_constraint "viewer_profile_id <> candidate_profile_id", name: "chk_find_exposures_not_self"
   end
 
   create_table "hook_tonight_states", force: :cascade do |t|
@@ -729,6 +748,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_19_010000) do
   add_foreign_key "credential_password_hashes", "credentials", column: ["credential_id", "credential_kind"], primary_key: ["id", "kind"], name: "fk_password_hash_credential_kind"
   add_foreign_key "credentials", "identity_identifiers"
   add_foreign_key "credentials", "users"
+  add_foreign_key "find_profile_exposures", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_find_exposures_membership_tenant"
+  add_foreign_key "find_profile_exposures", "brands"
+  add_foreign_key "find_profile_exposures", "profiles", column: ["candidate_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_find_exposures_candidate_tenant"
+  add_foreign_key "find_profile_exposures", "profiles", column: ["viewer_profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_find_exposures_viewer_tenant"
+  add_foreign_key "find_profile_exposures", "users"
   add_foreign_key "hook_tonight_states", "brands"
   add_foreign_key "hook_tonight_states", "profiles", column: ["profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hook_tonight_states_profile_tenant"
   add_foreign_key "hooks", "brands"

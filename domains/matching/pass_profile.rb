@@ -46,7 +46,7 @@ module Matching
     end
 
     def ensure_target_eligible!(viewer:, target:)
-      selected_strategy = strategy || StrategyRegistry.fetch(brand:)
+      selected_strategy = strategy || StrategyRegistry.interaction_for(brand:)
       eligible = EligibilityScope.call(
         brand:, viewer:, location_max_age: selected_strategy.location_max_age
       ).where(id: target.id).exists?

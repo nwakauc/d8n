@@ -5,7 +5,8 @@ class Brand < ApplicationRecord
     "collections" => %w[ photos ],
     "option_groups" => []
   }.freeze
-  PROFILE_REQUIREMENT_KEYS = DEFAULT_PROFILE_REQUIREMENTS.keys.freeze
+  PROFILE_CONFIGURATION_KEYS = %w[ enabled_profile_fields enabled_preference_fields ].freeze
+  PROFILE_REQUIREMENT_KEYS = (DEFAULT_PROFILE_REQUIREMENTS.keys + PROFILE_CONFIGURATION_KEYS).freeze
 
   has_many :brand_memberships, dependent: :restrict_with_exception
   has_many :brand_domains, dependent: :restrict_with_exception
@@ -24,6 +25,7 @@ class Brand < ApplicationRecord
   has_many :profile_prompts, dependent: :restrict_with_exception
   has_many :profile_prompt_answers, dependent: :restrict_with_exception
   has_many :profile_locations, dependent: :restrict_with_exception
+  has_many :find_profile_exposures, dependent: :restrict_with_exception
   has_many :likes, dependent: :restrict_with_exception
   has_many :profile_passes, dependent: :restrict_with_exception
   has_many :matches, dependent: :restrict_with_exception
@@ -82,10 +84,23 @@ class Brand < ApplicationRecord
     unsupported_collections = requirements.fetch("collections") - Profiles::Completion::SUPPORTED_COLLECTIONS
     unsupported_option_groups = requirements.fetch("option_groups") -
       profile_option_groups.kept.where(key: requirements.fetch("option_groups")).pluck(:key)
+    enabled_profile_fields = requirements.fetch("enabled_profile_fields", Profiles::Configuration::PROFILE_FIELD_LABELS.keys)
+    enabled_preference_fields = requirements.fetch(
+      "enabled_preference_fields", Profiles::Configuration::PREFERENCE_FIELD_LABELS.keys
+    )
+    unsupported_enabled_profile_fields = enabled_profile_fields - Profiles::Configuration::PROFILE_FIELD_LABELS.keys
+    unsupported_enabled_preference_fields = enabled_preference_fields - Profiles::Configuration::PREFERENCE_FIELD_LABELS.keys
 
     errors.add(:profile_requirements, "contains unsupported profile fields") if unsupported_profile_fields.any?
     errors.add(:profile_requirements, "contains unsupported preference fields") if unsupported_preference_fields.any?
     errors.add(:profile_requirements, "contains unsupported collections") if unsupported_collections.any?
     errors.add(:profile_requirements, "contains unsupported option groups") if unsupported_option_groups.any?
+    if unsupported_enabled_profile_fields.any? || (requirements.fetch("profile_fields") - enabled_profile_fields).any?
+      errors.add(:profile_requirements, "contains unsupported enabled profile fields")
+    end
+    if unsupported_enabled_preference_fields.any? ||
+        (requirements.fetch("preference_fields") - enabled_preference_fields).any?
+      errors.add(:profile_requirements, "contains unsupported enabled preference fields")
+    end
   end
 end

@@ -90,7 +90,7 @@ Use clear service objects, policies, commands, or domain modules where the codeb
 
 ### No Backend Forking Per Brand
 
-Agents must not duplicate the backend for Date9ja, HookUs, DateSA, DateAussie, or future brands.
+Agents must not duplicate the backend for Date9ja, HookUs, DateZA, DateAussie, or future brands.
 
 Brand differences should be handled through:
 

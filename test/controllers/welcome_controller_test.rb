@@ -22,6 +22,7 @@ class WelcomeControllerTest < ActionDispatch::IntegrationTest
     assert_equal "preview", services.fetch("messaging")["status"]
     # Owner-scoped profile-photo upload/retrieval is live on private R2.
     assert_equal "preview", services.fetch("media")["status"]
+    assert_equal "preview", services.fetch("admin")["status"]
     assert_equal "planned", services.fetch("billing")["status"]
 
     assert_includes body["status_legend"].keys, "available"

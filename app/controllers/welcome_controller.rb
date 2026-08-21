@@ -14,15 +14,15 @@ class WelcomeController < ApplicationController
 
   SERVICES = [
     { key: "identity", name: "D8N ID", domain: "Identity", status: "available",
-      detail: "Phone/email + password registration, login, session, and identifier verification." },
+      detail: "Phone/email + password registration, login, recovery, sessions, and identifier verification." },
     { key: "profiles", name: "D8N Profiles", domain: "Profiles", status: "available",
       detail: "Brand-configured profiles, options, preferences, location, and publication." },
     { key: "matching", name: "D8N Match", domain: "Matching", status: "available",
-      detail: "Discovery, likes, passes, and matches." },
+      detail: "Shared eligibility, DateZA Find, and DateZA v1 compatibility are available; DateZA Discovery remains unconfigured." },
     { key: "messaging", name: "D8N Chat", domain: "Messaging", status: "preview",
-      detail: "Conversation metadata only; message content is not yet available." },
+      detail: "Match-gated plain-text messages are available; receipts, realtime, media, and client idempotency are not." },
     { key: "trust", name: "D8N Trust", domain: "Trust", status: "preview",
-      detail: "Blocking and profile reporting are available; administrative enforcement is planned." },
+      detail: "Blocking, content reporting, report review, and brand suspension are available; public standing is not." },
     { key: "media", name: "D8N Media", domain: "Media", status: "preview",
       detail: "Owner-scoped profile photos: direct-to-R2 upload, signed retrieval, delete/purge. " \
         "Public delivery, re-encode, EXIF removal, and moderation enforcement are gated." },
@@ -31,7 +31,8 @@ class WelcomeController < ApplicationController
     { key: "billing", name: "D8N Pay", domain: "Billing", status: "planned" },
     { key: "notifications", name: "D8N Notify", domain: "Notifications", status: "planned" },
     { key: "analytics", name: "D8N Insights", domain: "Analytics", status: "planned" },
-    { key: "admin", name: "D8N Admin", domain: "Admin", status: "planned" }
+    { key: "admin", name: "D8N Admin", domain: "Admin", status: "preview",
+      detail: "Brand-scoped report review and suspension APIs exist; a complete hardened admin product does not." }
   ].freeze
 
   def index
