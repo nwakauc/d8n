@@ -28,6 +28,17 @@ module Notifications
       gateway.configured?
     end
 
+    # Product senders are brand-specific. Production must explicitly configure a
+    # sender such as D8N_DATEZA_EMAIL_FROM; development/test get a non-routable
+    # local default. The legacy D8N_EMAIL_FROM remains scoped to identity mail.
+    def self.product_from_address(brand)
+      configured = ENV["D8N_#{brand.slug.upcase}_EMAIL_FROM"].presence
+      return configured if configured
+      return if Rails.env.production?
+
+      "#{brand.name} <no-reply@#{brand.slug}.test>"
+    end
+
     # Renders the transactional code email ONCE from the shared mailer so every
     # gateway sends byte-identical subject/body and no vendor re-implements copy.
     def self.build_message(brand:, recipient:, code:, mailer_action:)
@@ -36,6 +47,14 @@ module Notifications
         recipient:,
         code:
       ).public_send(mailer_action)
+    end
+
+    def self.build_product_message(notification:, recipient:, from_address:)
+      ProductNotificationMailer.with(
+        notification_type: notification.notification_type,
+        recipient:,
+        from_address:
+      ).welcome
     end
   end
 end

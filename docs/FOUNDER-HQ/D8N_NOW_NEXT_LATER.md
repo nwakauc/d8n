@@ -43,7 +43,7 @@ Legend: **GONE** = does not exist · **PARTIAL** = some code, real gap · **QA**
 | Admin moderation | QA | — | **TS-03 built 2026-08-17** — `GET /admin/reports`, `GET/PATCH /admin/reports/:id`, session-based moderator auth (`admin_users.user_id` link + assignment), audited lifecycle; 17 tests green. Admin MFA still a pre-launch gate. Needs staging proof |
 | Suspend / ban (brand-level) | QA | — | **TS-04 built 2026-08-17** — `POST/DELETE /admin/profiles/:id/suspension`: membership suspend + brand session revocation + `AccountEnforcement` + audit; enforced across all surfaces; 16 tests green. Platform-wide ban deferred. Needs staging proof |
 | Account closure / deletion | QA | — | **TS-06 built 2026-08-17** — `DELETE /me` (brand-level): tombstone + anonymize + session revoke + matches ended + **async R2 media purge** (tracked); identity + shared/safety records retained; 18 tests green. Platform-wide identity deletion deferred (policy). Needs staging proof |
-| Notifications (user-facing) | **GONE** | No | only internal `NotificationDelivery` (verification email/SMS). Polling beta needs none → LATER |
+| Notifications (user-facing) | FOUNDATION | Yes | brand-scoped inbox/read API + DateZA welcome email foundation built 2026-08-21; production push/device enrollment and later event policies remain LATER |
 
 ---
 

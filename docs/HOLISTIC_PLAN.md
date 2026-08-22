@@ -115,7 +115,7 @@ not proof that a capability is available.
 | Photos | Safe derivatives exist, but provider moderation and complete production policy remain gated | Public delivery only after approved processing/moderation and retention behavior |
 | Messaging | Plain text exists; no delivery/read state, client-send idempotency, push, realtime, image messages, unmatch endpoint, or chat safety classifier | Reliable mobile/web chat with safety and lifecycle behavior |
 | Trust/moderation | Reports and suspensions exist; no public standing model, complete scam engine, appeals, differentiated RBAC, or hardened admin auth | Basic DateZA trust presentation plus an operable human safety process |
-| Notifications | Email/SMS infrastructure currently serves identity challenges | Product notification records/preferences/templates and push/email delivery |
+| Notifications | Brand-scoped event/outbox, inbox/read API, V1 preferences, encrypted device registrations, delivery attempts, and DateZA welcome email are implemented | Approve a production push provider/device enrollment API; add new event policies only with product/privacy review |
 | Account management | Current session and logout exist; no session/device list or revoke-other-session API | Account security screen, or explicitly defer it from closed beta |
 | Account deletion | Brand closure exists; platform-wide legal erasure/export is a separate unresolved workflow | Clear “leave DateZA” versus “delete D8N identity” language and approved POPIA process |
 
@@ -128,8 +128,8 @@ not proof that a capability is available.
 - RealMe selfie, liveness, photo, video, or ID verification assertions.
 - User-facing trust standing and the policy that derives it.
 - AI Matchmaker beyond deterministic scoring/ranking.
-- Product notification inbox, push tokens, matching/message push delivery, and
-  preferences.
+- Production push provider/device enrollment, matching/message notification
+  policies, preference-management API, deep links, and quiet hours.
 - Billing, products, subscriptions, entitlements, webhooks, and DateZA+.
 - Product analytics event ingestion and funnel reporting.
 - Full admin product (user search, media/verification review, appeals, metrics,

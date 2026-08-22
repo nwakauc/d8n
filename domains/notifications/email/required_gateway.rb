@@ -7,7 +7,8 @@ module Notifications
 
       def self.configured? = false
 
-      def self.deliver(brand:, recipient:, code:, mailer_action:, delivery:, idempotency_key: nil)
+      def self.deliver(brand:, recipient:, code:, mailer_action:, delivery:, idempotency_key: nil,
+        message: nil, from_address: nil)
         DeliveryResponse.permanent(
           provider: PROVIDER,
           error_code: "provider_not_configured",

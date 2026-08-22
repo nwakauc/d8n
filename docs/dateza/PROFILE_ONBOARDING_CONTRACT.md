@@ -69,8 +69,9 @@ steps are `profile`, `preferences`, `photos`, `options`, and `publication`.
 
 Member-configured hard dealbreakers, RealMe, public Trust standing, daily
 Discovery 10, AI Matchmaker, subscriptions,
-product notifications, frontend screens, and a province catalogue remain future
-work.
+notification frontend/device enrollment and later notification event policies,
+frontend screens, and a province catalogue remain future work. The backend DateZA
+registration welcome notification/inbox foundation is implemented separately.
 
 DateZA Find and its daily 10-unique-profile exposure allowance are implemented
 separately from this onboarding contract; see `GET /api/v1/find` in the canonical

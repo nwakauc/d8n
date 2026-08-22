@@ -37,6 +37,9 @@ are already revoked); admin-initiated closure is out of scope.
 | Reports | **retain** | Moderation/safety evidence; survives closure of reporter or target. |
 | AccountEnforcement | **retain** | Safety/audit history; a closing user cannot erase enforcement evidence. |
 | SecurityEvents / audit | **retain** | Audit integrity; a closure writes `account.closed`. |
+| Product notifications / events / delivery attempts | **retain, inaccessible** | Operational/audit evidence; the left membership and revoked sessions remove inbox access. Final retention period requires policy. |
+| Notification preferences | **retain, inactive** | Bound to the tombstoned membership; no longer consulted. Final retention period requires policy. |
+| Device registrations | **revoke** | Prevent any queued or future product push for the closed brand; encrypted token remains pending final retention policy. |
 | AccountClosure record | **create** | Durable closure + async purge-state tracking. |
 
 ## Media purge lifecycle

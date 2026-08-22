@@ -21,3 +21,7 @@ production:
     class: AbuseProtection::PurgeRateLimitCountersJob
     queue: default
     schedule: every hour at minute 27
+  recover_pending_product_notifications:
+    class: Notifications::RecoverPendingJob
+    queue: default
+    schedule: every minute

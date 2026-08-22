@@ -8,8 +8,9 @@ module Notifications
 
       def self.configured? = true
 
-      def self.deliver(brand:, recipient:, code:, mailer_action:, delivery:, idempotency_key: nil)
-        Email.build_message(brand:, recipient:, code:, mailer_action:).deliver_now
+      def self.deliver(brand:, recipient:, code:, mailer_action:, delivery:, idempotency_key: nil,
+        message: nil, from_address: nil)
+        (message || Email.build_message(brand:, recipient:, code:, mailer_action:)).deliver_now
         DeliveryResponse.ok(provider: PROVIDER, external_id: "action_mailer-#{delivery.id}")
       rescue StandardError => e
         DeliveryResponse.transient(provider: PROVIDER, error_code: e.class.name, error_message: "SMTP delivery failed")

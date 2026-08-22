@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_21_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_21_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -230,6 +230,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_090000) do
     t.index ["user_id"], name: "index_credentials_on_user_id"
   end
 
+  create_table "device_registrations", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "brand_membership_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.boolean "enabled", default: true, null: false
+    t.datetime "last_seen_at", null: false
+    t.integer "platform", null: false
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.datetime "revoked_at"
+    t.text "token", null: false
+    t.string "token_digest", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["brand_id", "token_digest"], name: "idx_device_registrations_active_token", unique: true, where: "((revoked_at IS NULL) AND (deleted_at IS NULL))"
+    t.index ["brand_id", "user_id", "enabled", "last_seen_at"], name: "idx_device_registrations_delivery"
+    t.index ["brand_id"], name: "index_device_registrations_on_brand_id"
+    t.index ["brand_membership_id"], name: "index_device_registrations_on_brand_membership_id"
+    t.index ["public_id"], name: "index_device_registrations_on_public_id", unique: true
+    t.index ["user_id"], name: "index_device_registrations_on_user_id"
+  end
+
   create_table "find_profile_exposures", force: :cascade do |t|
     t.bigint "brand_id", null: false
     t.bigint "brand_membership_id", null: false
@@ -358,14 +380,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_090000) do
   end
 
   create_table "notification_deliveries", force: :cascade do |t|
+    t.integer "attempt_count", default: 0, null: false
     t.bigint "brand_id", null: false
     t.integer "channel", null: false
     t.datetime "created_at", null: false
+    t.bigint "device_registration_id"
     t.string "error_code"
     t.text "error_message"
     t.string "external_id"
     t.datetime "failed_at"
+    t.string "idempotency_key"
+    t.datetime "last_attempted_at"
     t.jsonb "metadata", default: {}, null: false
+    t.bigint "notification_id"
     t.string "provider", null: false
     t.string "recipient", null: false
     t.datetime "sent_at"
@@ -374,9 +401,71 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_090000) do
     t.bigint "user_id"
     t.index ["brand_id", "channel", "status", "created_at"], name: "idx_on_brand_id_channel_status_created_at_a9a03f5e6e"
     t.index ["brand_id"], name: "index_notification_deliveries_on_brand_id"
+    t.index ["device_registration_id"], name: "index_notification_deliveries_on_device_registration_id"
+    t.index ["idempotency_key"], name: "index_notification_deliveries_on_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
+    t.index ["notification_id", "channel", "device_registration_id"], name: "idx_notification_deliveries_one_device_channel", unique: true, where: "((notification_id IS NOT NULL) AND (device_registration_id IS NOT NULL))"
+    t.index ["notification_id", "channel"], name: "idx_notification_deliveries_one_channel", unique: true, where: "((notification_id IS NOT NULL) AND (device_registration_id IS NULL))"
+    t.index ["notification_id"], name: "index_notification_deliveries_on_notification_id"
     t.index ["provider", "external_id"], name: "index_notification_deliveries_on_provider_and_external_id"
     t.index ["recipient"], name: "index_notification_deliveries_on_recipient"
     t.index ["user_id"], name: "index_notification_deliveries_on_user_id"
+  end
+
+  create_table "notification_events", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "brand_membership_id", null: false
+    t.datetime "created_at", null: false
+    t.string "event_type", null: false
+    t.string "idempotency_key", null: false
+    t.string "last_error_code"
+    t.datetime "occurred_at", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.datetime "processed_at"
+    t.integer "processing_attempts", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["brand_id", "event_type", "created_at"], name: "idx_notification_events_brand_type_created"
+    t.index ["brand_id"], name: "index_notification_events_on_brand_id"
+    t.index ["brand_membership_id"], name: "index_notification_events_on_brand_membership_id"
+    t.index ["idempotency_key"], name: "index_notification_events_on_idempotency_key", unique: true
+    t.index ["user_id"], name: "index_notification_events_on_user_id"
+  end
+
+  create_table "notification_preferences", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "brand_membership_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.boolean "product_email_enabled", default: true, null: false
+    t.boolean "push_enabled", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["brand_id"], name: "index_notification_preferences_on_brand_id"
+    t.index ["brand_membership_id"], name: "idx_notification_preferences_active_membership", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["brand_membership_id"], name: "index_notification_preferences_on_brand_membership_id"
+    t.index ["user_id"], name: "index_notification_preferences_on_user_id"
+  end
+
+  create_table "notifications", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "brand_membership_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.bigint "notification_event_id", null: false
+    t.string "notification_type", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.datetime "read_at"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["brand_id", "user_id", "created_at", "id"], name: "idx_notifications_inbox"
+    t.index ["brand_id", "user_id", "created_at"], name: "idx_notifications_unread", where: "((read_at IS NULL) AND (deleted_at IS NULL))"
+    t.index ["brand_id"], name: "index_notifications_on_brand_id"
+    t.index ["brand_membership_id"], name: "index_notifications_on_brand_membership_id"
+    t.index ["id", "brand_id", "user_id"], name: "idx_notifications_tenant_owner", unique: true
+    t.index ["notification_event_id"], name: "index_notifications_on_notification_event_id", unique: true
+    t.index ["public_id"], name: "index_notifications_on_public_id", unique: true
+    t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
   create_table "otp_challenges", force: :cascade do |t|
@@ -748,6 +837,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_090000) do
   add_foreign_key "credential_password_hashes", "credentials", column: ["credential_id", "credential_kind"], primary_key: ["id", "kind"], name: "fk_password_hash_credential_kind"
   add_foreign_key "credentials", "identity_identifiers"
   add_foreign_key "credentials", "users"
+  add_foreign_key "device_registrations", "brand_memberships"
+  add_foreign_key "device_registrations", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_device_registrations_membership_owner"
+  add_foreign_key "device_registrations", "brands"
+  add_foreign_key "device_registrations", "users"
   add_foreign_key "find_profile_exposures", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_find_exposures_membership_tenant"
   add_foreign_key "find_profile_exposures", "brands"
   add_foreign_key "find_profile_exposures", "profiles", column: ["candidate_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_find_exposures_candidate_tenant"
@@ -770,7 +863,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_090000) do
   add_foreign_key "messages", "conversations", column: ["conversation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_conversation_tenant"
   add_foreign_key "messages", "profiles", column: ["sender_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_sender_tenant"
   add_foreign_key "notification_deliveries", "brands"
+  add_foreign_key "notification_deliveries", "device_registrations"
+  add_foreign_key "notification_deliveries", "notifications"
+  add_foreign_key "notification_deliveries", "notifications", column: ["notification_id", "brand_id", "user_id"], primary_key: ["id", "brand_id", "user_id"], name: "fk_notification_deliveries_notification_owner"
   add_foreign_key "notification_deliveries", "users"
+  add_foreign_key "notification_events", "brand_memberships"
+  add_foreign_key "notification_events", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_notification_events_membership_owner"
+  add_foreign_key "notification_events", "brands"
+  add_foreign_key "notification_events", "users"
+  add_foreign_key "notification_preferences", "brand_memberships"
+  add_foreign_key "notification_preferences", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_notification_preferences_membership_owner"
+  add_foreign_key "notification_preferences", "brands"
+  add_foreign_key "notification_preferences", "users"
+  add_foreign_key "notifications", "brand_memberships"
+  add_foreign_key "notifications", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_notifications_membership_owner"
+  add_foreign_key "notifications", "brands"
+  add_foreign_key "notifications", "notification_events"
+  add_foreign_key "notifications", "users"
   add_foreign_key "otp_challenges", "brands"
   add_foreign_key "otp_challenges", "identity_identifiers"
   add_foreign_key "profile_blocks", "brands"

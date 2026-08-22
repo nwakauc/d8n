@@ -108,7 +108,8 @@ module Identity
         verified_at: nil
       )
       PasswordEngine.set!(credential:, password:)
-      BrandMembership.create!(user:, brand:, status: :active)
+      membership = BrandMembership.create!(user:, brand:, status: :active)
+      Notifications::EventPublisher.membership_registered!(membership:)
       raw_token, session = Session.issue!(
         user:,
         brand:,

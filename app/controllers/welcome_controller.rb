@@ -29,7 +29,8 @@ class WelcomeController < ApplicationController
     { key: "verification", name: "D8N Verify", domain: "Verification", status: "planned",
       detail: "Identity/selfie verification is not yet implemented." },
     { key: "billing", name: "D8N Pay", domain: "Billing", status: "planned" },
-    { key: "notifications", name: "D8N Notify", domain: "Notifications", status: "planned" },
+    { key: "notifications", name: "D8N Notify", domain: "Notifications", status: "available",
+      detail: "Brand-scoped inbox/read API and DateZA welcome email foundation; production push provider and device API are gated." },
     { key: "analytics", name: "D8N Insights", domain: "Analytics", status: "planned" },
     { key: "admin", name: "D8N Admin", domain: "Admin", status: "preview",
       detail: "Brand-scoped report review and suspension APIs exist; a complete hardened admin product does not." }

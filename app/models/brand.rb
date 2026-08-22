@@ -16,6 +16,10 @@ class Brand < ApplicationRecord
   has_many :sessions, dependent: :restrict_with_exception
   has_many :otp_challenges, dependent: :restrict_with_exception
   has_many :notification_deliveries, dependent: :restrict_with_exception
+  has_many :notification_events, dependent: :restrict_with_exception
+  has_many :notifications, dependent: :restrict_with_exception
+  has_many :notification_preferences, dependent: :restrict_with_exception
+  has_many :device_registrations, dependent: :restrict_with_exception
   has_many :profiles, dependent: :restrict_with_exception
   has_many :profile_preferences, dependent: :restrict_with_exception
   has_many :profile_photos, dependent: :restrict_with_exception

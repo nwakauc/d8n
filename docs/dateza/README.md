@@ -718,6 +718,14 @@ Channels can include:
 
 Avoid notification spam.
 
+Implemented backend foundation (2026-08-21): successful DateZA password
+registration creates one idempotent `dateza.welcome` in-app notification after the
+membership transaction commits. An email delivery is queued when the D8N identity
+has an email identifier. Push is selected only for an active DateZA-owned device;
+new web registration does not invent a device or send SMS. The polling inbox and
+read-state endpoints are documented in `docs/api/openapi.yaml`. A device-enrollment
+API, production push adapter, notification UI, and later event types remain planned.
+
 ---
 
 # 27. Monetisation

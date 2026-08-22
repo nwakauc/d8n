@@ -156,12 +156,24 @@ class Api::V1::AccountClosureTest < ActionDispatch::IntegrationTest
     other_profile = Profile.create!(brand: other_brand, user: @sam.user, brand_membership: other_membership,
       display_name: "Sam2", birthdate: 30.years.ago.to_date, gender: "person", status: :active, visibility: :visible)
     other_token, = Session.issue!(brand: other_brand, user: @sam.user)
+    current_device = DeviceRegistration.create!(
+      brand: @brand, user: @sam.user, brand_membership: @sam.brand_membership,
+      platform: :ios, token: "current-brand-device", last_seen_at: Time.current
+    )
+    other_device = DeviceRegistration.create!(
+      brand: other_brand, user: @sam.user, brand_membership: other_membership,
+      platform: :ios, token: "other-brand-device", last_seen_at: Time.current
+    )
 
     close(@sam_token)
 
     assert other_membership.reload.active?
     assert_nil other_profile.reload.deleted_at
     assert_nil Session.find_by(token_digest: Session.digest_token(other_token)).revoked_at
+    assert current_device.reload.revoked_at
+    assert_not current_device.enabled?
+    assert_nil other_device.reload.revoked_at
+    assert other_device.enabled?
   end
 
   test "closure is idempotent at the domain level" do

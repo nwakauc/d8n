@@ -605,6 +605,10 @@ module LoadTesting
       synthetic_email = "loadtest-user-%@example.invalid"
       Session.where(user_id: user_ids).delete_all
       NotificationDelivery.where(user_id: user_ids).delete_all
+      Notification.where(user_id: user_ids).delete_all
+      NotificationEvent.where(user_id: user_ids).delete_all
+      NotificationPreference.where(user_id: user_ids).delete_all
+      DeviceRegistration.where(user_id: user_ids).delete_all
       SecurityEvent.where(user_id: user_ids).delete_all
       AuthAttempt.where(user_id: user_ids).or(AuthAttempt.where(credential_id: credential_ids))
         .or(AuthAttempt.where(identity_identifier_id: identifier_ids))

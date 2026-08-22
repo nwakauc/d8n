@@ -47,7 +47,8 @@ the API root (`GET /`) and the summary at the top of `openapi.yaml`.
 | Media | Preview | Owner-scoped profile-photo upload/retrieval is live on private R2 (direct-to-R2 intent → attach → short-lived signed GET → delete/purge). Public/other-user delivery, re-encode, EXIF removal, and moderation enforcement remain gated. Endpoints require R2, so they return `404` when R2 is disabled. |
 | Verification | Planned | RealMe identity/selfie verification has no endpoints yet. Identifier verification is an Identity capability, not RealMe. |
 | Admin | Preview | Brand-scoped report review and suspension endpoints exist; stronger admin auth/RBAC and a complete admin product remain gated. |
-| Billing / Product Notifications / Analytics | Planned | No consumer product endpoints yet. Identity challenge delivery does not constitute product notifications. |
+| Product Notifications | Available | Brand-scoped inbox/read API and DateZA registration welcome email. Device storage/push boundary exists; device enrollment API and production push provider are deferred. Identity challenge delivery remains separate. |
+| Billing / Analytics | Planned | No consumer product endpoints yet. |
 
 Every path in `openapi.yaml` is implemented; the "Preview" and "In development"
 notes above describe deliberate scope limits, not missing documentation. Do not
@@ -94,9 +95,27 @@ DATEZA_DEV_HOST=my-dateza.test bin/rails brands:seed_dateza_dev
 
 No production DateZA domain is assumed by this repository. DateZA Find and
 deterministic compatibility v1 are implemented, while daily Discovery 10,
-RealMe, public Trust standing, AI Matchmaker, product notifications, and
-subscriptions/entitlements remain future work. `GET /api/v1/discovery` therefore still returns
+RealMe, public Trust standing, AI Matchmaker, notification UI/device enrollment,
+and subscriptions/entitlements remain future work. DateZA registration now creates
+one `dateza.welcome` product notification after commit. `GET /api/v1/discovery` therefore still returns
 `matching_not_configured` for DateZA.
+
+### Product notifications
+
+The authenticated polling-first inbox is:
+
+```txt
+GET   /api/v1/notifications
+PATCH /api/v1/notifications/:id/read
+POST  /api/v1/notifications/read_all
+```
+
+All three endpoints use the host-resolved brand and brand-bound bearer session.
+Clients never send a brand id. The list contains stable semantic `type` values plus
+presentation-safe server copy; it never exposes email addresses, device tokens,
+provider ids, or delivery failures. DateZA registration currently implements only
+`dateza.welcome`. Authentication verification/recovery codes remain Identity
+challenges and do not appear in this inbox.
 
 ### DateZA Find
 

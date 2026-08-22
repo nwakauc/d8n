@@ -16,11 +16,13 @@ module Notifications
           deliveries.clear
         end
 
-        def deliver(brand:, recipient:, code:, mailer_action:, delivery:, idempotency_key: nil)
-          message = Email.build_message(brand:, recipient:, code:, mailer_action:)
+        def deliver(brand:, recipient:, code:, mailer_action:, delivery:, idempotency_key: nil,
+          message: nil, from_address: nil)
+          message ||= Email.build_message(brand:, recipient:, code:, mailer_action:)
           deliveries << {
             to: recipient,
             subject: message.subject,
+            from: message[:from]&.to_s,
             text: message.text_part&.body&.to_s,
             html: message.html_part&.body&.to_s,
             idempotency_key:,

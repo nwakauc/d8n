@@ -31,6 +31,7 @@ module Accounts
         profile = brand.profiles.kept.lock.find_by(user:)
         close_profile!(profile) if profile.present?
         revoke_sessions(user:, brand:)
+        revoke_devices(user:, brand:, now: Time.current)
         # Tombstone brand participation via `left` (not soft-delete): every auth and
         # product surface already gates on `BrandMembership.kept.active`, so `left`
         # fully removes access while keeping the row findable for idempotency.
@@ -83,6 +84,15 @@ module Accounts
       end
     end
     private_class_method :revoke_sessions
+
+    def self.revoke_devices(user:, brand:, now:)
+      DeviceRegistration.deliverable.where(user:, brand:).update_all(
+        enabled: false,
+        revoked_at: now,
+        updated_at: now
+      )
+    end
+    private_class_method :revoke_devices
 
     def self.record_event(brand:, user:, membership:, profile:)
       SecurityEvent.create!(

@@ -86,7 +86,7 @@ Human work that must start in parallel:
 | Block/report | Reusable | DateZA taxonomy/copy mapping and policy confirmation | Free, prominent, neutral-success flows |
 | RealMe | Missing | Verification model/provider/webhooks/review/public claims | Consent, capture/redirect, status and badge explanation |
 | Trust standing | Missing | Public standing policy and serializer | Approved labels/detail; no raw score |
-| Notifications | Missing for dating | Events/outbox, preferences, push tokens/delivery/deep links | Permission timing, inbox/badges, push routing |
+| Notifications | DateZA welcome event/outbox, inbox/read API, V1 preferences, encrypted device registrations and provider boundary exist | Approve/implement production push provider and device enrollment; add later event policies/deep links | Permission timing, inbox/badges, push routing |
 | Admin/moderation | Partial | Stronger auth/RBAC plan, media/verification review and operational gaps | Separate secure admin surface, not consumer navigation |
 | Analytics | Missing | Event ingestion/retention contract or approved provider path | Shared typed events with minimal properties |
 | DateZA+ | Missing | Out of MVP | Upsell placeholders must not imply purchasable features |
@@ -336,6 +336,12 @@ Acceptance:
 - Every sensitive view/action is authorised and audited.
 
 ### B10 — Product notifications and analytics
+
+Notification foundation status (2026-08-21): the brand-scoped event/outbox,
+in-app inbox/read API, V1 preference model, encrypted device registrations,
+delivery jobs/attempts, and DateZA welcome policy/email are implemented. Production
+push provider/device enrollment, later event policies, quiet hours/deep links, and
+the analytics half of B10 remain open.
 
 Deliver:
 

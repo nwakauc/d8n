@@ -34,14 +34,19 @@ info:
     - **Preview (limited scope):** Admin exposes brand-scoped report review and
       suspension APIs; stronger admin authentication/RBAC and the complete admin
       product remain gated.
+    - **Available foundation:** Product Notifications exposes a brand-scoped,
+      polling-friendly in-app inbox and read state. DateZA registration produces
+      `dateza.welcome`; product email is asynchronous. Device/push storage and a
+      provider boundary exist, but device-registration API and a production push
+      provider remain gated.
     - **Planned (no consumer product endpoints yet):** RealMe verification,
-      Billing, product Notifications, and Analytics.
+      Billing, and Analytics.
 
     DateZA is a provisionable tenant (`DateZA`, slug `dateza`) with phone/email
     password authentication, a v1 profile catalog, and Find with a durable daily
     10-unique-profile allowance plus deterministic `dateza_v1` compatibility on
     sufficiently informed Find cards. Daily Discovery 10, RealMe, public Trust
-    standing, AI Matchmaker, product notifications, and
+    standing, AI Matchmaker, notification UI/device enrollment, and
     subscriptions/entitlements are not implemented. DateZA Discovery remains
     deliberately unconfigured.
 
@@ -62,6 +67,7 @@ tags:
   - name: Profile
   - name: Matching
   - name: Messaging
+  - name: Notifications
   - name: Trust
   - name: Hooks
     description: |
@@ -1764,6 +1770,68 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/notifications:
+    get:
+      operationId: listNotifications
+      tags: [Notifications]
+      summary: List the current member's brand-scoped product notifications
+      description: |
+        Returns at most 50 newest-first notifications for the authenticated user
+        and active membership in the host-resolved brand. The same D8N identity's
+        notifications in another brand are never returned. Presentation-safe copy
+        is derived from the stable notification type; provider, recipient, device,
+        delivery-attempt, and internal database fields are never exposed.
+      responses:
+        "200":
+          description: The current brand inbox and unread count.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/notifications/read_all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [Notifications]
+      summary: Mark every current-brand notification read
+      responses:
+        "200":
+          description: Number of notifications newly marked read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarkAllNotificationsReadResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/notifications/{id}/read:
+    patch:
+      operationId: markNotificationRead
+      tags: [Notifications]
+      summary: Mark one current-brand notification read
+      description: Unknown and cross-brand notification ids return the same neutral 404.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The notification with its read timestamp.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Notification is unknown or belongs to another brand/member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/admin/reports:
     get:
       operationId: listReports
@@ -3449,6 +3517,58 @@ components:
         blocked:
           type: boolean
           description: True when `block` was requested and the responsible profile is now blocked.
+    ProductNotification:
+      type: object
+      required: [id, type, title, body, payload, read_at, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [dateza.welcome]
+          description: Stable semantic type. New types are added compatibly.
+        title:
+          type: string
+        body:
+          type: string
+        payload:
+          type: object
+          description: Type-controlled, presentation-safe structured data. Empty for dateza.welcome.
+          additionalProperties: true
+        read_at:
+          type: [string, "null"]
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+    NotificationListResponse:
+      type: object
+      required: [notifications, unread_count]
+      properties:
+        notifications:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/ProductNotification"
+        unread_count:
+          type: integer
+          minimum: 0
+    NotificationResponse:
+      type: object
+      required: [notification]
+      properties:
+        notification:
+          $ref: "#/components/schemas/ProductNotification"
+    MarkAllNotificationsReadResponse:
+      type: object
+      required: [marked_read, unread_count]
+      properties:
+        marked_read:
+          type: integer
+          minimum: 0
+        unread_count:
+          const: 0
     Match:
       type: object
       required: [id, matched_at, profile]

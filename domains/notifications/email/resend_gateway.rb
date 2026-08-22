@@ -17,15 +17,17 @@ module Notifications
         def api_key = ENV["RESEND_API_KEY"].presence
         def from_address = ENV["D8N_EMAIL_FROM"].presence
 
-        def deliver(brand:, recipient:, code:, mailer_action:, delivery:, idempotency_key: nil)
-          return not_configured(brand) unless configured?
+        def deliver(brand:, recipient:, code:, mailer_action:, delivery:, idempotency_key: nil,
+          message: nil, from_address: nil)
+          sender = from_address || self.from_address
+          return not_configured(brand) unless api_key.present? && sender.present?
 
-          message = Email.build_message(brand:, recipient:, code:, mailer_action:)
+          message ||= Email.build_message(brand:, recipient:, code:, mailer_action:)
           response = HttpClient.post_json(
             ENDPOINT,
             headers: headers(idempotency_key),
             payload: {
-              from: from_address,
+              from: sender,
               to: [ recipient ],
               subject: message.subject,
               html: message.html_part&.body&.to_s,
