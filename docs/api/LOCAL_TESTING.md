@@ -222,31 +222,34 @@ selects HookUs.
 The Apidog desktop app is not subject to browser CORS enforcement. Its web client
 or browser extension may be, depending on how requests are sent.
 
-## 6. Connect HookUs On Port 3001
+## 6. Connect Browser Frontends
 
-HookUs should send API traffic to Rails, not to its own development server:
+Browser frontends should send API traffic to Rails, not to their own development
+servers:
 
 ```txt
 HookUs UI:  http://localhost:3001
+DateZA UI:  http://localhost:5173
 D8N API:    http://localhost:3000
 ```
 
 A browser considers those different origins because their ports differ. D8N's
 development CORS policy explicitly permits `http://localhost:3001` and
-`http://127.0.0.1:3001`, so HookUs may call
-`http://localhost:3000/api/v1/...` directly. Restart Rails after changing the
-Gemfile or CORS configuration.
+`http://127.0.0.1:3001` for HookUs, and `http://localhost:5173` for DateZA, so
+these clients may call `http://localhost:3000/api/v1/...` directly. The approved
+deployed DateZA origin is `https://dateza.vercel.app`. Restart Rails after
+changing the Gemfile or CORS configuration.
 
 Production has no default cross-origin allowlist. Set a comma-separated list of
 exact trusted frontend origins when browser clients need direct API access:
 
 ```sh
-D8N_CORS_ORIGINS=https://hookus.example.com,https://www.hookus.example.com
+D8N_CORS_ORIGINS=https://hookus.example.com,https://www.hookus.example.com,https://dateza.vercel.app
 ```
 
 Do not use `*`. D8N accepts bearer authorization and `Content-Type` from allowed
 origins and exposes `Retry-After`; it does not grant browser access to arbitrary
-origins.
+origins or enable credentialed cookie requests.
 
 A same-origin development proxy remains an optional alternative:
 
@@ -300,12 +303,13 @@ part of the real authentication behavior and remains enabled in development.
 - In Apidog or HookUs, send `Authorization: Bearer YOUR_TOKEN`.
 - Request a new token if it expired or its session was revoked.
 
-### HookUs works in Apidog but fails in the browser
+### A frontend works in Apidog but fails in the browser
 
 Confirm Rails was restarted after dependency installation, inspect the preflight
-response, and confirm HookUs is actually running from `http://localhost:3001` or
-`http://127.0.0.1:3001`. Any other frontend origin must be explicitly listed in
-`D8N_CORS_ORIGINS`.
+response, and confirm the frontend is running from an exact approved origin.
+HookUs local origins are `http://localhost:3001` and
+`http://127.0.0.1:3001`; DateZA local is `http://localhost:5173`. Any other
+frontend origin must be explicitly listed in `D8N_CORS_ORIGINS`.
 
 ## 8. Reset Between Manual Test Scenarios
 

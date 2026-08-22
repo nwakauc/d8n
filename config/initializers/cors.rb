@@ -1,5 +1,10 @@
 default_origins = if Rails.env.development? || Rails.env.test?
-  %w[ http://localhost:3001 http://127.0.0.1:3001 ]
+  %w[
+    http://localhost:3001
+    http://127.0.0.1:3001
+    http://localhost:5173
+    https://dateza.vercel.app
+  ]
 else
   []
 end
