@@ -23,6 +23,11 @@ env:
     D8N_DATABASE_USERNAME: d8n
     JOB_CONCURRENCY: "1"
     D8N_R2_ENABLED: "true"
+    # Staging runs with RAILS_ENV=production, so media storage needs an explicit
+    # deployment environment. Brand onboarding is configuration-driven here;
+    # each slug must have a matching r2_<brand>_staging service and secrets.
+    D8N_DEPLOYMENT_ENV: "staging"
+    D8N_R2_BRANDS: "hookus,dateza"
     # Transactional delivery providers (see domains/notifications). Provider NAMES
     # are not secret; their credentials are (below). With these set, the app fails
     # closed until the matching secrets are present: email/phone codes will not send
@@ -45,6 +50,15 @@ env:
     - D8N_R2_SECRET_ACCESS_KEY
     - D8N_R2_BUCKET
     - D8N_R2_ENDPOINT
+    # New HookUs uploads use the brand-specific service. These staging values
+    # deliberately reference the existing d8n-staging-media resource/credential;
+    # legacy D8N_R2_* names above remain for already-persisted `r2` blobs.
+    - D8N_R2_HOOKUS_STAGING_ACCESS_KEY_ID
+    - D8N_R2_HOOKUS_STAGING_SECRET_ACCESS_KEY
+    - D8N_R2_HOOKUS_STAGING_BUCKET
+    - D8N_R2_DATEZA_STAGING_ACCESS_KEY_ID
+    - D8N_R2_DATEZA_STAGING_SECRET_ACCESS_KEY
+    - D8N_R2_DATEZA_STAGING_BUCKET
     # Resend (email) — API key only; the From identity is public clear config above.
     - RESEND_API_KEY
     # Twilio (SMS) — Standard API Key auth (no account auth token). Account SID +

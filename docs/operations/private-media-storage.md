@@ -87,23 +87,40 @@ noting the owner-scoped API is now live.
 
 ## Provider configuration
 
-Create separate private buckets for staging and production. Do not attach an R2
-public development URL or public custom domain. Create a bucket-scoped token with
-only Object Read & Write access for the relevant environment.
+Create a separate private bucket for each brand and deployment environment. Do
+not attach an R2 public development URL or public custom domain. Each Active
+Storage blob persists its resolved service name, so presigned upload, signed
+retrieval, processing, and purge remain pinned to the same bucket.
+
+`Media::StorageResolver` derives the service from the brand slug plus the explicit
+deployment environment. Staging runs with `RAILS_ENV=production`, so
+`D8N_DEPLOYMENT_ENV`—not `Rails.env`—is the environment boundary. Service names
+follow `r2_<brand>_<environment>` and must exist in `config/storage.yml`.
+Unknown environments, brands absent from `D8N_R2_BRANDS`, and missing Active
+Storage services fail closed.
 
 The application expects:
 
 | Variable | Value |
 | --- | --- |
 | `D8N_R2_ENABLED` | Exactly `true` to select R2 |
-| `D8N_R2_ACCESS_KEY_ID` | R2 S3 API access-key ID |
-| `D8N_R2_SECRET_ACCESS_KEY` | R2 S3 API secret |
-| `D8N_R2_BUCKET` | Environment-specific private bucket name |
+| `D8N_DEPLOYMENT_ENV` | Exactly `staging` or `production` |
+| `D8N_R2_BRANDS` | Comma-separated configured brand slugs, currently `hookus,dateza` |
 | `D8N_R2_ENDPOINT` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
+| `D8N_R2_<BRAND>_<ENV>_ACCESS_KEY_ID` | Bucket-scoped R2 S3 API access-key ID |
+| `D8N_R2_<BRAND>_<ENV>_SECRET_ACCESS_KEY` | Bucket-scoped R2 S3 API secret |
+| `D8N_R2_<BRAND>_<ENV>_BUCKET` | Exact private bucket name |
 
 Keep all values in the deployment secret store. Never commit them, print them in
 CI, or place them in an image build argument. The R2 service uses region `auto`,
 path-style requests, and `public: false`.
+
+The legacy `r2` service and `D8N_R2_ACCESS_KEY_ID`,
+`D8N_R2_SECRET_ACCESS_KEY`, and `D8N_R2_BUCKET` remain configured for existing
+HookUs staging blobs whose database `service_name` is already `r2`. Do not remove
+them until an explicit inventory proves no blob row references `r2`. New HookUs
+staging blobs use `r2_hookus_staging` but reuse the existing private
+`d8n-staging-media` bucket, so neither object keys nor stored objects move.
 
 **Cloudflare R2 checksum compatibility (required).** `config/storage.yml` sets
 `request_checksum_calculation: when_required` and
@@ -119,26 +136,36 @@ environment configuration and resolve their values from `.kamal/secrets.staging`
 or `.kamal/secrets.production`. Those files must reference the operator's secret
 environment/password manager; they must never contain literal credential values.
 
-Production boot fails when `D8N_R2_ENABLED=true` and any required setting is
-blank. When the flag is absent or false, production retains local storage only
-as a harmless disabled fallback: both upload routes remain unavailable.
+Production boot fails when `D8N_R2_ENABLED=true`, the deployment environment or
+brand list is invalid/empty, or any configured brand's service setting is blank.
+When the flag is absent or false, production retains local storage only as a
+harmless disabled fallback: upload routes remain unavailable.
 
 ### Staging wiring (done)
 
 The `staging` Kamal destination is wired end to end:
 
-- `.kamal/secrets.staging` maps the bucket-scoped `d8n-staging-media` credential
-  from the operator's local/CI environment (`STAGING_R2_ACCESS_KEY_ID`,
-  `STAGING_R2_SECRET_ACCESS_KEY`, `STAGING_R2_BUCKET`, `STAGING_R2_ENDPOINT`) to
-  the application-level `D8N_R2_*` names — never a literal value.
-- `config/deploy.staging.yml` sets `D8N_R2_ENABLED: "true"` in `env.clear` and
-  lists the four `D8N_R2_*` keys under `env.secret` so Kamal injects them into
-  the staging container at deploy time.
+- `.kamal/secrets.staging` maps the existing HookUs bucket/credential to both
+  legacy `D8N_R2_*` names and `D8N_R2_HOOKUS_STAGING_*`. It maps the distinct
+  DateZA credential/bucket from `STAGING_DATEZA_R2_*` into
+  `D8N_R2_DATEZA_STAGING_*`; values remain environment references, never literals.
+- `config/deploy.staging.yml` sets `D8N_R2_ENABLED`,
+  `D8N_DEPLOYMENT_ENV=staging`, and `D8N_R2_BRANDS=hookus,dateza`, then declares
+  the legacy and brand-specific secret names for injection.
 - `test/config/kamal_staging_r2_configuration_test.rb` asserts this wiring
   structurally (correct key names, no literal values, consistent with
   `config/storage.yml`) without needing real credentials or a deploy.
 - No `.kamal/secrets.production` or production destination exists yet, and none
   was created by this change — production remains on local disk with R2 disabled.
+
+### Adding a brand
+
+Adding a brand requires configuration, not another uploader: add its
+`r2_<brand>_staging` and `r2_<brand>_production` private services to
+`config/storage.yml`, add the slug to the destination's `D8N_R2_BRANDS`, map the
+three matching bucket-scoped secret variables, configure that bucket's exact
+frontend CORS origins, and run the upload → attach → signed GET → purge smoke
+flow. Do not grant another brand's frontend origin access to the bucket.
 
 ## Activation gate
 

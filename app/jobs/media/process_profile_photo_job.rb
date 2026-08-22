@@ -75,7 +75,9 @@ module Media
         key:,
         filename: Media::ObjectKey::DISPLAY_BASENAME,
         content_type: result.content_type,
-        service_name: ActiveStorage::Blob.service.name
+        # Persist the derivative beside its source even if the process default
+        # changes or this is a legacy HookUs blob on the old `r2` service.
+        service_name: photo.image.blob.service_name
       )
     end
   end

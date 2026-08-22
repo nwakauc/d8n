@@ -30,8 +30,11 @@ module D8n
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
 
-    # The current ProfilePhoto API is an intentionally local-only foundation.
-    # Production keeps it unavailable until ADR 0011's media pipeline replaces it.
+    # Media is disabled by default and enabled only by complete, private R2
+    # configuration in production. Development/test override this for local Disk.
     config.x.profile_photos_enabled = false
+    config.x.r2_storage_enabled = false
+    config.x.media_storage_environment = nil
+    config.x.r2_brand_slugs = []
   end
 end

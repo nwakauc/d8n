@@ -48,6 +48,24 @@ class Media::PurgeProfileMediaJobTest < ActiveJob::TestCase
     assert_not photo.reload.image.attached?
   end
 
+  test "purges from the blob's persisted brand service" do
+    service = ActiveStorage::Blob.services.fetch(:brand_test)
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: StringIO.new("brand raw"), filename: "a.jpg", content_type: "image/jpeg",
+      service_name: "brand_test"
+    )
+    photo = ProfilePhoto.new(profile: @profile, user: @user, brand: @brand)
+    photo.image.attach(blob)
+    photo.save!
+    key = blob.key
+
+    assert service.exist?(key)
+    Media::PurgeProfileMediaJob.perform_now(@closure.id)
+
+    assert_not service.exist?(key)
+    assert_not photo.reload.image.attached?
+  end
+
   test "a closure with no profile completes immediately" do
     profileless = AccountClosure.create!(brand: @brand, user: User.create!,
       brand_membership: BrandMembership.create!(brand: @brand, user: User.create!))

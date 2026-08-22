@@ -112,6 +112,148 @@ Use this alongside `PLAN_OF_ACTION.md`, `AGENT_RULES.md`, and future ADRs.
 - Define manual verification review, support access, audit, and appeal rules.
 - Decide which derived verification claims may be public and how they are worded.
 
+# R2 Brand Buckets
+
+All user-media buckets below must remain private: public access, public
+development URLs, public custom domains, wildcard CORS origins, and generic
+Active Storage routes stay disabled. Create bucket-scoped Object Read & Write
+credentials; never expose credentials to a frontend. The backend selects the
+bucket with `D8N_DEPLOYMENT_ENV` + `D8N_R2_BRANDS` and the matching
+`D8N_R2_<BRAND>_<ENV>_*` secrets. `D8N_R2_ENDPOINT` remains the private S3 API
+endpoint shared by services in the same Cloudflare account.
+
+## HookUs staging
+
+Bucket: `d8n-staging-media`
+
+Brand/environment: HookUs / staging.
+
+Founder action: Do not create a replacement. Reuse the existing private bucket
+as the HookUs-only staging bucket and retain its current bucket-scoped credential.
+
+Allowed origins:
+
+- `http://localhost:3001`
+- `http://127.0.0.1:3001`
+- `http://192.168.0.109:3001`
+- `https://hookus.app`
+- `https://www.hookus.app`
+- `https://hookus-web.hookus.workers.dev`
+
+Methods: `PUT`, `GET`, `HEAD`.
+
+Allowed headers: `Content-Type`, `Content-MD5`, `Content-Disposition`.
+
+Exposed headers: `ETag`.
+
+Then configure: retain legacy `D8N_R2_ACCESS_KEY_ID`,
+`D8N_R2_SECRET_ACCESS_KEY`, and `D8N_R2_BUCKET`; map the same secret values to
+`D8N_R2_HOOKUS_STAGING_ACCESS_KEY_ID`,
+`D8N_R2_HOOKUS_STAGING_SECRET_ACCESS_KEY`, and
+`D8N_R2_HOOKUS_STAGING_BUCKET=d8n-staging-media`. Keep `hookus` in
+`D8N_R2_BRANDS` with `D8N_DEPLOYMENT_ENV=staging`.
+
+Existing objects: no migration. Existing blob rows may retain service name `r2`;
+new HookUs staging blobs use `r2_hookus_staging` against the same bucket.
+
+Verification: perform presigned PUT → attach → signed/revocable GET → delete and
+worker purge; confirm anonymous GET fails and both legacy and new-service blobs
+remain retrievable/purgeable.
+
+## HookUs production
+
+Bucket: `d8n-hookus-prod`
+
+Brand/environment: HookUs / production.
+
+Founder action: Create a private Cloudflare R2 bucket and a bucket-scoped Object
+Read & Write credential when production media is approved.
+
+Allowed origins:
+
+- `https://hookus.app`
+- `https://www.hookus.app`
+- `https://hookus-web.hookus.workers.dev`
+
+Methods: `PUT`, `GET`, `HEAD`.
+
+Allowed headers: `Content-Type`, `Content-MD5`, `Content-Disposition`.
+
+Exposed headers: `ETag`.
+
+Then configure: `D8N_R2_HOOKUS_PRODUCTION_ACCESS_KEY_ID`,
+`D8N_R2_HOOKUS_PRODUCTION_SECRET_ACCESS_KEY`, and
+`D8N_R2_HOOKUS_PRODUCTION_BUCKET=d8n-hookus-prod`; keep `hookus` in
+`D8N_R2_BRANDS` with `D8N_DEPLOYMENT_ENV=production`.
+
+Existing objects: none expected; no migration from staging.
+
+Verification: perform presigned PUT → attach → signed/revocable GET → delete and
+worker purge; confirm anonymous GET and every DateZA origin fail.
+
+## DateZA staging
+
+Bucket: `d8n-dateza-staging`
+
+Brand/environment: DateZA / staging.
+
+Founder action: Create a private Cloudflare R2 bucket and a bucket-scoped Object
+Read & Write credential before the next staging deployment enables DateZA media.
+
+Allowed origins:
+
+- `http://localhost:5173`
+- `https://dateza.vercel.app`
+
+Methods: `PUT`, `GET`, `HEAD`.
+
+Allowed headers: `Content-Type`, `Content-MD5`, `Content-Disposition`.
+
+Exposed headers: `ETag`.
+
+Then configure: `STAGING_DATEZA_R2_ACCESS_KEY_ID`,
+`STAGING_DATEZA_R2_SECRET_ACCESS_KEY`, and
+`STAGING_DATEZA_R2_BUCKET=d8n-dateza-staging` on the deploy host; Kamal maps them
+to `D8N_R2_DATEZA_STAGING_ACCESS_KEY_ID`,
+`D8N_R2_DATEZA_STAGING_SECRET_ACCESS_KEY`, and
+`D8N_R2_DATEZA_STAGING_BUCKET`. Keep `dateza` in `D8N_R2_BRANDS` with
+`D8N_DEPLOYMENT_ENV=staging`.
+
+Existing objects: none expected; do not copy HookUs objects.
+
+Verification: perform DateZA presigned PUT → attach → signed/revocable GET →
+delete and worker purge; confirm anonymous GET and every HookUs origin fail.
+
+## DateZA production
+
+Bucket: `d8n-dateza-prod`
+
+Brand/environment: DateZA / production.
+
+Founder action: Create a private Cloudflare R2 bucket and a bucket-scoped Object
+Read & Write credential when DateZA production media is approved.
+
+Allowed origins:
+
+- `http://localhost:5173`
+- `https://dateza.vercel.app`
+
+Methods: `PUT`, `GET`, `HEAD`.
+
+Allowed headers: `Content-Type`, `Content-MD5`, `Content-Disposition`.
+
+Exposed headers: `ETag`.
+
+Then configure: `D8N_R2_DATEZA_PRODUCTION_ACCESS_KEY_ID`,
+`D8N_R2_DATEZA_PRODUCTION_SECRET_ACCESS_KEY`, and
+`D8N_R2_DATEZA_PRODUCTION_BUCKET=d8n-dateza-prod`; keep `dateza` in
+`D8N_R2_BRANDS` with `D8N_DEPLOYMENT_ENV=production`.
+
+Existing objects: none expected; no migration from staging.
+
+Verification: perform DateZA presigned PUT → attach → signed/revocable GET →
+delete and worker purge; confirm anonymous GET and every HookUs origin fail.
+
 ## Brand And Marketing
 
 - Decide D8N public positioning.

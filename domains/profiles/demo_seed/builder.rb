@@ -146,7 +146,7 @@ module Profiles
         )
         blob = ActiveStorage::Blob.create_and_upload!(
           io: File.open(path, "rb"), key:, filename: basename, content_type:,
-          service_name: ActiveStorage::Blob.service.name
+          service_name: Media::StorageResolver.service_name(brand:)
         )
         initial = Media::PhotoPolicy.initial_state(brand:)
         photo = ProfilePhoto.new(

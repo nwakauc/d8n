@@ -2,6 +2,11 @@ test:
   service: Disk
   root: <%= Rails.root.join("tmp/storage") %>
 
+# Isolated Disk service used to prove per-blob service routing without network R2.
+brand_test:
+  service: Disk
+  root: <%= Rails.root.join("tmp/storage-brand-test") %>
+
 local:
   service: Disk
   root: <%= Rails.root.join("storage") %>
@@ -21,6 +26,57 @@ r2:
   # "You can only specify one non-default checksum at a time". Restrict SDK
   # checksums to operations that require them so only the single Content-MD5
   # is sent. Scoped to the R2 service so unrelated AWS SDK use is unaffected.
+  request_checksum_calculation: when_required
+  response_checksum_validation: when_required
+
+# New media is routed to one private bucket per brand and deployment environment.
+# Keep the legacy `r2` service above: existing HookUs blobs persist that
+# service_name in PostgreSQL and must remain readable/purgeable without migration.
+r2_hookus_staging:
+  service: S3
+  access_key_id: <%= ENV["D8N_R2_HOOKUS_STAGING_ACCESS_KEY_ID"] %>
+  secret_access_key: <%= ENV["D8N_R2_HOOKUS_STAGING_SECRET_ACCESS_KEY"] %>
+  region: auto
+  bucket: <%= ENV["D8N_R2_HOOKUS_STAGING_BUCKET"] %>
+  endpoint: <%= ENV["D8N_R2_ENDPOINT"] %>
+  public: false
+  force_path_style: true
+  request_checksum_calculation: when_required
+  response_checksum_validation: when_required
+
+r2_hookus_production:
+  service: S3
+  access_key_id: <%= ENV["D8N_R2_HOOKUS_PRODUCTION_ACCESS_KEY_ID"] %>
+  secret_access_key: <%= ENV["D8N_R2_HOOKUS_PRODUCTION_SECRET_ACCESS_KEY"] %>
+  region: auto
+  bucket: <%= ENV["D8N_R2_HOOKUS_PRODUCTION_BUCKET"] %>
+  endpoint: <%= ENV["D8N_R2_ENDPOINT"] %>
+  public: false
+  force_path_style: true
+  request_checksum_calculation: when_required
+  response_checksum_validation: when_required
+
+r2_dateza_staging:
+  service: S3
+  access_key_id: <%= ENV["D8N_R2_DATEZA_STAGING_ACCESS_KEY_ID"] %>
+  secret_access_key: <%= ENV["D8N_R2_DATEZA_STAGING_SECRET_ACCESS_KEY"] %>
+  region: auto
+  bucket: <%= ENV["D8N_R2_DATEZA_STAGING_BUCKET"] %>
+  endpoint: <%= ENV["D8N_R2_ENDPOINT"] %>
+  public: false
+  force_path_style: true
+  request_checksum_calculation: when_required
+  response_checksum_validation: when_required
+
+r2_dateza_production:
+  service: S3
+  access_key_id: <%= ENV["D8N_R2_DATEZA_PRODUCTION_ACCESS_KEY_ID"] %>
+  secret_access_key: <%= ENV["D8N_R2_DATEZA_PRODUCTION_SECRET_ACCESS_KEY"] %>
+  region: auto
+  bucket: <%= ENV["D8N_R2_DATEZA_PRODUCTION_BUCKET"] %>
+  endpoint: <%= ENV["D8N_R2_ENDPOINT"] %>
+  public: false
+  force_path_style: true
   request_checksum_calculation: when_required
   response_checksum_validation: when_required
 

@@ -56,6 +56,22 @@ module Profiles
         photo.image.blob.key
     end
 
+    test "upload intent persists the brand-resolved service for signing and later lifecycle operations" do
+      brand, user = brand_with_profile("hookus")
+      resolver = Object.new
+      resolver.define_singleton_method(:service_name) { |brand:| "brand_test" }
+
+      intent = PhotoUpload.create_intent(
+        user:, brand:, filename: "photo.png",
+        byte_size: png_bytes.bytesize, checksum: Digest::MD5.base64digest(png_bytes),
+        content_type: "image/png", storage_resolver: resolver
+      )
+      blob = ActiveStorage::Blob.find_signed!(intent.fetch(:signed_id))
+
+      assert_equal "brand_test", blob.service_name
+      assert_equal ActiveStorage::Blob.services.fetch(:brand_test), blob.service
+    end
+
     private
 
     def brand_with_profile(slug)

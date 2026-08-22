@@ -31,6 +31,14 @@ module Media
       assert_equal display_blob_id, photo.display_image.blob.id
     end
 
+    test "writes the derivative to the raw blob's resolved service" do
+      photo = photo_with_raw(service_name: "brand_test")
+
+      perform_enqueued_jobs { ProcessProfilePhotoJob.perform_now(photo.id) }
+
+      assert_equal "brand_test", photo.reload.display_image.blob.service_name
+    end
+
     test "no-ops when the photo was soft-deleted before processing" do
       photo = photo_with_raw
       photo.update!(deleted_at: Time.current)
@@ -64,7 +72,7 @@ module Media
       @valid_jpeg ||= Vips::Image.black(120, 90).add([ 110 ]).cast("uchar").write_to_buffer(".jpg")
     end
 
-    def photo_with_raw(bytes: nil, content_type: "image/jpeg")
+    def photo_with_raw(bytes: nil, content_type: "image/jpeg", service_name: ActiveStorage::Blob.service.name)
       bytes ||= valid_jpeg
       brand = Brand.create!(slug: "hookus", name: "HookUs")
       user = User.create!
@@ -78,7 +86,7 @@ module Media
       key = Media::ObjectKey.profile_photo_original(brand:, user:, profile:, content_type:)
       blob = ActiveStorage::Blob.create_and_upload!(
         io: StringIO.new(bytes), key:, filename: "original.jpg",
-        content_type:, service_name: ActiveStorage::Blob.service.name
+        content_type:, service_name:
       )
       photo = ProfilePhoto.new(brand:, user:, profile:)
       photo.image.attach(blob)

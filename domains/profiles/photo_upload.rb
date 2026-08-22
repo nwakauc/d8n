@@ -29,7 +29,8 @@ module Profiles
 
     # Control plane: allocate a D8N-controlled object key and return a short-lived
     # presigned PUT the client uses to upload bytes straight to private R2.
-    def self.create_intent(user:, brand:, filename:, byte_size:, checksum:, content_type:)
+    def self.create_intent(user:, brand:, filename:, byte_size:, checksum:, content_type:,
+      storage_resolver: Media::StorageResolver)
       profile = require_profile!(user:, brand:)
 
       content_type = content_type.to_s
@@ -46,6 +47,7 @@ module Profiles
       key = Media::ObjectKey.profile_photo_original(
         brand:, user:, profile:, content_type:
       )
+      service_name = storage_resolver.service_name(brand:)
 
       blob = ActiveStorage::Blob.create_before_direct_upload!(
         key:,
@@ -53,7 +55,7 @@ module Profiles
         byte_size:,
         checksum:,
         content_type:,
-        service_name: ActiveStorage::Blob.service.name
+        service_name:
       )
 
       {
@@ -73,6 +75,7 @@ module Profiles
 
       blob = ActiveStorage::Blob.find_signed(signed_id.to_s)
       raise InvalidUpload if blob.nil?
+      raise InvalidUpload unless Media::StorageResolver.compatible_service?(brand:, service_name: blob.service_name)
       raise AlreadyAttached if blob.attachments.exists?
 
       verify_uploaded_object!(blob)
