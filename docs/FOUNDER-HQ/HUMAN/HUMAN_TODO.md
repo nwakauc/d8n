@@ -256,6 +256,22 @@ delete and worker purge; confirm anonymous GET and every HookUs origin fail.
 
 ## Brand And Marketing
 
+### DateZA staging API activation
+
+- [x] Create DNS-only `dateza-staging-api.d8n.tech` A record pointing to the
+  existing D8N staging server at `145.241.185.41`.
+- [ ] Deploy the shared `d8n-staging` Kamal destination so Kamal Proxy serves
+  both staging hosts and obtains/renews TLS for the DateZA hostname. Do not
+  create another service or deployment.
+- [ ] Run the idempotent `brands:install_dateza` task with
+  `DATEZA_API_HOST=dateza-staging-api.d8n.tech`; this creates/updates DateZA and
+  its active `BrandDomain` mapping without reassigning a conflicting hostname.
+- [ ] Verify `/api/v1/auth/methods` reports `brand.slug=dateza` on the DateZA
+  hostname and still reports `brand.slug=hookus` on `staging-api.d8n.tech`.
+- [ ] Set DateZA's Vercel environment variable to
+  `VITE_D8N_API_URL=https://dateza-staging-api.d8n.tech` and redeploy DateZA so
+  the Vite build includes the new value.
+
 - Decide D8N public positioning.
 - Decide D8N marketing site pages.
 - Decide D8N partner/franchise waitlist copy.

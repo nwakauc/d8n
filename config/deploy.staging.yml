@@ -11,7 +11,9 @@ servers:
 
 proxy:
   ssl: true
-  host: staging-api.d8n.tech
+  hosts:
+    - staging-api.d8n.tech
+    - dateza-staging-api.d8n.tech
 
 env:
   clear:

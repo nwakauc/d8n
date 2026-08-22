@@ -1,16 +1,19 @@
 require "test_helper"
 
 class DatezaTenantFoundationTest < ActionDispatch::IntegrationTest
+  HOOKUS_HOST = "staging-api.d8n.tech".freeze
+  DATEZA_HOST = "dateza-staging-api.d8n.tech".freeze
+
   setup do
     @hookus = Brand.create!(slug: "hookus", name: "HookUs")
     Profiles::HookusProfileCatalog.install!(brand: @hookus)
-    BrandDomain.create!(brand: @hookus, host: "hookus.test")
+    BrandDomain.create!(brand: @hookus, host: HOOKUS_HOST)
 
-    @dateza = Brands::DatezaInstaller.call(hosts: [ "dateza.test" ])
+    @dateza = Brands::DatezaInstaller.call(hosts: [ DATEZA_HOST ])
   end
 
   test "resolves each brand and advertises only its configured authentication methods" do
-    host! "dateza.test"
+    host! DATEZA_HOST
     get "/api/v1/auth/methods"
 
     assert_response :success
@@ -22,7 +25,7 @@ class DatezaTenantFoundationTest < ActionDispatch::IntegrationTest
       JSON.parse(response.body)
     )
 
-    host! "hookus.test"
+    host! HOOKUS_HOST
     get "/api/v1/auth/methods"
 
     assert_response :success
@@ -36,11 +39,11 @@ class DatezaTenantFoundationTest < ActionDispatch::IntegrationTest
     dateza_token, = Session.issue!(brand: @dateza, user:)
     hookus_token, = Session.issue!(brand: @hookus, user:)
 
-    host! "hookus.test"
+    host! HOOKUS_HOST
     get "/api/v1/profile/configuration", headers: bearer_headers(dateza_token)
     assert_response :unauthorized
 
-    host! "dateza.test"
+    host! DATEZA_HOST
     get "/api/v1/profile/configuration", headers: bearer_headers(hookus_token)
     assert_response :unauthorized
 
@@ -61,7 +64,7 @@ class DatezaTenantFoundationTest < ActionDispatch::IntegrationTest
     assert_equal 2, BrandMembership.kept.where(user:).count
     assert_equal 2, Profile.kept.where(user:).count
 
-    host! "dateza.test"
+    host! DATEZA_HOST
     get "/api/v1/profile/configuration", headers: bearer_headers(dateza_token)
     assert_response :success
     dateza_groups = JSON.parse(response.body).dig("configuration", "option_groups").pluck("key")
@@ -69,7 +72,7 @@ class DatezaTenantFoundationTest < ActionDispatch::IntegrationTest
     assert_not_includes dateza_groups, "intents"
     assert_not_includes dateza_groups, "vibes"
 
-    host! "hookus.test"
+    host! HOOKUS_HOST
     get "/api/v1/profile/configuration", headers: bearer_headers(hookus_token)
     assert_response :success
     hookus_groups = JSON.parse(response.body).dig("configuration", "option_groups").pluck("key")
@@ -83,7 +86,7 @@ class DatezaTenantFoundationTest < ActionDispatch::IntegrationTest
     hookus_target = create_member_profile(brand: @hookus, name: "HookUs Target")
     token, = Session.issue!(brand: @dateza, user: dateza_viewer.user)
 
-    host! "dateza.test"
+    host! DATEZA_HOST
     get "/api/v1/profiles/#{hookus_target.public_id}", headers: bearer_headers(token)
 
     assert_response :not_found
@@ -94,7 +97,7 @@ class DatezaTenantFoundationTest < ActionDispatch::IntegrationTest
     viewer = create_member_profile(brand: @dateza, name: "DateZA Viewer")
     token, = Session.issue!(brand: @dateza, user: viewer.user)
 
-    host! "dateza.test"
+    host! DATEZA_HOST
     get "/api/v1/discovery", headers: bearer_headers(token)
 
     assert_response :not_found
@@ -110,7 +113,7 @@ class DatezaTenantFoundationTest < ActionDispatch::IntegrationTest
     hookus_token, = Session.issue!(brand: @hookus, user:)
     dateza_token, = Session.issue!(brand: @dateza, user:)
 
-    host! "dateza.test"
+    host! DATEZA_HOST
     delete "/api/v1/me", params: { confirmation: "close" }, headers: bearer_headers(dateza_token)
     assert_response :success
 
@@ -118,14 +121,14 @@ class DatezaTenantFoundationTest < ActionDispatch::IntegrationTest
     assert hookus_membership.reload.active?
     assert Profile.kept.exists?(hookus_profile.id)
 
-    host! "hookus.test"
+    host! HOOKUS_HOST
     get "/api/v1/me", headers: bearer_headers(hookus_token)
     assert_response :success
     assert_equal "hookus", JSON.parse(response.body).dig("brand", "slug")
   end
 
   test "DateZA registration reaches authenticated DateZA profile configuration" do
-    host! "dateza.test"
+    host! DATEZA_HOST
     post "/api/v1/auth/password/register", params: {
       identifier: "dateza-foundation@example.test",
       password: "secret",
