@@ -1,5 +1,4 @@
-class Api::V1::HooksController < ApplicationController
-  before_action :authenticate_user!
+class Api::V1::HooksController < Api::V1::InteractionController
   # Both surfaces serialize a counterpart profile (photos), so they need signed
   # media URLs.
   before_action :set_active_storage_url_options, only: [ :index, :reply ]

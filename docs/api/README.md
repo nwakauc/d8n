@@ -167,6 +167,38 @@ answers, moderation/risk state, raw media, and other-brand profiles are absent.
 The generic HTTP throttle is only abuse protection; it does not implement or
 replace the exposure allowance.
 
+### DateZA verification-gated interactions
+
+DateZA deliberately uses **browse first, verify before interacting**. A member
+whose current login identifier is still unverified may call `GET /api/v1/find`
+and consume the normal Find exposure allowance. The server requires verification
+before full profile detail, Like, Pass, match/conversation access, message
+history/send, conversation initiation, or another interpersonal Hook surface.
+
+The verification source is the identifier attached to the current brand-bound
+session credential. A different verified phone/email on the same D8N identity
+does not unlock a session created through an unverified identifier. A blocked
+request returns:
+
+```http
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+
+{"error":"identifier_verification_required"}
+```
+
+Treat this separately from `401 unauthorized`, profile/lifecycle errors, and
+normal validation failures. Send the member through the existing
+`POST/PATCH /api/v1/auth/verification` flow, then retry the intended action.
+HookUs is not subject to this DateZA rule. Account/profile editing and safety
+controls (block, unblock, and report) remain available because they are not
+dating interactions.
+
+The allowance model remains two separate DateZA surfaces: Find is implemented at
+10 unique profiles per Johannesburg day; curated daily Discovery is intended to
+add a separate 10-profile allowance, for 20 total daily profiles, but that second
+surface and ledger are not implemented yet.
+
 ## Authentication Flow
 
 Discover the implemented login methods enabled for the request host:

@@ -84,7 +84,12 @@ class DatezaTenantFoundationTest < ActionDispatch::IntegrationTest
   test "cross-brand public profile identifiers fail neutrally" do
     dateza_viewer = create_member_profile(brand: @dateza, name: "DateZA Viewer")
     hookus_target = create_member_profile(brand: @hookus, name: "HookUs Target")
-    token, = Session.issue!(brand: @dateza, user: dateza_viewer.user)
+    identifier = IdentityIdentifier.create!(
+      user: dateza_viewer.user, kind: :email,
+      normalized_value: "tenant-viewer@example.com", verified_at: Time.current
+    )
+    credential = Credential.create!(user: dateza_viewer.user, identity_identifier: identifier, kind: :password)
+    token, = Session.issue!(brand: @dateza, user: dateza_viewer.user, credential:)
 
     host! DATEZA_HOST
     get "/api/v1/profiles/#{hookus_target.public_id}", headers: bearer_headers(token)

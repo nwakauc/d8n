@@ -1,5 +1,4 @@
-class Api::V1::ProfilesController < ApplicationController
-  before_action :authenticate_user!
+class Api::V1::ProfilesController < Api::V1::InteractionController
   before_action :set_active_storage_url_options, only: :show
 
   # Authoritative, refreshable public detail for a single member, resolved from a

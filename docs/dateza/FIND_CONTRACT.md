@@ -17,6 +17,12 @@ The first returned Find card creates the exposure. Returning that candidate
 again, opening profile detail, Like, Pass, reload, retry, cursor replay, or a
 second client creates no additional exposure.
 
+Identifier verification is not a Find eligibility requirement. An otherwise
+eligible unverified DateZA member may browse these cards, but the shared DateZA
+interaction policy blocks profile detail, Like, Pass, match, and messaging
+surfaces with `403 identifier_verification_required` until the identifier attached
+to the current login session is verified.
+
 ## Request
 
 Supported query parameters:
@@ -91,8 +97,10 @@ anti-automation ceiling.
 ## Separate from Discovery
 
 DateZA Discovery remains unimplemented and returns `matching_not_configured`.
-It will require stable curated daily batches and may reuse compatibility semantics, not the
-Find exposure ledger or Find cursor.
+The approved product direction is a separate 10-profile daily Discovery
+allowance in addition to Find's 10, for 20 daily profiles across both surfaces.
+It will require stable curated daily batches and may reuse compatibility
+semantics, not the Find exposure ledger or Find cursor.
 
 ## Deferred
 

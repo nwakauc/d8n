@@ -1,5 +1,4 @@
-class Api::V1::ConversationsController < ApplicationController
-  before_action :authenticate_user!
+class Api::V1::ConversationsController < Api::V1::InteractionController
   before_action :set_active_storage_url_options, only: :index
 
   def index

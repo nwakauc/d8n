@@ -1,5 +1,7 @@
-class Api::V1::HookTonightController < ApplicationController
-  before_action :authenticate_user!
+class Api::V1::HookTonightController < Api::V1::InteractionController
+  # Reading/deactivating one's own state remains available. Activation and the
+  # reciprocal pool are interpersonal surfaces and use the shared interaction gate.
+  skip_before_action :authorize_interaction_access!, only: %i[show destroy]
   before_action -> { enforce_rate_limit!(:hook_tonight_activation) }, only: %i[create destroy]
   before_action -> { enforce_rate_limit!(:hook_tonight_discovery) }, only: :discovery
   # Discovery serializes counterpart profiles (photos), so it needs signed media URLs.

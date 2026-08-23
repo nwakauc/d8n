@@ -1,5 +1,4 @@
-class Api::V1::MessagesController < ApplicationController
-  before_action :authenticate_user!
+class Api::V1::MessagesController < Api::V1::InteractionController
   before_action -> { enforce_rate_limit!(:send_message) }, only: :create
 
   def index

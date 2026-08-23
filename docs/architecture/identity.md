@@ -86,6 +86,27 @@ Logout revokes only the current brand session and records a security event. Susp
 - Concurrent requests for the same brand/channel/identifier or IP are serialized
   with HMAC-keyed PostgreSQL transaction advisory locks before throttle checks.
 
+## Brand Interaction Access
+
+`Identity::InteractionAccess` is the single brand-policy boundary for requiring
+identifier control before interpersonal product access. Interaction controllers
+inherit from `Api::V1::InteractionController`, so profile detail, matching,
+messaging, and equivalent interaction surfaces share the same authorization and
+consumer error instead of repeating brand checks.
+
+DateZA requires the identifier attached to the current session credential to have
+a real `IdentityIdentifier#verified_at` timestamp before a published member may
+interact. A verified secondary identifier does not satisfy an unverified current
+login. The denial is `403 identifier_verification_required`; it is not an
+authentication failure and exposes no credential details. HookUs currently has
+no equivalent requirement. Find remains a separate passive browsing surface and
+does not inherit the interaction controller.
+
+Members without a published profile continue through each endpoint's existing
+profile/lifecycle authorization, preserving distinct unfinished, suspended, and
+unavailable outcomes. Account/profile management and Trust safety actions do not
+use the interaction gate.
+
 ## Email Replacement
 
 An authenticated email/password session may replace a mistyped or outdated email

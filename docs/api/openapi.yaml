@@ -17,8 +17,9 @@ info:
       change, recovery, brand-bound session, identifier verification), Profiles (profile,
       configuration, options, preferences, location, publication), HookUs Matching
       (discovery, likes, passes, matches), DateZA Find (10 unique profiles per
-      Johannesburg day) with deterministic DateZA v1 compatibility, and Trust
-      foundations (block, report, brand-scoped review and suspension).
+      Johannesburg day) with deterministic DateZA v1 compatibility and
+      verification-gated DateZA interactions, and Trust foundations (block,
+      report, brand-scoped review and suspension).
     - **Preview (limited scope):** Messaging supports match-gated plain-text
       messages and history. Client idempotency, delivery/read receipts, realtime,
       and message media are not available.
@@ -1088,6 +1089,9 @@ paths:
         may be surfaced during one Africa/Johannesburg calendar day. Replaying a
         page or seeing a previously exposed candidate does not consume allowance
         again. Detail, Like, and Pass operations do not consume Find allowance.
+        An otherwise eligible DateZA member may use Find while the identifier
+        attached to the current login session is unverified; verification is
+        required only when they proceed to an interaction surface.
 
         Every returned profile has `compatibility`: a deterministic DateZA v1
         score, confidence and bounded reason codes when at least 35% of weighted
@@ -1171,11 +1175,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Current profile is not active and discoverable.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+          $ref: "#/components/responses/InteractionForbidden"
         "404":
           description: |
             Target is unavailable. Unknown, cross-brand, hidden, inactive,
@@ -1209,6 +1209,8 @@ paths:
                 $ref: "#/components/schemas/LikeResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -1237,6 +1239,8 @@ paths:
                 $ref: "#/components/schemas/PassResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -1280,6 +1284,8 @@ paths:
                 $ref: "#/components/schemas/SendHookResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -1333,7 +1339,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/ProfileOrMembershipRequired"
+          $ref: "#/components/responses/InteractionForbidden"
         "422":
           description: Invalid `limit` (`invalid_limit`) or `cursor` (`invalid_cursor`).
           content:
@@ -1372,6 +1378,8 @@ paths:
                 $ref: "#/components/schemas/HookReplyResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
         "404":
           description: The Hook is not live for this member (`hook_unavailable`).
           content:
@@ -1401,6 +1409,8 @@ paths:
           description: The Hook was declined; nothing is disclosed to the sender.
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
         "404":
           description: The Hook is not live for this member (`hook_unavailable`).
           content:
@@ -1456,11 +1466,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          description: The member is not active and discoverable (`discoverable_profile_required`).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+          $ref: "#/components/responses/InteractionForbidden"
         "422":
           description: The requested `intent` is not supported (`invalid_intent`).
           content:
@@ -1524,7 +1530,9 @@ paths:
           description: |
             The viewer is not active and discoverable
             (`discoverable_profile_required`), or has no live Hook Tonight
-            activation (`hook_tonight_required`).
+            activation (`hook_tonight_required`). For a published DateZA member,
+            `identifier_verification_required` is returned before this
+            interpersonal surface can be used.
           content:
             application/json:
               schema:
@@ -1726,7 +1734,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/ProfileOrMembershipRequired"
+          $ref: "#/components/responses/InteractionForbidden"
         "422":
           $ref: "#/components/responses/InvalidInput"
   /api/v1/conversations:
@@ -1751,7 +1759,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/ProfileOrMembershipRequired"
+          $ref: "#/components/responses/InteractionForbidden"
         "422":
           $ref: "#/components/responses/InvalidInput"
   /api/v1/matches/{match_id}/conversation:
@@ -1776,6 +1784,8 @@ paths:
                 $ref: "#/components/schemas/StartConversationResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
         "404":
           description: Match is unavailable, cross-brand, or does not include the current profile.
           content:
@@ -1809,6 +1819,8 @@ paths:
                 $ref: "#/components/schemas/MessageListResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
         "404":
           description: Conversation is unavailable, cross-brand, ended, blocked, or not the current profile's.
           content:
@@ -1847,6 +1859,8 @@ paths:
                 $ref: "#/components/schemas/SendMessageResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
         "404":
           description: Conversation is unavailable, cross-brand, ended, blocked, or not the current profile's.
           content:
@@ -2313,6 +2327,16 @@ components:
   responses:
     Unauthorized:
       description: Missing, invalid, expired, revoked, or wrong-brand bearer token.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InteractionForbidden:
+      description: >-
+        For a published DateZA member, the identifier attached to the current
+        login session has not been verified (`identifier_verification_required`).
+        Existing profile, membership, and lifecycle authorization errors remain
+        distinct. This DateZA-only rule does not change HookUs authorization.
       content:
         application/json:
           schema:

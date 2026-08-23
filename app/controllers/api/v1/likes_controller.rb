@@ -1,5 +1,4 @@
-class Api::V1::LikesController < ApplicationController
-  before_action :authenticate_user!
+class Api::V1::LikesController < Api::V1::InteractionController
   before_action -> { enforce_rate_limit!(:like_profile) }, only: :create
 
   def create
