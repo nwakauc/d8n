@@ -22,4 +22,15 @@ class User < ApplicationRecord
   enum :status, { active: 0, suspended: 1, closed: 2 }
 
   scope :kept, -> { where(deleted_at: nil) }
+
+  validates :first_name, :last_name, length: { maximum: 100 }, allow_blank: true
+
+  before_validation :normalize_private_identity_names
+
+  private
+
+  def normalize_private_identity_names
+    self.first_name = first_name.to_s.strip.presence
+    self.last_name = last_name.to_s.strip.presence
+  end
 end

@@ -50,10 +50,30 @@ class DatezaProfileOnboardingTest < ActiveSupport::TestCase
 
     assert_equal({ city: "Johannesburg", country_code: "ZA", precision: "approximate" }, payload.fetch(:location))
     assert_not payload.key?(:birthdate)
+    assert_not payload.key?(:first_name)
+    assert_not payload.key?(:last_name)
     assert_not payload.key?(:latitude)
     assert_not payload.key?(:longitude)
     assert_not payload.fetch(:options).key?("has_children")
     assert_not payload.fetch(:options).key?("religion_importance")
+  end
+
+  test "existing public display name is preserved and missing surname stays a completion requirement" do
+    profile = Profile.create!(
+      brand: @brand, user: @user, brand_membership: @membership,
+      display_name: "Legacy Public Name", birthdate: 30.years.ago.to_date, gender: "woman"
+    )
+
+    Profiles::CurrentProfile.upsert!(
+      user: @user, brand: @brand, attributes: { first_name: "Thandi" }
+    )
+
+    assert_equal "Legacy Public Name", profile.reload.display_name
+    assert_equal "Thandi", @user.reload.first_name
+    assert_nil @user.last_name
+    completion = Profiles::Completion.call(profile:)
+    assert_includes completion.missing, :last_name
+    assert_not_includes completion.missing, :first_name
   end
 
   private
@@ -73,6 +93,7 @@ class DatezaProfileOnboardingTest < ActiveSupport::TestCase
   end
 
   def create_required_profile
+    @user.update!(first_name: "Thandi", last_name: "Mokoena")
     Profile.create!(
       brand: @brand, user: @user, brand_membership: @membership,
       display_name: "Synthetic Member", birthdate: 30.years.ago.to_date,

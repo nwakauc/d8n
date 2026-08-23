@@ -39,12 +39,17 @@ module Profiles
         options: selected_options,
         prompts: Profiles::PromptPresenter.call(profile:),
         completion: completion_payload
-      }
+      }.merge(private_identity_payload)
     end
 
     private
 
     attr_reader :profile
+
+    def private_identity_payload
+      enabled = profile.brand.profile_completion_requirements.fetch("enabled_identity_fields", [])
+      enabled.index_with { |field| profile.user.public_send(field) }.symbolize_keys
+    end
 
     def selected_options
       selections = profile.profile_option_selections.kept.includes(:profile_option, :profile_option_group)

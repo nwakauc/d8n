@@ -1,4 +1,8 @@
 class IdentityVerificationMailer < ApplicationMailer
+  VERIFICATION_TEMPLATES = {
+    "dateza" => "dateza_verification_code"
+  }.freeze
+
   def verification_code
     @brand_name = params.fetch(:brand_name)
     @code = params.fetch(:code)
@@ -6,7 +10,8 @@ class IdentityVerificationMailer < ApplicationMailer
     mail(
       from: params.fetch(:from_address),
       to: params.fetch(:recipient),
-      subject: "Verify your #{@brand_name} email"
+      subject: "Verify your #{@brand_name} email",
+      template_name: VERIFICATION_TEMPLATES.fetch(params[:brand_slug], "verification_code")
     )
   end
 

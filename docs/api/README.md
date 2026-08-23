@@ -283,6 +283,15 @@ points to publication, and `complete` enters the normal product. A suspended
 profile has no next step. The API does not create empty profile rows during
 identity registration; the first profile patch creates the current-brand draft.
 
+DateZA's configuration includes required owner-only `identity_fields` for
+`first_name` and `last_name`. Submit them to `PATCH /api/v1/profile` with the
+relevant profile step. D8N stores them on the platform `User`, not in local
+frontend state or public profile metadata. They remain self-declared until a
+future verification workflow proves them. DateZA may derive a new profile's
+initial `display_name` from `first_name` when `display_name` is omitted; the
+concepts remain independently editable. Public profile, Find, discovery, match,
+conversation, and profile-detail JSON never includes the private identity names.
+
 The owner-scoped profile-photo API is live wherever private R2 storage is
 selected (staging today). The flow is direct-to-R2: request an upload intent,
 `PUT` the bytes to a short-lived presigned URL, then attach the returned

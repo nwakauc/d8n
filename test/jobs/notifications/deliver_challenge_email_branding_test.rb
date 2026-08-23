@@ -21,8 +21,14 @@ module Notifications
       message = Email::TestGateway.deliveries.sole
       assert_equal "Verify your DateZA email", message.fetch(:subject)
       assert_equal "DateZA <no-reply@date-za.com>", message.fetch(:from)
-      assert_includes message.fetch(:html), "Your DateZA verification code"
-      assert_includes message.fetch(:text), "Your DateZA verification code"
+      assert_includes message.fetch(:html), "DateZA heart logo"
+      assert_includes message.fetch(:html), "#E8375A"
+      assert_includes message.fetch(:html), "Verify your email"
+      assert_includes message.fetch(:html), "123456"
+      assert_includes message.fetch(:html), "max-width: 600px"
+      assert_includes message.fetch(:text), "Use this code to verify your DateZA account."
+      assert_includes message.fetch(:text), "123456"
+      assert_includes message.fetch(:text), "This code expires in 10 minutes."
       assert_not_includes message.to_json, "HookUs"
       assert_nil challenge.reload.delivery_code
     end
@@ -44,6 +50,7 @@ module Notifications
       assert_equal "HookUs <no-reply@hookus.app>", message.fetch(:from)
       assert_includes message.fetch(:html), "Your HookUs verification code"
       assert_includes message.fetch(:text), "Your HookUs verification code"
+      assert_not_includes message.fetch(:html), "DateZA heart logo"
       assert_nil challenge.reload.delivery_code
     end
 

@@ -18,6 +18,8 @@ module Profiles
       end
 
       requirements = brand.reload.profile_completion_requirements
+      assert_equal DatezaProfileCatalog::REQUIRED_IDENTITY_FIELDS, requirements.fetch("identity_fields")
+      assert_equal DatezaProfileCatalog::REQUIRED_IDENTITY_FIELDS, requirements.fetch("enabled_identity_fields")
       assert_equal DatezaProfileCatalog::REQUIRED_OPTION_GROUPS, requirements.fetch("option_groups")
       assert_equal DatezaProfileCatalog::REQUIRED_PROFILE_FIELDS, requirements.fetch("profile_fields")
       assert_equal DatezaProfileCatalog::REQUIRED_PREFERENCE_FIELDS, requirements.fetch("preference_fields")
@@ -51,9 +53,15 @@ module Profiles
       DatezaProfileCatalog.install!(brand:)
 
       configuration = Configuration.call(brand:)
+      identity_fields = configuration.fetch(:identity_fields).index_by { |field| field.fetch(:key) }
       fields = configuration.fetch(:profile_fields).index_by { |field| field.fetch(:key) }
       preferences = configuration.fetch(:preference_fields).index_by { |field| field.fetch(:key) }
 
+      assert_equal %w[ first_name last_name ], identity_fields.keys
+      assert identity_fields.fetch("first_name").fetch(:required)
+      assert identity_fields.fetch("last_name").fetch(:required)
+      assert_equal "owner_only", identity_fields.fetch("last_name").fetch(:visibility)
+      assert_equal "Display name", fields.fetch("display_name").fetch(:label)
       assert_equal(
         (DatezaProfileCatalog::REQUIRED_PROFILE_FIELDS + DatezaProfileCatalog::OPTIONAL_PROFILE_FIELDS).sort,
         fields.keys.sort

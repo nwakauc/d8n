@@ -172,11 +172,17 @@ Do not ask 40 questions before allowing someone to see the product.
 
 ### Identity
 
+* first name (private account identity)
+* last name (private account identity; never shown on dating profiles)
 * display name
 * date of birth
 * gender
 * interested in
 * location
+
+Typed first and last names are self-declared until a future RealMe workflow
+verifies identity claims. `display_name` remains the independent public dating
+name; DateZA must not present a typed surname publicly or label it verified.
 
 ### Dating
 

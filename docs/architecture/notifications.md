@@ -86,6 +86,16 @@ in repository files or logs. Development/test use non-routable `<brand>.test`
 sender defaults. The DateZA welcome template is concise, contains no sensitive
 subject data, and does not include an unapproved frontend URL.
 
+DateZA verification and welcome mail use dedicated multipart templates selected
+from the persisted brand slug/type. They reuse the canonical DateZA heart mark,
+wordmark, warm-white canvas, ink, and pink (`#E8375A`) from the DateZA frontend.
+The HTML uses a table-based 600px responsive layout with inline styles and an
+Outlook width fallback; all critical copy and codes remain text, and multipart
+plain-text bodies are retained. The readable wordmark remains when a client omits
+inline SVG. No welcome CTA is emitted because D8N does not yet have an approved
+brand-specific frontend/profile URL configuration; adding one must be a separate
+configuration decision, not a hard-coded template URL.
+
 ## Planned, not implemented
 
 - Device enrollment/revocation API and frontend permission flow.

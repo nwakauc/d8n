@@ -1,11 +1,12 @@
 class Brand < ApplicationRecord
   DEFAULT_PROFILE_REQUIREMENTS = {
+    "identity_fields" => [],
     "profile_fields" => %w[ display_name birthdate gender ],
     "preference_fields" => %w[ min_age max_age interested_in ],
     "collections" => %w[ photos ],
     "option_groups" => []
   }.freeze
-  PROFILE_CONFIGURATION_KEYS = %w[ enabled_profile_fields enabled_preference_fields ].freeze
+  PROFILE_CONFIGURATION_KEYS = %w[ enabled_identity_fields enabled_profile_fields enabled_preference_fields ].freeze
   PROFILE_REQUIREMENT_KEYS = (DEFAULT_PROFILE_REQUIREMENTS.keys + PROFILE_CONFIGURATION_KEYS).freeze
 
   has_many :brand_memberships, dependent: :restrict_with_exception
@@ -83,22 +84,29 @@ class Brand < ApplicationRecord
 
     requirements = profile_completion_requirements
 
+    unsupported_identity_fields = requirements.fetch("identity_fields") - Profiles::Completion::SUPPORTED_IDENTITY_FIELDS
     unsupported_profile_fields = requirements.fetch("profile_fields") - Profiles::Completion::SUPPORTED_PROFILE_FIELDS
     unsupported_preference_fields = requirements.fetch("preference_fields") - Profiles::Completion::SUPPORTED_PREFERENCE_FIELDS
     unsupported_collections = requirements.fetch("collections") - Profiles::Completion::SUPPORTED_COLLECTIONS
     unsupported_option_groups = requirements.fetch("option_groups") -
       profile_option_groups.kept.where(key: requirements.fetch("option_groups")).pluck(:key)
+    enabled_identity_fields = requirements.fetch("enabled_identity_fields", [])
     enabled_profile_fields = requirements.fetch("enabled_profile_fields", Profiles::Configuration::PROFILE_FIELD_LABELS.keys)
     enabled_preference_fields = requirements.fetch(
       "enabled_preference_fields", Profiles::Configuration::PREFERENCE_FIELD_LABELS.keys
     )
+    unsupported_enabled_identity_fields = enabled_identity_fields - Profiles::Configuration::IDENTITY_FIELD_LABELS.keys
     unsupported_enabled_profile_fields = enabled_profile_fields - Profiles::Configuration::PROFILE_FIELD_LABELS.keys
     unsupported_enabled_preference_fields = enabled_preference_fields - Profiles::Configuration::PREFERENCE_FIELD_LABELS.keys
 
+    errors.add(:profile_requirements, "contains unsupported identity fields") if unsupported_identity_fields.any?
     errors.add(:profile_requirements, "contains unsupported profile fields") if unsupported_profile_fields.any?
     errors.add(:profile_requirements, "contains unsupported preference fields") if unsupported_preference_fields.any?
     errors.add(:profile_requirements, "contains unsupported collections") if unsupported_collections.any?
     errors.add(:profile_requirements, "contains unsupported option groups") if unsupported_option_groups.any?
+    if unsupported_enabled_identity_fields.any? || (requirements.fetch("identity_fields") - enabled_identity_fields).any?
+      errors.add(:profile_requirements, "contains unsupported enabled identity fields")
+    end
     if unsupported_enabled_profile_fields.any? || (requirements.fetch("profile_fields") - enabled_profile_fields).any?
       errors.add(:profile_requirements, "contains unsupported enabled profile fields")
     end

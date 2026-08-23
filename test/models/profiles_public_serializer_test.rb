@@ -11,7 +11,7 @@ module Profiles
       private_option = ProfileOption.create!(
         brand:, profile_option_group: private_group, code: "hidden", label: "Hidden"
       )
-      user = User.create!
+      user = User.create!(first_name: "Ada", last_name: "Lovelace")
       membership = BrandMembership.create!(brand:, user:)
       profile = Profile.create!(
         brand:, user:, brand_membership: membership, display_name: "Ada", birthdate: 25.years.ago.to_date
@@ -25,6 +25,8 @@ module Profiles
       assert_equal [ "hookups" ], payload.fetch(:options).fetch("intents")
       assert_not payload.fetch(:options).key?("private_note")
       assert_not payload.key?(:birthdate)
+      assert_not payload.key?(:first_name)
+      assert_not payload.key?(:last_name)
       assert_not payload.key?(:user_id)
       assert_not payload.key?(:latitude)
       assert_not payload.key?(:longitude)

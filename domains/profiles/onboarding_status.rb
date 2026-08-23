@@ -33,7 +33,8 @@ module Profiles
 
     def self.initial_missing(brand:)
       requirements = brand.profile_completion_requirements
-      requirements.fetch("profile_fields") +
+      requirements.fetch("identity_fields") +
+        requirements.fetch("profile_fields") +
         requirements.fetch("preference_fields").map { |field| "preferences.#{field}" } +
         requirements.fetch("collections") +
         requirements.fetch("option_groups").map { |key| "options.#{key}" }

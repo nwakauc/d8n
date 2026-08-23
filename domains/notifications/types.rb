@@ -6,7 +6,7 @@ module Notifications
       "dateza.welcome" => Definition.new(
         code: "dateza.welcome",
         title: "Welcome to DateZA",
-        body: "Complete your profile to start meeting people on DateZA.",
+        body: "Your account is ready. Complete your profile and start meeting people worth meeting.",
         email_subject: "Welcome to DateZA",
         allowed_payload_keys: [],
         allowed_brand_slugs: %w[ dateza ]

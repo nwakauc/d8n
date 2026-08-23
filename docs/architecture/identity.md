@@ -10,6 +10,13 @@
 
 Do not merge these concepts.
 
+`User.first_name` and `User.last_name` are nullable private identity claims.
+They are intentionally separate from `Profile.display_name`, which is the
+brand-owned public dating identity. A member typing either name does not verify
+it. Future identity verification may compare provider claims against these
+private fields, while retaining its own verification evidence, state, provenance,
+and audit history.
+
 ## Relationship Shape
 
 ```txt

@@ -1,7 +1,12 @@
 module Profiles
   class Configuration
+    IDENTITY_FIELD_LABELS = {
+      "first_name" => "First name",
+      "last_name" => "Last name"
+    }.freeze
+
     PROFILE_FIELD_LABELS = {
-      "display_name" => "First name",
+      "display_name" => "Display name",
       "bio" => "About me",
       "birthdate" => "Date of birth",
       "gender" => "Gender",
@@ -35,6 +40,8 @@ module Profiles
     COLLECTION_LABELS = { "photos" => "Photos" }.freeze
 
     FIELD_METADATA = {
+      "first_name" => { visibility: "owner_only" },
+      "last_name" => { visibility: "owner_only" },
       "bio" => { input_type: "textarea" },
       "birthdate" => { input_type: "date", visibility: "owner_only" },
       "children_count" => { input_type: "integer", visibility: "owner_only" },
@@ -62,6 +69,11 @@ module Profiles
       requirements = brand.profile_completion_requirements
 
       {
+        identity_fields: fields(
+          IDENTITY_FIELD_LABELS.slice(*requirements.fetch("enabled_identity_fields", [])),
+          requirements.fetch("identity_fields"),
+          default_visibility: "owner_only"
+        ),
         profile_fields: fields(
           PROFILE_FIELD_LABELS.slice(*requirements.fetch("enabled_profile_fields", PROFILE_FIELD_LABELS.keys)),
           requirements.fetch("profile_fields")

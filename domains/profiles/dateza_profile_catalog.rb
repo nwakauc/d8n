@@ -48,6 +48,7 @@ module Profiles
     REQUIRED_PROFILE_FIELDS = %w[
       display_name birthdate gender country_code city bio smoking drinking
     ].freeze
+    REQUIRED_IDENTITY_FIELDS = %w[ first_name last_name ].freeze
     OPTIONAL_PROFILE_FIELDS = %w[ occupation job_title height_cm languages fitness ].freeze
     REQUIRED_PREFERENCE_FIELDS = %w[ interested_in min_age max_age max_distance_km ].freeze
     REQUIRED_OPTION_GROUPS = %w[
@@ -55,6 +56,8 @@ module Profiles
     ].freeze
 
     REQUIREMENTS = {
+      identity_fields: REQUIRED_IDENTITY_FIELDS,
+      enabled_identity_fields: REQUIRED_IDENTITY_FIELDS,
       profile_fields: REQUIRED_PROFILE_FIELDS,
       enabled_profile_fields: (REQUIRED_PROFILE_FIELDS + OPTIONAL_PROFILE_FIELDS).freeze,
       preference_fields: REQUIRED_PREFERENCE_FIELDS,

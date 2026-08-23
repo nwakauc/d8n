@@ -35,8 +35,8 @@ Reference repositories are behavioral evidence, not D8N architecture templates. 
 
 | Legacy field | Cardinality | HookUs use | Date9ja use | Visibility/behavior | Proposed D8N ownership |
 |---|---|---|---|---|---|
-| `full_name` | Scalar text | Registration/private account | Registration/private account | Never on public card | Identity or Verification; decision required before migration |
-| `display_name` / `first_name` | Scalar text | Completion and public card | Completion and public card | Public | Core profile: `display_name` |
+| `full_name` | Scalar text | Registration/private account | Registration/private account | Never on public card | Platform Identity: separate private `User.first_name` and `User.last_name`; self-declared until independently verified |
+| `display_name` / legacy public `first_name` | Scalar text | Completion and public card | Completion and public card | Public | Core profile: independent `Profile.display_name`; never derive or expose the private surname |
 | `date_of_birth` | Date | Required; age matching | Required; age matching | Private source; expose derived age | Core profile with strict privacy and age derivation |
 | `gender` | Single select | Required; discovery orientation | Required; discovery orientation | Public | Named profile capability with brand-configured allowed values |
 | `looking_for` | Single or multi select | Required; reciprocal discovery | Required; reciprocal discovery | Private preference, affects discovery | Preference capability; D8N must support future multi-select semantics |
@@ -161,7 +161,7 @@ Simple base requirements such as display name, birthdate, gender, relationship i
 
 1. Confirm Date9ja's authoritative required fields against current product intent, not only legacy behavior.
 2. Inventory Date9ja production value counts, null rates, and invalid values before final migration mappings.
-3. Decide where private/legal `full_name` belongs in D8N.
+3. Define future verified-name claim provenance, comparison, review, and history semantics; typed private names now belong to platform Identity.
 4. Approve the controlled-option boundary for tribe, body type, interests, values, and dealbreakers.
 5. Decide whether compatibility questionnaire history must be retained across answer changes.
 6. Complete privacy review for genotype, religion, ethnicity, precise location, and other sensitive attributes.

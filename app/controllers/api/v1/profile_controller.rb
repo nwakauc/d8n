@@ -33,7 +33,7 @@ class Api::V1::ProfileController < ApplicationController
 
   def profile_params
     params.permit(
-      :display_name, :bio, :birthdate, :gender, :pronouns, :visibility,
+      :first_name, :last_name, :display_name, :bio, :birthdate, :gender, :pronouns, :visibility,
       :country_code, :city, :occupation, :job_title, :company_name,
       :school_or_institution, :looking_for_text, :children_count,
       :height_cm, :body_type, :smoking, :drinking, :fitness,

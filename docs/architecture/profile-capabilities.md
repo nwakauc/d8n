@@ -6,6 +6,12 @@ Profile capabilities are shared, typed, and brand-scoped. A brand composes suppo
 
 `User` remains platform identity. `Profile`, profile details, options, preferences, media, and completion remain private to one brand membership.
 
+Brand onboarding may enable private `User` identity fields such as `first_name`
+and `last_name`. They are accepted through the owner-scoped profile onboarding
+workflow for a compact client contract, but remain platform identity storage.
+They never become public profile capabilities; `Profile.display_name` remains
+the independently stored public name.
+
 ## Typed Profile Details
 
 The shared `profiles` table owns stable dating-presence details such as:

@@ -33,7 +33,12 @@ module Notifications
       message = Email::TestGateway.deliveries.sole
       assert_equal "Welcome to DateZA", message.fetch(:subject)
       assert_equal "DateZA <hello@dateza.test>", message.fetch(:from)
-      assert_includes message.fetch(:text), "Complete your profile"
+      assert_includes message.fetch(:html), "DateZA heart logo"
+      assert_includes message.fetch(:html), "#E8375A"
+      assert_includes message.fetch(:html), "max-width: 600px"
+      assert_includes message.fetch(:html), "Welcome to DateZA"
+      assert_includes message.fetch(:text), "Your account is ready. Complete your profile"
+      assert_not_includes message.fetch(:html), "href="
       assert_equal "product-notification:#{@event.notification.id}:email", message.fetch(:idempotency_key)
     end
 

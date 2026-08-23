@@ -27,10 +27,22 @@ class BrandTest < ActiveSupport::TestCase
   test "defaults profile completion requirements" do
     brand = Brand.create!(slug: "hookus", name: "HookUs")
 
+    assert_empty brand.profile_completion_requirements.fetch("identity_fields")
     assert_equal %w[ display_name birthdate gender ], brand.profile_completion_requirements.fetch("profile_fields")
     assert_equal %w[ min_age max_age interested_in ], brand.profile_completion_requirements.fetch("preference_fields")
     assert_equal %w[ photos ], brand.profile_completion_requirements.fetch("collections")
     assert_empty brand.profile_completion_requirements.fetch("option_groups")
+  end
+
+  test "rejects unsupported private identity requirements" do
+    brand = Brand.new(
+      slug: "unknown-identity",
+      name: "Unknown Identity",
+      profile_requirements: { identity_fields: [ "verified_name" ] }
+    )
+
+    assert_not brand.valid?
+    assert_includes brand.errors[:profile_requirements], "contains unsupported identity fields"
   end
 
   test "authentication methods deny by default and accept the supported allow-list" do

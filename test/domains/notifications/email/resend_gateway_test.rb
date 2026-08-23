@@ -97,7 +97,8 @@ module Notifications
         assert response.success?
         assert_equal "DateZA <no-reply@date-za.com>", captured[:payload][:from]
         assert_equal "Verify your DateZA email", captured[:payload][:subject]
-        assert_includes captured[:payload][:html], "Your DateZA verification code"
+        assert_includes captured[:payload][:html], "Verify your email"
+        assert_includes captured[:payload][:html], "DateZA heart logo"
         assert_not_includes captured[:payload].to_json, "HookUs"
       end
 

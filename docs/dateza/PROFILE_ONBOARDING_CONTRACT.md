@@ -10,6 +10,8 @@ not duplicate those rules.
 
 ## Required to publish
 
+- Private account identity: `first_name` and `last_name`. Both are owner-only,
+  platform-identity fields and neither is evidence of verification.
 - Profile fields: `display_name`, `birthdate`, `gender`, `country_code`, `city`,
   `bio`, `smoking`, and `drinking`.
 - Partner preferences: `interested_in`, `min_age`, `max_age`, and
@@ -21,6 +23,12 @@ not duplicate those rules.
 `has_children`, `wants_children`, `religion_importance`, and optional `religion`
 are owner-only. They are stored as typed option codes for future private
 compatibility use and are not returned by the public profile serializer.
+
+`display_name` remains DateZA's public dating identity. For a new DateZA profile,
+the backend derives it from `first_name` only when the client omits
+`display_name`; changing one later does not silently overwrite the other.
+`last_name` is never emitted by public profile, Find, discovery, match, or
+conversation serializers.
 
 ## Optional profile expression
 
@@ -64,6 +72,18 @@ Clients can group the returned configuration into Basics, Location and dating
 range, Relationship essentials, Profile expression, and Review/publish screens.
 The authoritative resumable state remains `onboarding`, whose current generic
 steps are `profile`, `preferences`, `photos`, `options`, and `publication`.
+The Basics/profile step must persist `first_name`, `last_name`, `birthdate`, and
+the other returned required fields through `PATCH /api/v1/profile`; clients must
+not keep private identity names only in local state.
+
+## Existing members
+
+The user-name columns are nullable so the schema migration does not invent data.
+Existing `display_name` values remain unchanged and continue to be the public
+identity. Existing DateZA members without a surname report `last_name` in the
+server-owned completion `missing` list and collect it through the normal profile
+step. No surname is parsed or guessed from `display_name`, and no typed name is
+described as verified.
 
 ## Explicitly not implemented
 

@@ -6,6 +6,8 @@
 Rails.application.config.filter_parameters += [
   :passw, :email, :phone, :identifier, :secret, :token, :_key, :crypt, :salt, :certificate, :otp, :code, :ssn, :cvv, :cvc,
   :latitude, :longitude, :coordinates,
+  # Private account identity is accepted during profile onboarding but is never public profile data.
+  :first_name, :last_name,
   # Private message content must never reach request logs (ADR 0010).
   :body, :message
 ]

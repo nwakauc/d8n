@@ -2576,7 +2576,19 @@ components:
                 type: boolean
     ProfileUpdate:
       type: object
+      description: |
+        Owner-scoped onboarding update. `first_name` and `last_name` update the
+        private platform identity and are never part of public profile JSON.
+        `display_name` remains the separate, brand-owned public dating identity.
       properties:
+        first_name:
+          type: [string, "null"]
+          maxLength: 100
+          description: Private, self-declared account identity. Required by DateZA completion; not a verified claim.
+        last_name:
+          type: [string, "null"]
+          maxLength: 100
+          description: Private, self-declared account identity. Required by DateZA completion and never publicly exposed.
         display_name:
           type: [string, "null"]
           maxLength: 80
@@ -3261,8 +3273,13 @@ components:
           $ref: "#/components/schemas/ProfileOnboardingStatus"
     ProfileConfiguration:
       type: object
-      required: [profile_fields, preference_fields, collections, option_groups, prompts]
+      required: [identity_fields, profile_fields, preference_fields, collections, option_groups, prompts]
       properties:
+        identity_fields:
+          type: array
+          description: Private platform-identity fields enabled for this brand's onboarding flow.
+          items:
+            $ref: "#/components/schemas/ConfiguredField"
         profile_fields:
           type: array
           items:

@@ -49,6 +49,7 @@ module Notifications
     def self.build_message(brand:, recipient:, code:, mailer_action:)
       IdentityVerificationMailer.with(
         brand_name: brand.name,
+        brand_slug: brand.slug,
         recipient:,
         code:,
         from_address: from_address(brand)
@@ -57,6 +58,7 @@ module Notifications
 
     def self.build_product_message(notification:, recipient:, from_address:)
       ProductNotificationMailer.with(
+        brand_slug: notification.brand.slug,
         notification_type: notification.notification_type,
         recipient:,
         from_address:

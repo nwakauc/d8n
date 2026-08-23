@@ -67,6 +67,44 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
     assert_equal "preferences", response_body.fetch("onboarding").fetch("next_step")
   end
 
+  test "DateZA onboarding persists private identity names and derives only the initial display name" do
+    dateza = Brand.create!(slug: "dateza", name: "DateZA")
+    Profiles::DatezaProfileCatalog.install!(brand: dateza)
+    BrandDomain.create!(brand: dateza, host: "dateza.test")
+    BrandMembership.create!(brand: dateza, user: @user)
+    token, = Session.issue!(brand: dateza, user: @user)
+    host! "dateza.test"
+
+    patch "/api/v1/profile",
+      headers: bearer_headers(token),
+      params: {
+        first_name: " Thandi ", last_name: " Mokoena ", birthdate: "1994-05-01",
+        gender: "woman", country_code: "ZA", city: "Johannesburg"
+      }
+
+    assert_response :success
+    profile = Profile.kept.find_by!(brand: dateza, user: @user)
+    body = JSON.parse(response.body).fetch("profile")
+    assert_equal "Thandi", @user.reload.first_name
+    assert_equal "Mokoena", @user.last_name
+    assert_equal "Thandi", profile.display_name
+    assert_equal "Thandi", body.fetch("first_name")
+    assert_equal "Mokoena", body.fetch("last_name")
+    assert_equal "Thandi", body.fetch("display_name")
+  end
+
+  test "another brand owner response does not expose platform identity names" do
+    @user.update!(first_name: "Thandi", last_name: "Mokoena")
+    Profile.create!(user: @user, brand: @brand, brand_membership: @membership, display_name: "T")
+
+    get "/api/v1/profile", headers: bearer_headers(@token)
+
+    assert_response :success
+    profile = JSON.parse(response.body).fetch("profile")
+    assert_not profile.key?("first_name")
+    assert_not profile.key?("last_name")
+  end
+
   test "returns complete profile completion when required profile and preferences exist" do
     profile = Profile.create!(
       user: @user,
