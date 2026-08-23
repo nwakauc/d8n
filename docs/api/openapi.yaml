@@ -13,8 +13,8 @@ info:
     Every path documented in this contract is implemented and callable. Use this
     summary to see which product domains are complete versus intentionally limited:
 
-    - **Available now:** Identity (register, login, password change/recovery,
-      brand-bound session, identifier verification), Profiles (profile,
+    - **Available now:** Identity (register, login, password and login-email
+      change, recovery, brand-bound session, identifier verification), Profiles (profile,
       configuration, options, preferences, location, publication), HookUs Matching
       (discovery, likes, passes, matches), DateZA Find (10 unique profiles per
       Johannesburg day) with deterministic DateZA v1 compatibility, and Trust
@@ -253,6 +253,95 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "429":
           $ref: "#/components/responses/RateLimited"
+  /api/v1/auth/email/change:
+    post:
+      operationId: requestEmailChange
+      tags: [Authentication]
+      summary: Request a verification code for a replacement login email
+      description: |
+        Requires a bearer session issued from the email/password credential being
+        changed plus the current password in this request. The replacement is
+        normalized and must not already belong to another D8N identity. D8N sends
+        a single-use 10-minute code to the proposed email while leaving the current
+        identifier, password credential, and login behavior untouched. Malformed,
+        unchanged, and occupied replacement addresses share one
+        `email_change_unavailable` response after successful reauthentication.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailChangeRequest"
+      responses:
+        "202":
+          description: A purpose- and session-bound code was queued for the proposed email.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          description: The bearer session or current password is invalid (`invalid_current_password`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The current session is not backed by an email/password credential (`password_credential_required`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The proposed address is malformed, unchanged, or unavailable (`email_change_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          description: The configured email delivery channel is unavailable (`delivery_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: confirmEmailChange
+      tags: [Authentication]
+      summary: Confirm and activate a replacement login email
+      description: |
+        Submit the exact proposed email and its six-digit code from the same
+        brand-bound session that requested the change. On success D8N updates the
+        existing identity identifier in place, marks the new email verified,
+        preserves its password credential and the current session, consumes other
+        outstanding challenges for that identifier, and revokes every other active
+        session backed by the affected credential across brands. The old address
+        remains active until this atomic confirmation succeeds.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailChangeConfirmation"
+      responses:
+        "200":
+          description: The verified replacement email is now the login identifier.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailChangeResponse"
+        "401":
+          description: Session, proposed email, or code is unavailable, invalid, expired, consumed, locked, or belongs to another request (`invalid_code`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The proposed email became occupied before confirmation (`email_change_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/auth/password/recovery:
     post:
       operationId: requestPasswordRecovery
@@ -2395,6 +2484,48 @@ components:
         password_confirmation:
           type: string
           format: password
+    EmailChangeRequest:
+      type: object
+      required: [email, current_password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: Proposed replacement login email. It is not activated until code confirmation.
+        current_password:
+          type: string
+          format: password
+          description: Current password for the email-backed credential used by this session.
+    EmailChangeConfirmation:
+      type: object
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: The same proposed email supplied to the request step.
+        code:
+          type: string
+          pattern: "^[0-9]{6}$"
+          description: Single-use code delivered to the proposed email; expires after 10 minutes.
+    EmailChangeResponse:
+      type: object
+      required: [identifier, revoked_session_count]
+      properties:
+        identifier:
+          type: object
+          required: [kind, verified]
+          properties:
+            kind:
+              const: email
+            verified:
+              const: true
+        revoked_session_count:
+          type: integer
+          minimum: 0
+          description: Other active sessions revoked because the login identifier changed.
     PasswordRecoveryRequest:
       type: object
       required: [identifier]

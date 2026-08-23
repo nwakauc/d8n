@@ -39,7 +39,7 @@ the API root (`GET /`) and the summary at the top of `openapi.yaml`.
 
 | Domain | Status | Notes |
 | --- | --- | --- |
-| Identity | Available | Phone/email + password register, login, password change/recovery, brand-bound session, identifier verification. |
+| Identity | Available | Phone/email + password register, login, password and login-email change, recovery, brand-bound session, identifier verification. |
 | Profiles | Available | Profile, configuration, options, preferences, location, publication. |
 | Matching | Available | HookUs Discovery and DateZA Find are live on shared eligibility. DateZA Find includes deterministic `dateza_v1` compatibility; DateZA Discovery remains unimplemented. |
 | Messaging | Preview | Match-gated plain-text messages and history exist. Client idempotency, receipts, realtime and message media remain future work. |
@@ -254,6 +254,37 @@ On success the current session remains valid and other active sessions issued
 from that password credential are revoked. This settings flow is deliberately
 separate from unauthenticated phone/email account recovery, which is not yet an
 available API.
+
+### Correcting or changing a login email
+
+An authenticated member whose current session was issued from an email/password
+credential can replace a mistyped or outdated email without access to the old
+inbox. First submit the proposed address and current password:
+
+```sh
+curl -i -X POST https://dateza.test/api/v1/auth/email/change \
+  -H 'Authorization: Bearer REPLACE_WITH_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"correct@example.com","current_password":"secret"}'
+```
+
+D8N keeps the old email active and sends a 10-minute, single-use code only to the
+proposed address. Confirm it from the same session:
+
+```sh
+curl -i -X PATCH https://dateza.test/api/v1/auth/email/change \
+  -H 'Authorization: Bearer REPLACE_WITH_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"correct@example.com","code":"123456"}'
+```
+
+Success updates the existing identifier in place, marks the new address verified,
+keeps the current session, and revokes other sessions backed by that password
+credential. The password hash, user, memberships, profiles, and dating activity do
+not move or duplicate. Malformed, unchanged, and already-owned target addresses
+share the stable `email_change_unavailable` error. Phone-backed sessions cannot use
+this endpoint; adding an email to a phone-only account remains a future explicit
+credential-linking flow.
 
 ## Frontend Bootstrap
 

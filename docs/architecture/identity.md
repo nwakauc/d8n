@@ -86,6 +86,23 @@ Logout revokes only the current brand session and records a security event. Susp
 - Concurrent requests for the same brand/channel/identifier or IP are serialized
   with HMAC-keyed PostgreSQL transaction advisory locks before throttle checks.
 
+## Email Replacement
+
+An authenticated email/password session may replace a mistyped or outdated email
+after current-password reauthentication and proof of control of the proposed
+address. A short-lived `email_change` challenge holds the normalized proposed
+address; it does not create a second `IdentityIdentifier` and does not mutate or
+disable the current login before confirmation. The challenge is brand-, purpose-,
+identifier-, and requesting-session-bound.
+
+Successful confirmation updates the existing identifier in place, marks the new
+email verified, preserves the password credential and requesting session, consumes
+other outstanding challenges tied to the identifier, and revokes other sessions
+issued from that credential across brands. Uniqueness is checked before delivery
+and again under a target-address advisory lock at confirmation. Malformed,
+unchanged, and occupied targets share one error so the flow does not become a
+useful account-enumeration oracle.
+
 ## Signed-Out Password Recovery
 
 A user who forgot their password recovers through a three-step, signed-out flow

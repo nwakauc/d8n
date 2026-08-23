@@ -62,6 +62,8 @@ Rails.application.routes.draw do
       post "auth/password/register" => "auth/passwords#register"
       post "auth/password/login" => "auth/passwords#login"
       patch "auth/password" => "auth/passwords#update"
+      post "auth/email/change" => "auth/email_changes#create"
+      patch "auth/email/change" => "auth/email_changes#update"
       post "auth/password/recovery" => "auth/password_recoveries#create"
       post "auth/password/recovery/verify" => "auth/password_recoveries#verify"
       post "auth/password/recovery/reset" => "auth/password_recoveries#reset"

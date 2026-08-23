@@ -54,6 +54,30 @@ module Notifications
       assert_nil challenge.reload.delivery_code
     end
 
+    test "a HookUs email-change challenge uses generic HookUs copy and the proposed recipient" do
+      hookus = Brand.create!(slug: "hookus", name: "HookUs")
+      challenge = create_email_challenge(brand: hookus, recipient: "old@example.com")
+      challenge.update!(
+        kind: :email_change,
+        identifier: "new@example.com",
+        metadata: { purpose: "email_change", session_id: 123 }
+      )
+
+      with_env(
+        "D8N_EMAIL_PROVIDER" => "test",
+        "D8N_EMAIL_FROM" => "HookUs <no-reply@hookus.app>"
+      ) do
+        DeliverChallengeJob.perform_now(challenge.id)
+      end
+
+      message = Email::TestGateway.deliveries.sole
+      assert_equal "Confirm your new HookUs email", message.fetch(:subject)
+      assert_equal "new@example.com", message.fetch(:to)
+      assert_includes message.fetch(:text), "confirm your new HookUs email address"
+      assert_not_includes message.fetch(:html), "DateZA heart logo"
+      assert_not_includes message.to_json, "old@example.com"
+    end
+
     private
 
     def create_email_challenge(brand:, recipient:)

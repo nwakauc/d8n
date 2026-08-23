@@ -7,7 +7,8 @@ class OtpChallenge < ApplicationRecord
     phone_verification: 1,
     email_verification: 2,
     password_recovery: 3,
-    password_reset: 4
+    password_reset: 4,
+    email_change: 5
   }
 
   # Plaintext one-time code, encrypted at rest. Present only between challenge

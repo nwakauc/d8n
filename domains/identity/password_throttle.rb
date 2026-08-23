@@ -17,6 +17,11 @@ module Identity
         window: 15.minutes,
         identifier_limit: 5,
         ip_limit: 20
+      },
+      "email_change" => {
+        window: 15.minutes,
+        identifier_limit: 5,
+        ip_limit: 20
       }
     }.freeze
 
@@ -63,7 +68,7 @@ module Identity
     def failed_scope
       scope = AuthAttempt.where(brand:, kind: :password, result: :failed)
         .where("metadata ->> 'purpose' = ?", purpose)
-      return scope unless purpose == "password_change"
+      return scope unless %w[ password_change email_change ].include?(purpose)
 
       scope.where("metadata ->> 'failure_stage' = ?", "reauthentication")
     end

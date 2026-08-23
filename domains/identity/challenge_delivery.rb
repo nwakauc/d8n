@@ -45,12 +45,16 @@ module Identity
       Notifications::EmailSender.call(
         brand: challenge.brand,
         user: identifier.user,
-        recipient: identifier.normalized_value,
+        recipient: email_recipient(identifier),
         code:,
         mailer_action:,
         metadata:,
         idempotency_key: "otp-challenge-#{challenge.id}"
       )
+    end
+
+    def email_recipient(identifier)
+      challenge.email_change? ? challenge.identifier : identifier.normalized_value
     end
 
     def metadata
@@ -62,7 +66,10 @@ module Identity
     end
 
     def mailer_action
-      recovery? ? :recovery_code : :verification_code
+      return :recovery_code if recovery?
+      return :email_change_code if challenge.email_change?
+
+      :verification_code
     end
 
     def recovery?
