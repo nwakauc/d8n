@@ -8,7 +8,7 @@ module Profiles
     # passing the real Profiles::Publication gate; photos become deliverable only
     # by running the real Media::ProcessProfilePhotoJob.
     #
-    # Idempotent: identity is the seed email (seed+<slug>@hookus.test). A rerun
+    # Idempotent: identity is the caller-supplied seed email. A rerun
     # updates the existing profile in place, refreshes its location/activity, and
     # attaches only photos it hasn't attached before (tracked by source basename in
     # ProfilePhoto#metadata). Nothing external is sent — creating an identifier row
@@ -27,19 +27,29 @@ module Profiles
 
       Outcome = Data.define(:created, :photos_attached)
 
-      def self.call(person:, content:, brand:, now: Time.current)
-        new(person:, content:, brand:, now:).call
+      def self.call(person:, content:, brand:, now: Time.current, email: person.email,
+        seed_tag: SEED_TAG, identity_attributes: {}, seed_device: SEED_DEVICE, photo_initial_state: nil)
+        new(
+          person:, content:, brand:, now:, email:, seed_tag:,
+          identity_attributes:, seed_device:, photo_initial_state:
+        ).call
       end
 
-      def initialize(person:, content:, brand:, now:)
+      def initialize(person:, content:, brand:, now:, email:, seed_tag:, identity_attributes:, seed_device:,
+        photo_initial_state:)
         @person = person
         @content = content
         @brand = brand
         @now = now
+        @email = email
+        @seed_tag = seed_tag
+        @identity_attributes = identity_attributes
+        @seed_device = seed_device
+        @photo_initial_state = photo_initial_state
       end
 
       def call
-        identifier = IdentityIdentifier.kept.find_by(kind: :email, normalized_value: person.email)
+        identifier = IdentityIdentifier.kept.find_by(kind: :email, normalized_value: email)
         created = identifier.nil?
 
         profile = ActiveRecord::Base.transaction do
@@ -48,23 +58,26 @@ module Profiles
         end
 
         photos_attached = attach_photos(profile)
+        Publication.activate!(user: profile.user, brand:)
         Outcome.new(created:, photos_attached:)
       end
 
       private
 
-      attr_reader :person, :content, :brand, :now
+      attr_reader :person, :content, :brand, :now, :email, :seed_tag, :identity_attributes, :seed_device,
+        :photo_initial_state
 
       def create_identity
-        user = User.create!(status: :active)
+        user = User.create!(identity_attributes.merge(status: :active))
         user.identity_identifiers.create!(
-          kind: :email, normalized_value: person.email, last_seen_at: now,
-          metadata: { "seed" => SEED_TAG }
+          kind: :email, normalized_value: email, last_seen_at: now,
+          metadata: { "seed" => seed_tag }
         )
       end
 
       def persist_core(identifier)
         user = identifier.user
+        user.update!(identity_attributes) if identity_attributes.any? && user.attributes.symbolize_keys.slice(*identity_attributes.keys) != identity_attributes
         identifier.update!(verified_at: content.verified ? (identifier.verified_at || now - VERIFIED_AT) : nil)
         membership = BrandMembership.kept.find_or_create_by!(user:, brand:) { |m| m.status = :active }
         membership.update!(status: :active) unless membership.active?
@@ -75,7 +88,6 @@ module Profiles
         PromptAnswers.replace!(profile:, answers: content.prompts)
         upsert_location(profile:, user:)
         set_activity(user:)
-        Publication.activate!(user:, brand:)
         profile.update_column(:created_at, now - (content.new_here ? NEW_HERE_AGE : ESTABLISHED_AGE))
         profile
       end
@@ -84,7 +96,7 @@ module Profiles
         profile = Profile.kept.find_or_initialize_by(user:, brand:)
         profile.brand_membership = membership
         profile.assign_attributes(content.profile.merge(birthdate: content.birthdate))
-        profile.metadata = profile.metadata.merge("seed" => SEED_TAG, "seed_slug" => person.slug)
+        profile.metadata = profile.metadata.merge("seed" => seed_tag, "seed_slug" => person.slug)
         # Draft until the real publication gate flips it live once complete.
         profile.status = :draft unless profile.active?
         profile.save!
@@ -109,12 +121,12 @@ module Profiles
       # Reset the seed's synthetic presence so reruns re-assert the intended state
       # deterministically (an inactive member simply has no live seed session).
       def set_activity(user:)
-        Session.where(user:, brand:, device_name: SEED_DEVICE).delete_all
+        Session.where(user:, brand:, device_name: seed_device).delete_all
         age = ACTIVITY_AGES[content.activity]
         return if age.nil?
 
         Session.create!(
-          user:, brand:, device_name: SEED_DEVICE,
+          user:, brand:, device_name: seed_device,
           token_digest: Session.digest_token(SecureRandom.urlsafe_base64(Session::TOKEN_BYTES)),
           last_used_at: now - age, expires_at: now + Session::DEFAULT_TTL
         )
@@ -148,11 +160,11 @@ module Profiles
           io: File.open(path, "rb"), key:, filename: basename, content_type:,
           service_name: Media::StorageResolver.service_name(brand:)
         )
-        initial = Media::PhotoPolicy.initial_state(brand:)
+        initial = photo_initial_state || Media::PhotoPolicy.initial_state(brand:)
         photo = ProfilePhoto.new(
           profile:, user: profile.user, brand:, position:,
           status: initial.status, visibility: initial.visibility,
-          metadata: { "seed" => SEED_TAG, "seed_basename" => basename }
+          metadata: { "seed" => seed_tag, "seed_basename" => basename }
         )
         photo.image.attach(blob)
         photo.save!

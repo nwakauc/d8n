@@ -42,3 +42,16 @@ SEED THE DB
 
   4. Real run:
   kamal app exec -d staging "bash -c 'SEED_DEMO_ALLOW_PRODUCTION=1 bin/rails hookus:seed_demo_profiles'"
+
+
+SEED DATEZA DEMO PROFILES
+
+The DateZA task uses the same docs/user-images names, ages, and images but creates
+separate DateZA identities, memberships, profiles, media, and catalogue choices.
+Run it once on the primary role rather than on both web and job roles.
+
+. Dry run (writes nothing):
+  kamal app exec -d staging -p -e DRY_RUN:1 -e SEED_DEMO_ALLOW_PRODUCTION:1 "bin/rails dateza:seed_demo_profiles"
+
+. Real run:
+  kamal app exec -d staging -p -e SEED_DEMO_ALLOW_PRODUCTION:1 "bin/rails dateza:seed_demo_profiles"
