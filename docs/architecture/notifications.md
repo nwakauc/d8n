@@ -75,13 +75,16 @@ requires a brand sender in production:
 ```txt
 D8N_EMAIL_PROVIDER=resend
 RESEND_API_KEY=<secret>
-D8N_DATEZA_EMAIL_FROM=DateZA <verified-sender@example.com>
+D8N_DATEZA_EMAIL_FROM=DateZA <no-reply@date-za.com>
 ```
 
 The brand sender must be a verified identity accepted by the selected email
-provider. Never put provider keys in repository files or logs. Development/test use
-non-routable `<brand>.test` sender defaults. The DateZA welcome template is concise,
-contains no sensitive subject data, and does not include an unapproved frontend URL.
+provider. Identity verification, password recovery, and product notification mail
+all select this sender from the persisted brand. The legacy `D8N_EMAIL_FROM` key is
+accepted only for HookUs; no other brand falls back to it. Never put provider keys
+in repository files or logs. Development/test use non-routable `<brand>.test`
+sender defaults. The DateZA welcome template is concise, contains no sensitive
+subject data, and does not include an unapproved frontend URL.
 
 ## Planned, not implemented
 

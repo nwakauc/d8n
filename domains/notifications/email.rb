@@ -24,20 +24,25 @@ module Notifications
     # Network-free readiness check the OTP/recovery/verification domains call BEFORE
     # enqueuing async delivery, so a misconfigured provider fails closed at request
     # time (503 / silent) rather than enqueuing a job that can never succeed.
-    def self.configured?
-      gateway.configured?
+    def self.configured?(brand:)
+      gateway.configured?(brand:)
     end
 
-    # Product senders are brand-specific. Production must explicitly configure a
-    # sender such as D8N_DATEZA_EMAIL_FROM; development/test get a non-routable
-    # local default. The legacy D8N_EMAIL_FROM remains scoped to identity mail.
-    def self.product_from_address(brand)
+    # Every transactional sender is brand-specific. Production must explicitly
+    # configure D8N_<BRAND>_EMAIL_FROM. D8N_EMAIL_FROM predates multi-brand mail
+    # and is accepted only for HookUs so another consumer brand can never inherit
+    # HookUs's verified sender identity.
+    def self.from_address(brand)
       configured = ENV["D8N_#{brand.slug.upcase}_EMAIL_FROM"].presence
       return configured if configured
+      legacy_hookus_sender = ENV["D8N_EMAIL_FROM"].presence
+      return legacy_hookus_sender if brand.slug == "hookus" && legacy_hookus_sender
       return if Rails.env.production?
 
       "#{brand.name} <no-reply@#{brand.slug}.test>"
     end
+
+    def self.product_from_address(brand) = from_address(brand)
 
     # Renders the transactional code email ONCE from the shared mailer so every
     # gateway sends byte-identical subject/body and no vendor re-implements copy.
@@ -45,7 +50,8 @@ module Notifications
       IdentityVerificationMailer.with(
         brand_name: brand.name,
         recipient:,
-        code:
+        code:,
+        from_address: from_address(brand)
       ).public_send(mailer_action)
     end
 

@@ -6,7 +6,7 @@ module Notifications
     class ActionMailerGateway
       PROVIDER = "action_mailer".freeze
 
-      def self.configured? = true
+      def self.configured?(brand:) = Email.from_address(brand).present?
 
       def self.deliver(brand:, recipient:, code:, mailer_action:, delivery:, idempotency_key: nil,
         message: nil, from_address: nil)

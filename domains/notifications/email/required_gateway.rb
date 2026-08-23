@@ -5,7 +5,7 @@ module Notifications
     class RequiredGateway
       PROVIDER = "required".freeze
 
-      def self.configured? = false
+      def self.configured?(brand:) = false
 
       def self.deliver(brand:, recipient:, code:, mailer_action:, delivery:, idempotency_key: nil,
         message: nil, from_address: nil)

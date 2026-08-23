@@ -263,9 +263,10 @@ delete and worker purge; confirm anonymous GET and every HookUs origin fail.
 - [ ] Deploy the shared `d8n-staging` Kamal destination so Kamal Proxy serves
   both staging hosts and obtains/renews TLS for the DateZA hostname. Do not
   create another service or deployment.
-- [ ] Run the idempotent `brands:install_dateza` task with
-  `DATEZA_API_HOST=dateza-staging-api.d8n.tech`; this creates/updates DateZA and
-  its active `BrandDomain` mapping without reassigning a conflicting hostname.
+- [ ] Run the idempotent `brands:install_dateza` task on the `web` role only
+  (`-r web`) with `DATEZA_API_HOST=dateza-staging-api.d8n.tech`; this
+  creates/updates DateZA and its active `BrandDomain` mapping without
+  reassigning a conflicting hostname.
 - [ ] Verify `/api/v1/auth/methods` reports `brand.slug=dateza` on the DateZA
   hostname and still reports `brand.slug=hookus` on `staging-api.d8n.tech`.
 - [ ] Set DateZA's Vercel environment variable to

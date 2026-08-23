@@ -11,10 +11,48 @@ module Notifications
       end
 
       test "is configured only when api key and from address are both present" do
-        with_env("RESEND_API_KEY" => nil, "D8N_EMAIL_FROM" => nil) { assert_not ResendGateway.configured? }
-        with_env("RESEND_API_KEY" => "re_x", "D8N_EMAIL_FROM" => nil) { assert_not ResendGateway.configured? }
-        with_env("RESEND_API_KEY" => nil, "D8N_EMAIL_FROM" => "HookUs <no-reply@hookus.test>") { assert_not ResendGateway.configured? }
-        with_env("RESEND_API_KEY" => "re_x", "D8N_EMAIL_FROM" => "HookUs <no-reply@hookus.test>") { assert ResendGateway.configured? }
+        stub_method(Rails.env, :production?, -> { true }) do
+          with_env("RESEND_API_KEY" => nil, "D8N_EMAIL_FROM" => nil, "D8N_HOOKUS_EMAIL_FROM" => nil) do
+            assert_not ResendGateway.configured?(brand: @brand)
+          end
+          with_env("RESEND_API_KEY" => "re_x", "D8N_EMAIL_FROM" => nil, "D8N_HOOKUS_EMAIL_FROM" => nil) do
+            assert_not ResendGateway.configured?(brand: @brand)
+          end
+          with_env("RESEND_API_KEY" => nil, "D8N_EMAIL_FROM" => "HookUs <no-reply@hookus.test>") do
+            assert_not ResendGateway.configured?(brand: @brand)
+          end
+          with_env("RESEND_API_KEY" => "re_x", "D8N_EMAIL_FROM" => "HookUs <no-reply@hookus.test>") do
+            assert ResendGateway.configured?(brand: @brand)
+          end
+        end
+      end
+
+      test "a non-HookUs brand never inherits the legacy HookUs sender" do
+        dateza = Brand.create!(slug: "dateza", name: "DateZA")
+
+        with_env(
+          "RESEND_API_KEY" => "re_x",
+          "D8N_EMAIL_FROM" => "HookUs <no-reply@hookus.test>",
+          "D8N_DATEZA_EMAIL_FROM" => nil
+        ) do
+          assert_equal "DateZA <no-reply@dateza.test>", Email.from_address(dateza)
+          assert_not_includes Email.from_address(dateza), "HookUs"
+        end
+      end
+
+      test "an unconfigured production brand fails closed despite the legacy HookUs sender" do
+        dateza = Brand.create!(slug: "dateza", name: "DateZA")
+
+        with_env(
+          "RESEND_API_KEY" => "re_x",
+          "D8N_EMAIL_FROM" => "HookUs <no-reply@hookus.test>",
+          "D8N_DATEZA_EMAIL_FROM" => nil
+        ) do
+          stub_method(Rails.env, :production?, -> { true }) do
+            assert_nil Email.from_address(dateza)
+            assert_not ResendGateway.configured?(brand: dateza)
+          end
+        end
       end
 
       test "successful send returns provider message id" do
@@ -33,8 +71,34 @@ module Notifications
         assert_equal "email_123", response.external_id
         assert_equal "Bearer re_secret", captured[:headers]["Authorization"]
         assert_equal "otp-challenge-42", captured[:headers]["Idempotency-Key"]
+        assert_equal "HookUs <no-reply@hookus.test>", captured[:payload][:from]
         assert_equal [ "ada@example.com" ], captured[:payload][:to]
         assert captured[:payload][:subject].present?
+      end
+
+      test "DateZA send uses its own Resend sender and rendered branding" do
+        dateza = Brand.create!(slug: "dateza", name: "DateZA")
+        captured = {}
+        stub = ->(_url, headers:, payload:) {
+          captured[:payload] = payload
+          HttpClient::Response.new(status: 200, body: { id: "email_dateza" }.to_json)
+        }
+
+        response = with_env(
+          "RESEND_API_KEY" => "re_secret",
+          "D8N_EMAIL_FROM" => "HookUs <no-reply@hookus.test>",
+          "D8N_DATEZA_EMAIL_FROM" => "DateZA <no-reply@date-za.com>"
+        ) do
+          stub_method(HttpClient, :post_json, stub) do
+            deliver(brand: dateza, idempotency_key: "otp-challenge-dateza")
+          end
+        end
+
+        assert response.success?
+        assert_equal "DateZA <no-reply@date-za.com>", captured[:payload][:from]
+        assert_equal "Verify your DateZA email", captured[:payload][:subject]
+        assert_includes captured[:payload][:html], "Your DateZA verification code"
+        assert_not_includes captured[:payload].to_json, "HookUs"
       end
 
       test "auth failure is permanent and leaks no provider detail" do
@@ -87,9 +151,9 @@ module Notifications
 
       private
 
-      def deliver(idempotency_key: nil)
+      def deliver(brand: @brand, idempotency_key: nil)
         ResendGateway.deliver(
-          brand: @brand, recipient: "ada@example.com", code: "123456",
+          brand:, recipient: "ada@example.com", code: "123456",
           mailer_action: :verification_code, delivery: @delivery, idempotency_key:
         )
       end

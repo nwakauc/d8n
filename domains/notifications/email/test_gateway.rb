@@ -6,7 +6,7 @@ module Notifications
       PROVIDER = "test".freeze
 
       class << self
-        def configured? = true
+        def configured?(brand:) = Email.from_address(brand).present?
 
         def deliveries
           @deliveries ||= []

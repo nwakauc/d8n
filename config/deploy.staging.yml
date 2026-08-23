@@ -36,9 +36,11 @@ env:
     # and OTP requests surface delivery_unavailable rather than pretending to send.
     D8N_EMAIL_PROVIDER: "resend"
     D8N_SMS_PROVIDER: "twilio"
-    # Verified Resend sender identity (hookus.app). Not a secret — the address is
-    # public — so it lives in clear config rather than the password manager.
+    # Verified Resend sender identities. D8N_EMAIL_FROM is the legacy HookUs-only
+    # key; other brands must have an explicit D8N_<BRAND>_EMAIL_FROM value and
+    # never inherit it. These public addresses live in clear deployment config.
     D8N_EMAIL_FROM: "HookUs <no-reply@hookus.app>"
+    D8N_DATEZA_EMAIL_FROM: "DateZA <no-reply@date-za.com>"
     # Explicit browser origins permitted to call the staging API. HookUs and
     # DateZA frontends talk to the real staging backend during integration.
     # Origins are not secrets; never use "*" here. Extend this comma-separated

@@ -131,7 +131,7 @@ module Identity
     end
 
     def delivery_configured?(identity_identifier)
-      identity_identifier.phone? ? Notifications::Sms.configured? : Notifications::Email.configured?
+      identity_identifier.phone? ? Notifications::Sms.configured? : Notifications::Email.configured?(brand:)
     end
 
     def enqueue_delivery

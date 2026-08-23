@@ -12,14 +12,13 @@ module Notifications
       PROVIDER = "resend".freeze
 
       class << self
-        def configured? = api_key.present? && from_address.present?
+        def configured?(brand:) = api_key.present? && Email.from_address(brand).present?
 
         def api_key = ENV["RESEND_API_KEY"].presence
-        def from_address = ENV["D8N_EMAIL_FROM"].presence
 
         def deliver(brand:, recipient:, code:, mailer_action:, delivery:, idempotency_key: nil,
           message: nil, from_address: nil)
-          sender = from_address || self.from_address
+          sender = from_address || Email.from_address(brand)
           return not_configured(brand) unless api_key.present? && sender.present?
 
           message ||= Email.build_message(brand:, recipient:, code:, mailer_action:)
