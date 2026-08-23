@@ -21,6 +21,15 @@ one messaging/matching system, not a parallel "Hook Tonight" one.
 
 ## Decision
 
+### Hook Tonight is an explicit HookUs product capability
+
+`Hooks::CapabilityPolicy` currently enables `:hook_tonight` only for HookUs.
+Unsupported brands receive 404 `hook_tonight_not_configured` for state reads,
+activation, and reciprocal discovery before any interaction-verification check or
+mutation. Authenticated deactivation remains intentionally brand-agnostic so an
+unsupported brand can clear legacy/corrective availability state without first
+re-enabling the feature.
+
 ### A temporary state record, not a profile setting
 
 `hook_tonight_states` holds exactly **one current-state row per (brand, profile)**

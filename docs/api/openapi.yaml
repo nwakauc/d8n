@@ -1284,10 +1284,14 @@ paths:
                 $ref: "#/components/schemas/SendHookResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/InteractionForbidden"
         "404":
-          $ref: "#/components/responses/NotFound"
+          description: >-
+            Hook is not configured for the resolved brand
+            (`hook_not_configured`), or the target profile is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: |
             Interaction conflict: `already_hooked` (already used your one Hook to
@@ -1339,7 +1343,9 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/InteractionForbidden"
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "404":
+          $ref: "#/components/responses/HookNotConfigured"
         "422":
           description: Invalid `limit` (`invalid_limit`) or `cursor` (`invalid_cursor`).
           content:
@@ -1378,10 +1384,11 @@ paths:
                 $ref: "#/components/schemas/HookReplyResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/InteractionForbidden"
         "404":
-          description: The Hook is not live for this member (`hook_unavailable`).
+          description: >-
+            Hook is not configured for the resolved brand
+            (`hook_not_configured`), or the Hook is not live for this member
+            (`hook_unavailable`).
           content:
             application/json:
               schema:
@@ -1409,10 +1416,11 @@ paths:
           description: The Hook was declined; nothing is disclosed to the sender.
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/InteractionForbidden"
         "404":
-          description: The Hook is not live for this member (`hook_unavailable`).
+          description: >-
+            Hook is not configured for the resolved brand
+            (`hook_not_configured`), or the Hook is not live for this member
+            (`hook_unavailable`).
           content:
             application/json:
               schema:
@@ -1436,6 +1444,8 @@ paths:
                 $ref: "#/components/schemas/HookTonightState"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/HookTonightNotConfigured"
     post:
       operationId: activateHookTonight
       tags: [Hook Tonight]
@@ -1466,7 +1476,13 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/InteractionForbidden"
+          description: The member is not active and discoverable (`discoverable_profile_required`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/HookTonightNotConfigured"
         "422":
           description: The requested `intent` is not supported (`invalid_intent`).
           content:
@@ -1530,19 +1546,13 @@ paths:
           description: |
             The viewer is not active and discoverable
             (`discoverable_profile_required`), or has no live Hook Tonight
-            activation (`hook_tonight_required`). For a published DateZA member,
-            `identifier_verification_required` is returned before this
-            interpersonal surface can be used.
+            activation (`hook_tonight_required`).
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Production matching is not configured for this brand.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+          $ref: "#/components/responses/HookTonightNotConfigured"
         "422":
           $ref: "#/components/responses/InvalidInput"
   /api/v1/blocks:
@@ -2337,6 +2347,20 @@ components:
         login session has not been verified (`identifier_verification_required`).
         Existing profile, membership, and lifecycle authorization errors remain
         distinct. This DateZA-only rule does not change HookUs authorization.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    HookNotConfigured:
+      description: Hook is not enabled for the resolved brand (`hook_not_configured`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    HookTonightNotConfigured:
+      description: >-
+        Hook Tonight is not enabled for the resolved brand
+        (`hook_tonight_not_configured`).
       content:
         application/json:
           schema:

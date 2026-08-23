@@ -173,7 +173,8 @@ DateZA deliberately uses **browse first, verify before interacting**. A member
 whose current login identifier is still unverified may call `GET /api/v1/find`
 and consume the normal Find exposure allowance. The server requires verification
 before full profile detail, Like, Pass, match/conversation access, message
-history/send, conversation initiation, or another interpersonal Hook surface.
+history/send, or conversation initiation. Hook and Hook Tonight are not DateZA
+capabilities and fail earlier with their product-specific 404 errors.
 
 The verification source is the identifier attached to the current brand-bound
 session credential. A different verified phone/email on the same D8N identity
@@ -193,6 +194,26 @@ normal validation failures. Send the member through the existing
 HookUs is not subject to this DateZA rule. Account/profile editing and safety
 controls (block, unblock, and report) remain available because they are not
 dating interactions.
+
+### Hook brand capabilities
+
+Hook and Hook Tonight are currently enabled only for HookUs. Route presence does
+not imply enablement. Authenticated requests under DateZA receive:
+
+```json
+{"error":"hook_not_configured"}
+```
+
+for Hook send/inbox/reply/decline, or:
+
+```json
+{"error":"hook_tonight_not_configured"}
+```
+
+for Hook Tonight state, activation, and reciprocal discovery. Both use HTTP 404
+and are evaluated before DateZA's identifier-verification interaction rule.
+`DELETE /api/v1/hook_tonight` intentionally remains available to authenticated
+members of any brand so legacy availability state can always be deactivated.
 
 The allowance model remains two separate DateZA surfaces: Find is implemented at
 10 unique profiles per Johannesburg day; curated daily Discovery is intended to

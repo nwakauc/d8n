@@ -94,6 +94,13 @@ inherit from `Api::V1::InteractionController`, so profile detail, matching,
 messaging, and equivalent interaction surfaces share the same authorization and
 consumer error instead of repeating brand checks.
 
+Product capability is authorized before interaction verification. Hook-family
+controllers declare `:hook` or `:hook_tonight`, which
+`Hooks::CapabilityPolicy` enables only for HookUs. Unsupported brands therefore
+receive the relevant `*_not_configured` 404 rather than a misleading DateZA
+verification error. Hook Tonight deactivation bypasses only capability and
+interaction gating, after normal authentication, so legacy state can be cleared.
+
 DateZA requires the identifier attached to the current session credential to have
 a real `IdentityIdentifier#verified_at` timestamp before a published member may
 interact. A verified secondary identifier does not satisfy an unverified current

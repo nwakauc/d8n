@@ -1,6 +1,7 @@
 class Api::V1::HookTonightController < Api::V1::InteractionController
-  # Reading/deactivating one's own state remains available. Activation and the
-  # reciprocal pool are interpersonal surfaces and use the shared interaction gate.
+  # Reading one's own state is capability-gated, while deactivation deliberately
+  # remains available so legacy/corrective state can always be cleared safely.
+  skip_before_action :authorize_product_capability!, only: :destroy
   skip_before_action :authorize_interaction_access!, only: %i[show destroy]
   before_action -> { enforce_rate_limit!(:hook_tonight_activation) }, only: %i[create destroy]
   before_action -> { enforce_rate_limit!(:hook_tonight_discovery) }, only: :discovery
@@ -73,6 +74,10 @@ class Api::V1::HookTonightController < Api::V1::InteractionController
   end
 
   private
+
+  def interaction_product_capability
+    :hook_tonight
+  end
 
   def state_json(state)
     {

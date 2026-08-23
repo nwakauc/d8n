@@ -68,6 +68,10 @@ class Api::V1::HooksController < Api::V1::InteractionController
 
   private
 
+  def interaction_product_capability
+    :hook
+  end
+
   def render_interaction_error(error)
     case error.code
     when :profile_unavailable

@@ -51,7 +51,7 @@ class Api::V1::DatezaInteractionVerificationTest < ActionDispatch::IntegrationTe
     assert_verification_required
   end
 
-  test "an unverified DateZA member cannot use match conversation message or Hook interaction surfaces" do
+  test "an unverified DateZA member cannot use match conversation or message interaction surfaces" do
     get "/api/v1/matches", headers: bearer_headers(@token)
     assert_verification_required
 
@@ -69,17 +69,6 @@ class Api::V1::DatezaInteractionVerificationTest < ActionDispatch::IntegrationTe
     assert_no_difference -> { Message.count } do
       post "/api/v1/conversations/#{@conversation.public_id}/messages",
         headers: bearer_headers(@token), params: { body: "This must not persist" }
-    end
-    assert_verification_required
-
-    assert_no_difference -> { Hook.count } do
-      post "/api/v1/profiles/#{@detail_target.public_id}/hook",
-        headers: bearer_headers(@token), params: { message: "This must not persist" }
-    end
-    assert_verification_required
-
-    assert_no_difference -> { HookTonightState.count } do
-      post "/api/v1/hook_tonight", headers: bearer_headers(@token)
     end
     assert_verification_required
   end
@@ -113,11 +102,6 @@ class Api::V1::DatezaInteractionVerificationTest < ActionDispatch::IntegrationTe
     assert_difference -> { Message.count }, 1 do
       post "/api/v1/conversations/#{@conversation.public_id}/messages",
         headers: bearer_headers(@token), params: { body: "Hello" }
-    end
-    assert_response :created
-
-    assert_difference -> { HookTonightState.count }, 1 do
-      post "/api/v1/hook_tonight", headers: bearer_headers(@token)
     end
     assert_response :created
   end
