@@ -19,7 +19,7 @@ module Matching
               user: viewer.user,
               brand:,
               target_public_id: target.public_id,
-              strategy: Strategies::Hookus
+              eligibility_policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
             )
           rescue StandardError => e
             results << e

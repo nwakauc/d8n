@@ -45,11 +45,11 @@ info:
 
     DateZA is a provisionable tenant (`DateZA`, slug `dateza`) with phone/email
     password authentication, a v1 profile catalog, and Find with a durable daily
-    10-unique-profile allowance plus deterministic `dateza_v1` compatibility on
-    sufficiently informed Find cards. Daily Discovery 10, RealMe, public Trust
-    standing, AI Matchmaker, notification UI/device enrollment, and
-    subscriptions/entitlements are not implemented. DateZA Discovery remains
-    deliberately unconfigured.
+    10-unique-profile Find allowance, a separate stable daily Discovery
+    allocation of up to 10, and deterministic `dateza_v1` compatibility on
+    sufficiently informed cards. RealMe, public Trust standing, AI Matchmaker,
+    notification UI/device enrollment, and subscriptions/entitlements are not
+    implemented.
 
     The live API root (`GET /`) returns the same per-service status machine-readably.
 servers:
@@ -709,7 +709,7 @@ paths:
         "403":
           $ref: "#/components/responses/ProfileOrMembershipRequired"
         "422":
-          $ref: "#/components/responses/ValidationFailed"
+          $ref: "#/components/responses/ProfileValidationFailed"
   /api/v1/profile/preferences:
     get:
       operationId: getProfilePreferences
@@ -1086,26 +1086,30 @@ paths:
     get:
       operationId: getDiscovery
       tags: [Matching]
-      summary: Get a page of eligible public profiles for the selected mode
+      summary: Get the brand's configured default Discovery surface
       description: |
-        `mode` selects the discovery feed. All modes apply the **same**
+        All configured surfaces apply the **same**
         eligibility rules (brand isolation, active/visible profiles,
         current-user exclusion, reciprocal age/gender/preference, distance,
-        blocking/exclusions) — they differ only in ordering:
-          * `for_you` (default) — the compatibility-ranked HookUs feed.
+        blocking/exclusions).
+
+        For HookUs, `mode` selects a cursor feed:
+          * `for_you` (default) — the compatibility-ranked feed.
           * `new_here` — the newest eligible profiles first, deterministic on
             recency; the compatibility payload is still included.
-        A request without `mode` behaves exactly as before (`for_you`).
+        `vibe`, `online`, `cursor`, and `limit` apply to these HookUs feeds.
 
-        `vibe` and `online` are optional facet filters, orthogonal to `mode` and
-        to each other; they narrow the feed without relaxing eligibility and
-        combine freely (e.g. `?mode=new_here&vibe=420_friendly&online=true`):
-          * `vibe` — profiles that publicly selected that "vibes" option. An
-            unknown vibe yields `invalid_filter`.
-          * `online=true` — profiles whose user has been active within the last
-            10 minutes (session activity), i.e. "online now".
+        For DateZA, omitting `mode` resolves `discovery.curated_daily`. The first
+        request in an Africa/Johannesburg calendar day finalizes a persisted,
+        compatibility-ranked allocation of up to 10 profiles. Repeated requests
+        return the same order and do not consume profiles or DateZA Find
+        allowance. Safety and shared interaction exclusions are rechecked on
+        delivery; invalid candidates are omitted without refill. The response has
+        `next_cursor: null` and `selection` metadata. `count` is the number
+        currently safe to return, so it may be below the original allocation.
+        There is intentionally no `remaining` consumption counter.
 
-        The returned `next_cursor` encodes the mode and every active facet, so a
+        A HookUs `next_cursor` encodes the mode and every active facet, so a
         later page cannot switch strategy or silently drop/change a filter:
         replaying a cursor under a different mode/vibe/online yields
         `invalid_cursor`. An unknown mode yields `invalid_mode`.
@@ -1122,7 +1126,7 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
         "200":
-          description: Strategy-ranked profiles and an opaque next cursor.
+          description: Configured strategy-ranked Discovery profiles and surface metadata.
           content:
             application/json:
               schema:
@@ -1277,7 +1281,13 @@ paths:
         "403":
           $ref: "#/components/responses/InteractionForbidden"
         "404":
-          $ref: "#/components/responses/NotFound"
+          description: >-
+            Matching interactions are not configured for the resolved brand
+            (`matching_not_configured`), or the target profile is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "409":
           $ref: "#/components/responses/InteractionConflict"
   /api/v1/profiles/{profile_id}/pass:
@@ -1307,7 +1317,13 @@ paths:
         "403":
           $ref: "#/components/responses/InteractionForbidden"
         "404":
-          $ref: "#/components/responses/NotFound"
+          description: >-
+            Matching interactions are not configured for the resolved brand
+            (`matching_not_configured`), or the target profile is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "409":
           $ref: "#/components/responses/InteractionConflict"
   /api/v1/profiles/{profile_id}/hook:
@@ -1582,8 +1598,10 @@ paths:
         pagination — narrowed to members who currently have a live Hook Tonight
         availability. Each profile carries the same viewer-relative `hook_state`,
         so the client renders the correct 🔥 Hook action; approaching still goes
-        through the existing Hook endpoints. `mode`, `vibe`, `online`, `cursor`,
-        and `limit` behave exactly as on `GET /api/v1/discovery`.
+        through the existing Hook endpoints. This endpoint is permanently bound
+        to the configured Hook Tonight restricted-pool surface; clients cannot
+        redirect it to another Discovery mode. `vibe`, `online`, `cursor`, and
+        `limit` use the shared configured Discovery machinery.
 
         Access is **reciprocal**: the viewer must have a live Hook Tonight
         activation to see the pool (to browse who's available tonight you must be
@@ -1591,7 +1609,6 @@ paths:
         activate via `POST /api/v1/hook_tonight` first. Normal discovery
         (`GET /api/v1/discovery`) is unaffected and open to any eligible member.
       parameters:
-        - $ref: "#/components/parameters/DiscoveryMode"
         - $ref: "#/components/parameters/DiscoveryVibe"
         - $ref: "#/components/parameters/DiscoveryOnline"
         - $ref: "#/components/parameters/Cursor"
@@ -1810,6 +1827,12 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/InteractionForbidden"
+        "404":
+          description: Matching is not configured for the resolved brand (`matching_not_configured`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "422":
           $ref: "#/components/responses/InvalidInput"
   /api/v1/conversations:
@@ -1835,6 +1858,12 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/InteractionForbidden"
+        "404":
+          description: Messaging is not configured for the resolved brand (`messaging_not_configured`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "422":
           $ref: "#/components/responses/InvalidInput"
   /api/v1/matches/{match_id}/conversation:
@@ -1862,7 +1891,10 @@ paths:
         "403":
           $ref: "#/components/responses/InteractionForbidden"
         "404":
-          description: Match is unavailable, cross-brand, or does not include the current profile.
+          description: >-
+            Messaging is not configured for the resolved brand
+            (`messaging_not_configured`), or the Match is unavailable,
+            cross-brand, or does not include the current profile.
           content:
             application/json:
               schema:
@@ -1897,7 +1929,10 @@ paths:
         "403":
           $ref: "#/components/responses/InteractionForbidden"
         "404":
-          description: Conversation is unavailable, cross-brand, ended, blocked, or not the current profile's.
+          description: >-
+            Messaging is not configured for the resolved brand
+            (`messaging_not_configured`), or the Conversation is unavailable,
+            cross-brand, ended, blocked, or not the current profile's.
           content:
             application/json:
               schema:
@@ -1937,7 +1972,10 @@ paths:
         "403":
           $ref: "#/components/responses/InteractionForbidden"
         "404":
-          description: Conversation is unavailable, cross-brand, ended, blocked, or not the current profile's.
+          description: >-
+            Messaging is not configured for the resolved brand
+            (`messaging_not_configured`), or the Conversation is unavailable,
+            cross-brand, ended, blocked, or not the current profile's.
           content:
             application/json:
               schema:
@@ -2482,6 +2520,17 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ValidationError"
+    ProfileValidationFailed:
+      description: >-
+        Profile values failed validation (`invalid_profile`), or the request
+        submitted known D8N profile fields that the resolved brand has not
+        enabled (`invalid_profile_fields`).
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/ValidationError"
+              - $ref: "#/components/schemas/InvalidProfileFields"
     NotFound:
       description: Resource is unavailable, including cross-brand resources.
       content:
@@ -2534,6 +2583,22 @@ components:
                 type: array
                 items:
                   type: string
+    InvalidProfileFields:
+      allOf:
+        - $ref: "#/components/schemas/ErrorResponse"
+        - type: object
+          required: [details]
+          properties:
+            error:
+              const: invalid_profile_fields
+            details:
+              type: object
+              required: [fields]
+              properties:
+                fields:
+                  type: array
+                  items:
+                    type: string
     MessageResponse:
       type: object
       required: [message]
@@ -2861,6 +2926,9 @@ components:
         Owner-scoped onboarding update. `first_name` and `last_name` update the
         private platform identity and are never part of public profile JSON.
         `display_name` remains the separate, brand-owned public dating identity.
+        Only fields advertised by the resolved brand's
+        `GET /api/v1/profile/configuration` contract may be submitted. Known D8N
+        fields disabled for that brand return `invalid_profile_fields` (422).
       properties:
         first_name:
           type: [string, "null"]
@@ -2950,7 +3018,10 @@ components:
       allOf:
         - $ref: "#/components/schemas/ProfileUpdate"
         - type: object
-          required: [id, brand, status, visibility, options, completion, languages_spoken]
+          description: >-
+            Owner profile scalars are present only when enabled by the resolved
+            brand configuration. Stable platform envelope fields remain present.
+          required: [id, brand, status, visibility, options, completion]
           properties:
             id:
               type: string
@@ -3104,7 +3175,11 @@ components:
           type: integer
     PublicProfile:
       type: object
-      required: [id, age, languages_spoken, photos, options]
+      description: >-
+        Public scalar and derived fields are present only when their source field
+        is enabled by the profile's brand. Stable platform envelope fields remain
+        present.
+      required: [id, photos, options]
       properties:
         id:
           type: string
@@ -3237,7 +3312,7 @@ components:
         Viewer-relative status signals, recomputed per request. Present only on the
         discovery feed and the single-profile detail endpoint — NOT on match or
         conversation payloads, which carry the base public profile only.
-      required: [verified, online, active_today, new_here, hook_tonight_active, last_active_at, distance_km, hook_state]
+      required: [verified, online, active_today, new_here, last_active_at, distance_km]
       properties:
         verified:
           type: boolean
@@ -3252,20 +3327,6 @@ components:
         new_here:
           type: boolean
           description: The member's profile was created within the last 7 days.
-        hook_tonight_active:
-          type: boolean
-          description: The member currently has a live Hook Tonight availability state.
-        hook_state:
-          type: string
-          enum: [available, pending, hooked, unavailable]
-          description: |
-            The viewer's 🔥 Hook button state toward this profile:
-            `available` (may Hook), `pending` (viewer has a live outgoing Hook
-            awaiting their reply), `hooked` (an active Match already exists — use
-            the conversation), `unavailable` (cannot Hook: already used their one
-            Hook to this person, this person has a live Hook waiting on the viewer,
-            already Liked, or otherwise not Hookable). Deliberately does not
-            distinguish declined/expired/blocked — all collapse to `unavailable`.
         online:
           type: boolean
           description: An active brand session was used within the last 10 minutes.
@@ -3282,11 +3343,43 @@ components:
             Whole-kilometre great-circle distance from the viewer, floored to 1km
             (never 0, which would read as exact co-location). null unless BOTH the
             viewer and the member have a location no older than 24h.
+    HookUsProfileState:
+      type: object
+      description: Optional HookUs capability state, composed only for HookUs surfaces that enable it.
+      required: [hook_tonight_active, hook_state]
+      properties:
+        hook_tonight_active:
+          type: boolean
+          description: The member currently has a live Hook Tonight availability state.
+        hook_state:
+          type: string
+          enum: [available, pending, hooked, unavailable]
+          description: |
+            The viewer's 🔥 Hook button state toward this profile. Deliberately
+            does not distinguish declined, expired, or blocked outcomes.
     ProfileWithStatus:
       allOf:
         - $ref: "#/components/schemas/PublicProfile"
         - $ref: "#/components/schemas/ProfileStatus"
+        - type: object
+          description: HookUs profile detail adds these fields; brands without Hook capabilities omit them.
+          properties:
+            hook_tonight_active:
+              type: boolean
+            hook_state:
+              type: string
+              enum: [available, pending, hooked, unavailable]
     DiscoveryProfile:
+      allOf:
+        - $ref: "#/components/schemas/PublicProfile"
+        - $ref: "#/components/schemas/ProfileStatus"
+        - $ref: "#/components/schemas/HookUsProfileState"
+        - type: object
+          required: [compatibility]
+          properties:
+            compatibility:
+              $ref: "#/components/schemas/Compatibility"
+    DailyDiscoveryProfile:
       allOf:
         - $ref: "#/components/schemas/PublicProfile"
         - $ref: "#/components/schemas/ProfileStatus"
@@ -3294,7 +3387,30 @@ components:
           required: [compatibility]
           properties:
             compatibility:
-              $ref: "#/components/schemas/Compatibility"
+              $ref: "#/components/schemas/DatezaCompatibility"
+    DailySelectionMetadata:
+      type: object
+      required: [allocation_date, daily_limit, count, finalized, refreshes_at]
+      properties:
+        allocation_date:
+          type: string
+          format: date
+          description: Allocation period date in the configured surface timezone.
+        daily_limit:
+          type: integer
+          minimum: 1
+        count:
+          type: integer
+          minimum: 0
+          description: Number of allocated candidates still eligible and safe to deliver.
+        finalized:
+          type: boolean
+          const: true
+          description: The period's allocation will not be routinely reranked or refilled.
+        refreshes_at:
+          type: string
+          format: date-time
+          description: Start of the next allocation period in the configured timezone.
     DiscoveryResponse:
       type: object
       required: [profiles, next_cursor]
@@ -3302,9 +3418,14 @@ components:
         profiles:
           type: array
           items:
-            $ref: "#/components/schemas/DiscoveryProfile"
+            oneOf:
+              - $ref: "#/components/schemas/DiscoveryProfile"
+              - $ref: "#/components/schemas/DailyDiscoveryProfile"
         next_cursor:
           type: [string, "null"]
+        selection:
+          $ref: "#/components/schemas/DailySelectionMetadata"
+          description: Present only for a stable daily-batch surface.
     FindProfileStatus:
       type: object
       required: [verified, online, active_today, new_here, last_active_at, distance_km]

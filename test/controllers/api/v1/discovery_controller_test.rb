@@ -19,6 +19,16 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
+  test "keeps HookUs cursor feed semantics without creating daily allocations" do
+    create_candidate
+
+    get "/api/v1/discovery", headers: bearer_headers(@token), params: { limit: 1 }
+
+    assert_response :success
+    assert_nil JSON.parse(response.body)["selection"]
+    assert_equal 0, DiscoveryAllocation.where(brand: @brand).count
+  end
+
   test "requires an active visible viewer with complete matching preferences" do
     @viewer.update!(status: :draft)
 
@@ -101,7 +111,7 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     candidate = create_candidate(display_name: "Sam")
     Hooks::SendHook.call(
       user: @viewer.user, brand: @brand, target_public_id: candidate.public_id,
-      message: "hey 🔥", strategy: Matching::Strategies::Hookus
+      message: "hey 🔥", eligibility_policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
     )
 
     get "/api/v1/discovery", headers: bearer_headers(@token)
@@ -248,7 +258,8 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
   test "does not accept a cursor for another brand" do
     candidate = create_candidate
     ranked_candidate = Matching::Strategies::Hookus.rank(
-      scope: @brand.profiles.where(id: candidate.id), viewer: @viewer
+      scope: @brand.profiles.where(id: candidate.id), viewer: @viewer,
+      eligibility_policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
     ).first
     cursor = Matching::Cursor.encode(
       brand: @brand,

@@ -1,4 +1,6 @@
 class Api::V1::MessagesController < Api::V1::InteractionController
+  requires_platform_capability "chat.message.text"
+
   before_action -> { enforce_rate_limit!(:send_message) }, only: :create
 
   def index

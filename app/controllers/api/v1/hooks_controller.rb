@@ -1,4 +1,6 @@
 class Api::V1::HooksController < Api::V1::InteractionController
+  requires_platform_capability "match.hook"
+
   # Both surfaces serialize a counterpart profile (photos), so they need signed
   # media URLs.
   before_action :set_active_storage_url_options, only: [ :index, :reply ]
@@ -67,10 +69,6 @@ class Api::V1::HooksController < Api::V1::InteractionController
   end
 
   private
-
-  def interaction_product_capability
-    :hook
-  end
 
   def render_interaction_error(error)
     case error.code

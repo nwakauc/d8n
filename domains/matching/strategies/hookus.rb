@@ -2,7 +2,6 @@ module Matching
   module Strategies
     class Hookus
       KEY = "hookus_v1"
-      LOCATION_MAX_AGE = 24.hours
       DIMENSION_COUNT = 4
       REASONS = {
         matching_shared_intent: "shared_intent",
@@ -47,16 +46,12 @@ module Matching
         KEY
       end
 
-      def self.location_max_age
-        LOCATION_MAX_AGE
-      end
-
       def self.production_ready?
         true
       end
 
-      def self.rank(scope:, viewer:)
-        viewer_has_location = fresh_location?(viewer:)
+      def self.rank(scope:, viewer:, eligibility_policy:)
+        viewer_has_location = fresh_location?(viewer:, eligibility_policy:)
         viewer_uses_distance = viewer.profile_preference.max_distance_km.present?
         expressions = score_expressions(viewer_has_location:, viewer_uses_distance:)
         scope = with_option_scores(scope:, viewer:)
@@ -154,8 +149,8 @@ module Matching
       end
       private_class_method :score_expressions
 
-      def self.fresh_location?(viewer:)
-        viewer.profile_locations.kept.where(captured_at: LOCATION_MAX_AGE.ago..).exists?
+      def self.fresh_location?(viewer:, eligibility_policy:)
+        viewer.profile_locations.kept.where(captured_at: eligibility_policy.location_max_age.ago..).exists?
       end
       private_class_method :fresh_location?
 

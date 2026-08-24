@@ -22,9 +22,9 @@ module HookTonight
   class Discovery
     class NotActivated < StandardError; end
 
-    def self.call(user:, brand:, cursor: nil, limit: nil, mode: nil, vibe: nil, online: nil)
+    def self.call(user:, brand:, cursor: nil, limit: nil, facet_params: {})
       Matching::Discovery.call(
-        user:, brand:, cursor:, limit:, mode:, vibe:, online:,
+        user:, brand:, cursor:, limit:, mode: :hook_tonight, facet_params:,
         guard: ->(viewer) do
           raise NotActivated unless HookTonightState.live.exists?(brand:, profile: viewer)
         end,

@@ -98,15 +98,19 @@ class DatezaTenantFoundationTest < ActionDispatch::IntegrationTest
     assert_equal({ "error" => "profile_unavailable" }, JSON.parse(response.body))
   end
 
-  test "DateZA matching stays unavailable until a production strategy is implemented" do
+  test "DateZA resolves the configured stable daily Discovery surface" do
     viewer = create_member_profile(brand: @dateza, name: "DateZA Viewer")
+    candidate = create_member_profile(brand: @dateza, name: "DateZA Candidate")
     token, = Session.issue!(brand: @dateza, user: viewer.user)
 
     host! DATEZA_HOST
     get "/api/v1/discovery", headers: bearer_headers(token)
 
-    assert_response :not_found
-    assert_equal({ "error" => "matching_not_configured" }, JSON.parse(response.body))
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal [ candidate.public_id ], payload.fetch("profiles").pluck("id")
+    assert_equal 10, payload.dig("selection", "daily_limit")
+    assert payload.dig("selection", "finalized")
   end
 
   test "leaving DateZA preserves the other brand membership profile and session" do

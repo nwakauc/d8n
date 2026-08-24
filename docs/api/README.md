@@ -41,7 +41,7 @@ the API root (`GET /`) and the summary at the top of `openapi.yaml`.
 | --- | --- | --- |
 | Identity | Available | Phone/email + password register, login, password and login-email change, recovery, brand-bound session, identifier verification. |
 | Profiles | Available | Profile, configuration, options, preferences, location, publication. |
-| Matching | Available | HookUs Discovery and DateZA Find are live on shared eligibility. DateZA Find includes deterministic `dateza_v1` compatibility; DateZA Discovery remains unimplemented. |
+| Matching | Available | HookUs cursor Discovery, DateZA stable daily Discovery, and DateZA Find are live on shared eligibility. Both DateZA surfaces use deterministic `dateza_v1` compatibility while retaining separate persistence and budgets. |
 | Messaging | Preview | Match-gated plain-text messages and history exist. Client idempotency, receipts, realtime and message media remain future work. |
 | Trust | Preview | Blocking, profile/content reporting, brand-scoped report review and suspension exist. DateZA public Trust standing is not implemented. |
 | Media | Preview | Owner-scoped profile-photo upload/retrieval is live on private R2 (direct-to-R2 intent → attach → short-lived signed GET → delete/purge). Public/other-user delivery, re-encode, EXIF removal, and moderation enforcement remain gated. Endpoints require R2, so they return `404` when R2 is disabled. |
@@ -93,12 +93,58 @@ mapping. Override only the development host when needed:
 DATEZA_DEV_HOST=my-dateza.test bin/rails brands:seed_dateza_dev
 ```
 
-No production DateZA domain is assumed by this repository. DateZA Find and
-deterministic compatibility v1 are implemented, while daily Discovery 10,
+No production DateZA domain is assumed by this repository. DateZA Find,
+deterministic compatibility v1, and stable daily Discovery are implemented;
 RealMe, public Trust standing, AI Matchmaker, notification UI/device enrollment,
-and subscriptions/entitlements remain future work. DateZA registration now creates
-one `dateza.welcome` product notification after commit. `GET /api/v1/discovery` therefore still returns
-`matching_not_configured` for DateZA.
+and subscriptions/entitlements remain future work. DateZA registration creates
+one `dateza.welcome` product notification after commit.
+
+For DateZA, `GET /api/v1/discovery` returns the current Johannesburg-calendar-day
+curated selection. The first request finalizes up to 10 profiles, and repeated
+requests return the same persisted order. A later higher-ranked profile does not
+replace an allocation member. Current shared eligibility is rechecked on every
+delivery, so blocked, unpublished, closed/suspended, liked, passed, or matched
+candidates are omitted without refill. The response contains no cursor and adds:
+
+```json
+{
+  "profiles": [],
+  "next_cursor": null,
+  "selection": {
+    "allocation_date": "2026-08-24",
+    "daily_limit": 10,
+    "count": 0,
+    "finalized": true,
+    "refreshes_at": "2026-08-25T00:00:00+02:00"
+  }
+}
+```
+
+`count` is the number currently safe to deliver; it may be below the number
+originally allocated after invalidation. There is intentionally no `remaining`:
+this is a finalized curated allocation, not a per-card consumption allowance.
+
+Discovery facets and optional response fields are surface-configured. HookUs
+keeps its `vibe` and `online` facets plus `hook_state` and
+`hook_tonight_active` on configured Discovery and profile-detail surfaces.
+DateZA and brands without Hook capabilities do not receive those HookUs fields.
+
+Optional product routes are globally present but authorized through the resolved
+brand's D8N capability contract after authentication. Route presence therefore
+does not enable a product. Unsupported brands receive stable 404 errors before
+product rate limits, resource lookup, or mutation:
+
+```text
+Discovery / Likes / Passes / Matches   matching_not_configured
+Find                                   find_not_configured
+Conversations / Messages               messaging_not_configured
+Hook                                   hook_not_configured
+Hook Tonight                           hook_tonight_not_configured
+```
+
+HookUs and DateZA both enable current text conversations/messages. Hook Tonight
+deactivation is deliberately exempt so stale or legacy availability state can
+always be cleared safely.
 
 ### Product notifications
 
@@ -215,10 +261,10 @@ and are evaluated before DateZA's identifier-verification interaction rule.
 `DELETE /api/v1/hook_tonight` intentionally remains available to authenticated
 members of any brand so legacy availability state can always be deactivated.
 
-The allowance model remains two separate DateZA surfaces: Find is implemented at
-10 unique profiles per Johannesburg day; curated daily Discovery is intended to
-add a separate 10-profile allowance, for 20 total daily profiles, but that second
-surface and ledger are not implemented yet.
+The allowance model has two separate DateZA surfaces: Find exposes up to 10
+unique profiles per Johannesburg day through `find_profile_exposures`; Discover
+persists a separate curated allocation of up to 10. Calling either endpoint does
+not consume or mutate the other's accounting.
 
 ## Authentication Flow
 
@@ -377,6 +423,14 @@ HookUs or DateZA option codes as a universal D8N schema. An empty field `options
 array means the current API validates the field's shape but does not define a
 closed vocabulary. New semantic capabilities still require a D8N backend
 contract rather than arbitrary client fields.
+
+The configuration is also the server-enforced scalar-field contract. A known
+D8N profile field that is not listed for the resolved brand is rejected by
+`PATCH /api/v1/profile` with HTTP 422 and
+`{"error":"invalid_profile_fields","details":{"fields":[...]}}`. Owner and
+public profile JSON omit disabled fields, including values retained on historical
+rows. Stable envelope fields such as profile id, brand/status/visibility where
+applicable, options, prompts, completion, and photos are not brand scalars.
 
 Password registration and login, plus `GET/PATCH /api/v1/profile`, return a
 resumable `onboarding` state. `profile_required` starts profile creation,

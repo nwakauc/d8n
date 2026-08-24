@@ -313,7 +313,7 @@ class Api::V1::GenericReportsControllerTest < ActionDispatch::IntegrationTest
   def send_hook(sender, to:, message:)
     Hooks::SendHook.call(
       user: sender.user, brand: sender.brand, target_public_id: to.public_id,
-      message:, strategy: Matching::Strategies::Hookus
+      message:, eligibility_policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
     )
     Hook.find_by!(brand: sender.brand, sender_profile: sender, recipient_profile: to)
   end

@@ -24,9 +24,9 @@ module Matching
         raise Invalid, "Find filters are invalid"
       end
 
-      def self.apply(scope:, brand:, viewer:, policy:, filter:)
+      def self.apply(scope:, brand:, viewer:, eligibility_policy:, filter:)
         scope = apply_age(scope:, filter:)
-        scope = apply_distance(scope:, viewer:, policy:, filter:)
+        scope = apply_distance(scope:, viewer:, eligibility_policy:, filter:)
         apply_relationship_intent(scope:, brand:, filter:)
       end
 
@@ -59,10 +59,11 @@ module Matching
       end
       private_class_method :apply_age
 
-      def self.apply_distance(scope:, viewer:, policy:, filter:)
+      def self.apply_distance(scope:, viewer:, eligibility_policy:, filter:)
         return scope unless filter.max_distance_km
 
-        fresh_location = viewer.profile_locations.kept.where(captured_at: policy.location_max_age.ago..).exists?
+        fresh_location = viewer.profile_locations.kept
+          .where(captured_at: eligibility_policy.location_max_age.ago..).exists?
         return scope.none unless fresh_location
 
         scope.where("#{EligibilityScope::DISTANCE_SQL} <= ?", filter.max_distance_km)

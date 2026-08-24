@@ -18,21 +18,18 @@ module Profiles
   #   distance_km    — great-circle distance between the viewer and the member,
   #                    rounded to whole km with a 1km floor (never 0, which would
   #                    read as exact co-location). nil unless BOTH the viewer and
-  #                    the member have a location no older than LOCATION_MAX_AGE.
+  #                    the member have a location within the configured
+  #                    eligibility policy's freshness window.
   #   active_today   — the member had an active brand session within the last day
   #                    (derived from the same activity query as `online`).
   #   new_here       — the member's profile was created within NEW_HERE_WINDOW.
   #                    Derived from the profile row already in hand (no query).
-  #   hook_tonight_active — the member currently has a live Hook Tonight state in
-  #                    this brand (one bulk query for the whole page).
-  #
   # Everything is computed in a fixed, small number of bulk queries regardless of
   # how many profiles are passed, so it can decorate a whole discovery page
   # without an N+1. All signals are read-only and safe to expose to any member
   # who could already see the profile.
   class StatusFields
     ONLINE_WINDOW = Matching::FacetFilter::ONLINE_WINDOW
-    LOCATION_MAX_AGE = Matching::Strategies::Hookus::LOCATION_MAX_AGE
     EARTH_RADIUS_KM = Matching::EligibilityScope::EARTH_RADIUS_KM
     MIN_DISTANCE_KM = 1
     ACTIVE_TODAY_WINDOW = 24.hours
@@ -44,9 +41,10 @@ module Profiles
 
     # `viewer` is the requesting member's Profile; `profiles` the candidates to
     # decorate (a single-element array is fine for the profile-detail path).
-    def initialize(viewer:, profiles:)
+    def initialize(viewer:, profiles:, eligibility_policy:)
       @viewer = viewer
       @profiles = Array(profiles)
+      @eligibility_policy = eligibility_policy
     end
 
     def call
@@ -55,7 +53,6 @@ module Profiles
       verified = verified_user_ids
       activity = last_active_by_user
       distances = distance_by_profile
-      hook_tonight = hook_tonight_active_profile_ids
       online_threshold = ONLINE_WINDOW.ago
       active_today_threshold = ACTIVE_TODAY_WINDOW.ago
       new_here_threshold = NEW_HERE_WINDOW.ago
@@ -67,7 +64,6 @@ module Profiles
           online: last_active.present? && last_active >= online_threshold,
           active_today: last_active.present? && last_active >= active_today_threshold,
           new_here: profile.created_at.present? && profile.created_at >= new_here_threshold,
-          hook_tonight_active: hook_tonight.include?(profile.id),
           last_active_at: last_active&.iso8601,
           distance_km: distances[profile.id]
         }
@@ -76,7 +72,7 @@ module Profiles
 
     private
 
-    attr_reader :viewer, :profiles
+    attr_reader :viewer, :profiles, :eligibility_policy
 
     def user_ids
       @user_ids ||= profiles.map(&:user_id).uniq
@@ -90,17 +86,6 @@ module Profiles
         .where.not(verified_at: nil)
         .distinct
         .pluck(:user_id)
-        .to_set
-    end
-
-    # Live Hook Tonight availability for the whole page in one query, brand-scoped
-    # (HookTonightState.live re-checks expiry against the clock, so a stale row
-    # never lights up). Mirrors HookTonight::CurrentState's liveness definition.
-    def hook_tonight_active_profile_ids
-      HookTonightState.live
-        .where(brand_id: viewer.brand_id, profile_id: profiles.map(&:id))
-        .distinct
-        .pluck(:profile_id)
         .to_set
     end
 
@@ -125,7 +110,10 @@ module Profiles
 
     def viewer_location
       @viewer_location ||= ProfileLocation.kept
-        .where(profile_id: viewer.id, brand_id: viewer.brand_id, captured_at: LOCATION_MAX_AGE.ago..)
+        .where(
+          profile_id: viewer.id, brand_id: viewer.brand_id,
+          captured_at: eligibility_policy.location_max_age.ago..
+        )
         .order(captured_at: :desc)
         .first
     end
@@ -136,7 +124,7 @@ module Profiles
       ProfileLocation.kept.where(
         profile_id: profiles.map(&:id),
         brand_id: viewer.brand_id,
-        captured_at: LOCATION_MAX_AGE.ago..
+        captured_at: eligibility_policy.location_max_age.ago..
       )
     end
 

@@ -16,10 +16,16 @@ module D8n
       }.freeze
 
       def self.fetch(brand:)
+        if Current.brand.equal?(brand) && Current.platform_contract
+          return Current.platform_contract
+        end
+
         provider = CONTRACTS[brand&.slug]
         raise UnsupportedBrand unless provider
 
-        provider.contract(brand:)
+        contract = provider.contract(brand:)
+        Current.platform_contract = contract if Current.brand.equal?(brand)
+        contract
       end
 
       def self.slugs

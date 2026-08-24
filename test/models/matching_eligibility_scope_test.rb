@@ -103,7 +103,7 @@ module Matching
       EligibilityScope.call(
         brand: @brand,
         viewer: @viewer,
-        location_max_age: Strategies::Hookus.location_max_age
+        policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
       )
     end
 

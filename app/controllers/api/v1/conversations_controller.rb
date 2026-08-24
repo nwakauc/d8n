@@ -1,4 +1,6 @@
 class Api::V1::ConversationsController < Api::V1::InteractionController
+  requires_platform_capability "chat.conversation"
+
   before_action :set_active_storage_url_options, only: :index
 
   def index

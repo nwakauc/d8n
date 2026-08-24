@@ -20,6 +20,14 @@ class Profile < ApplicationRecord
     class_name: "FindProfileExposure",
     foreign_key: :candidate_profile_id,
     dependent: :restrict_with_exception
+  has_many :discovery_allocations_as_viewer,
+    class_name: "DiscoveryAllocation",
+    foreign_key: :viewer_profile_id,
+    dependent: :restrict_with_exception
+  has_many :discovery_allocation_memberships,
+    class_name: "DiscoveryAllocationCandidate",
+    foreign_key: :candidate_profile_id,
+    dependent: :restrict_with_exception
   has_many :likes_given, class_name: "Like", foreign_key: :liker_profile_id, dependent: :restrict_with_exception
   has_many :likes_received, class_name: "Like", foreign_key: :liked_profile_id, dependent: :restrict_with_exception
   has_many :passes_given, class_name: "ProfilePass", foreign_key: :passer_profile_id, dependent: :restrict_with_exception

@@ -11,15 +11,15 @@ module Matching
       )))
     SQL
 
-    def self.call(brand:, viewer:, location_max_age:)
-      new(brand:, viewer:, location_max_age:).call
+    def self.call(brand:, viewer:, policy:)
+      new(brand:, viewer:, policy:).call
     end
 
-    def initialize(brand:, viewer:, location_max_age:)
+    def initialize(brand:, viewer:, policy:)
       @brand = brand
       @viewer = viewer
       @viewer_preference = ProfilePreference.kept.find_by(profile: viewer)
-      @location_cutoff = location_max_age.ago
+      @location_cutoff = policy.location_max_age.ago
     end
 
     def call

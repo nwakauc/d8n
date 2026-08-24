@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_23_091000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_123220) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -250,6 +250,47 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_091000) do
     t.index ["brand_membership_id"], name: "index_device_registrations_on_brand_membership_id"
     t.index ["public_id"], name: "index_device_registrations_on_public_id", unique: true
     t.index ["user_id"], name: "index_device_registrations_on_user_id"
+  end
+
+  create_table "discovery_allocation_candidates", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "candidate_profile_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.bigint "discovery_allocation_id", null: false
+    t.integer "position", null: false
+    t.jsonb "ranking_payload", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id"], name: "index_discovery_allocation_candidates_on_brand_id"
+    t.index ["candidate_profile_id"], name: "index_discovery_allocation_candidates_on_candidate_profile_id"
+    t.index ["discovery_allocation_id", "candidate_profile_id"], name: "idx_discovery_allocation_candidates_unique_profile", unique: true
+    t.index ["discovery_allocation_id", "position"], name: "idx_discovery_allocation_candidates_unique_position", unique: true
+    t.index ["discovery_allocation_id"], name: "idx_on_discovery_allocation_id_b9458f068a"
+    t.check_constraint "\"position\" > 0", name: "chk_discovery_allocation_candidates_positive_position"
+  end
+
+  create_table "discovery_allocations", force: :cascade do |t|
+    t.date "allocation_date", null: false
+    t.bigint "brand_id", null: false
+    t.bigint "brand_membership_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "daily_limit", null: false
+    t.datetime "deleted_at"
+    t.datetime "finalized_at", null: false
+    t.string "policy_key", null: false
+    t.string "strategy_key", null: false
+    t.string "surface_key", null: false
+    t.string "time_zone", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "viewer_profile_id", null: false
+    t.index ["brand_id", "brand_membership_id", "surface_key", "allocation_date"], name: "idx_discovery_allocations_unique_member_surface_day", unique: true
+    t.index ["brand_id"], name: "index_discovery_allocations_on_brand_id"
+    t.index ["brand_membership_id"], name: "index_discovery_allocations_on_brand_membership_id"
+    t.index ["id", "brand_id"], name: "idx_discovery_allocations_on_id_brand", unique: true
+    t.index ["user_id"], name: "index_discovery_allocations_on_user_id"
+    t.index ["viewer_profile_id"], name: "index_discovery_allocations_on_viewer_profile_id"
+    t.check_constraint "daily_limit > 0", name: "chk_discovery_allocations_positive_limit"
   end
 
   create_table "find_profile_exposures", force: :cascade do |t|
@@ -843,6 +884,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_091000) do
   add_foreign_key "device_registrations", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_device_registrations_membership_owner"
   add_foreign_key "device_registrations", "brands"
   add_foreign_key "device_registrations", "users"
+  add_foreign_key "discovery_allocation_candidates", "brands"
+  add_foreign_key "discovery_allocation_candidates", "discovery_allocations", column: ["discovery_allocation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_discovery_allocation_candidates_allocation_tenant"
+  add_foreign_key "discovery_allocation_candidates", "profiles", column: ["candidate_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_discovery_allocation_candidates_profile_tenant"
+  add_foreign_key "discovery_allocations", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_discovery_allocations_membership_tenant"
+  add_foreign_key "discovery_allocations", "brands"
+  add_foreign_key "discovery_allocations", "profiles", column: ["viewer_profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_discovery_allocations_viewer_tenant"
+  add_foreign_key "discovery_allocations", "users"
   add_foreign_key "find_profile_exposures", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_find_exposures_membership_tenant"
   add_foreign_key "find_profile_exposures", "brands"
   add_foreign_key "find_profile_exposures", "profiles", column: ["candidate_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_find_exposures_candidate_tenant"

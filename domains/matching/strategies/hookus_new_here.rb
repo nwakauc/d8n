@@ -16,10 +16,6 @@ module Matching
         KEY
       end
 
-      def self.location_max_age
-        Hookus.location_max_age
-      end
-
       def self.production_ready?
         true
       end
@@ -27,8 +23,8 @@ module Matching
       # Same scored/eligible relation as the default feed — only re-sorted by
       # recency. Keeping Hookus's SELECT means the compatibility payload is
       # identical to "For You".
-      def self.rank(scope:, viewer:)
-        Hookus.rank(scope:, viewer:).reorder(Arel.sql(RECENCY_ORDER))
+      def self.rank(scope:, viewer:, eligibility_policy:)
+        Hookus.rank(scope:, viewer:, eligibility_policy:).reorder(Arel.sql(RECENCY_ORDER))
       end
 
       def self.compatibility(profile:)

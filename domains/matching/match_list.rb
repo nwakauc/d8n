@@ -36,9 +36,9 @@ module Matching
         .order(created_at: :desc, public_id: :desc)
       scope = MatchCursor.apply(scope:, value: cursor, brand:, viewer:)
       matches = scope.includes(
-        profile_a: [ { profile_option_selections: [ :profile_option, :profile_option_group ] },
+        profile_a: [ :brand, { profile_option_selections: [ :profile_option, :profile_option_group ] },
                      { profile_photos: { display_image_attachment: :blob } } ],
-        profile_b: [ { profile_option_selections: [ :profile_option, :profile_option_group ] },
+        profile_b: [ :brand, { profile_option_selections: [ :profile_option, :profile_option_group ] },
                      { profile_photos: { display_image_attachment: :blob } } ]
       ).limit(limit + 1).to_a
       has_more = matches.length > limit

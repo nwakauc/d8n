@@ -1,4 +1,6 @@
 class Api::V1::LikesController < Api::V1::InteractionController
+  requires_platform_capability "match.interaction.like"
+
   before_action -> { enforce_rate_limit!(:like_profile) }, only: :create
 
   def create

@@ -22,6 +22,12 @@ module D8n
         assert contract.surface_enabled?("discovery.new_here")
         assert contract.surface_enabled?("discovery.hook_tonight")
         assert_equal Matching::Strategies::Hookus, contract.surface("discovery.for_you").strategy
+        assert_equal %i[vibe online], contract.surface("discovery.for_you").facets.pluck(:parameter)
+        assert_equal [ Hooks::DiscoveryExclusion ], contract.surface("discovery.for_you").exclusions
+        assert_equal [ Hooks::DiscoveryExclusion ], contract.surface("discovery.new_here").exclusions
+        assert_equal [ Hooks::DiscoveryExclusion ], contract.surface("discovery.hook_tonight").exclusions
+        assert_equal Brands::Hookus::PROFILE_DECORATORS, contract.profile.detail_decorators
+        assert_equal Brands::Hookus::PROFILE_DECORATORS, contract.surface("discovery.for_you").decorators
         assert_equal :restricted_pool, contract.surface("discovery.hook_tonight").delivery_type
         assert_equal :immediate, contract.media.initial_visibility
       end
@@ -47,15 +53,27 @@ module D8n
           contract.enabled_preference_fields
         assert contract.capability_enabled?("discovery.surface.browse")
         assert_not contract.capability_enabled?("discovery.surface.feed")
+        assert contract.capability_enabled?("discovery.surface.daily_batch")
         assert_not contract.capability_enabled?("match.hook")
         assert_not contract.capability_enabled?("match.hook_tonight")
         assert surface
         assert_equal :browse, surface.delivery_type
         assert_equal Matching::Find::Policies::Dateza, surface.policy
         assert_equal Matching::Strategies::DatezaV1, surface.strategy
-        assert_equal 10, surface.allocation.fetch(:limit)
-        assert_equal "Africa/Johannesburg", surface.allocation.fetch(:time_zone)
-        assert_not contract.surface_enabled?("discovery.curated_daily")
+        assert_empty surface.exclusions
+        assert_empty surface.facets
+        assert_empty surface.decorators
+        assert_empty contract.profile.detail_decorators
+        assert_nil surface.allocation
+        assert_equal 10, surface.policy::DAILY_LIMIT
+        assert_equal "Africa/Johannesburg", surface.policy::TIME_ZONE
+        curated = contract.surface("discovery.curated_daily")
+        assert curated
+        assert_equal :daily_batch, curated.delivery_type
+        assert_equal Matching::Strategies::DatezaV1, curated.strategy
+        assert_equal 10, curated.allocation.daily_limit
+        assert_equal "Africa/Johannesburg", curated.allocation.time_zone
+        assert_equal "discovery.curated_daily", contract.default_discovery_surface_key
         assert_equal :verified_login_identifier, contract.interaction.verification_requirement
         assert_equal :moderate_first, contract.media.initial_visibility
         assert_equal %w[membership_registered], contract.notifications.event_types
@@ -72,7 +90,7 @@ module D8n
         error = assert_raises(ArgumentError) do
           BrandContract.new(
             brand: future_brand,
-            capabilities: %w[discovery.surface.daily_batch],
+            capabilities: %w[pay.plan],
             profile: profile_configuration,
             interaction: interaction_configuration,
             media: media_configuration,
@@ -87,6 +105,7 @@ module D8n
         surface = DiscoverySurface.new(
           key: "discovery.people",
           delivery_type: :feed,
+          eligibility_policy: Matching::EligibilityPolicy.new(location_max_age: 24.hours),
           error_code: :matching_not_configured
         )
 
@@ -103,6 +122,21 @@ module D8n
         end
 
         assert_equal "surface delivery capability is not enabled", error.message
+      end
+
+      test "does not allow an enabled capability without its declared dependency" do
+        error = assert_raises(ArgumentError) do
+          BrandContract.new(
+            brand: future_brand,
+            capabilities: %w[chat.message.text],
+            profile: profile_configuration,
+            interaction: interaction_configuration,
+            media: media_configuration,
+            notifications: notification_configuration
+          )
+        end
+
+        assert_equal "enabled capability dependency is missing: chat.conversation", error.message
       end
 
       test "capability access fails closed with stable configured errors" do
@@ -140,6 +174,16 @@ module D8n
         assert_raises(FrozenError) { contract.auth_methods << "google" }
       end
 
+      test "reuses the authoritative contract within the current brand request" do
+        brand = Brand.new(slug: "hookus", name: "HookUs")
+
+        Current.set(brand:) do
+          first = BrandRegistry.fetch(brand:)
+          assert_same first, BrandRegistry.fetch(brand:)
+          assert_same first, Current.platform_contract
+        end
+      end
+
       private
 
       def future_brand
@@ -160,8 +204,8 @@ module D8n
 
       def interaction_configuration
         BrandContract::InteractionConfiguration.new(
-          eligibility_strategy: Matching::Strategies::Hookus,
-          compatibility_strategy: Matching::Strategies::Hookus,
+          eligibility_policy: Matching::EligibilityPolicy.new(location_max_age: 24.hours),
+          compatibility_strategy: nil,
           verification_requirement: nil
         )
       end
@@ -171,7 +215,7 @@ module D8n
       end
 
       def notification_configuration
-        BrandContract::NotificationConfiguration.new(event_types: [].freeze)
+        BrandContract::NotificationConfiguration.new
       end
     end
   end

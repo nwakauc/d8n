@@ -150,6 +150,18 @@ class Api::V1::HookTonightControllerTest < ActionDispatch::IntegrationTest
     assert_equal "available", profiles.sole.fetch("hook_state")
   end
 
+  test "client mode cannot redirect Hook Tonight away from its configured restricted surface" do
+    activate(@viewer)
+    available = create_candidate(display_name: "Available")
+    activate(available)
+
+    get "/api/v1/hook_tonight/discovery",
+      headers: bearer_headers(@token), params: { mode: "unknown" }
+
+    assert_response :success
+    assert_equal [ available.public_id ], JSON.parse(response.body).fetch("profiles").pluck("id")
+  end
+
   test "discovery excludes expired, deactivated, suspended, closed, blocked, and cross-brand availability" do
     activate(@viewer)
     expired = create_candidate
@@ -268,7 +280,7 @@ class Api::V1::HookTonightControllerTest < ActionDispatch::IntegrationTest
       target = create_candidate
       Hooks::SendHook.call(
         user: @viewer.user, brand: @brand, target_public_id: target.public_id,
-        message: "opener 🔥", strategy: Matching::Strategies::Hookus
+        message: "opener 🔥", eligibility_policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
       )
     end
     available = create_candidate

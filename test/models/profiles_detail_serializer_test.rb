@@ -45,13 +45,36 @@ module Profiles
       assert_not ended.fetch(:options).key?("physical_affection")
     end
 
+    test "DateZA detail omits scalar fields disabled by its brand catalogue" do
+      brand = Brand.create!(slug: "dateza", name: "DateZA")
+      DatezaProfileCatalog.install!(brand:)
+      viewer = build_profile_for(brand:)
+      target = build_profile_for(
+        brand:, job_title: "Engineer", pronouns: "she/her", body_type: "athletic",
+        looking_for_text: "A historical value", languages_spoken: [ "English" ]
+      )
+
+      payload = DetailSerializer.call(profile: target, viewer:)
+
+      assert_equal "Engineer", payload.fetch(:job_title)
+      %i[pronouns body_type looking_for_text languages_spoken].each do |field|
+        assert_not payload.key?(field), "expected disabled #{field} to be omitted"
+      end
+      assert payload.key?(:prompts)
+      assert payload.key?(:interests)
+    end
+
     private
 
     def build_profile(**attributes)
+      build_profile_for(brand: @brand, **attributes)
+    end
+
+    def build_profile_for(brand:, **attributes)
       user = User.create!
-      membership = BrandMembership.create!(brand: @brand, user:)
+      membership = BrandMembership.create!(brand:, user:)
       Profile.create!(
-        brand: @brand, user:, brand_membership: membership,
+        brand:, user:, brand_membership: membership,
         birthdate: 28.years.ago.to_date, status: :active, visibility: :visible, **attributes
       )
     end

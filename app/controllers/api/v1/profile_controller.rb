@@ -9,6 +9,7 @@ class Api::V1::ProfileController < ApplicationController
   end
 
   def update
+    field_policy.validate_profile_write!(params.keys)
     profile = Profiles::CurrentProfile.upsert!(
       user: Current.user,
       brand: Current.brand,
@@ -20,6 +21,8 @@ class Api::V1::ProfileController < ApplicationController
     render json: { error: "invalid_profile", details: e.record.errors.to_hash }, status: :unprocessable_entity
   rescue ActiveRecord::RecordNotFound
     render json: { error: "brand_membership_required" }, status: :forbidden
+  rescue Profiles::FieldPolicy::UnsupportedFields => e
+    render json: { error: "invalid_profile_fields", details: { fields: e.fields } }, status: :unprocessable_entity
   end
 
   private
@@ -31,14 +34,18 @@ class Api::V1::ProfileController < ApplicationController
     }
   end
 
+  def field_policy
+    @field_policy ||= Profiles::FieldPolicy.new(brand: Current.brand)
+  end
+
   def profile_params
-    params.permit(
-      :first_name, :last_name, :display_name, :bio, :birthdate, :gender, :pronouns, :visibility,
-      :country_code, :city, :occupation, :job_title, :company_name,
-      :school_or_institution, :looking_for_text, :children_count,
-      :height_cm, :body_type, :smoking, :drinking, :fitness,
-      languages_spoken: [],
-      languages: [ :code, :proficiency, :primary ]
-    )
+    filters = field_policy.writable_profile_fields.filter_map do |field|
+      case field
+      when "languages_spoken" then { languages_spoken: [] }
+      when "languages" then { languages: [ :code, :proficiency, :primary ] }
+      else field.to_sym
+      end
+    end
+    params.permit(*filters)
   end
 end

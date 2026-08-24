@@ -22,6 +22,7 @@ Supporting documents:
 - `docs/HUMAN_TODO.md`
 - `docs/ARCHITECTURE_DIAGRAMS.md`
 - `docs/SCALING_GUIDE.md`
+- `docs/architecture/platform-capabilities.md`
 
 ## Core Architecture Decision
 

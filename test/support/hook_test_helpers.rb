@@ -16,7 +16,7 @@ module HookTestHelpers
   def send_hook(sender:, brand:, target:, message: "You're seriously my vibe 🔥 Want to hook?")
     Hooks::SendHook.call(
       user: sender.user, brand:, target_public_id: target.public_id,
-      message:, strategy: Matching::Strategies::Hookus
+      message:, eligibility_policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
     )
   end
 end

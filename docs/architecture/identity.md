@@ -95,8 +95,8 @@ messaging, and equivalent interaction surfaces share the same authorization and
 consumer error instead of repeating brand checks.
 
 Product capability is authorized before interaction verification. Hook-family
-controllers declare `:hook` or `:hook_tonight`, which
-`Hooks::CapabilityPolicy` enables only for HookUs. Unsupported brands therefore
+controllers declare `match.hook` or `match.hook_tonight`; the D8N brand capability
+contract enables those capabilities only for HookUs. Unsupported brands therefore
 receive the relevant `*_not_configured` 404 rather than a misleading DateZA
 verification error. Hook Tonight deactivation bypasses only capability and
 interaction gating, after normal authentication, so legacy state can be cleared.

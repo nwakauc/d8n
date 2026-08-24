@@ -40,6 +40,7 @@ module Messaging
       conversations = scope.preload(
         :match,
         conversation_participants: { profile: [
+          :brand,
           { profile_option_selections: [ :profile_option, :profile_option_group ] },
           { profile_photos: { display_image_attachment: :blob } }
         ] }

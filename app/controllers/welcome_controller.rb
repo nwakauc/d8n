@@ -18,7 +18,7 @@ class WelcomeController < ApplicationController
     { key: "profiles", name: "D8N Profiles", domain: "Profiles", status: "available",
       detail: "Brand-configured profiles, options, preferences, location, and publication." },
     { key: "matching", name: "D8N Match", domain: "Matching", status: "available",
-      detail: "Shared eligibility, DateZA Find, and DateZA v1 compatibility are available; DateZA Discovery remains unconfigured." },
+      detail: "Shared eligibility, HookUs feeds, DateZA stable daily Discovery, Find, and DateZA v1 compatibility are available." },
     { key: "messaging", name: "D8N Chat", domain: "Messaging", status: "preview",
       detail: "Match-gated plain-text messages are available; receipts, realtime, media, and client idempotency are not." },
     { key: "trust", name: "D8N Trust", domain: "Trust", status: "preview",

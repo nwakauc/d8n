@@ -28,8 +28,9 @@ reciprocated: canonical `Match` (mutual), `Conversation` (one per match), `Messa
 
 ### Hook is an explicit HookUs product capability
 
-Shared routes do not enable Hook for every D8N brand. `Hooks::CapabilityPolicy`
-currently enables `:hook` only for HookUs and runs after authentication but before
+Shared routes do not enable Hook for every D8N brand. The authoritative D8N
+brand capability contract and `D8n::Platform::CapabilityAccess`
+currently enable `match.hook` only for HookUs and run after authentication but before
 interaction verification or domain mutation. Unsupported brands receive 404
 `hook_not_configured` for send, inbox, reply, and decline. DateZA does not inherit
 Hook merely because it shares the Rails application and matching records.

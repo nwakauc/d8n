@@ -7,7 +7,7 @@ module Matching
       class ViewerIneligible < StandardError; end
       class InvalidLimit < StandardError; end
 
-      Result = Data.define(:profiles, :next_cursor, :allowance, :viewer)
+      Result = Data.define(:profiles, :next_cursor, :allowance, :viewer, :eligibility_policy, :decorators)
 
       def self.call(user:, brand:, cursor: nil, limit: nil, min_age: nil, max_age: nil,
         max_distance_km: nil, relationship_intent: nil, now: Time.current)
@@ -23,7 +23,8 @@ module Matching
         @brand = brand
         @cursor = cursor
         @limit = normalize_limit(limit)
-        @policy = PolicyRegistry.fetch(brand:)
+        @surface = PolicyRegistry.surface_for(brand:)
+        @policy = surface.policy
         @filter = Filter.parse(brand:, min_age:, max_age:, max_distance_km:, relationship_intent:)
         @now = now
       end
@@ -43,7 +44,7 @@ module Matching
 
       private
 
-      attr_reader :user, :brand, :cursor, :limit, :policy, :filter, :now
+      attr_reader :user, :brand, :cursor, :limit, :surface, :policy, :filter, :now
 
       def current_viewer!
         ProfileParticipant.discoverable!(user:, brand:)
@@ -89,17 +90,20 @@ module Matching
             exhausted:,
             resets_at: policy.resets_at(now).iso8601
           },
-          viewer:
+          viewer:,
+          eligibility_policy: surface.eligibility_policy,
+          decorators: surface.decorators
         )
       end
 
       def candidate_scope(viewer:, membership:)
-        scope = EligibilityScope.call(brand:, viewer:, location_max_age: policy.location_max_age)
-        scope = ExclusionsScope.call(scope:, viewer:)
-        scope = Filter.apply(scope:, brand:, viewer:, policy:, filter:)
+        scope = EligibilityScope.call(brand:, viewer:, policy: surface.eligibility_policy)
+        scope = ExclusionsScope.call(scope:, viewer:, contributors: surface.exclusions)
+        scope = Filter.apply(scope:, brand:, viewer:, eligibility_policy: surface.eligibility_policy, filter:)
         scope = policy.rank(scope)
         scope = Cursor.apply(scope:, value: cursor, brand:, membership:, policy:, filter:)
         scope.includes(
+          :brand,
           { profile_option_selections: [ :profile_option, :profile_option_group ] },
           { profile_photos: { display_image_attachment: :blob } }
         )

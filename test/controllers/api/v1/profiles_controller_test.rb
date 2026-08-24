@@ -75,7 +75,7 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     target = create_candidate(display_name: "Sam")
     Hooks::SendHook.call(
       user: @viewer.user, brand: @brand, target_public_id: target.public_id,
-      message: "hey 🔥", strategy: Matching::Strategies::Hookus
+      message: "hey 🔥", eligibility_policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
     )
 
     get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)

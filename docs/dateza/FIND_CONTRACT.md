@@ -96,15 +96,14 @@ anti-automation ceiling.
 
 ## Separate from Discovery
 
-DateZA Discovery remains unimplemented and returns `matching_not_configured`.
-The approved product direction is a separate 10-profile daily Discovery
-allowance in addition to Find's 10, for 20 daily profiles across both surfaces.
-It will require stable curated daily batches and may reuse compatibility
-semantics, not the Find exposure ledger or Find cursor.
+DateZA Discovery is a separate stable allocation of up to 10 profiles per
+Johannesburg day. It reuses shared eligibility and `dateza_v1` ranking but does
+not read or write the Find exposure ledger or cursor. Find retains this
+document's 10-unique-exposure allowance, for independent product capacities of
+10 Discover plus 10 Find.
 
 ## Deferred
 
-- DateZA Discovery 10.
 - Paid/DateZA+ allowance policy and subscriptions.
 - RealMe, public Trust standing, AI Matchmaker, analytics ingestion, and frontend.
 

@@ -37,8 +37,11 @@ module Identity
       outcomes = 2.times.map { results.pop }
 
       assert_equal 1, outcomes.count(&:success?)
-      assert_equal 1, outcomes.count { |result| result.error == :rate_limited }
+      throttled = outcomes.find { |result| result.error == :verification_resend_too_soon }
+      assert throttled
+      assert throttled.retry_after.positive?
       assert_equal 1, OtpChallenge.phone_verification.where(brand:, identity_identifier:).count
+      assert_equal 1, AuthAttempt.phone_otp.throttled.where(brand:, identity_identifier:).count
     ensure
       if brand
         NotificationDelivery.where(brand:).delete_all

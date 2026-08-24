@@ -7,11 +7,11 @@ class Profiles::StatusFieldsTest < ActiveSupport::TestCase
   end
 
   test "returns empty for no profiles" do
-    assert_empty Profiles::StatusFields.call(viewer: @viewer, profiles: [])
+    assert_empty status_fields(viewer: @viewer, profiles: [])
   end
 
   test "returns empty when there is no viewer" do
-    assert_empty Profiles::StatusFields.call(viewer: nil, profiles: [ build_profile ])
+    assert_empty status_fields(viewer: nil, profiles: [ build_profile ])
   end
 
   test "flags verified only when the member has a verified identifier" do
@@ -20,7 +20,7 @@ class Profiles::StatusFieldsTest < ActiveSupport::TestCase
     unverified = build_profile
     IdentityIdentifier.create!(user: unverified.user, kind: :email, normalized_value: "u@example.com", verified_at: nil)
 
-    status = Profiles::StatusFields.call(viewer: @viewer, profiles: [ verified, unverified ])
+    status = status_fields(viewer: @viewer, profiles: [ verified, unverified ])
 
     assert status.fetch(verified.id).fetch(:verified)
     assert_not status.fetch(unverified.id).fetch(:verified)
@@ -33,7 +33,7 @@ class Profiles::StatusFieldsTest < ActiveSupport::TestCase
     idle = build_profile
     Session.issue!(brand: @brand, user: idle.user).last.update!(last_used_at: 1.hour.ago)
 
-    status = Profiles::StatusFields.call(viewer: @viewer, profiles: [ online, idle ])
+    status = status_fields(viewer: @viewer, profiles: [ online, idle ])
 
     assert status.fetch(online.id).fetch(:online)
     assert_equal session.reload.last_used_at.iso8601, status.fetch(online.id).fetch(:last_active_at)
@@ -48,7 +48,7 @@ class Profiles::StatusFieldsTest < ActiveSupport::TestCase
     Session.issue!(brand: @brand, user: member.user).last.update!(last_used_at: 1.minute.ago, revoked_at: Time.current)
     Session.issue!(brand: @brand, user: member.user).last.update!(last_used_at: 1.minute.ago, expires_at: 1.hour.ago)
 
-    status = Profiles::StatusFields.call(viewer: @viewer, profiles: [ member ])
+    status = status_fields(viewer: @viewer, profiles: [ member ])
 
     assert_not status.fetch(member.id).fetch(:online)
     assert_nil status.fetch(member.id).fetch(:last_active_at)
@@ -62,7 +62,7 @@ class Profiles::StatusFieldsTest < ActiveSupport::TestCase
     put_location(near, lat: 6.4531, lon: 3.3958)     # ~8km away
     put_location(far, lat: 9.0579, lon: 7.4951)      # Abuja, hundreds of km
 
-    status = Profiles::StatusFields.call(viewer: @viewer, profiles: [ near, far, no_location ])
+    status = status_fields(viewer: @viewer, profiles: [ near, far, no_location ])
 
     assert_operator status.fetch(near.id).fetch(:distance_km), :>=, 1
     assert_operator status.fetch(near.id).fetch(:distance_km), :<, 15
@@ -74,7 +74,7 @@ class Profiles::StatusFieldsTest < ActiveSupport::TestCase
     member = build_profile
     put_location(member, lat: 6.45, lon: 3.39)
 
-    status = Profiles::StatusFields.call(viewer: @viewer, profiles: [ member ])
+    status = status_fields(viewer: @viewer, profiles: [ member ])
 
     assert_nil status.fetch(member.id).fetch(:distance_km)
   end
@@ -84,7 +84,7 @@ class Profiles::StatusFieldsTest < ActiveSupport::TestCase
     put_location(@viewer, lat: 6.52, lon: 3.37)
     put_location(member, lat: 6.45, lon: 3.39, captured_at: 2.days.ago)
 
-    status = Profiles::StatusFields.call(viewer: @viewer, profiles: [ member ])
+    status = status_fields(viewer: @viewer, profiles: [ member ])
 
     assert_nil status.fetch(member.id).fetch(:distance_km)
   end
@@ -94,12 +94,18 @@ class Profiles::StatusFieldsTest < ActiveSupport::TestCase
     put_location(@viewer, lat: 6.5244, lon: 3.3792)
     put_location(member, lat: 6.5246, lon: 3.3794) # a few metres away
 
-    status = Profiles::StatusFields.call(viewer: @viewer, profiles: [ member ])
+    status = status_fields(viewer: @viewer, profiles: [ member ])
 
     assert_equal 1, status.fetch(member.id).fetch(:distance_km)
   end
 
   private
+
+  def status_fields(viewer:, profiles:)
+    Profiles::StatusFields.call(
+      viewer:, profiles:, eligibility_policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
+    )
+  end
 
   def build_profile
     user = User.create!

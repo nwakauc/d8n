@@ -4,6 +4,7 @@ class BrandMembership < ApplicationRecord
 
   has_one :profile, dependent: :restrict_with_exception
   has_many :find_profile_exposures, dependent: :restrict_with_exception
+  has_many :discovery_allocations, dependent: :restrict_with_exception
   has_many :notification_events, dependent: :restrict_with_exception
   has_many :notifications, dependent: :restrict_with_exception
   has_many :notification_preferences, dependent: :restrict_with_exception

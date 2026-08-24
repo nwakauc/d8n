@@ -40,6 +40,26 @@ class Api::V1::FindControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
+  test "translates the shared discoverable-viewer rejection to the Find API error" do
+    @viewer.update!(visibility: :hidden)
+
+    get "/api/v1/find", headers: bearer_headers(@token)
+
+    assert_response :forbidden
+    assert_equal({ "error" => "discoverable_profile_required" }, JSON.parse(response.body))
+  end
+
+  test "DateZA profile detail does not expose HookUs capability state" do
+    candidate = create_candidate
+
+    get "/api/v1/profiles/#{candidate.public_id}", headers: bearer_headers(@token)
+
+    assert_response :success
+    profile = JSON.parse(response.body).fetch("profile")
+    assert_not profile.key?("hook_state")
+    assert_not profile.key?("hook_tonight_active")
+  end
+
   test "applies shared lifecycle reciprocal age distance block and brand eligibility" do
     eligible = create_candidate
     create_candidate(profile_attributes: { visibility: :hidden })

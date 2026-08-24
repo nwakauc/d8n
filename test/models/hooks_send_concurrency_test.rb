@@ -19,7 +19,8 @@ module Hooks
             start.pop
             results << Hooks::SendHook.call(
               user: sender.user, brand:, target_public_id: recipient.public_id,
-              message: "one shot 🔥", strategy: Matching::Strategies::Hookus
+              message: "one shot 🔥",
+              eligibility_policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
             )
           rescue StandardError => e
             results << e
@@ -53,7 +54,7 @@ module Hooks
       recipient = create_member(brand:)
       hook = Hooks::SendHook.call(
         user: sender.user, brand:, target_public_id: recipient.public_id,
-        message: "opener 🔥", strategy: Matching::Strategies::Hookus
+        message: "opener 🔥", eligibility_policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
       ).hook
       results = Queue.new
       start = Queue.new

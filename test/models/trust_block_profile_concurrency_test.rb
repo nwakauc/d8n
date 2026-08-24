@@ -37,7 +37,7 @@ module Trust
             user: @viewer.user,
             brand: @brand,
             target_public_id: @target.public_id,
-            strategy: Matching::Strategies::Hookus
+            eligibility_policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
           )
         }
       )

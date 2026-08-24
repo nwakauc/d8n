@@ -2,21 +2,16 @@ module Matching
   module Strategies
     class Date9jaContract
       KEY = "date9ja_contract_v1"
-      LOCATION_MAX_AGE = 24.hours
 
       def self.key
         KEY
-      end
-
-      def self.location_max_age
-        LOCATION_MAX_AGE
       end
 
       def self.production_ready?
         false
       end
 
-      def self.rank(scope:, viewer:)
+      def self.rank(scope:, viewer:, eligibility_policy:)
         scope.select(
           "profiles.*",
           "0 AS matching_score",

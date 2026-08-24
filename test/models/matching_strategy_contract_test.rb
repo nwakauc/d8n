@@ -12,24 +12,27 @@ module Matching
 
     test "keeps the Date9ja contract out of the production registry" do
       assert_raises(StrategyRegistry::UnsupportedBrand) { StrategyRegistry.fetch(brand: @date9ja) }
-      assert_equal Strategies::Date9jaContract, StrategyRegistry.contract_for(brand: @date9ja)
       assert_not Strategies::Date9jaContract.production_ready?
       assert Strategies::Hookus.production_ready?
-      assert StrategyRegistry::MODES.values.flat_map(&:values).all?(&:production_ready?)
+      hookus = Brand.new(slug: "hookus", name: "HookUs")
+      production_strategies = D8n::Platform::BrandRegistry.fetch(brand: hookus).discovery_surfaces.values
+        .select { |surface| surface.delivery_type == :feed }
+        .map(&:strategy)
+      assert production_strategies.all?(&:production_ready?)
     end
 
-    test "registers DateZA only as a non-production extension contract" do
+    test "keeps the old DateZA feed contract non-production while using DatezaV1 for daily selection" do
       dateza = Brand.create!(slug: "dateza", name: "DateZA")
 
-      assert_raises(StrategyRegistry::UnsupportedBrand) { StrategyRegistry.fetch(brand: dateza) }
-      assert_equal Strategies::DatezaContract, StrategyRegistry.contract_for(brand: dateza)
+      assert_equal Strategies::DatezaV1, StrategyRegistry.fetch(brand: dateza)
+      assert_respond_to Strategies::DatezaV1, :rank_daily_selection
       assert_not Strategies::DatezaContract.production_ready?
       assert_equal "dateza_contract_v1", Strategies::DatezaContract.key
     end
 
     test "every discovery strategy implements the discovery contract" do
       required_methods = %i[
-        key location_max_age production_ready? rank cursor_payload apply_cursor compatibility
+        key production_ready? rank cursor_payload apply_cursor compatibility
       ]
 
       [
@@ -49,13 +52,14 @@ module Matching
       end
       other_brand = Brand.create!(slug: "other", name: "Other")
       create_candidate(brand: other_brand)
-      strategy = StrategyRegistry.contract_for(brand: @date9ja)
+      strategy = Strategies::Date9jaContract
+      eligibility_policy = EligibilityPolicy.new(location_max_age: 24.hours)
       scope = EligibilityScope.call(
         brand: @date9ja,
         viewer: @viewer,
-        location_max_age: strategy.location_max_age
+        policy: eligibility_policy
       )
-      ranked = strategy.rank(scope:, viewer: @viewer)
+      ranked = strategy.rank(scope:, viewer: @viewer, eligibility_policy:)
       first_page = ranked.limit(2).to_a
       cursor = Cursor.encode(brand: @date9ja, strategy:, profile: first_page.last)
       second_page = Cursor.apply(scope: ranked, value: cursor, brand: @date9ja, strategy:).limit(2).to_a
@@ -67,8 +71,11 @@ module Matching
 
     test "binds contract cursors to Date9ja and its strategy key" do
       candidate = create_candidate(brand: @date9ja)
-      strategy = StrategyRegistry.contract_for(brand: @date9ja)
-      ranked = strategy.rank(scope: @date9ja.profiles.where(id: candidate.id), viewer: @viewer).first
+      strategy = Strategies::Date9jaContract
+      eligibility_policy = EligibilityPolicy.new(location_max_age: 24.hours)
+      ranked = strategy.rank(
+        scope: @date9ja.profiles.where(id: candidate.id), viewer: @viewer, eligibility_policy:
+      ).first
       cursor = Cursor.encode(brand: @date9ja, strategy:, profile: ranked)
       other_brand = Brand.create!(slug: "other", name: "Other")
 
@@ -91,8 +98,13 @@ module Matching
       Profiles::OptionSelections.replace!(profile: viewer, selections: { intents: [ "hookups" ], vibes: [ "chill" ] })
       Profiles::OptionSelections.replace!(profile: candidate, selections: { intents: [ "hookups" ], vibes: [ "chill" ] })
 
-      sql = Strategies::Hookus.rank(scope: hookus.profiles.where(id: candidate.id), viewer:).to_sql
-      ranked = Strategies::Hookus.rank(scope: hookus.profiles.where(id: candidate.id), viewer:).sole
+      eligibility_policy = D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
+      sql = Strategies::Hookus.rank(
+        scope: hookus.profiles.where(id: candidate.id), viewer:, eligibility_policy:
+      ).to_sql
+      ranked = Strategies::Hookus.rank(
+        scope: hookus.profiles.where(id: candidate.id), viewer:, eligibility_policy:
+      ).sole
 
       assert_includes sql, "LEFT JOIN LATERAL"
       assert_includes sql, "profile_option_selections.profile_id = profiles.id"

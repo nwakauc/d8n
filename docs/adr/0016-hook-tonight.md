@@ -23,7 +23,8 @@ one messaging/matching system, not a parallel "Hook Tonight" one.
 
 ### Hook Tonight is an explicit HookUs product capability
 
-`Hooks::CapabilityPolicy` currently enables `:hook_tonight` only for HookUs.
+The authoritative D8N brand capability contract currently enables
+`match.hook_tonight` only for HookUs.
 Unsupported brands receive 404 `hook_tonight_not_configured` for state reads,
 activation, and reciprocal discovery before any interaction-verification check or
 mutation. Authenticated deactivation remains intentionally brand-agnostic so an

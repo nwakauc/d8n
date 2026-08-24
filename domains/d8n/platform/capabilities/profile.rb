@@ -5,9 +5,8 @@ module D8n
         DEFINITIONS = [
           CapabilityDefinition.new(key: "profile.onboarding", status: :available,
             implementations: %w[Profiles::OnboardingStatus Profiles::Completion]),
-          CapabilityDefinition.new(key: "profile.scalar_fields", status: :partial,
-            implementations: %w[Profiles::Configuration],
-            limitations: "Brand field configuration is not yet authoritative for writes and serialization."),
+          CapabilityDefinition.new(key: "profile.scalar_fields", status: :available,
+            implementations: %w[Profiles::Configuration Profiles::FieldPolicy]),
           CapabilityDefinition.new(key: "profile.options", status: :available,
             implementations: %w[Profiles::CapabilityCatalog Profiles::OptionSelections]),
           CapabilityDefinition.new(key: "profile.preferences", status: :available,

@@ -3,12 +3,42 @@ require "set"
 module D8n
   module Platform
     class BrandContract
-      ProfileConfiguration = Data.define(:catalog)
-      InteractionConfiguration = Data.define(:eligibility_strategy, :compatibility_strategy, :verification_requirement)
+      ProfileConfiguration = Data.define(:catalog, :detail_decorators) do
+        def initialize(catalog:, detail_decorators: [])
+          super(catalog:, detail_decorators: Array(detail_decorators).freeze)
+        end
+      end
+      InteractionConfiguration = Data.define(:eligibility_policy, :compatibility_strategy, :verification_requirement)
       MediaConfiguration = Data.define(:photo_policy, :initial_visibility)
-      NotificationConfiguration = Data.define(:event_types)
+      NotificationPlan = Data.define(:notification_type, :email_template)
+
+      class NotificationConfiguration
+        attr_reader :event_plans
+
+        def initialize(event_plans: {})
+          @event_plans = event_plans.each_with_object({}) do |(event_type, plan), result|
+            raise ArgumentError, "notification plan is required" unless plan.is_a?(NotificationPlan)
+
+            result[event_type.to_s] = plan
+          end.freeze
+          freeze
+        end
+
+        def event_types
+          event_plans.keys
+        end
+
+        def notification_types
+          event_plans.values.map(&:notification_type).uniq.freeze
+        end
+
+        def plan_for(event_type)
+          event_plans[event_type.to_s]
+        end
+      end
 
       attr_reader :slug, :auth_methods, :capabilities, :profile, :discovery_surfaces,
+        :default_discovery_surface_key,
         :interaction, :media, :notifications, :error_codes, :enabled_identity_fields,
         :enabled_profile_fields, :enabled_preference_fields
 
@@ -17,6 +47,7 @@ module D8n
         capabilities:,
         profile:,
         discovery_surfaces: [],
+        default_discovery_surface: nil,
         interaction:,
         media:,
         notifications:,
@@ -34,9 +65,10 @@ module D8n
         ).freeze
         @profile = profile
         @discovery_surfaces = index_surfaces(discovery_surfaces)
+        @default_discovery_surface_key = default_discovery_surface&.to_s&.freeze
         @interaction = interaction
         @media = media
-        @notifications = normalize_notifications(notifications)
+        @notifications = notifications
         @error_codes = error_codes.transform_keys(&:to_s).transform_values(&:to_sym).freeze
 
         validate!
@@ -70,10 +102,6 @@ module D8n
         end.freeze
       end
 
-      def normalize_notifications(configuration)
-        NotificationConfiguration.new(event_types: Array(configuration.event_types).map(&:to_s).uniq.freeze)
-      end
-
       def snapshot_profile_fields(brand)
         requirements = brand.profile_completion_requirements
         @enabled_identity_fields = requirements.fetch("enabled_identity_fields", []).dup.freeze
@@ -89,17 +117,32 @@ module D8n
         raise ArgumentError, "profile configuration is required" unless profile.is_a?(ProfileConfiguration)
         raise ArgumentError, "profile catalogue must support install!" unless profile.catalog.respond_to?(:install!)
         raise ArgumentError, "interaction configuration is required" unless interaction.is_a?(InteractionConfiguration)
+        unless interaction.eligibility_policy.is_a?(Matching::EligibilityPolicy)
+          raise ArgumentError, "interaction eligibility policy is required"
+        end
         raise ArgumentError, "media configuration is required" unless media.is_a?(MediaConfiguration)
+        unless notifications.is_a?(NotificationConfiguration)
+          raise ArgumentError, "notification configuration is required"
+        end
 
         capabilities.each do |key|
           definition = Catalog.fetch(key)
           raise ArgumentError, "planned capability cannot be enabled" if definition.planned?
+
+          missing_dependency = definition.dependencies.find { |dependency| !capability_enabled?(dependency) }
+          if missing_dependency
+            raise ArgumentError, "enabled capability dependency is missing: #{missing_dependency}"
+          end
         end
 
         discovery_surfaces.each_value do |surface|
           unless capability_enabled?(surface.delivery_capability_key)
             raise ArgumentError, "surface delivery capability is not enabled"
           end
+        end
+
+        if default_discovery_surface_key.present? && !surface_enabled?(default_discovery_surface_key)
+          raise ArgumentError, "default discovery surface is not configured"
         end
       end
     end

@@ -36,6 +36,7 @@ module Profiles
       target = Matching::VisibilityScope.call(brand:, viewer:)
         .where(public_id:)
         .includes(
+          :brand,
           { profile_photos: { display_image_attachment: :blob } },
           { profile_option_selections: [ :profile_option, :profile_option_group ] }
         )

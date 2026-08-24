@@ -105,6 +105,60 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
     assert_not profile.key?("last_name")
   end
 
+  test "DateZA rejects configured platform fields that the brand has not enabled" do
+    dateza, token = install_dateza_for_current_user
+
+    assert_no_difference -> { Profile.where(brand: dateza, user: @user).count } do
+      patch "/api/v1/profile",
+        headers: bearer_headers(token),
+        params: { display_name: "Thandi", pronouns: "she/her", body_type: "athletic" }
+    end
+
+    assert_response :unprocessable_entity
+    body = JSON.parse(response.body)
+    assert_equal "invalid_profile_fields", body.fetch("error")
+    assert_equal %w[ body_type pronouns ], body.dig("details", "fields")
+  end
+
+  test "DateZA accepts enabled optional fields and ignores unknown input" do
+    _dateza, token = install_dateza_for_current_user
+
+    patch "/api/v1/profile",
+      headers: bearer_headers(token),
+      params: {
+        display_name: "Thandi", job_title: "Engineer",
+        languages: [ { code: "en", proficiency: "fluent", primary: true } ],
+        future_client_hint: "ignored"
+      }
+
+    assert_response :success
+    profile = JSON.parse(response.body).fetch("profile")
+    assert_equal "Engineer", profile.fetch("job_title")
+    assert_equal "en", profile.fetch("languages").first.fetch("code")
+    assert_not profile.key?("future_client_hint")
+  end
+
+  test "DateZA owner response omits disabled fields from historical rows" do
+    dateza, token = install_dateza_for_current_user
+    membership = BrandMembership.find_by!(brand: dateza, user: @user)
+    profile = Profile.create!(
+      brand: dateza, user: @user, brand_membership: membership,
+      display_name: "Thandi", birthdate: 30.years.ago.to_date,
+      pronouns: "she/her", body_type: "athletic", company_name: "Private Corp",
+      languages_spoken: [ "English" ], job_title: "Engineer"
+    )
+
+    get "/api/v1/profile", headers: bearer_headers(token)
+
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("profile")
+    assert_equal profile.birthdate.iso8601, payload.fetch("birthdate")
+    assert_equal "Engineer", payload.fetch("job_title")
+    %w[pronouns body_type company_name languages_spoken].each do |field|
+      assert_not payload.key?(field), "expected disabled #{field} to be omitted"
+    end
+  end
+
   test "returns complete profile completion when required profile and preferences exist" do
     profile = Profile.create!(
       user: @user,
@@ -245,6 +299,16 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def install_dateza_for_current_user
+    dateza = Brand.create!(slug: "dateza", name: "DateZA")
+    Profiles::DatezaProfileCatalog.install!(brand: dateza)
+    BrandDomain.create!(brand: dateza, host: "dateza.test")
+    BrandMembership.find_or_create_by!(brand: dateza, user: @user)
+    token, = Session.issue!(brand: dateza, user: @user)
+    host! "dateza.test"
+    [ dateza, token ]
+  end
 
   def bearer_headers(token)
     { "Authorization" => "Bearer #{token}" }

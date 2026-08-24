@@ -14,16 +14,16 @@ module Hooks
   class SendHook
     Result = Data.define(:hook)
 
-    def self.call(user:, brand:, target_public_id:, message:, strategy: nil)
-      new(user:, brand:, target_public_id:, message:, strategy:).call
+    def self.call(user:, brand:, target_public_id:, message:, eligibility_policy: nil)
+      new(user:, brand:, target_public_id:, message:, eligibility_policy:).call
     end
 
-    def initialize(user:, brand:, target_public_id:, message:, strategy:)
+    def initialize(user:, brand:, target_public_id:, message:, eligibility_policy:)
       @user = user
       @brand = brand
       @target_public_id = target_public_id
       @raw_message = message
-      @strategy = strategy
+      @eligibility_policy = eligibility_policy
     end
 
     def call
@@ -60,7 +60,7 @@ module Hooks
 
     private
 
-    attr_reader :user, :brand, :target_public_id, :raw_message, :strategy
+    attr_reader :user, :brand, :target_public_id, :raw_message, :eligibility_policy
 
     def lock_participants!(viewer:, target:)
       locked_ids = Profile.kept.where(brand:, id: [ viewer.id, target.id ]).order(:id).lock.pluck(:id)
@@ -68,9 +68,9 @@ module Hooks
     end
 
     def ensure_target_eligible!(viewer:, target:)
-      selected_strategy = strategy || Matching::StrategyRegistry.fetch(brand:)
+      policy = eligibility_policy || Matching::StrategyRegistry.eligibility_policy_for(brand:)
       eligible = Matching::EligibilityScope.call(
-        brand:, viewer:, location_max_age: selected_strategy.location_max_age
+        brand:, viewer:, policy:
       ).where(id: target.id).exists?
       raise Matching::InteractionError, :profile_unavailable unless eligible
     end

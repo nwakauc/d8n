@@ -101,13 +101,14 @@ Codes intentionally reveal no raw owner-only response, exact faith/religion,
 exact location, Trust/risk signal, or inferred sensitive trait. Clients own
 localized copy and must not reinterpret compatibility as safety or quality.
 
-## Find and future Discovery
+## Find and Discovery
 
 Find computes compatibility only after its transaction has allocated the page;
 calculation creates no exposure and does not change the daily-10 allowance,
-filter, ordering, or cursor. Future DateZA Discovery can call the same strategy
-for eligible candidate ranking, but stable daily Discovery batches are not
-implemented by this ticket.
+filter, ordering, or cursor. DateZA's configured `discovery.curated_daily`
+surface calls this same strategy to rank a bounded eligible pool when it creates
+the persisted daily batch. Its compatibility payload is stored with each ordered
+allocation member so repeated delivery does not rerank the batch.
 
-Deferred: explicit partner dealbreakers, Discovery daily 10, AI explanations or
+Deferred: explicit partner dealbreakers, AI explanations or
 Matchmaker, RealMe, public Trust standing, subscriptions, and frontend UI.

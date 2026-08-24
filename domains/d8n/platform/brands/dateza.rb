@@ -27,12 +27,14 @@ module D8n
           profile.publication
           profile.visibility
           discovery.surface.browse
+          discovery.surface.daily_batch
           discovery.exposure
           discovery.cursor
           verify.contact.email
           verify.contact.phone
           match.eligibility
           match.compatibility
+          match.ranking
           match.interaction.like
           match.interaction.pass
           match.relationship.create
@@ -55,18 +57,30 @@ module D8n
           notify.push
         ].freeze
 
+        ELIGIBILITY_POLICY = Matching::EligibilityPolicy::DEFAULT
+
+        CURATED_DAILY_ALLOCATION = StableDailyAllocationPolicy.new(
+          key: "stable_daily_v1",
+          daily_limit: 10,
+          time_zone: "Africa/Johannesburg"
+        )
+
         SURFACES = [
           DiscoverySurface.new(
             key: "discovery.find",
             delivery_type: :browse,
             strategy: Matching::Strategies::DatezaV1,
             policy: Matching::Find::Policies::Dateza,
-            allocation: {
-              type: :daily_exposure,
-              limit: Matching::Find::Policies::Dateza::DAILY_LIMIT,
-              time_zone: Matching::Find::Policies::Dateza::TIME_ZONE
-            }.freeze,
+            eligibility_policy: ELIGIBILITY_POLICY,
             error_code: :find_not_configured
+          ),
+          DiscoverySurface.new(
+            key: "discovery.curated_daily",
+            delivery_type: :daily_batch,
+            strategy: Matching::Strategies::DatezaV1,
+            eligibility_policy: ELIGIBILITY_POLICY,
+            allocation: CURATED_DAILY_ALLOCATION,
+            error_code: :matching_not_configured
           )
         ].freeze
 
@@ -76,8 +90,9 @@ module D8n
             capabilities: CAPABILITIES,
             profile: BrandContract::ProfileConfiguration.new(catalog: Profiles::DatezaProfileCatalog),
             discovery_surfaces: SURFACES,
+            default_discovery_surface: "discovery.curated_daily",
             interaction: BrandContract::InteractionConfiguration.new(
-              eligibility_strategy: Matching::Find::Policies::Dateza,
+              eligibility_policy: ELIGIBILITY_POLICY,
               compatibility_strategy: Matching::Strategies::DatezaV1,
               verification_requirement: :verified_login_identifier
             ),
@@ -86,7 +101,12 @@ module D8n
               initial_visibility: :moderate_first
             ),
             notifications: BrandContract::NotificationConfiguration.new(
-              event_types: %w[membership_registered].freeze
+              event_plans: {
+                "membership_registered" => BrandContract::NotificationPlan.new(
+                  notification_type: "dateza.welcome",
+                  email_template: :welcome
+                )
+              }
             ),
             error_codes: {
               "discovery.surface.feed" => :matching_not_configured,

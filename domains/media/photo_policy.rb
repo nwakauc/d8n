@@ -22,12 +22,11 @@ module Media
     # Hidden until a moderation decision makes it visible.
     MODERATE_FIRST = InitialState.new(status: :pending_review, visibility: :hidden)
 
-    BRAND_POLICIES = {
-      "hookus" => IMMEDIATE
-    }.freeze
-
     def self.initial_state(brand:)
-      BRAND_POLICIES.fetch(brand.slug, MODERATE_FIRST)
+      policy = D8n::Platform::BrandRegistry.fetch(brand:).media.initial_visibility
+      policy == :immediate ? IMMEDIATE : MODERATE_FIRST
+    rescue D8n::Platform::BrandRegistry::UnsupportedBrand
+      MODERATE_FIRST
     end
   end
 end

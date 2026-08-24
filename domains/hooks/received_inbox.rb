@@ -33,6 +33,7 @@ module Hooks
         .order("hooks.created_at DESC", "hooks.id DESC")
       scope = HookCursor.apply(scope:, value: cursor, brand:, viewer:)
       hooks = scope.includes(sender_profile: [
+        :brand,
         { profile_option_selections: [ :profile_option, :profile_option_group ] },
         { profile_photos: { display_image_attachment: :blob } }
       ]).limit(limit + 1).to_a

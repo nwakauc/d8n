@@ -6,49 +6,41 @@ module Profiles
 
     def initialize(profile:)
       @profile = profile
+      @field_policy = FieldPolicy.new(brand: profile.brand)
     end
 
     def call
       {
         id: profile.public_id,
         brand: { slug: profile.brand.slug, name: profile.brand.name },
-        display_name: profile.display_name,
-        bio: profile.bio,
-        birthdate: profile.birthdate&.iso8601,
-        gender: profile.gender,
-        pronouns: profile.pronouns,
-        country_code: profile.country_code,
-        city: profile.city,
-        occupation: profile.occupation,
-        job_title: profile.job_title,
-        company_name: profile.company_name,
-        school_or_institution: profile.school_or_institution,
-        height_cm: profile.height_cm,
-        body_type: profile.body_type,
-        looking_for_text: profile.looking_for_text,
-        children_count: profile.children_count,
-        # Legacy free-text languages (retained) + canonical structured languages.
-        languages_spoken: profile.languages_spoken,
-        languages: Profiles::Languages.serialize(profile.languages),
-        smoking: profile.smoking,
-        drinking: profile.drinking,
-        fitness: profile.fitness,
         status: profile.status,
         visibility: profile.visibility,
         # The owner sees ALL their selections regardless of group visibility.
         options: selected_options,
         prompts: Profiles::PromptPresenter.call(profile:),
         completion: completion_payload
-      }.merge(private_identity_payload)
+      }.merge(owner_profile_fields).merge(private_identity_payload)
     end
 
     private
 
-    attr_reader :profile
+    attr_reader :profile, :field_policy
+
+    def owner_profile_fields
+      field_policy.enabled_profile_fields.index_with { |field| owner_value(field) }.symbolize_keys
+    end
+
+    def owner_value(field)
+      case field
+      when "birthdate" then profile.birthdate&.iso8601
+      when "languages" then Profiles::Languages.serialize(profile.languages)
+      else profile.public_send(field)
+      end
+    end
 
     def private_identity_payload
-      enabled = profile.brand.profile_completion_requirements.fetch("enabled_identity_fields", [])
-      enabled.index_with { |field| profile.user.public_send(field) }.symbolize_keys
+      field_policy.enabled_identity_fields
+        .index_with { |field| profile.user.public_send(field) }.symbolize_keys
     end
 
     def selected_options

@@ -1,7 +1,9 @@
 class Api::V1::HookTonightController < Api::V1::InteractionController
+  requires_platform_capability "match.hook_tonight"
+
   # Reading one's own state is capability-gated, while deactivation deliberately
   # remains available so legacy/corrective state can always be cleared safely.
-  skip_before_action :authorize_product_capability!, only: :destroy
+  skip_before_action :authorize_platform_capability!, only: :destroy
   skip_before_action :authorize_interaction_access!, only: %i[show destroy]
   before_action -> { enforce_rate_limit!(:hook_tonight_activation) }, only: %i[create destroy]
   before_action -> { enforce_rate_limit!(:hook_tonight_discovery) }, only: :discovery
@@ -44,15 +46,17 @@ class Api::V1::HookTonightController < Api::V1::InteractionController
       brand: Current.brand,
       cursor: params[:cursor],
       limit: params[:limit],
-      mode: params[:mode],
-      vibe: params[:vibe],
-      online: params[:online]
+      facet_params: request.query_parameters
     )
-    statuses = Profiles::StatusFields.call(viewer: result.viewer, profiles: result.profiles)
-    hook_states = Hooks::ViewerStates.call(viewer: result.viewer, profiles: result.profiles)
+    statuses = Profiles::StatusFields.call(
+      viewer: result.viewer, profiles: result.profiles, eligibility_policy: result.eligibility_policy
+    )
+    decorations = D8n::Platform::ResponseDecorations.call(
+      viewer: result.viewer, profiles: result.profiles, decorators: result.decorators
+    )
     render json: {
       profiles: result.profiles.map do |profile|
-        status = statuses.fetch(profile.id, {}).merge(hook_state: hook_states.fetch(profile.id, Hooks::ViewerStates::UNAVAILABLE))
+        status = statuses.fetch(profile.id, {}).merge(decorations.fetch(profile.id, {}))
         Matching::CandidateSerializer.call(profile:, strategy: result.strategy, status:)
       end,
       next_cursor: result.next_cursor
@@ -74,10 +78,6 @@ class Api::V1::HookTonightController < Api::V1::InteractionController
   end
 
   private
-
-  def interaction_product_capability
-    :hook_tonight
-  end
 
   def state_json(state)
     {

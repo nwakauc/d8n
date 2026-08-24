@@ -41,6 +41,10 @@ class DatezaProfileOnboardingTest < ActiveSupport::TestCase
 
   test "public DateZA profile omits owner-only compatibility inputs and exact coordinates" do
     profile = complete_profile
+    profile.update_columns(
+      pronouns: "she/her", body_type: "athletic", company_name: "Private Corp",
+      looking_for_text: "A legacy value", languages_spoken: [ "English" ]
+    )
     ProfileLocation.create!(
       profile:, user: @user, brand: @brand, latitude: -26.2041, longitude: 28.0473,
       accuracy_meters: 25, source: "device", captured_at: Time.current
@@ -54,6 +58,11 @@ class DatezaProfileOnboardingTest < ActiveSupport::TestCase
     assert_not payload.key?(:last_name)
     assert_not payload.key?(:latitude)
     assert_not payload.key?(:longitude)
+    assert_not payload.key?(:pronouns)
+    assert_not payload.key?(:body_type)
+    assert_not payload.key?(:company_name)
+    assert_not payload.key?(:looking_for_text)
+    assert_not payload.key?(:languages_spoken)
     assert_not payload.fetch(:options).key?("has_children")
     assert_not payload.fetch(:options).key?("religion_importance")
   end

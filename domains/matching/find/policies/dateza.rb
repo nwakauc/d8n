@@ -5,13 +5,10 @@ module Matching
         KEY = "dateza_find_v1"
         TIME_ZONE = "Africa/Johannesburg"
         DAILY_LIMIT = 10
-        LOCATION_MAX_AGE = 24.hours
 
         class << self
           def key = KEY
           def daily_limit(_membership) = DAILY_LIMIT
-          def location_max_age = LOCATION_MAX_AGE
-
           def date_at(time)
             time.in_time_zone(TIME_ZONE).to_date
           end

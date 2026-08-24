@@ -2,15 +2,15 @@ module Matching
   class PassProfile
     Result = Data.define(:profile_pass, :created)
 
-    def self.call(user:, brand:, target_public_id:, strategy: nil)
-      new(user:, brand:, target_public_id:, strategy:).call
+    def self.call(user:, brand:, target_public_id:, eligibility_policy: nil)
+      new(user:, brand:, target_public_id:, eligibility_policy:).call
     end
 
-    def initialize(user:, brand:, target_public_id:, strategy:)
+    def initialize(user:, brand:, target_public_id:, eligibility_policy:)
       @user = user
       @brand = brand
       @target_public_id = target_public_id
-      @strategy = strategy
+      @eligibility_policy = eligibility_policy
     end
 
     def call
@@ -38,7 +38,7 @@ module Matching
 
     private
 
-    attr_reader :user, :brand, :target_public_id, :strategy
+    attr_reader :user, :brand, :target_public_id, :eligibility_policy
 
     def lock_participants!(viewer:, target:)
       locked_ids = Profile.kept.where(brand:, id: [ viewer.id, target.id ]).order(:id).lock.pluck(:id)
@@ -46,9 +46,9 @@ module Matching
     end
 
     def ensure_target_eligible!(viewer:, target:)
-      selected_strategy = strategy || StrategyRegistry.interaction_for(brand:)
+      policy = eligibility_policy || StrategyRegistry.eligibility_policy_for(brand:)
       eligible = EligibilityScope.call(
-        brand:, viewer:, location_max_age: selected_strategy.location_max_age
+        brand:, viewer:, policy:
       ).where(id: target.id).exists?
       raise InteractionError, :profile_unavailable unless eligible
     end

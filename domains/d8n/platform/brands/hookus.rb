@@ -59,27 +59,33 @@ module D8n
         ].freeze
 
         FACETS = [
-          { type: :activity, parameter: :online },
-          { type: :option_group, parameter: :vibe, option_group: "vibes" }
+          { type: :option_group, parameter: :vibe, option_group: "vibes" },
+          { type: :activity, parameter: :online }
         ].freeze
+
+        PROFILE_DECORATORS = [ Hooks::ProfileStateDecorator, HookTonight::ProfileStateDecorator ].freeze
+
+        ELIGIBILITY_POLICY = Matching::EligibilityPolicy::DEFAULT
 
         SURFACES = [
           DiscoverySurface.new(
             key: "discovery.for_you",
             delivery_type: :feed,
             strategy: Matching::Strategies::Hookus,
+            eligibility_policy: ELIGIBILITY_POLICY,
             facets: FACETS,
-            exclusions: [ Matching::ExclusionsScope ],
-            decorators: [ Hooks::ViewerStates ],
+            exclusions: [ Hooks::DiscoveryExclusion ],
+            decorators: PROFILE_DECORATORS,
             error_code: :matching_not_configured
           ),
           DiscoverySurface.new(
             key: "discovery.new_here",
             delivery_type: :feed,
             strategy: Matching::Strategies::HookusNewHere,
+            eligibility_policy: ELIGIBILITY_POLICY,
             facets: FACETS,
-            exclusions: [ Matching::ExclusionsScope ],
-            decorators: [ Hooks::ViewerStates ],
+            exclusions: [ Hooks::DiscoveryExclusion ],
+            decorators: PROFILE_DECORATORS,
             error_code: :matching_not_configured
           ),
           DiscoverySurface.new(
@@ -87,8 +93,10 @@ module D8n
             delivery_type: :restricted_pool,
             strategy: Matching::Strategies::Hookus,
             policy: HookTonight::Policy,
-            exclusions: [ Matching::ExclusionsScope ],
-            decorators: [ Hooks::ViewerStates ],
+            eligibility_policy: ELIGIBILITY_POLICY,
+            facets: FACETS,
+            exclusions: [ Hooks::DiscoveryExclusion ],
+            decorators: PROFILE_DECORATORS,
             error_code: :hook_tonight_not_configured
           )
         ].freeze
@@ -97,18 +105,22 @@ module D8n
           BrandContract.new(
             brand:,
             capabilities: CAPABILITIES,
-            profile: BrandContract::ProfileConfiguration.new(catalog: Profiles::HookusProfileCatalog),
+            profile: BrandContract::ProfileConfiguration.new(
+              catalog: Profiles::HookusProfileCatalog,
+              detail_decorators: PROFILE_DECORATORS
+            ),
             discovery_surfaces: SURFACES,
+            default_discovery_surface: "discovery.for_you",
             interaction: BrandContract::InteractionConfiguration.new(
-              eligibility_strategy: Matching::Strategies::Hookus,
-              compatibility_strategy: Matching::Strategies::Hookus,
+              eligibility_policy: ELIGIBILITY_POLICY,
+              compatibility_strategy: nil,
               verification_requirement: nil
             ),
             media: BrandContract::MediaConfiguration.new(
               photo_policy: Media::PhotoPolicy,
               initial_visibility: :immediate
             ),
-            notifications: BrandContract::NotificationConfiguration.new(event_types: [].freeze),
+            notifications: BrandContract::NotificationConfiguration.new,
             error_codes: {
               "discovery.surface.feed" => :matching_not_configured,
               "match.hook" => :hook_not_configured,

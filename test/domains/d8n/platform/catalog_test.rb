@@ -46,17 +46,30 @@ module D8n
           chat.realtime
           chat.voice
           chat.video
-          discovery.surface.daily_batch
         ].each do |key|
           assert_predicate Catalog.fetch(key), :planned?, key
         end
       end
 
-      test "records known architectural drift as partial instead of available" do
-        assert_predicate Catalog.fetch("profile.scalar_fields"), :partial?
-        assert_predicate Catalog.fetch("discovery.facet.option_group"), :partial?
-        assert_predicate Catalog.fetch("discovery.decoration"), :partial?
+
+      test "records stable daily selection as an available platform capability" do
+        definition = Catalog.fetch("discovery.surface.daily_batch")
+
+        assert_predicate definition, :available?
+        assert_includes definition.implementations, "Matching::StableDailySelection"
+      end
+
+      test "records remaining architectural drift as partial instead of available" do
         assert_predicate Catalog.fetch("media.profile_photo.moderation"), :partial?
+      end
+
+      test "records brand-authoritative scalar fields as available" do
+        assert_predicate Catalog.fetch("profile.scalar_fields"), :available?
+      end
+
+      test "records remediated configured facets and decorations as available" do
+        assert_predicate Catalog.fetch("discovery.facet.option_group"), :available?
+        assert_predicate Catalog.fetch("discovery.decoration"), :available?
       end
 
       test "rejects unknown capability keys" do

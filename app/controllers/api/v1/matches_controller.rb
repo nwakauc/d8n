@@ -1,4 +1,6 @@
 class Api::V1::MatchesController < Api::V1::InteractionController
+  requires_platform_capability "match.relationship.list"
+
   before_action :set_active_storage_url_options, only: :index
 
   def index

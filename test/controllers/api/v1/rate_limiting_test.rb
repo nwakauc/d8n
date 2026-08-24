@@ -190,7 +190,7 @@ class Api::V1::RateLimitingTest < ActionDispatch::IntegrationTest
     Like.create!(brand: @brand, liker_profile: other, liked_profile: sender)
     match = Matching::LikeProfile.call(
       user: sender.user, brand: @brand, target_public_id: other.public_id,
-      strategy: Matching::Strategies::Hookus
+      eligibility_policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
     ).match
     Messaging::StartConversation.call(
       user: sender.user, brand: @brand, match_public_id: match.public_id

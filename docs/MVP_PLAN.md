@@ -8,8 +8,8 @@
 **Planning baseline:** D8N `dev` at `279cd5b`, audited 2026-08-21
 
 **Foundation status (2026-08-21):** B1 tenant provisioning and the critical B2
-DateZA/HookUs isolation proof, profile onboarding, DateZA Find, and deterministic
-compatibility v1 are implemented. DateZA Discovery remains deliberately unavailable.
+DateZA/HookUs isolation proof, profile onboarding, DateZA Find, deterministic
+compatibility v1, and stable daily DateZA Discovery are implemented.
 
 ## 1. MVP Definition
 
@@ -55,7 +55,7 @@ Backend work that can start immediately:
 - Fix API capability/status documentation to match executable code.
 - Configure an approved production DateZA domain/deployment later; none is assumed.
 - Extend the implemented foundation catalog only after product/privacy decisions.
-- Write the remaining DateZA daily Discovery lifecycle ADR.
+- Review stable daily Discovery outcomes with product data before changing its versioned policy.
 - Add unmatch and client message idempotency.
 
 Human work that must start in parallel:

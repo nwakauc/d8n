@@ -4,14 +4,10 @@ module Identity
   # on the same D8N identity cannot satisfy a requirement for the identifier used
   # to authenticate this brand-scoped session.
   class InteractionAccess
-    REQUIREMENTS = {
-      "dateza" => :verified_login_identifier
-    }.freeze
-
     class IdentifierVerificationRequired < StandardError; end
 
     def self.authorize!(session:, brand:)
-      return unless REQUIREMENTS[brand&.slug] == :verified_login_identifier
+      return unless verification_requirement(brand:) == :verified_login_identifier
       # Existing profile/onboarding/lifecycle authorization remains authoritative
       # when the member is not yet published. This policy only changes the valid,
       # published DateZA member case where verification is the sole missing gate.
@@ -36,5 +32,12 @@ module Identity
         identifier.deleted_at.nil? && identifier.verified_at.present?
     end
     private_class_method :verified_session_identifier?
+
+    def self.verification_requirement(brand:)
+      D8n::Platform::BrandRegistry.fetch(brand:).interaction.verification_requirement
+    rescue D8n::Platform::BrandRegistry::UnsupportedBrand
+      nil
+    end
+    private_class_method :verification_requirement
   end
 end

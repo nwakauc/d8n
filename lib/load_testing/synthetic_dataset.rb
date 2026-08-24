@@ -545,8 +545,14 @@ module LoadTesting
 
     def fresh_location(profile)
       profile.profile_locations.find do |location|
-        location.deleted_at.nil? && location.captured_at >= Matching::Strategies::Hookus.location_max_age.ago
+        location.deleted_at.nil? && location.captured_at >= eligibility_policy.location_max_age.ago
       end
+    end
+
+    def eligibility_policy
+      @eligibility_policy ||= D8n::Platform::BrandRegistry.fetch(brand:).interaction.eligibility_policy
+    rescue D8n::Platform::BrandRegistry::UnsupportedBrand
+      Matching::EligibilityPolicy::DEFAULT
     end
 
     def haversine_km(first, second)

@@ -48,6 +48,25 @@ flowchart LR
   API --> Providers[Email / SMS / Payments / Verification]
 ```
 
+## Brand Capability Composition
+
+```mermaid
+flowchart LR
+  Host[Request host] --> Brand[Resolved Brand]
+  Brand --> Contract[D8N Brand Capability Contract]
+  Contract --> Gate[Capability / Surface Gate]
+  Gate --> Engine[Shared D8N Capability Engine]
+  Contract --> Policy[Brand Policy / Strategy]
+  Contract --> Decorators[Optional Surface Decorators]
+  Policy --> Engine
+  Engine --> Decorators
+  Decorators --> API[Stable API Response]
+  API --> Frontend[Brand Frontend<br/>Discover / Find / Explore]
+```
+
+Routes can exist globally while the contract denies unconfigured capabilities.
+Brand presentation names do not create backend namespaces or parallel engines.
+
 ## Identity Versus Brand Profiles
 
 ```mermaid

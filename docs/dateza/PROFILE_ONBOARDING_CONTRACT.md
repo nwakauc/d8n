@@ -56,7 +56,8 @@ official South African languages and remains reusable by other brands.
   and travel frequency.
 
 The profile contract does not own weights. The separate versioned compatibility
-strategy consumes these typed values; DateZA Discovery remains unimplemented.
+strategy consumes these typed values for Find cards and the configured stable
+daily Discovery ranking.
 
 ## Location and privacy
 
@@ -87,13 +88,13 @@ described as verified.
 
 ## Explicitly not implemented
 
-Member-configured hard dealbreakers, RealMe, public Trust standing, daily
-Discovery 10, AI Matchmaker, subscriptions,
+Member-configured hard dealbreakers, RealMe, public Trust standing, AI Matchmaker, subscriptions,
 notification frontend/device enrollment and later notification event policies,
 frontend screens, and a province catalogue remain future work. The backend DateZA
 registration welcome notification/inbox foundation is implemented separately.
 
-DateZA Find and its daily 10-unique-profile exposure allowance are implemented
-separately from this onboarding contract; see `GET /api/v1/find` in the canonical
+DateZA Find and its daily 10-unique-profile exposure allowance, plus the separate
+stable daily Discovery allocation, are implemented outside this onboarding
+contract; see `GET /api/v1/find` and `GET /api/v1/discovery` in the canonical
 OpenAPI document.
 Compatibility v1 is described in [`COMPATIBILITY_V1.md`](COMPATIBILITY_V1.md).

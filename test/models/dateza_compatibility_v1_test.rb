@@ -121,9 +121,10 @@ module Matching
         end
       end
 
-      test "registers compatibility without enabling DateZA Discovery" do
+      test "registers compatibility and the configured DateZA daily Discovery ranking" do
         assert_equal DatezaV1, StrategyRegistry.compatibility_for(brand: @brand)
-        assert_raises(StrategyRegistry::UnsupportedBrand) { StrategyRegistry.fetch(brand: @brand) }
+        assert_equal DatezaV1, StrategyRegistry.fetch(brand: @brand)
+        assert_equal :daily_batch, StrategyRegistry.fetch_surface(brand: @brand).delivery_type
       end
 
       private

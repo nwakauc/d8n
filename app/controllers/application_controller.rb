@@ -1,7 +1,18 @@
 class ApplicationController < ActionController::API
   include RateLimitable
 
+  PlatformCapabilityRequirement = Data.define(:capability, :surface)
+
+  class_attribute :required_platform_capability, instance_writer: false, default: nil
+
   before_action :set_current_context
+
+  def self.requires_platform_capability(capability, surface: nil)
+    self.required_platform_capability = PlatformCapabilityRequirement.new(
+      capability: capability.to_s,
+      surface: surface&.to_s
+    )
+  end
 
   private
 
@@ -18,6 +29,19 @@ class ApplicationController < ActionController::API
     return if Current.user.present?
 
     render json: { error: "unauthorized" }, status: :unauthorized
+  end
+
+  def authorize_platform_capability!
+    requirement = required_platform_capability
+    return if requirement.nil?
+
+    D8n::Platform::CapabilityAccess.authorize!(
+      brand: Current.brand,
+      capability: requirement.capability,
+      surface: requirement.surface
+    )
+  rescue D8n::Platform::CapabilityAccess::NotConfigured => e
+    render json: { error: e.code }, status: :not_found
   end
 
   def authenticate_bearer_session

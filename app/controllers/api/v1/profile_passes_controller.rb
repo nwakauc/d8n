@@ -1,4 +1,6 @@
 class Api::V1::ProfilePassesController < Api::V1::InteractionController
+  requires_platform_capability "match.interaction.pass"
+
   before_action -> { enforce_rate_limit!(:pass_profile) }, only: :create
 
   def create

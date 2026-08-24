@@ -9,6 +9,7 @@ module Matching
       KEY = "dateza_v1"
       MINIMUM_COMPARABLE_WEIGHT = 35
       MAX_REASONS = 5
+      DAILY_SELECTION_POOL_LIMIT = 500
 
       WEIGHTS = {
         relationship_intent: 20,
@@ -69,8 +70,32 @@ module Matching
       class << self
         def key = KEY
 
-        def call(brand:, viewer:, candidate:)
-          new(brand:, viewer:).call(candidate:)
+        # Stable daily selection ranks a bounded, deterministic eligible pool.
+        # The allocation engine owns persistence and safety filtering; this
+        # strategy owns only DateZA's pair compatibility and tie-breaking.
+        def rank_daily_selection(scope:, viewer:, eligibility_policy:, limit:)
+          candidates = scope.reorder(created_at: :desc, public_id: :desc)
+            .includes(profile_option_selections: [ :profile_option, :profile_option_group ])
+            .limit(DAILY_SELECTION_POOL_LIMIT)
+            .to_a
+          scorer = new(brand: viewer.brand, viewer:, eligibility_policy:)
+
+          candidates.map do |candidate|
+            compatibility = scorer.for_eligible_pair(candidate:)
+            { profile: candidate, ranking_payload: { compatibility: compatibility.public_payload } }
+          end.sort_by do |candidate|
+            compatibility = candidate.dig(:ranking_payload, :compatibility)
+            [
+              compatibility&.fetch(:score) || -1,
+              compatibility&.fetch(:confidence) || 0.0,
+              candidate.fetch(:profile).created_at.to_f,
+              candidate.fetch(:profile).public_id
+            ]
+          end.reverse.first(limit)
+        end
+
+        def call(brand:, viewer:, candidate:, eligibility_policy: nil)
+          new(brand:, viewer:, eligibility_policy:).call(candidate:)
         end
 
         # Search/Discovery callers may use this only after the shared eligibility
@@ -81,9 +106,10 @@ module Matching
         end
       end
 
-      def initialize(brand:, viewer:)
+      def initialize(brand:, viewer:, eligibility_policy: nil)
         @brand = brand
         @viewer = viewer
+        @eligibility_policy = eligibility_policy
         @viewer_values = values_for(viewer)
       end
 
@@ -100,7 +126,7 @@ module Matching
 
       private
 
-      attr_reader :brand, :viewer, :viewer_values
+      attr_reader :brand, :viewer, :viewer_values, :eligibility_policy
 
       def assert_pair_scope!(candidate)
         valid = brand.slug == "dateza" && viewer.brand_id == brand.id &&
@@ -110,8 +136,9 @@ module Matching
 
       def assert_eligible!(candidate)
         current_viewer = ProfileParticipant.discoverable!(user: viewer.user, brand:)
+        policy = eligibility_policy || StrategyRegistry.eligibility_policy_for(brand:)
         eligible = current_viewer.id == viewer.id && EligibilityScope.call(
-          brand:, viewer:, location_max_age: Find::Policies::Dateza.location_max_age
+          brand:, viewer:, policy:
         ).where(id: candidate.id).exists?
         raise IneligiblePair, "pair is not eligible" unless eligible
       rescue InteractionError

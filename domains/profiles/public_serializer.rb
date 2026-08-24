@@ -6,48 +6,48 @@ module Profiles
 
     def initialize(profile:)
       @profile = profile
+      @field_policy = FieldPolicy.new(brand: profile.brand)
     end
 
     def call
       {
         id: profile.public_id,
-        display_name: profile.display_name,
-        age: age,
-        bio: profile.bio,
-        gender: profile.gender,
-        pronouns: profile.pronouns,
-        country_code: profile.country_code,
-        city: profile.city,
-        location: location,
-        occupation: profile.occupation,
-        job_title: profile.job_title,
-        school_or_institution: profile.school_or_institution,
-        looking_for_text: profile.looking_for_text,
-        height_cm: profile.height_cm,
-        body_type: profile.body_type,
-        # Legacy free-text languages (retained) + canonical structured languages.
-        # `company_name` is deliberately NOT exposed to other members (owner-only).
-        languages_spoken: profile.languages_spoken,
-        languages: Profiles::Languages.serialize(profile.languages),
-        smoking: profile.smoking,
-        drinking: profile.drinking,
-        fitness: profile.fitness,
         photos: public_photos,
         options: public_options
-      }
+      }.merge(public_profile_fields).merge(derived_public_fields)
     end
 
     private
 
-    attr_reader :profile
+    attr_reader :profile, :field_policy
+
+    def public_profile_fields
+      FieldPolicy::PUBLIC_PROFILE_FIELDS.filter_map do |field|
+        next unless field_policy.public_profile_enabled?(field)
+
+        value = field == "languages" ? Profiles::Languages.serialize(profile.languages) : profile.public_send(field)
+        [ field.to_sym, value ]
+      end.to_h
+    end
+
+    def derived_public_fields
+      fields = {}
+      fields[:age] = age if field_policy.profile_enabled?("birthdate")
+      if field_policy.profile_enabled?("city") || field_policy.profile_enabled?("country_code")
+        fields[:location] = location
+      end
+      fields
+    end
 
     # Safe, approximate location metadata only — never raw coordinates. The
     # viewer-relative `distance_km` is supplied separately by Profiles::StatusFields
     # (it depends on the viewer), so it is not duplicated here.
     def location
-      return if profile.city.blank? && profile.country_code.blank?
+      city = profile.city if field_policy.profile_enabled?("city")
+      country_code = profile.country_code if field_policy.profile_enabled?("country_code")
+      return if city.blank? && country_code.blank?
 
-      { city: profile.city, country_code: profile.country_code, precision: "approximate" }
+      { city:, country_code:, precision: "approximate" }
     end
 
     # Only safe display derivatives of deliverable photos are exposed to other
