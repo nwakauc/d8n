@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Accepted; transport amended by ADR 0019.
 
 ## Context
 
@@ -16,7 +16,8 @@ Future auth strategies, including Rodauth-backed email/password, must converge i
 
 D8N sessions are scoped to one `brand_id`.
 
-`SessionAuthenticator` accepts a bearer token only when:
+`SessionAuthenticator` accepts a D8N session credential, whether transported as
+an explicit bearer token or an HttpOnly browser cookie under ADR 0019, only when:
 
 - The token digest matches a stored `Session`.
 - The session belongs to the current resolved brand.
@@ -27,7 +28,7 @@ All auth strategies must issue D8N `Session` records and be validated through `S
 
 ## Consequences
 
-- A HookUs token cannot authenticate Date9ja requests.
+- A HookUs session credential cannot authenticate Date9ja requests.
 - Brand privacy and tenant isolation stay simple.
 - Each brand can apply its own auth and session policy later.
 - Users may need separate sessions when intentionally using multiple D8N brands.

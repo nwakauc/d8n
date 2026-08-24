@@ -351,8 +351,10 @@ The frontend engineer is now wiring HookUs against the real staging API
 dev server runs at http://localhost:3001. The staging backend explicitly
 allows that origin (and its 127.0.0.1 loopback form) for CORS via the
 D8N_CORS_ORIGINS env in config/deploy.staging.yml; no wildcard origin is
-used. Auth remains bearer-token (Authorization header), not cookies, so
-no CORS credentials mode is enabled. This takes effect on staging only
+used. D8N now supports an opt-in, host-only HttpOnly browser session over the
+same brand-bound server session, while bearer auth remains supported. Exact
+allowed origins use credentialed CORS and cookie-authenticated mutations require
+a session-bound CSRF token. This takes effect on staging only
 after the next staging deploy.
 
 A frontend audit/fix pass is underway.

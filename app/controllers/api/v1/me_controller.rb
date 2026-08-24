@@ -15,7 +15,9 @@ class Api::V1::MeController < ApplicationController
       },
       session: {
         id: Current.session.id,
-        expires_at: Current.session.expires_at.iso8601
+        expires_at: Current.session.expires_at.iso8601,
+        authentication_mode: Current.authentication_source.to_s,
+        csrf_token: browser_csrf_token
       },
       identifier: identifier_payload(verification),
       verification_required: verification.present? && !verification.verified,
@@ -31,6 +33,7 @@ class Api::V1::MeController < ApplicationController
     return render json: { error: "confirmation_required" }, status: :unprocessable_entity unless confirmed?
 
     result = Accounts::CloseAccount.call(user: Current.user, brand: Current.brand)
+    clear_browser_session_cookie
 
     render json: {
       closed: true,
@@ -51,6 +54,12 @@ class Api::V1::MeController < ApplicationController
       verified: verification.verified,
       masked_destination: verification.masked_destination
     }
+  end
+
+  def browser_csrf_token
+    return unless Current.authentication_source == :cookie
+
+    Identity::BrowserSession.csrf_token(session: Current.session)
   end
 
   def verification_payload(verification)

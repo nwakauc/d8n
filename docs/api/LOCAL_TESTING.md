@@ -111,6 +111,13 @@ later sessions. The response's `onboarding.next_step` will initially be
 `profile`; use `GET /api/v1/profile/configuration`, then
 `PATCH /api/v1/profile`, and continue according to the updated onboarding state.
 
+That is the default API/Swagger mode. To test persistent browser authentication,
+add `"session_mode": "browser"` and send requests with cookie credentials. The
+response then contains no bearer token; it sets `d8n_web_session` as HttpOnly and
+returns `browser_session.csrf_token`. Call `GET /api/v1/me` without an
+Authorization header to simulate a page reload. For logout or any other unsafe
+cookie-authenticated request, send that value as `X-CSRF-Token`.
+
 Identifier verification happens only after password signup. Keep the bearer
 token authorized in Swagger, expand `POST /api/v1/auth/verification`, select
 **Try it out**, and request the channel already attached to the account:
@@ -247,9 +254,16 @@ exact trusted frontend origins when browser clients need direct API access:
 D8N_CORS_ORIGINS=https://hookus.example.com,https://www.hookus.example.com,https://dateza.vercel.app
 ```
 
-Do not use `*`. D8N accepts bearer authorization and `Content-Type` from allowed
-origins and exposes `Retry-After`; it does not grant browser access to arbitrary
-origins or enable credentialed cookie requests.
+Do not use `*`. D8N accepts bearer authorization, `Content-Type`, and
+`X-CSRF-Token` from exact allowed origins, exposes `Retry-After`, and enables
+credentialed requests for those origins only. Browser frontends must use
+`credentials: "include"`. Production cookies are `Secure` and `SameSite=None`;
+development/test cookies are `SameSite=Lax`. HookUs (`localhost` on different
+ports) is same-site. DateZA's `localhost` frontend and `dateza.test` API are not,
+so DateZA persistent-cookie development requires a same-origin frontend proxy
+that preserves the upstream `dateza.test` host (or local HTTPS with a secure
+cross-site cookie setup). Direct cross-origin DateZA development remains suitable
+for bearer mode, not persistent cookie mode.
 
 A same-origin development proxy remains an optional alternative:
 

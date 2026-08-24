@@ -59,6 +59,14 @@ module D8n
         assert_includes definition.implementations, "Matching::StableDailySelection"
       end
 
+      test "records persistent browser sessions as an available D8N ID capability" do
+        definition = Catalog.fetch("id.session.browser_persistence")
+
+        assert_predicate definition, :available?
+        assert_includes definition.dependencies, D8n::Platform::CapabilityKey.new("id.session.current")
+        assert_includes definition.implementations, "Identity::BrowserSession"
+      end
+
       test "records remaining architectural drift as partial instead of available" do
         assert_predicate Catalog.fetch("media.profile_photo.moderation"), :partial?
       end

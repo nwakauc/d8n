@@ -27,20 +27,21 @@ class CorsTest < ActionDispatch::IntegrationTest
     assert_includes response.headers.fetch("Access-Control-Allow-Headers").downcase, "authorization"
   end
 
-  test "permits the DateZA development origin without cookie credentials" do
+  test "permits the DateZA development origin with cookie credentials and CSRF headers" do
     options "/api/v1/auth/methods", headers: {
       "Origin" => "http://localhost:5173",
       "Access-Control-Request-Method" => "GET",
-      "Access-Control-Request-Headers" => "authorization"
+      "Access-Control-Request-Headers" => "authorization,x-csrf-token"
     }
 
     assert_response :ok
     assert_equal "http://localhost:5173", response.headers["Access-Control-Allow-Origin"]
     assert_includes response.headers.fetch("Access-Control-Allow-Headers").downcase, "authorization"
-    assert_nil response.headers["Access-Control-Allow-Credentials"]
+    assert_includes response.headers.fetch("Access-Control-Allow-Headers").downcase, "x-csrf-token"
+    assert_equal "true", response.headers["Access-Control-Allow-Credentials"]
   end
 
-  test "permits the deployed DateZA origin without cookie credentials" do
+  test "permits the deployed DateZA origin with cookie credentials" do
     options "/api/v1/auth/methods", headers: {
       "Origin" => "https://dateza.vercel.app",
       "Access-Control-Request-Method" => "GET",
@@ -50,7 +51,7 @@ class CorsTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal "https://dateza.vercel.app", response.headers["Access-Control-Allow-Origin"]
     assert_includes response.headers.fetch("Access-Control-Allow-Headers").downcase, "authorization"
-    assert_nil response.headers["Access-Control-Allow-Credentials"]
+    assert_equal "true", response.headers["Access-Control-Allow-Credentials"]
   end
 
   test "does not grant cross-origin access to an unconfigured origin" do

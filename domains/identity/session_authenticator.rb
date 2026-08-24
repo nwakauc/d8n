@@ -17,8 +17,9 @@ module Identity
 
       session = Session.includes(:user, :credential).find_by(token_digest: Session.digest_token(token))
       return Result.new(false, nil, nil, :invalid_token) if session.blank?
-      return Result.new(false, nil, nil, :invalid_token) if session.brand_id != brand.id
-      return Result.new(false, nil, nil, :invalid_token) if session.revoked? || session.expired?
+      return Result.new(false, nil, nil, :wrong_brand) if session.brand_id != brand.id
+      return Result.new(false, nil, nil, :revoked_session) if session.revoked?
+      return Result.new(false, nil, nil, :expired_session) if session.expired?
       return Result.new(false, nil, nil, :invalid_token) unless active_record?(brand)
       return Result.new(false, nil, nil, :invalid_token) unless active_record?(session.user)
       return Result.new(false, nil, nil, :invalid_token) unless active_membership?(session)

@@ -5,8 +5,15 @@ info:
   summary: Multi-brand dating platform API
   description: |
     D8N resolves the active brand from the request host. Never send a brand ID in
-    client-controlled input. Bearer sessions are brand-bound, and profile identifiers
+    client-controlled input. Sessions are brand-bound, and profile identifiers
     exposed by dating endpoints are public UUIDs rather than internal database IDs.
+
+    Browser clients may request `session_mode: browser` at password registration
+    or login. D8N then sets a host-only HttpOnly cookie and does not return its
+    secret in JSON. Send browser requests with credentials enabled. Every unsafe
+    cookie-authenticated request must include `X-CSRF-Token`, obtained from the
+    auth response or `GET /api/v1/me`. Bearer mode remains the default and does
+    not set a cookie; bearer-authenticated requests do not require a CSRF token.
 
     ## Implementation status (for frontend integration)
 
@@ -62,6 +69,7 @@ servers:
         default: hookus.example.com
 security:
   - bearerAuth: []
+  - cookieAuth: []
 tags:
   - name: System
   - name: Authentication
@@ -149,6 +157,8 @@ paths:
         Creates a D8N identity, current-brand membership, and brand-bound session.
         Registration does not prove control of the phone number or email address;
         the returned identifier remains unverified until a later verification flow.
+        Set `session_mode` to `browser` for an HttpOnly persistent web session;
+        omit it for the existing bearer response.
       security: []
       requestBody:
         required: true
@@ -163,8 +173,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PasswordAuthSessionResponse"
+        "403":
+          description: Browser mode was requested from an unapproved origin (`browser_session_origin_not_allowed`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
-          $ref: "#/components/responses/AuthMethodUnavailable"
+          description: Authentication method or browser-session capability is unavailable for the resolved brand.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: The request already carries an authenticated D8N session.
           content:
@@ -172,7 +192,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
-          description: Registration cannot be completed with the supplied input.
+          description: Registration cannot be completed with the supplied input, or `session_mode` is unsupported (`invalid_session_mode`).
           content:
             application/json:
               schema:
@@ -187,6 +207,8 @@ paths:
       description: |
         Login requires an existing active membership in the host-resolved brand.
         It never enrolls an existing D8N identity into another brand implicitly.
+        Set `session_mode` to `browser` for an HttpOnly persistent web session;
+        omit it for the existing bearer response.
       security: []
       requestBody:
         required: true
@@ -201,6 +223,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PasswordAuthSessionResponse"
+        "403":
+          description: Browser mode was requested from an unapproved origin (`browser_session_origin_not_allowed`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Identifier, password, account lifecycle, or membership is unavailable.
           content:
@@ -208,7 +236,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          $ref: "#/components/responses/AuthMethodUnavailable"
+          description: Authentication method or browser-session capability is unavailable for the resolved brand.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The supplied `session_mode` is unsupported (`invalid_session_mode`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
           $ref: "#/components/responses/RateLimited"
   /api/v1/auth/password:
@@ -594,16 +632,20 @@ paths:
       operationId: revokeSession
       tags: [Authentication]
       summary: Revoke the current session
+      description: Cookie-authenticated logout requires `X-CSRF-Token` and clears the browser cookie.
       responses:
         "204":
           description: Session revoked.
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CsrfRejected"
   /api/v1/me:
     get:
       operationId: getCurrentIdentity
       tags: [Authentication]
       summary: Confirm the authenticated identity, brand, and session
+      description: Browser authentication uses the HttpOnly cookie and returns the CSRF token for that session.
       responses:
         "200":
           description: Current authenticated context.
@@ -2255,6 +2297,11 @@ components:
       scheme: bearer
       bearerFormat: opaque
       description: Opaque brand-bound D8N session token.
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: d8n_web_session
+      description: Host-only HttpOnly brand-bound browser session credential.
   parameters:
     DiscoveryMode:
       name: mode
@@ -2439,7 +2486,13 @@ components:
         default: 25
   responses:
     Unauthorized:
-      description: Missing, invalid, expired, revoked, or wrong-brand bearer token.
+      description: Missing, invalid, expired, revoked, or wrong-brand session. Cookie bootstrap may return `session_expired` or `session_revoked`; other cases return `unauthorized`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    CsrfRejected:
+      description: Cookie-authenticated unsafe request omitted or supplied an invalid `X-CSRF-Token` (`csrf_token_invalid`).
       content:
         application/json:
           schema:
@@ -2680,6 +2733,10 @@ components:
         device_name:
           type: [string, "null"]
           maxLength: 120
+        session_mode:
+          type: string
+          enum: [browser]
+          description: Omit for bearer mode. Use `browser` for an HttpOnly cookie without a bearer secret in JSON.
     PasswordChangeRequest:
       type: object
       required: [current_password, password, password_confirmation]
@@ -2822,29 +2879,44 @@ components:
         brand:
           $ref: "#/components/schemas/BrandSummary"
     PasswordAuthSessionResponse:
-      allOf:
-        - $ref: "#/components/schemas/AuthSessionResponse"
-        - type: object
-          required: [identifier, verification_required, verification_channel, verification, onboarding]
+      type: object
+      required: [expires_at, user_id, brand, identifier, verification_required, verification_channel, verification, onboarding]
+      oneOf:
+        - required: [token, token_type]
+        - required: [browser_session]
+      properties:
+        token:
+          type: string
+          description: Present only in default bearer mode; never present in browser mode.
+        token_type:
+          const: Bearer
+        browser_session:
+          type: object
+          required: [persisted, csrf_token]
           properties:
-            identifier:
-              $ref: "#/components/schemas/SessionIdentifierVerification"
-            verification_required:
-              type: boolean
-              description: |
-                True whenever the session's identifier is still unverified. On
-                register the server has asynchronously dispatched a verification
-                code to `verification_channel`; on login of an unverified
-                identifier this stays true (request a fresh code via
-                `POST /auth/verification`). Login never re-sends a code by itself.
-            verification_channel:
-              type: [string, "null"]
-              enum: [phone, email, null]
-              description: The channel a verification code is (or would be) sent to; null once verified.
-            verification:
-              $ref: "#/components/schemas/VerificationDispatchState"
-            onboarding:
-              $ref: "#/components/schemas/ProfileOnboardingStatus"
+            persisted:
+              const: true
+            csrf_token:
+              type: string
+              description: Send as `X-CSRF-Token` on unsafe cookie-authenticated requests.
+        expires_at:
+          type: string
+          format: date-time
+        user_id:
+          type: integer
+        brand:
+          $ref: "#/components/schemas/BrandSummary"
+        identifier:
+          $ref: "#/components/schemas/SessionIdentifierVerification"
+        verification_required:
+          type: boolean
+        verification_channel:
+          type: [string, "null"]
+          enum: [phone, email, null]
+        verification:
+          $ref: "#/components/schemas/VerificationDispatchState"
+        onboarding:
+          $ref: "#/components/schemas/ProfileOnboardingStatus"
     MeResponse:
       type: object
       required: [user_id, brand, session, identifier, verification_required, verification]
@@ -2855,13 +2927,19 @@ components:
           $ref: "#/components/schemas/BrandSummary"
         session:
           type: object
-          required: [id, expires_at]
+          required: [id, expires_at, authentication_mode, csrf_token]
           properties:
             id:
               type: integer
             expires_at:
               type: string
               format: date-time
+            authentication_mode:
+              type: string
+              enum: [bearer, cookie]
+            csrf_token:
+              type: [string, "null"]
+              description: Present for cookie authentication; null for bearer authentication.
         identifier:
           oneOf:
             - $ref: "#/components/schemas/SessionIdentifierVerification"

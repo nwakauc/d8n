@@ -64,7 +64,7 @@ challenge proves access and sets `verified_at`.
 
 ## Sessions
 
-D8N sessions are currently brand-scoped.
+D8N sessions are brand-scoped and server-authoritative.
 
 A token issued after authenticating on HookUs is valid only for HookUs requests. The same underlying `User` may later authenticate into another brand, but that brand receives its own session token.
 
@@ -73,6 +73,21 @@ This is deliberately stricter than a platform-wide session. It keeps brand priva
 Session authentication also requires the brand, user, and brand membership to remain active and not soft-deleted. Sessions issued through a credential retain that credential reference and stop authenticating if it is disabled, revoked, or soft-deleted.
 
 Logout revokes only the current brand session and records a security event. Suspending a membership in one brand must not suspend the same identity's membership or sessions in another brand.
+
+The same `Session` supports two transports (ADR 0019). Bearer mode is the default
+for API/native clients. Browser mode is an opt-in D8N ID capability: password
+registration/login accepts `session_mode: "browser"`, places the credential in a
+host-only HttpOnly cookie, and omits the bearer secret from JSON. The cookie is
+never scoped to a parent brand domain, so shared global identity does not become
+implicit cross-brand SSO.
+
+Browser-cookie authentication requires a session-bound `X-CSRF-Token` on every
+unsafe request. The token is returned at browser authentication and by `/me`,
+which is also the page-load bootstrap contract. Exact credentialed CORS origins
+are required; wildcard origins fail at boot. Browser sessions retain the existing
+30-day absolute lifetime, do not slide on activity, and rotate to a newly issued
+credential on a new login/registration. See ADR 0019 for the cookie, origin,
+expiry, error, and threat-model decisions.
 
 ## Identifier Verification Lifecycle
 

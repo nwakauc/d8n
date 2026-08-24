@@ -42,6 +42,8 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_in_delta 60, body.dig("verification", "resend_available_in"), 1
     assert_equal "hookus", body.fetch("brand").fetch("slug")
     assert body.fetch("token").present?
+    assert_nil body["browser_session"]
+    assert_nil response.headers["Set-Cookie"]
     assert_equal "profile_required", body.fetch("onboarding").fetch("state")
     assert_equal "profile", body.fetch("onboarding").fetch("next_step")
   end

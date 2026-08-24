@@ -14,6 +14,7 @@ module D8n
         assert_equal "hookus", contract.slug
         assert_equal %w[phone_password email_password], contract.auth_methods
         assert_equal Profiles::HookusProfileCatalog, contract.profile.catalog
+        assert contract.capability_enabled?("id.session.browser_persistence")
         assert_equal Profiles::Configuration::PROFILE_FIELD_LABELS.keys, contract.enabled_profile_fields
         assert contract.capability_enabled?("discovery.surface.feed")
         assert contract.capability_enabled?("match.hook")
@@ -52,6 +53,7 @@ module D8n
         assert_equal Profiles::DatezaProfileCatalog::REQUIRED_PREFERENCE_FIELDS,
           contract.enabled_preference_fields
         assert contract.capability_enabled?("discovery.surface.browse")
+        assert contract.capability_enabled?("id.session.browser_persistence")
         assert_not contract.capability_enabled?("discovery.surface.feed")
         assert contract.capability_enabled?("discovery.surface.daily_batch")
         assert_not contract.capability_enabled?("match.hook")

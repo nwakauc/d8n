@@ -1,0 +1,68 @@
+module Identity
+  class BrowserSession
+    COOKIE_NAME = "d8n_web_session"
+    COOKIE_PATH = "/api/v1"
+    CSRF_HEADER = "X-CSRF-Token"
+    SAFE_METHODS = %w[GET HEAD OPTIONS].freeze
+
+    class << self
+      def enabled?(brand:)
+        D8n::Platform::BrandRegistry.fetch(brand:).capability_enabled?("id.session.browser_persistence")
+      rescue D8n::Platform::BrandRegistry::UnsupportedBrand
+        false
+      end
+
+      def csrf_token(session:)
+        HmacDigest.call(
+          purpose: "browser-session-csrf",
+          value: "#{session.id}:#{session.token_digest}"
+        )
+      end
+
+      def valid_csrf_token?(session:, token:)
+        supplied = token.to_s
+        expected = csrf_token(session:)
+        supplied.bytesize == expected.bytesize && ActiveSupport::SecurityUtils.secure_compare(supplied, expected)
+      end
+
+      def csrf_required?(request:, authentication_source:)
+        authentication_source == :cookie && !SAFE_METHODS.include?(request.request_method)
+      end
+
+      def origin_allowed?(request:)
+        origin = request.headers["Origin"].to_s.strip
+        return request.headers["Sec-Fetch-Site"].to_s != "cross-site" if origin.blank?
+
+        origin == request.base_url || configured_origins.include?(origin)
+      end
+
+      def cookie_options(expires_at: nil)
+        options = {
+          httponly: true,
+          secure: secure?,
+          same_site: same_site,
+          path: COOKIE_PATH
+        }
+        if expires_at
+          options[:expires] = expires_at
+          options[:max_age] = [ expires_at - Time.current, 0 ].max.to_i
+        end
+        options
+      end
+
+      def secure?
+        Rails.env.production?
+      end
+
+      def same_site
+        secure? ? :none : :lax
+      end
+
+      private
+
+      def configured_origins
+        Array(Rails.application.config.x.cors_origins)
+      end
+    end
+  end
+end

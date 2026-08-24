@@ -1,4 +1,7 @@
 class Api::V1::Auth::PasswordsController < ApplicationController
+  skip_before_action :verify_browser_session_csrf!, only: %i[register login]
+  before_action :authorize_session_mode!, only: %i[register login]
+
   before_action :authenticate_user!, only: :update
 
   def register
@@ -87,9 +90,7 @@ class Api::V1::Auth::PasswordsController < ApplicationController
     verification = Identity::VerificationState.call(session: result.session, brand: Current.brand)
     verified = verification.verified
 
-    {
-      token: result.raw_token,
-      token_type: "Bearer",
+    payload = {
       expires_at: result.session.expires_at.iso8601,
       user_id: result.user.id,
       brand: {
@@ -114,5 +115,27 @@ class Api::V1::Auth::PasswordsController < ApplicationController
       },
       onboarding: Profiles::OnboardingStatus.call(user: result.user, brand: Current.brand)
     }
+    if browser_session_mode?
+      payload[:browser_session] = persist_browser_session(raw_token: result.raw_token, session: result.session)
+    else
+      payload[:token] = result.raw_token
+      payload[:token_type] = "Bearer"
+    end
+    payload
+  end
+
+  def authorize_session_mode!
+    mode = params[:session_mode].to_s
+    return if mode.blank?
+    return render(json: { error: "invalid_session_mode" }, status: :unprocessable_entity) unless browser_session_mode?
+    return render(json: { error: "browser_session_not_configured" }, status: :not_found) unless
+      Identity::BrowserSession.enabled?(brand: Current.brand)
+    return if Identity::BrowserSession.origin_allowed?(request:)
+
+    render json: { error: "browser_session_origin_not_allowed" }, status: :forbidden
+  end
+
+  def browser_session_mode?
+    params[:session_mode].to_s == "browser"
   end
 end

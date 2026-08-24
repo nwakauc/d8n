@@ -25,6 +25,11 @@ module D8n
     config.autoload_paths << Rails.root.join("domains")
     config.eager_load_paths << Rails.root.join("domains")
 
+    # API clients may continue using Authorization bearer tokens. Browser clients
+    # additionally use the same opaque D8N Session token in a host-only HttpOnly
+    # cookie; ActionController::API does not include cookie middleware by default.
+    config.middleware.use ActionDispatch::Cookies
+
     # Only loads a smaller set of middleware suitable for API only apps.
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.

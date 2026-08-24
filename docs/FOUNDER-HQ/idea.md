@@ -1809,7 +1809,6 @@ The next five years have one purpose:
 ## BUILD BEFORE YOU RETURN.
 
 Build capital.
-
 Build companies.
 
 Build reputation.

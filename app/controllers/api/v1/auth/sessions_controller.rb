@@ -7,6 +7,7 @@ class Api::V1::Auth::SessionsController < ApplicationController
       ip_address: request.remote_ip,
       user_agent: request.user_agent
     )
+    clear_browser_session_cookie
 
     head :no_content
   end

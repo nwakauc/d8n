@@ -108,9 +108,11 @@ The spike must prove the exact table adapter and enabled features before an API
 schema or production migration is accepted.
 
 D8N owns the public JSON contract, host-resolved brand context, `User`,
-`BrandMembership`, credentials, lifecycle policy, security events, and bearer
+`BrandMembership`, credentials, lifecycle policy, security events, and D8N
 sessions. Rodauth must not create a parallel consumer identity or make its cookie,
-JWT, or session table the API authorization source of truth.
+JWT, or session table the API authorization source of truth. ADR 0019 adds an
+HttpOnly transport for the existing D8N session; it does not give Rodauth session
+authority.
 
 On successful authentication, D8N rechecks the user, credential, identifier, and
 current brand membership, then issues the existing `Session` through

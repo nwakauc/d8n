@@ -9,6 +9,7 @@ module D8n
           id.session.create
           id.session.destroy
           id.session.current
+          id.session.browser_persistence
           id.password_recovery
           id.password_reset
           id.contact_change.email

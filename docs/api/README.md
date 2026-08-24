@@ -19,7 +19,7 @@ Interactive Swagger UI is available at:
 GET /api/docs
 ```
 
-Use **Authorize** with a brand-bound bearer token, then execute requests directly from the documented operations. Swagger UI is self-hosted, reads the canonical runtime contract, does not use an external validator, and does not persist authorization across page reloads.
+Use **Authorize** with a brand-bound bearer token, then execute requests directly from the documented operations. Swagger UI is self-hosted, reads the canonical runtime contract, does not use an external validator, and does not persist authorization across page reloads. Product web applications should use the persistent browser mode below instead of persisting that bearer token themselves.
 
 The repository contract is authoritative for the deployed commit. Clients may generate types or API clients from it, but should keep generated output in their own repositories.
 
@@ -75,6 +75,47 @@ Authentication tokens are brand-bound. A token issued through HookUs cannot
 authenticate DateZA (or another brand), and a DateZA token cannot authenticate
 HookUs. Each frontend should configure one brand API origin and must not allow
 end users to override the host or tenant context.
+
+### Persistent web authentication
+
+Password registration and login support an explicit browser mode:
+
+```json
+{
+  "identifier": "member@example.com",
+  "password": "secret",
+  "device_name": "Web",
+  "session_mode": "browser"
+}
+```
+
+With browser mode, the response sets the host-only HttpOnly
+`d8n_web_session` cookie and contains `browser_session.csrf_token`; it does not
+contain `token` or `token_type`. The frontend must send `credentials: "include"`
+on registration, login, `/me`, logout, and every later cookie-authenticated API
+request. Keep the CSRF token in memory and send it as `X-CSRF-Token` on every
+non-GET/HEAD/OPTIONS request. After a reload, call `GET /api/v1/me`; a successful
+cookie bootstrap returns the same token at `session.csrf_token`.
+
+`GET /api/v1/me` returns 401 `session_expired` or `session_revoked` when a browser
+credential reached that lifecycle state and clears it. Missing, malformed, or
+wrong-brand credentials return 401 `unauthorized`. Logout is
+`DELETE /api/v1/auth/session` with the CSRF header; success revokes the server
+session, clears the cookie, and returns 204. A missing/invalid CSRF token returns
+403 `csrf_token_invalid` without performing the mutation.
+
+Omitting `session_mode` preserves bearer mode: the response contains `token` and
+`token_type: "Bearer"`, sets no cookie, and bearer-authenticated mutations are
+CSRF-exempt. Never persist that token in browser-readable storage. The two modes
+share the same D8N `Session`, lifecycle checks, and brand authorization.
+
+In production the cookie is `Secure; SameSite=None` so explicitly allowlisted
+cross-site frontend/API deployments work over HTTPS. Development uses
+`SameSite=Lax`: HookUs ports on `localhost` are same-site, but DateZA's
+`localhost` frontend and `dateza.test` API are not. DateZA browser-session work
+therefore needs a same-origin dev proxy that preserves `dateza.test` upstream (or
+local HTTPS configured for secure cross-site cookies); direct CORS remains usable
+for bearer mode.
 
 ### DateZA tenant foundation
 
