@@ -36,7 +36,13 @@ class Api::V1::Auth::PasswordRecoveriesController < ApplicationController
         expires_at: result.expires_at.iso8601
       }, status: :created
     else
-      render json: { error: "invalid_code" }, status: :unauthorized
+      status = case result.error
+      when :verification_code_expired then :gone
+      when :verification_code_used then :conflict
+      when :verification_attempts_exhausted then :too_many_requests
+      else :unauthorized
+      end
+      render json: { error: result.error.to_s }, status:
     end
   end
 

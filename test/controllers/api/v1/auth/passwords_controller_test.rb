@@ -33,9 +33,13 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_nil identifier.verified_at
     assert_nil credential.verified_at
     assert Identity::PasswordEngine.matches?(credential:, password: "secret")
-    assert_equal({ "kind" => "phone", "verified" => false }, body.fetch("identifier"))
+    assert_equal "phone", body.dig("identifier", "kind")
+    assert_equal false, body.dig("identifier", "verified")
+    assert_equal "••••••••567", body.dig("identifier", "masked_destination")
     assert_equal true, body.fetch("verification_required")
     assert_equal "phone", body.fetch("verification_channel")
+    assert_equal true, body.dig("verification", "code_dispatched")
+    assert_in_delta 60, body.dig("verification", "resend_available_in"), 1
     assert_equal "hookus", body.fetch("brand").fetch("slug")
     assert body.fetch("token").present?
     assert_equal "profile_required", body.fetch("onboarding").fetch("state")
@@ -51,7 +55,9 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert identifier.email?
     assert_equal "ada@example.com", identifier.normalized_value
     assert_nil identifier.verified_at
-    assert_equal({ "kind" => "email", "verified" => false }, JSON.parse(response.body).fetch("identifier"))
+    body = JSON.parse(response.body)
+    assert_equal false, body.dig("identifier", "verified")
+    assert_equal "a•••@example.com", body.dig("identifier", "masked_destination")
   end
 
   test "logs in with an unverified phone and password" do

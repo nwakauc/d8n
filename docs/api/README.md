@@ -282,6 +282,24 @@ Verification never creates an account, credential, membership, or session and
 never blocks normal onboarding. The former unauthenticated phone-OTP login routes
 have been removed; returning users log in with phone/email and password.
 
+Authenticated verification clients branch on stable lifecycle codes:
+
+- `verification_code_invalid`: the current code does not match;
+- `verification_code_expired`: the current challenge expired;
+- `verification_code_used`: the challenge was already consumed;
+- `verification_attempts_exhausted`: the challenge locked after its bounded attempts;
+- `verification_resend_too_soon`: the per-identifier resend cooldown is active;
+- `verification_rate_limited`: a broader verification request window is exhausted;
+- `delivery_unavailable`: the configured delivery channel cannot accept the request.
+
+Both resend throttle errors use `429` and an authoritative `Retry-After` header.
+A successful verification-code request returns `resend_available_in`. Password
+registration/session and `/api/v1/me` responses expose only a masked destination,
+whether a usable challenge was dispatched, and the server-owned resend delay—never
+the raw identifier. Signed-out password recovery keeps unknown identifiers and
+wrong guesses indistinguishable; expired/used lifecycle is returned only when the
+submitted secret matches the corresponding prior recovery challenge.
+
 Use the existing token on protected endpoints:
 
 ```sh

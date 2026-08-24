@@ -26,7 +26,40 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
     assert_equal @user.id, response_body.fetch("user_id")
     assert_equal "hookus", response_body.fetch("brand").fetch("slug")
     assert_equal session.id, response_body.fetch("session").fetch("id")
+    assert_nil response_body.fetch("identifier")
+    assert_equal false, response_body.fetch("verification_required")
+    assert_nil response_body.fetch("verification")
     assert Session.find(session.id).last_used_at > session.last_used_at
+  end
+
+  test "returns masked verification state for the session credential" do
+    identifier = @user.identity_identifiers.create!(kind: :email, normalized_value: "ada@example.com")
+    credential = @user.credentials.create!(identity_identifier: identifier, kind: :password)
+    token, = Session.issue!(brand: @brand, user: @user, credential:)
+    challenge = OtpChallenge.create!(
+      brand: @brand,
+      identity_identifier: identifier,
+      kind: :email_verification,
+      identifier: identifier.normalized_value,
+      code_digest: OtpChallenge.digest_code("123456"),
+      delivery_code: "123456",
+      expires_at: 10.minutes.from_now
+    )
+
+    get "/api/v1/me", headers: bearer_headers(token)
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal({
+      "kind" => "email",
+      "verified" => false,
+      "masked_destination" => "a•••@example.com"
+    }, body.fetch("identifier"))
+    assert_equal true, body.fetch("verification_required")
+    assert_equal true, body.dig("verification", "code_dispatched")
+    assert_in_delta 60, body.dig("verification", "resend_available_in"), 1
+    assert_not_includes response.body, identifier.normalized_value
+    assert challenge.reload.delivery_code.present?
   end
 
   test "rejects expired sessions" do

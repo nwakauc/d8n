@@ -332,7 +332,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/EmailChangeResponse"
         "401":
-          description: Session, proposed email, or code is unavailable, invalid, expired, consumed, locked, or belongs to another request (`invalid_code`).
+          description: Session, proposed email, or code is unavailable or invalid (`verification_code_invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The purpose-bound code has already been consumed (`verification_code_used`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "410":
+          description: The purpose-bound code has expired (`verification_code_expired`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: The code exhausted its permitted verification attempts (`verification_attempts_exhausted`).
           content:
             application/json:
               schema:
@@ -393,9 +411,11 @@ paths:
         authorization token used in step 3. The recovery code is consumed on success
         and is attempt-limited (locked after 5 wrong tries).
 
-        Responses are generic: an unknown identifier, a missing/expired recovery
-        code, and a wrong code all return the same `401 invalid_code`. A reset token
-        is only ever returned to a caller that presents the code delivered to the
+        Responses preserve enumeration resistance: an unknown identifier, a
+        missing challenge, and a wrong code all return the same `401 invalid_code`.
+        Expired or consumed lifecycle is disclosed only when the submitted secret
+        securely matches the corresponding prior challenge. A reset token is only
+        ever returned to a caller that presents the code delivered to the
         identifier's own channel.
       requestBody:
         required: true
@@ -411,7 +431,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/PasswordResetAuthorization"
         "401":
-          description: The identifier/code pair is unknown, invalid, expired, consumed, or locked (`invalid_code`).
+          description: The identifier/code pair is unknown or invalid (`invalid_code`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A matching recovery code was already consumed (`verification_code_used`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "410":
+          description: A matching recovery code expired (`verification_code_expired`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: A matching recovery code exhausted its permitted attempts (`verification_attempts_exhausted`).
           content:
             application/json:
               schema:
@@ -484,13 +522,22 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MessageResponse"
+                $ref: "#/components/schemas/VerificationDeliveryResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "422":
           $ref: "#/components/responses/InvalidInput"
         "429":
-          $ref: "#/components/responses/RateLimited"
+          description: Resend cooldown (`verification_resend_too_soon`) or broader verification throttle (`verification_rate_limited`).
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Authoritative seconds until another resend may be attempted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "503":
           description: The configured delivery channel is temporarily unavailable.
           content:
@@ -519,7 +566,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/IdentifierVerificationResponse"
         "401":
-          description: Session or verification code is unavailable, invalid, expired, consumed, or locked.
+          description: Session or verification code is unavailable or invalid (`verification_code_invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The verification code was already consumed (`verification_code_used`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "410":
+          description: The verification code expired (`verification_code_expired`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: The verification code exhausted its permitted attempts (`verification_attempts_exhausted`).
           content:
             application/json:
               schema:
@@ -2502,6 +2567,39 @@ components:
         kind:
           type: string
           enum: [phone, email]
+    VerificationDeliveryResponse:
+      type: object
+      required: [message, resend_available_in]
+      properties:
+        message:
+          type: string
+        resend_available_in:
+          type: integer
+          minimum: 0
+          description: Server-owned seconds until another code request is eligible.
+    SessionIdentifierVerification:
+      type: object
+      required: [kind, verified, masked_destination]
+      properties:
+        kind:
+          type: string
+          enum: [phone, email]
+        verified:
+          type: boolean
+        masked_destination:
+          type: string
+          description: Safe display form of the current session credential identifier; never the raw value.
+    VerificationDispatchState:
+      type: object
+      required: [code_dispatched, resend_available_in]
+      properties:
+        code_dispatched:
+          type: boolean
+          description: True only while a usable verification challenge is queued or confirmed sent.
+        resend_available_in:
+          type: integer
+          minimum: 0
+          description: Server-owned seconds until another code request is eligible.
     PasswordAuthRequest:
       type: object
       required: [identifier, password]
@@ -2662,18 +2760,10 @@ components:
       allOf:
         - $ref: "#/components/schemas/AuthSessionResponse"
         - type: object
-          required: [identifier, verification_required, onboarding]
+          required: [identifier, verification_required, verification_channel, verification, onboarding]
           properties:
             identifier:
-              type: object
-              required: [kind, verified]
-              properties:
-                kind:
-                  type: string
-                  enum: [phone, email]
-                verified:
-                  type: boolean
-                  description: False until D8N separately proves control of the phone or email.
+              $ref: "#/components/schemas/SessionIdentifierVerification"
             verification_required:
               type: boolean
               description: |
@@ -2686,11 +2776,13 @@ components:
               type: [string, "null"]
               enum: [phone, email, null]
               description: The channel a verification code is (or would be) sent to; null once verified.
+            verification:
+              $ref: "#/components/schemas/VerificationDispatchState"
             onboarding:
               $ref: "#/components/schemas/ProfileOnboardingStatus"
     MeResponse:
       type: object
-      required: [user_id, brand, session]
+      required: [user_id, brand, session, identifier, verification_required, verification]
       properties:
         user_id:
           type: integer
@@ -2705,6 +2797,16 @@ components:
             expires_at:
               type: string
               format: date-time
+        identifier:
+          oneOf:
+            - $ref: "#/components/schemas/SessionIdentifierVerification"
+            - type: "null"
+        verification_required:
+          type: boolean
+        verification:
+          oneOf:
+            - $ref: "#/components/schemas/VerificationDispatchState"
+            - type: "null"
     CloseAccountRequest:
       type: object
       required: [confirmation]

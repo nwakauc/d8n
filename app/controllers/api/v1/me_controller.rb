@@ -6,6 +6,7 @@ class Api::V1::MeController < ApplicationController
   CLOSE_CONFIRMATION = "close".freeze
 
   def show
+    verification = Identity::VerificationState.call(session: Current.session, brand: Current.brand)
     render json: {
       user_id: Current.user.id,
       brand: {
@@ -15,7 +16,10 @@ class Api::V1::MeController < ApplicationController
       session: {
         id: Current.session.id,
         expires_at: Current.session.expires_at.iso8601
-      }
+      },
+      identifier: identifier_payload(verification),
+      verification_required: verification.present? && !verification.verified,
+      verification: verification_payload(verification)
     }
   end
 
@@ -38,6 +42,25 @@ class Api::V1::MeController < ApplicationController
   end
 
   private
+
+  def identifier_payload(verification)
+    return if verification.blank?
+
+    {
+      kind: verification.kind,
+      verified: verification.verified,
+      masked_destination: verification.masked_destination
+    }
+  end
+
+  def verification_payload(verification)
+    return if verification.blank?
+
+    {
+      code_dispatched: verification.code_dispatched,
+      resend_available_in: verification.resend_available_in
+    }
+  end
 
   def confirmed?
     params[:confirmation].to_s == CLOSE_CONFIRMATION

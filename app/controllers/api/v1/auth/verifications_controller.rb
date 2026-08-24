@@ -11,7 +11,10 @@ class Api::V1::Auth::VerificationsController < ApplicationController
     )
 
     if result.success?
-      render json: { message: "If this identifier can receive D8N codes, a code has been sent." },
+      render json: {
+        message: "If this identifier can receive D8N codes, a code has been sent.",
+        resend_available_in: result.retry_after || 0
+      },
         status: :accepted
     else
       render_request_error(result)
@@ -36,7 +39,7 @@ class Api::V1::Auth::VerificationsController < ApplicationController
         }
       }
     else
-      render json: { error: "invalid_code" }, status: :unauthorized
+      render_verification_error(result.error)
     end
   end
 
@@ -50,11 +53,21 @@ class Api::V1::Auth::VerificationsController < ApplicationController
     case result.error
     when :invalid_kind
       render json: { error: "invalid_kind" }, status: :unprocessable_entity
-    when :rate_limited
+    when :verification_resend_too_soon, :verification_rate_limited
       response.set_header("Retry-After", result.retry_after.to_s)
-      render json: { error: "rate_limited" }, status: :too_many_requests
+      render json: { error: result.error.to_s }, status: :too_many_requests
     else
       render json: { error: "delivery_unavailable" }, status: :service_unavailable
     end
+  end
+
+  def render_verification_error(error)
+    status = case error
+    when :verification_code_expired then :gone
+    when :verification_code_used then :conflict
+    when :verification_attempts_exhausted then :too_many_requests
+    else :unauthorized
+    end
+    render json: { error: error.to_s }, status:
   end
 end

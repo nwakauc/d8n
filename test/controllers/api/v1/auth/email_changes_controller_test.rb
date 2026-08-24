@@ -195,6 +195,7 @@ class Api::V1::Auth::EmailChangesControllerTest < ActionDispatch::IntegrationTes
     end
 
     assert_response :too_many_requests
+    assert_equal({ "error" => "verification_resend_too_soon" }, JSON.parse(response.body))
     assert response.headers.fetch("Retry-After").to_i.positive?
     assert_equal "wrong@example.com", @identifier.reload.normalized_value
     assert_equal [ "correct@example.com" ], ActionMailer::Base.deliveries.flat_map(&:to)
@@ -204,12 +205,18 @@ class Api::V1::Auth::EmailChangesControllerTest < ActionDispatch::IntegrationTes
     request_change
     challenge = OtpChallenge.email_change.last
 
-    5.times do
+    4.times do
       patch "/api/v1/auth/email/change",
         headers: bearer_headers(@token),
         params: { email: "correct@example.com", code: "000000" }
       assert_response :unauthorized
     end
+
+    patch "/api/v1/auth/email/change",
+      headers: bearer_headers(@token),
+      params: { email: "correct@example.com", code: "000000" }
+    assert_response :too_many_requests
+    assert_equal({ "error" => "verification_attempts_exhausted" }, JSON.parse(response.body))
 
     assert challenge.reload.consumed?
     assert_equal 5, challenge.attempt_count
@@ -218,7 +225,28 @@ class Api::V1::Auth::EmailChangesControllerTest < ActionDispatch::IntegrationTes
     patch "/api/v1/auth/email/change",
       headers: bearer_headers(@token),
       params: { email: "correct@example.com", code: delivered_code }
-    assert_response :unauthorized
+    assert_response :too_many_requests
+    assert_equal({ "error" => "verification_attempts_exhausted" }, JSON.parse(response.body))
+  end
+
+  test "distinguishes expired and consumed email-change codes" do
+    request_change
+    challenge = OtpChallenge.email_change.last
+    code = delivered_code
+    challenge.update!(expires_at: 1.minute.ago)
+
+    patch "/api/v1/auth/email/change",
+      headers: bearer_headers(@token),
+      params: { email: "correct@example.com", code: }
+    assert_response :gone
+    assert_equal({ "error" => "verification_code_expired" }, JSON.parse(response.body))
+
+    challenge.update!(expires_at: 10.minutes.from_now, consumed_at: Time.current)
+    patch "/api/v1/auth/email/change",
+      headers: bearer_headers(@token),
+      params: { email: "correct@example.com", code: }
+    assert_response :conflict
+    assert_equal({ "error" => "verification_code_used" }, JSON.parse(response.body))
   end
 
   test "a target claimed after request fails safely and preserves the old email" do

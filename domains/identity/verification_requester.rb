@@ -47,7 +47,8 @@ module Identity
           )
           result = if throttle.throttled?
             record_attempt(identity_identifier, result: :throttled, retry_after: throttle.retry_after)
-            failure(:rate_limited, retry_after: throttle.retry_after)
+            error = throttle.scope == :identifier_cooldown ? :verification_resend_too_soon : :verification_rate_limited
+            failure(error, retry_after: throttle.retry_after)
           else
             create_and_deliver(identity_identifier)
           end
@@ -89,7 +90,7 @@ module Identity
 
       @challenge_to_deliver = challenge
       record_event(identity_identifier, "requested", challenge:)
-      generic_success
+      generic_success(retry_after: OtpThrottle::IDENTIFIER_COOLDOWN.to_i)
     end
 
     def delivery_configured?(identity_identifier)
@@ -154,8 +155,8 @@ module Identity
       )
     end
 
-    def generic_success
-      Result.new(true, nil, nil)
+    def generic_success(retry_after: nil)
+      Result.new(true, nil, retry_after)
     end
 
     def failure(error, retry_after: nil)

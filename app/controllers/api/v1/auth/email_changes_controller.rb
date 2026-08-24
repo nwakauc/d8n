@@ -35,7 +35,13 @@ class Api::V1::Auth::EmailChangesController < ApplicationController
       return
     end
 
-    status = result.error == :email_change_unavailable ? :unprocessable_entity : :unauthorized
+    status = case result.error
+    when :email_change_unavailable then :unprocessable_entity
+    when :verification_code_expired then :gone
+    when :verification_code_used then :conflict
+    when :verification_attempts_exhausted then :too_many_requests
+    else :unauthorized
+    end
     render json: { error: result.error.to_s }, status:
   end
 
@@ -51,9 +57,9 @@ class Api::V1::Auth::EmailChangesController < ApplicationController
       render json: { error: "invalid_current_password" }, status: :unauthorized
     when :password_credential_required
       render json: { error: "password_credential_required" }, status: :conflict
-    when :rate_limited
+    when :rate_limited, :verification_resend_too_soon, :verification_rate_limited
       response.set_header("Retry-After", result.retry_after.to_s)
-      render json: { error: "rate_limited" }, status: :too_many_requests
+      render json: { error: result.error.to_s }, status: :too_many_requests
     when :delivery_unavailable
       render json: { error: "delivery_unavailable" }, status: :service_unavailable
     else

@@ -62,9 +62,9 @@ module Identity
       end
 
       return unavailable(new_email, audit: true) if new_email == identifier.normalized_value || email_owned?(new_email)
-      if (retry_after = account_retry_after)
-        audit_event("throttled", severity: :warning, new_email:, retry_after:)
-        return failure(:rate_limited, retry_after:)
+      if (account_throttle = account_throttle_result)
+        audit_event("throttled", severity: :warning, new_email:, retry_after: account_throttle.last)
+        return failure(account_throttle.first, retry_after: account_throttle.last)
       end
 
       request_code(new_email)
@@ -86,7 +86,8 @@ module Identity
         )
         result = if throttle.throttled?
           audit_event("throttled", severity: :warning, retry_after: throttle.retry_after)
-          failure(:rate_limited, retry_after: throttle.retry_after)
+          error = throttle.scope == :identifier_cooldown ? :verification_resend_too_soon : :verification_rate_limited
+          failure(error, retry_after: throttle.retry_after)
         else
           create_and_deliver(new_email)
         end
@@ -139,7 +140,7 @@ module Identity
       IdentityIdentifier.kept.email.where(normalized_value: new_email).where.not(id: identifier.id).exists?
     end
 
-    def account_retry_after
+    def account_throttle_result
       attempts = OtpChallenge.where(
         brand: session.brand,
         identity_identifier: identifier,
@@ -148,10 +149,10 @@ module Identity
       ).order(:created_at)
       latest = attempts.last
       cooldown = latest && (latest.created_at + ACCOUNT_COOLDOWN - Time.current).ceil
-      return [ cooldown, 1 ].max if cooldown&.positive?
+      return [ :verification_resend_too_soon, [ cooldown, 1 ].max ] if cooldown&.positive?
       return if attempts.count < ACCOUNT_LIMIT
 
-      [ (attempts.first.created_at + ACCOUNT_WINDOW - Time.current).ceil, 1 ].max
+      [ :verification_rate_limited, [ (attempts.first.created_at + ACCOUNT_WINDOW - Time.current).ceil, 1 ].max ]
     end
 
     def eligible_credential?

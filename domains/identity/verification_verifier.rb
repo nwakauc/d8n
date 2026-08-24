@@ -18,11 +18,10 @@ module Identity
     end
 
     def call
-      return failure(:invalid_code) unless SUPPORTED_KINDS.include?(kind)
+      return failure(:verification_code_invalid) unless SUPPORTED_KINDS.include?(kind)
 
       identity_identifier = owned_identifier
-      return failure(:invalid_code) if identity_identifier.blank?
-      return success(identity_identifier) if identity_identifier.verified_at.present?
+      return failure(:verification_code_invalid) if identity_identifier.blank?
 
       challenge = latest_challenge(identity_identifier)
       return failed_without_challenge(identity_identifier) if challenge.blank?
@@ -37,8 +36,9 @@ module Identity
     def verify_locked(challenge, identity_identifier)
       OtpChallenge.transaction do
         challenge.lock!
-        next failed_without_challenge(identity_identifier) if challenge.consumed? || challenge.expired?
-        next locked(challenge, identity_identifier) if challenge.attempt_count >= MAX_ATTEMPTS
+        next expired(challenge, identity_identifier) if challenge.expired?
+        next terminal(challenge, identity_identifier) if challenge.consumed?
+        next exhausted(challenge, identity_identifier) if challenge.attempt_count >= MAX_ATTEMPTS
         next wrong_code(challenge, identity_identifier) unless challenge.code_matches?(code)
 
         challenge.consume!
@@ -53,19 +53,30 @@ module Identity
       result = challenge.attempt_count >= MAX_ATTEMPTS ? :locked : :failed
       challenge.consume! if result == :locked
       record_attempt(identity_identifier, result:)
-      failure(:invalid_code)
+      failure(result == :locked ? :verification_attempts_exhausted : :verification_code_invalid)
     end
 
-    def locked(challenge, identity_identifier)
-      challenge.consume!
+    def expired(_challenge, identity_identifier)
+      record_attempt(identity_identifier, result: :failed)
+      failure(:verification_code_expired)
+    end
+
+    def terminal(challenge, identity_identifier)
+      error = challenge.attempt_count >= MAX_ATTEMPTS ? :verification_attempts_exhausted : :verification_code_used
+      record_attempt(identity_identifier, result: error == :verification_attempts_exhausted ? :locked : :failed)
+      failure(error)
+    end
+
+    def exhausted(challenge, identity_identifier)
+      challenge.consume! unless challenge.consumed?
       record_attempt(identity_identifier, result: :locked)
-      failure(:invalid_code)
+      failure(:verification_attempts_exhausted)
     end
 
     def failed_without_challenge(identity_identifier)
       OtpChallenge.digest_code(code)
       record_attempt(identity_identifier, result: :failed)
-      failure(:invalid_code)
+      failure(:verification_code_invalid)
     end
 
     def owned_identifier
@@ -73,7 +84,7 @@ module Identity
     end
 
     def latest_challenge(identity_identifier)
-      OtpChallenge.active.where(
+      OtpChallenge.where(
         brand:,
         identity_identifier:,
         kind: "#{kind}_verification"

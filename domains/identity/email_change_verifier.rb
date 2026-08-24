@@ -16,10 +16,10 @@ module Identity
     end
 
     def call
-      return failure(:invalid_code) unless eligible_credential?
+      return failure(:verification_code_invalid) unless eligible_credential?
 
       replacement = LoginIdentifier.call(email_input)
-      return failure(:invalid_code) unless replacement&.kind == :email
+      return failure(:verification_code_invalid) unless replacement&.kind == :email
 
       new_email = replacement.normalized_value
       result = nil
@@ -49,7 +49,8 @@ module Identity
       challenge.lock!
       identifier.lock!
       credential.lock!
-      return failed_without_challenge(new_email) if challenge.consumed? || challenge.expired?
+      return expired(new_email) if challenge.expired?
+      return terminal(challenge, new_email) if challenge.consumed?
       return locked(challenge, new_email) if challenge.attempt_count >= MAX_ATTEMPTS
       return wrong_code(challenge, new_email) unless challenge.code_matches?(code)
       return unavailable(challenge, new_email) if email_owned?(new_email)
@@ -67,13 +68,24 @@ module Identity
       outcome = challenge.attempt_count >= MAX_ATTEMPTS ? "locked" : "failed"
       challenge.consume! if outcome == "locked"
       audit(outcome, old_email: identifier.normalized_value, new_email:)
-      failure(:invalid_code)
+      failure(outcome == "locked" ? :verification_attempts_exhausted : :verification_code_invalid)
     end
 
     def locked(challenge, new_email)
       challenge.consume!
       audit("locked", old_email: identifier.normalized_value, new_email:)
-      failure(:invalid_code)
+      failure(:verification_attempts_exhausted)
+    end
+
+    def expired(new_email)
+      audit("failed", old_email: identifier.normalized_value, new_email:)
+      failure(:verification_code_expired)
+    end
+
+    def terminal(challenge, new_email)
+      error = challenge.attempt_count >= MAX_ATTEMPTS ? :verification_attempts_exhausted : :verification_code_used
+      audit(error == :verification_attempts_exhausted ? "locked" : "failed", old_email: identifier.normalized_value, new_email:)
+      failure(error)
     end
 
     def unavailable(challenge, new_email)
@@ -85,11 +97,11 @@ module Identity
     def failed_without_challenge(new_email)
       OtpChallenge.digest_code(code)
       audit("failed", old_email: identifier.normalized_value, new_email:)
-      failure(:invalid_code)
+      failure(:verification_code_invalid)
     end
 
     def latest_challenge(new_email)
-      OtpChallenge.active.where(
+      OtpChallenge.where(
         brand: session.brand,
         identity_identifier: identifier,
         kind: :email_change,

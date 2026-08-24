@@ -55,6 +55,7 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
     assert_equal "identifier_verification", challenge.metadata.fetch("purpose")
     assert_equal @user, NotificationDelivery.sms.last.user
     assert_equal "identifier_verification", NotificationDelivery.sms.last.metadata.fetch("purpose")
+    assert_equal 60, JSON.parse(response.body).fetch("resend_available_in")
   end
 
   test "verifies the caller's phone without issuing or changing a session" do
@@ -124,7 +125,13 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
     end
 
     assert_response :accepted
-    assert_equal({ "message" => "If this identifier can receive D8N codes, a code has been sent." }, JSON.parse(response.body))
+    assert_equal(
+      {
+        "message" => "If this identifier can receive D8N codes, a code has been sent.",
+        "resend_available_in" => 0
+      },
+      JSON.parse(response.body)
+    )
   end
 
   test "rejects unsupported identifier kinds" do
@@ -175,7 +182,7 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
     assert_nil @email.reload.verified_at
   end
 
-  test "rejects expired and consumed codes" do
+  test "distinguishes expired and consumed codes" do
     expired = create_challenge(
       identity_identifier: @phone,
       kind: :phone_verification,
@@ -186,21 +193,35 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
       headers: bearer_headers,
       params: { kind: "phone", code: "123456" }
 
-    assert_response :unauthorized
+    assert_response :gone
+    assert_equal({ "error" => "verification_code_expired" }, JSON.parse(response.body))
     assert_nil @phone.reload.verified_at
-    expired.update!(consumed_at: Time.current)
+
+    expired.update!(expires_at: 10.minutes.from_now, consumed_at: Time.current)
+    patch "/api/v1/auth/verification",
+      headers: bearer_headers,
+      params: { kind: "phone", code: "123456" }
+
+    assert_response :conflict
+    assert_equal({ "error" => "verification_code_used" }, JSON.parse(response.body))
   end
 
   test "locks a challenge after five wrong attempts and prevents replay" do
     request_phone_code
     challenge = OtpChallenge.phone_verification.last
 
-    5.times do
+    4.times do
       patch "/api/v1/auth/verification",
         headers: bearer_headers,
         params: { kind: "phone", code: "000000" }
       assert_response :unauthorized
     end
+
+    patch "/api/v1/auth/verification",
+      headers: bearer_headers,
+      params: { kind: "phone", code: "000000" }
+    assert_response :too_many_requests
+    assert_equal({ "error" => "verification_attempts_exhausted" }, JSON.parse(response.body))
 
     assert challenge.reload.consumed?
     assert_equal 5, challenge.attempt_count
@@ -209,7 +230,46 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
     patch "/api/v1/auth/verification",
       headers: bearer_headers,
       params: { kind: "phone", code: delivered_sms_code }
+    assert_response :too_many_requests
+    assert_equal({ "error" => "verification_attempts_exhausted" }, JSON.parse(response.body))
+  end
+
+  test "a verified identifier rejects arbitrary and replayed codes" do
+    request_phone_code
+    code = delivered_sms_code
+
+    patch "/api/v1/auth/verification", headers: bearer_headers, params: { kind: "phone", code: }
+    assert_response :success
+
+    patch "/api/v1/auth/verification", headers: bearer_headers, params: { kind: "phone", code: }
+    assert_response :conflict
+    assert_equal({ "error" => "verification_code_used" }, JSON.parse(response.body))
+
+    patch "/api/v1/auth/verification", headers: bearer_headers, params: { kind: "phone", code: "999999" }
+    assert_response :conflict
+    assert_equal({ "error" => "verification_code_used" }, JSON.parse(response.body))
+  end
+
+  test "an expired code cannot verify after a replacement is dispatched" do
+    old = create_challenge(
+      identity_identifier: @phone,
+      kind: :phone_verification,
+      expires_at: 1.minute.ago
+    )
+
+    patch "/api/v1/auth/verification", headers: bearer_headers, params: { kind: "phone", code: "123456" }
+    assert_response :gone
+
+    old.update!(created_at: 11.minutes.ago)
+    request_phone_code
+    replacement = delivered_sms_code
+
+    patch "/api/v1/auth/verification", headers: bearer_headers, params: { kind: "phone", code: "123456" }
     assert_response :unauthorized
+    assert_nil @phone.reload.verified_at
+
+    patch "/api/v1/auth/verification", headers: bearer_headers, params: { kind: "phone", code: replacement }
+    assert_response :success
   end
 
   test "rate limits immediate resend with Retry-After" do
@@ -224,6 +284,27 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
     end
 
     assert_response :too_many_requests
+    assert_equal({ "error" => "verification_resend_too_soon" }, JSON.parse(response.body))
+    assert response.headers.fetch("Retry-After").to_i.positive?
+  end
+
+  test "distinguishes the broader resend rate limit from cooldown" do
+    5.times do |index|
+      create_challenge(
+        identity_identifier: @phone,
+        kind: :phone_verification,
+        expires_at: 5.minutes.from_now
+      ).update!(created_at: (index + 2).minutes.ago, consumed_at: Time.current)
+    end
+
+    assert_no_difference -> { OtpChallenge.count } do
+      with_sms_provider("test") do
+        post "/api/v1/auth/verification", headers: bearer_headers, params: { kind: "phone" }
+      end
+    end
+
+    assert_response :too_many_requests
+    assert_equal({ "error" => "verification_rate_limited" }, JSON.parse(response.body))
     assert response.headers.fetch("Retry-After").to_i.positive?
   end
 

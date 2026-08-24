@@ -36,6 +36,8 @@ class Api::V1::Auth::RegistrationVerificationTest < ActionDispatch::IntegrationT
     assert_equal true, body.fetch("verification_required")
     assert_equal "phone", body.fetch("verification_channel")
     assert_equal false, body.fetch("identifier").fetch("verified")
+    assert_equal true, body.dig("verification", "code_dispatched")
+    assert_in_delta 60, body.dig("verification", "resend_available_in"), 1
 
     identifier = IdentityIdentifier.phone.last
     assert_nil identifier.verified_at, "registration must not pretend the phone is verified"
@@ -68,6 +70,8 @@ class Api::V1::Auth::RegistrationVerificationTest < ActionDispatch::IntegrationT
     body = JSON.parse(response.body)
     assert_equal true, body.fetch("verification_required")
     assert_equal "email", body.fetch("verification_channel")
+    assert_equal "a•••@example.com", body.dig("identifier", "masked_destination")
+    assert_equal true, body.dig("verification", "code_dispatched")
 
     identifier = IdentityIdentifier.email.last
     assert_nil identifier.verified_at
@@ -104,7 +108,9 @@ class Api::V1::Auth::RegistrationVerificationTest < ActionDispatch::IntegrationT
     assert challenge.consumed?, "a challenge that cannot be delivered is consumed"
 
     # The frontend is still told verification is required (it never learns the phone is verified).
-    assert_equal true, JSON.parse(response.body).fetch("verification_required")
+    body = JSON.parse(response.body)
+    assert_equal true, body.fetch("verification_required")
+    assert_equal false, body.dig("verification", "code_dispatched")
   end
 
   # ---- ABUSE / DUPLICATE -------------------------------------------------

@@ -5,10 +5,9 @@ module Identity
   # the OtpChallenge hashed-secret convention), so it satisfies ADR 0012's rule that
   # reset secrets are never stored or logged in plaintext.
   #
-  # Enumeration resistance: an unknown identifier, a missing/expired recovery
-  # challenge, and a wrong code all return the same generic :invalid_code. A caller
-  # can only obtain a reset token by presenting the code that was delivered to the
-  # identifier's own channel.
+  # Enumeration resistance: an unknown identifier, a missing challenge, and a
+  # wrong code all return the same generic :invalid_code. Expired/used lifecycle
+  # is disclosed only when the caller proves possession of the delivered secret.
   class RecoveryVerifier
     Result = Data.define(:success?, :error, :reset_token, :expires_at)
     MAX_ATTEMPTS = 5
@@ -54,7 +53,7 @@ module Identity
     def verify_locked(challenge, identity_identifier)
       OtpChallenge.transaction do
         challenge.lock!
-        next failed(identity_identifier) if challenge.consumed? || challenge.expired?
+        next terminal(challenge, identity_identifier) if challenge.consumed? || challenge.expired?
         next locked(challenge, identity_identifier) if challenge.attempt_count >= MAX_ATTEMPTS
         next wrong_code(challenge, identity_identifier) unless challenge.code_matches?(code)
 
@@ -95,13 +94,29 @@ module Identity
       else
         record_event(identity_identifier, "failed", severity: :warning)
       end
-      failure(:invalid_code)
+      failure(challenge.attempt_count >= MAX_ATTEMPTS ? :verification_attempts_exhausted : :invalid_code)
     end
 
     def locked(challenge, identity_identifier)
       challenge.consume!
       record_event(identity_identifier, "locked", severity: :warning)
-      failure(:invalid_code)
+      failure(:verification_attempts_exhausted)
+    end
+
+    # Preserve anti-enumeration: lifecycle is disclosed only when the caller
+    # presents the exact secret previously delivered to this identifier.
+    def terminal(challenge, identity_identifier)
+      return failed(identity_identifier) unless challenge.code_matches?(code)
+
+      error = if challenge.expired?
+        :verification_code_expired
+      elsif challenge.attempt_count >= MAX_ATTEMPTS
+        :verification_attempts_exhausted
+      else
+        :verification_code_used
+      end
+      record_event(identity_identifier, "failed", severity: :warning)
+      failure(error)
     end
 
     def failed(identity_identifier)
@@ -111,7 +126,7 @@ module Identity
     end
 
     def latest_recovery_challenge(identity_identifier)
-      OtpChallenge.active.where(
+      OtpChallenge.where(
         brand:,
         identity_identifier:,
         kind: RECOVERY_KIND

@@ -170,11 +170,17 @@ class Api::V1::Auth::PasswordRecoveriesControllerTest < ActionDispatch::Integrat
 
   test "verify rejects an expired recovery code" do
     request_recovery
+    code = delivered_code
     OtpChallenge.password_recovery.last.update!(expires_at: 1.minute.ago)
 
     post "/api/v1/auth/password/recovery/verify",
-      params: { identifier: "+27 82 123 4567", code: delivered_code }
+      params: { identifier: "+27 82 123 4567", code: }
 
+    assert_response :gone
+    assert_equal({ "error" => "verification_code_expired" }, JSON.parse(response.body))
+
+    post "/api/v1/auth/password/recovery/verify",
+      params: { identifier: "+27 82 123 4567", code: "000000" }
     assert_response :unauthorized
     assert_equal({ "error" => "invalid_code" }, JSON.parse(response.body))
   end
@@ -183,16 +189,38 @@ class Api::V1::Auth::PasswordRecoveriesControllerTest < ActionDispatch::Integrat
     request_recovery
     challenge = OtpChallenge.password_recovery.last
 
-    5.times do
+    4.times do
       post "/api/v1/auth/password/recovery/verify",
         params: { identifier: "+27 82 123 4567", code: "000000" }
       assert_response :unauthorized
     end
 
+    post "/api/v1/auth/password/recovery/verify",
+      params: { identifier: "+27 82 123 4567", code: "000000" }
+    assert_response :too_many_requests
+    assert_equal({ "error" => "verification_attempts_exhausted" }, JSON.parse(response.body))
+
     assert challenge.reload.consumed?
     post "/api/v1/auth/password/recovery/verify",
       params: { identifier: "+27 82 123 4567", code: delivered_code }
+    assert_response :too_many_requests
+    assert_equal({ "error" => "verification_attempts_exhausted" }, JSON.parse(response.body))
+  end
+
+  test "a consumed recovery code is only disclosed to its holder" do
+    request_recovery
+    code = delivered_code
+    post "/api/v1/auth/password/recovery/verify", params: { identifier: "+27 82 123 4567", code: }
+    assert_response :created
+
+    post "/api/v1/auth/password/recovery/verify", params: { identifier: "+27 82 123 4567", code: }
+    assert_response :conflict
+    assert_equal({ "error" => "verification_code_used" }, JSON.parse(response.body))
+
+    post "/api/v1/auth/password/recovery/verify",
+      params: { identifier: "+27 82 123 4567", code: "000000" }
     assert_response :unauthorized
+    assert_equal({ "error" => "invalid_code" }, JSON.parse(response.body))
   end
 
   # --- Reset step -----------------------------------------------------------
