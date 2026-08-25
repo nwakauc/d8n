@@ -62,9 +62,11 @@ module Matching
       def self.apply_distance(scope:, viewer:, eligibility_policy:, filter:)
         return scope unless filter.max_distance_km
 
-        fresh_location = viewer.profile_locations.kept
-          .where(captured_at: eligibility_policy.location_max_age.ago..).exists?
-        return scope.none unless fresh_location
+        locations = viewer.profile_locations.kept
+        if eligibility_policy.location_max_age
+          locations = locations.where(captured_at: eligibility_policy.location_max_age.ago..)
+        end
+        return scope.none unless locations.exists?
 
         scope.where("#{EligibilityScope::DISTANCE_SQL} <= ?", filter.max_distance_km)
       end

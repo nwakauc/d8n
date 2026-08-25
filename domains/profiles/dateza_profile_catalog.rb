@@ -62,7 +62,7 @@ module Profiles
       enabled_profile_fields: (REQUIRED_PROFILE_FIELDS + OPTIONAL_PROFILE_FIELDS).freeze,
       preference_fields: REQUIRED_PREFERENCE_FIELDS,
       enabled_preference_fields: REQUIRED_PREFERENCE_FIELDS,
-      collections: %w[ photos ],
+      collections: %w[ photos location ],
       option_groups: REQUIRED_OPTION_GROUPS
     }.freeze
 

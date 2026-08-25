@@ -162,6 +162,12 @@ module D8n
         assert_equal :browse, surface.delivery_type
       end
 
+      test "capability access requires an already resolved production contract" do
+        assert_raises(ArgumentError) do
+          CapabilityAccess.authorize!(brand: future_brand, capability: "match.interaction.like")
+        end
+      end
+
       test "contracts and nested collections are immutable" do
         hookus = Brand.new(
           slug: "hookus", name: "HookUs",

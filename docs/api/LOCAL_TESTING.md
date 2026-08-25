@@ -34,6 +34,18 @@ This maps `dateza.test` to the canonical `DateZA`/`dateza` tenant without
 changing the HookUs `localhost` mapping. No production DateZA domain is created.
 Use `DATEZA_DEV_HOST` only when a different development host is required.
 
+The tenant task does not copy HookUs members into DateZA. To install the
+repository's separate, synthetic DateZA candidate population for local Discover
+and Find testing, run the guarded, idempotent demo task:
+
+```sh
+bin/rails dateza:seed_demo_profiles
+```
+
+The existence of platform `User` rows or HookUs profiles does not make those
+people DateZA candidates. Discovery is tenant-scoped to active DateZA
+memberships and published DateZA profiles.
+
 Test DateZA host resolution explicitly:
 
 ```sh
@@ -237,15 +249,24 @@ servers:
 ```txt
 HookUs UI:  http://localhost:3001
 DateZA UI:  http://localhost:5173
-D8N API:    http://localhost:3000
+HookUs API: http://localhost:3000
+DateZA API: http://dateza.test:3000
 ```
+
+The API host is part of the security boundary. `localhost` resolves to HookUs in
+the standard development setup; changing only the browser origin or CORS headers
+does not select DateZA. DateZA requests must preserve the `dateza.test` host (or
+the explicit `DATEZA_DEV_HOST` mapping) so registration, sessions, profiles, and
+Discovery all resolve to the DateZA brand contract.
 
 A browser considers those different origins because their ports differ. D8N's
 development CORS policy explicitly permits `http://localhost:3001` and
 `http://127.0.0.1:3001` for HookUs, and `http://localhost:5173` for DateZA, so
-these clients may call `http://localhost:3000/api/v1/...` directly. The approved
-deployed DateZA origin is `https://dateza.vercel.app`. Restart Rails after
-changing the Gemfile or CORS configuration.
+these clients may call their mapped Rails API origin directly. The DateZA client
+must use `http://dateza.test:3000/api/v1/...`, while HookUs uses
+`http://localhost:3000/api/v1/...`. The approved deployed DateZA origin is
+`https://dateza.vercel.app`. Restart Rails after changing the Gemfile or CORS
+configuration.
 
 Production has no default cross-origin allowlist. Set a comma-separated list of
 exact trusted frontend origins when browser clients need direct API access:

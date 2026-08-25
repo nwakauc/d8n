@@ -2,6 +2,7 @@ class Api::V1::FindController < ApplicationController
   requires_platform_capability "discovery.surface.browse", surface: "discovery.find"
 
   before_action :authenticate_user!
+  requires_platform_contract
   before_action :authorize_platform_capability!
   before_action -> { enforce_rate_limit!(:find_profiles) }, only: :index
   before_action :set_active_storage_url_options, only: :index

@@ -17,6 +17,9 @@ class DatezaProfileOnboardingTest < ActiveSupport::TestCase
     assert_status "profile_incomplete", "photos"
 
     attach_photo(profile)
+    assert_status "profile_incomplete", "location"
+
+    add_required_location(profile)
     assert_status "profile_incomplete", "options"
 
     select_required_options(profile)
@@ -44,10 +47,6 @@ class DatezaProfileOnboardingTest < ActiveSupport::TestCase
     profile.update_columns(
       pronouns: "she/her", body_type: "athletic", company_name: "Private Corp",
       looking_for_text: "A legacy value", languages_spoken: [ "English" ]
-    )
-    ProfileLocation.create!(
-      profile:, user: @user, brand: @brand, latitude: -26.2041, longitude: 28.0473,
-      accuracy_meters: 25, source: "device", captured_at: Time.current
     )
 
     payload = Profiles::PublicSerializer.call(profile:)
@@ -97,6 +96,7 @@ class DatezaProfileOnboardingTest < ActiveSupport::TestCase
     profile = create_required_profile
     create_required_preferences(profile)
     attach_photo(profile)
+    add_required_location(profile)
     select_required_options(profile)
     profile
   end
@@ -125,6 +125,13 @@ class DatezaProfileOnboardingTest < ActiveSupport::TestCase
       filename: "profile_photo.png", content_type: "image/png"
     )
     photo.save!
+  end
+
+  def add_required_location(profile)
+    ProfileLocation.create!(
+      profile:, user: @user, brand: @brand, latitude: -26.2041, longitude: 28.0473,
+      accuracy_meters: 25, source: "device", captured_at: Time.current
+    )
   end
 
   def select_required_options(profile)

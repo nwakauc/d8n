@@ -193,6 +193,23 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
     assert_empty completion.fetch("missing")
   end
 
+  test "reports location as unconfigured with no ProfileLocation and configured once one exists" do
+    profile = Profile.create!(user: @user, brand: @brand, brand_membership: @membership, display_name: "Ada")
+
+    get "/api/v1/profile", headers: bearer_headers(@token)
+    assert_response :success
+    assert_equal false, JSON.parse(response.body).fetch("profile").fetch("location").fetch("configured")
+
+    ProfileLocation.create!(
+      profile:, user: @user, brand: @brand, latitude: -26.2041, longitude: 28.0473,
+      accuracy_meters: 25, source: "device", captured_at: Time.current
+    )
+
+    get "/api/v1/profile", headers: bearer_headers(@token)
+    assert_response :success
+    assert_equal true, JSON.parse(response.body).fetch("profile").fetch("location").fetch("configured")
+  end
+
   test "updates existing current brand profile" do
     profile = Profile.create!(user: @user, brand: @brand, brand_membership: @membership, display_name: "Ada")
 

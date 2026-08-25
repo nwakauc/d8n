@@ -108,6 +108,28 @@ module Profiles
       assert_equal 100, complete.percent
     end
 
+    test "requires location only for brands that configure it as a collection" do
+      brand = Brand.create!(
+        slug: "dateza",
+        name: "DateZA",
+        profile_requirements: { profile_fields: [], preference_fields: [], collections: %w[ location ] }
+      )
+      user = User.create!
+      membership = BrandMembership.create!(brand:, user:)
+      profile = Profile.create!(brand:, user:, brand_membership: membership)
+
+      incomplete = Completion.call(profile:)
+      assert_not incomplete.complete?
+      assert_equal [ :location ], incomplete.missing
+
+      ProfileLocation.create!(
+        brand:, user:, profile:, latitude: -26.2041, longitude: 28.0473,
+        accuracy_meters: 25, source: "device", captured_at: Time.current
+      )
+
+      assert Completion.call(profile:).complete?
+    end
+
     test "reports informational sections without affecting completeness" do
       profile = build_profile(display_name: "Ada", bio: "Hello", smoking: "never")
 

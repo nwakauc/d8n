@@ -7,8 +7,15 @@ module Matching
 
       assert_equal 24.hours, policy.location_max_age
       assert_predicate policy, :frozen?
+      assert_predicate policy, :location_freshness_required?
       assert_raises(ArgumentError) { EligibilityPolicy.new(location_max_age: 0.hours) }
-      assert_raises(ArgumentError) { EligibilityPolicy.new(location_max_age: nil) }
+    end
+
+    test "a nil location_max_age means a persisted location never expires" do
+      policy = EligibilityPolicy.new(location_max_age: nil)
+
+      assert_nil policy.location_max_age
+      assert_not policy.location_freshness_required?
     end
 
     test "brand surfaces and interactions share their configured policy" do

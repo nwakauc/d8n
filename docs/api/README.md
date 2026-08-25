@@ -134,6 +134,19 @@ mapping. Override only the development host when needed:
 DATEZA_DEV_HOST=my-dateza.test bin/rails brands:seed_dateza_dev
 ```
 
+This provisions the tenant and host mapping; it deliberately does not reuse
+HookUs profiles. For a tenant-isolated synthetic DateZA population suitable for
+local Discover and Find testing, run:
+
+```sh
+bin/rails dateza:seed_demo_profiles
+```
+
+The task is guarded, idempotent, and uses the repository's existing demo assets.
+In the standard setup, DateZA API requests use `http://dateza.test:3000` because
+`http://localhost:3000` is mapped to HookUs. CORS origin approval does not change
+the request's brand.
+
 No production DateZA domain is assumed by this repository. DateZA Find,
 deterministic compatibility v1, and stable daily Discovery are implemented;
 RealMe, public Trust standing, AI Matchmaker, notification UI/device enrollment,
@@ -172,8 +185,13 @@ DateZA and brands without Hook capabilities do not receive those HookUs fields.
 
 Optional product routes are globally present but authorized through the resolved
 brand's D8N capability contract after authentication. Route presence therefore
-does not enable a product. Unsupported brands receive stable 404 errors before
-product rate limits, resource lookup, or mutation:
+does not enable a product. An active database brand and domain without a
+registered production contract receives the stable 404 response
+`{"error":"brand_not_configured"}` before product rate limits, domain policy or
+strategy selection, resource lookup, or mutation.
+
+For a registered production brand, capabilities intentionally disabled by its
+contract retain their surface-specific 404 errors:
 
 ```text
 Discovery / Likes / Passes / Matches   matching_not_configured
@@ -184,8 +202,9 @@ Hook Tonight                           hook_tonight_not_configured
 ```
 
 HookUs and DateZA both enable current text conversations/messages. Hook Tonight
-deactivation is deliberately exempt so stale or legacy availability state can
-always be cleared safely.
+deactivation is deliberately exempt from the Hook Tonight capability check so a
+registered production brand can clear stale or legacy availability state, but it
+still requires a valid production brand contract.
 
 ### Product notifications
 

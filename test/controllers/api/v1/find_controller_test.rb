@@ -242,6 +242,24 @@ class Api::V1::FindControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes body, "28.0473"
   end
 
+  test "the max_distance_km filter still applies for a candidate whose location is old" do
+    candidate = create_candidate
+    candidate.profile_locations.kept.first.update!(captured_at: 90.days.ago)
+
+    get "/api/v1/find", headers: bearer_headers(@token), params: { max_distance_km: 50 }
+    assert_response :success
+    assert_equal [ candidate.public_id ], JSON.parse(response.body).fetch("profiles").map { |p| p.fetch("id") }
+  end
+
+  test "the max_distance_km filter still excludes candidates outside the radius" do
+    candidate = create_candidate
+    candidate.profile_locations.kept.first.update!(latitude: -33.9249, longitude: 18.4241, captured_at: 90.days.ago)
+
+    get "/api/v1/find", headers: bearer_headers(@token), params: { max_distance_km: 50 }
+    assert_response :success
+    assert_empty JSON.parse(response.body).fetch("profiles")
+  end
+
   test "decorates surfaced profiles with DateZA compatibility without changing exposure accounting" do
     candidate = create_candidate
     compatibility_values = {
@@ -303,10 +321,10 @@ class Api::V1::FindControllerTest < ActionDispatch::IntegrationTest
     profile
   end
 
-  def create_location(profile, latitude:, longitude:)
+  def create_location(profile, latitude:, longitude:, captured_at: Time.current)
     ProfileLocation.create!(
       profile:, user: profile.user, brand: profile.brand, latitude:, longitude:,
-      accuracy_meters: 20, source: "device", captured_at: Time.current
+      accuracy_meters: 20, source: "device", captured_at:
     )
   end
 

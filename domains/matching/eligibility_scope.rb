@@ -19,7 +19,7 @@ module Matching
       @brand = brand
       @viewer = viewer
       @viewer_preference = ProfilePreference.kept.find_by(profile: viewer)
-      @location_cutoff = policy.location_max_age.ago
+      @location_cutoff = policy.location_max_age&.ago
     end
 
     def call
@@ -77,16 +77,18 @@ module Matching
     end
 
     def viewer_location_relation
-      ProfileLocation.kept.where(
-        id: viewer_location.id,
-        profile_id: viewer.id,
-        brand_id: brand.id,
-        captured_at: location_cutoff..
-      )
+      scope = ProfileLocation.kept.where(id: viewer_location.id, profile_id: viewer.id, brand_id: brand.id)
+      apply_freshness(scope)
     end
 
     def fresh_location_relation
-      ProfileLocation.kept.where(brand_id: brand.id, captured_at: location_cutoff..)
+      apply_freshness(ProfileLocation.kept.where(brand_id: brand.id))
+    end
+
+    def apply_freshness(scope)
+      return scope if location_cutoff.nil?
+
+      scope.where(captured_at: location_cutoff..)
     end
 
     def within_viewer_distance(scope)
@@ -116,7 +118,7 @@ module Matching
     end
 
     def viewer_location
-      @viewer_location ||= viewer.profile_locations.kept.where(captured_at: location_cutoff..).order(captured_at: :desc).first
+      @viewer_location ||= apply_freshness(viewer.profile_locations.kept).order(captured_at: :desc).first
     end
 
     def viewer_age

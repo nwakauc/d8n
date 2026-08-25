@@ -20,6 +20,7 @@ module Profiles
       profile.with_lock do
         location = ProfileLocation.kept.find_by(profile:)
         location&.update!(deleted_at: Time.current)
+        Publication.unpublish_if_incomplete!(profile:)
         location
       end
     end

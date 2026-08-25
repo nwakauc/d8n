@@ -1182,7 +1182,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Production matching is not configured for this brand.
+          description: >-
+            The resolved database brand has no production contract
+            (`brand_not_configured`), or its contract does not enable Discovery
+            (`matching_not_configured`).
           content:
             application/json:
               schema:
@@ -1236,7 +1239,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Find is not configured for the resolved brand (`find_not_configured`).
+          description: >-
+            The resolved database brand has no production contract
+            (`brand_not_configured`), or its contract does not enable Find
+            (`find_not_configured`).
           content:
             application/json:
               schema:
@@ -1324,8 +1330,9 @@ paths:
           $ref: "#/components/responses/InteractionForbidden"
         "404":
           description: >-
-            Matching interactions are not configured for the resolved brand
-            (`matching_not_configured`), or the target profile is unavailable.
+            The resolved database brand has no production contract
+            (`brand_not_configured`), matching interactions are disabled by its
+            contract (`matching_not_configured`), or the target profile is unavailable.
           content:
             application/json:
               schema:
@@ -1360,8 +1367,9 @@ paths:
           $ref: "#/components/responses/InteractionForbidden"
         "404":
           description: >-
-            Matching interactions are not configured for the resolved brand
-            (`matching_not_configured`), or the target profile is unavailable.
+            The resolved database brand has no production contract
+            (`brand_not_configured`), matching interactions are disabled by its
+            contract (`matching_not_configured`), or the target profile is unavailable.
           content:
             application/json:
               schema:
@@ -1409,7 +1417,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           description: >-
-            Hook is not configured for the resolved brand
+            The resolved database brand has no production contract
+            (`brand_not_configured`), Hook is disabled by its contract
             (`hook_not_configured`), or the target profile is unavailable.
           content:
             application/json:
@@ -1509,7 +1518,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           description: >-
-            Hook is not configured for the resolved brand
+            The resolved database brand has no production contract
+            (`brand_not_configured`), Hook is disabled by its contract
             (`hook_not_configured`), or the Hook is not live for this member
             (`hook_unavailable`).
           content:
@@ -1541,7 +1551,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           description: >-
-            Hook is not configured for the resolved brand
+            The resolved database brand has no production contract
+            (`brand_not_configured`), Hook is disabled by its contract
             (`hook_not_configured`), or the Hook is not live for this member
             (`hook_unavailable`).
           content:
@@ -1627,6 +1638,11 @@ paths:
           description: Hook Tonight is off (or was already off).
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: >-
+            The resolved database brand has no production contract
+            (`brand_not_configured`). Registered production brands may always
+            clear Hook Tonight state even when the capability is disabled.
   /api/v1/hook_tonight/discovery:
     get:
       operationId: getHookTonightDiscovery
@@ -1870,7 +1886,10 @@ paths:
         "403":
           $ref: "#/components/responses/InteractionForbidden"
         "404":
-          description: Matching is not configured for the resolved brand (`matching_not_configured`).
+          description: >-
+            The resolved database brand has no production contract
+            (`brand_not_configured`), or matching is disabled by its contract
+            (`matching_not_configured`).
           content:
             application/json:
               schema:
@@ -1901,7 +1920,10 @@ paths:
         "403":
           $ref: "#/components/responses/InteractionForbidden"
         "404":
-          description: Messaging is not configured for the resolved brand (`messaging_not_configured`).
+          description: >-
+            The resolved database brand has no production contract
+            (`brand_not_configured`), or messaging is disabled by its contract
+            (`messaging_not_configured`).
           content:
             application/json:
               schema:
@@ -1934,7 +1956,8 @@ paths:
           $ref: "#/components/responses/InteractionForbidden"
         "404":
           description: >-
-            Messaging is not configured for the resolved brand
+            The resolved database brand has no production contract
+            (`brand_not_configured`), messaging is disabled by its contract
             (`messaging_not_configured`), or the Match is unavailable,
             cross-brand, or does not include the current profile.
           content:
@@ -1972,7 +1995,8 @@ paths:
           $ref: "#/components/responses/InteractionForbidden"
         "404":
           description: >-
-            Messaging is not configured for the resolved brand
+            The resolved database brand has no production contract
+            (`brand_not_configured`), messaging is disabled by its contract
             (`messaging_not_configured`), or the Conversation is unavailable,
             cross-brand, ended, blocked, or not the current profile's.
           content:
@@ -2015,7 +2039,8 @@ paths:
           $ref: "#/components/responses/InteractionForbidden"
         "404":
           description: >-
-            Messaging is not configured for the resolved brand
+            The resolved database brand has no production contract
+            (`brand_not_configured`), messaging is disabled by its contract
             (`messaging_not_configured`), or the Conversation is unavailable,
             cross-brand, ended, blocked, or not the current profile's.
           content:
@@ -2508,14 +2533,18 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
     HookNotConfigured:
-      description: Hook is not enabled for the resolved brand (`hook_not_configured`).
+      description: >-
+        The resolved database brand has no production contract
+        (`brand_not_configured`), or Hook is disabled by its contract
+        (`hook_not_configured`).
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
     HookTonightNotConfigured:
       description: >-
-        Hook Tonight is not enabled for the resolved brand
+        The resolved database brand has no production contract
+        (`brand_not_configured`), or Hook Tonight is disabled by its contract
         (`hook_tonight_not_configured`).
       content:
         application/json:

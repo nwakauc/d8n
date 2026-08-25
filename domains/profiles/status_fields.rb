@@ -109,23 +109,26 @@ module Profiles
     end
 
     def viewer_location
-      @viewer_location ||= ProfileLocation.kept
-        .where(
-          profile_id: viewer.id, brand_id: viewer.brand_id,
-          captured_at: eligibility_policy.location_max_age.ago..
-        )
-        .order(captured_at: :desc)
-        .first
+      @viewer_location ||= freshness_scope(
+        ProfileLocation.kept.where(profile_id: viewer.id, brand_id: viewer.brand_id)
+      ).order(captured_at: :desc).first
     end
 
     # One kept location per profile (Profiles::CurrentLocation upserts), so this
     # returns at most one row per candidate.
     def candidate_locations
-      ProfileLocation.kept.where(
-        profile_id: profiles.map(&:id),
-        brand_id: viewer.brand_id,
-        captured_at: eligibility_policy.location_max_age.ago..
+      freshness_scope(
+        ProfileLocation.kept.where(profile_id: profiles.map(&:id), brand_id: viewer.brand_id)
       )
+    end
+
+    # Brands with no freshness window (e.g. DateZA's persistent dating location,
+    # domains/matching/eligibility_policy.rb) treat any persisted location as
+    # current, so the cutoff is skipped rather than applied as `nil..`.
+    def freshness_scope(scope)
+      return scope unless eligibility_policy.location_max_age
+
+      scope.where(captured_at: eligibility_policy.location_max_age.ago..)
     end
 
     def haversine_km(lat1, lon1, lat2, lon2)

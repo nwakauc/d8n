@@ -58,7 +58,11 @@ module D8n
           notify.push
         ].freeze
 
-        ELIGIBILITY_POLICY = Matching::EligibilityPolicy::DEFAULT
+        # DateZA models ProfileLocation as a chosen dating location/area, not a
+        # live presence signal: once supplied it stays valid for matching until
+        # the member explicitly replaces or removes it. HookUs keeps the 24h
+        # freshness default (domains/d8n/platform/brands/hookus.rb) unchanged.
+        ELIGIBILITY_POLICY = Matching::EligibilityPolicy::PERSISTENT_LOCATION
 
         CURATED_DAILY_ALLOCATION = StableDailyAllocationPolicy.new(
           key: "stable_daily_v1",

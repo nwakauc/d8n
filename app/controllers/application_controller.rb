@@ -16,6 +16,10 @@ class ApplicationController < ActionController::API
     )
   end
 
+  def self.requires_platform_contract(**options)
+    before_action :authorize_platform_contract!, **options
+  end
+
   private
 
   def set_current_context
@@ -33,12 +37,18 @@ class ApplicationController < ActionController::API
     render json: { error: authentication_error_code }, status: :unauthorized
   end
 
+  def authorize_platform_contract!
+    Current.platform_contract = D8n::Platform::BrandRegistry.fetch(brand: Current.brand)
+  rescue D8n::Platform::BrandRegistry::UnsupportedBrand => e
+    render json: { error: e.code }, status: :not_found
+  end
+
   def authorize_platform_capability!
     requirement = required_platform_capability
     return if requirement.nil?
 
     D8n::Platform::CapabilityAccess.authorize!(
-      brand: Current.brand,
+      contract: Current.platform_contract,
       capability: requirement.capability,
       surface: requirement.surface
     )

@@ -15,6 +15,7 @@ module Profiles
         brand: { slug: profile.brand.slug, name: profile.brand.name },
         status: profile.status,
         visibility: profile.visibility,
+        location: { configured: ProfileLocation.kept.exists?(profile:) },
         # The owner sees ALL their selections regardless of group visibility.
         options: selected_options,
         prompts: Profiles::PromptPresenter.call(profile:),

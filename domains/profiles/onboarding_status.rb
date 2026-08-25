@@ -1,7 +1,7 @@
 module Profiles
   class OnboardingStatus
     STATES = %w[ profile_required profile_incomplete ready_to_publish complete profile_suspended ].freeze
-    STEPS = %w[ profile preferences photos options publication ].freeze
+    STEPS = %w[ profile preferences photos location options publication ].freeze
 
     def self.call(user:, brand:)
       profile = CurrentProfile.find(user:, brand:)
@@ -62,6 +62,7 @@ module Profiles
       return "preferences" if missing.start_with?("preferences.")
       return "options" if missing.start_with?("options.")
       return "photos" if missing == "photos"
+      return "location" if missing == "location"
 
       "profile"
     end

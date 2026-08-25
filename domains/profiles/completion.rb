@@ -12,7 +12,11 @@ module Profiles
       languages_spoken smoking drinking fitness
     ].freeze
     SUPPORTED_PREFERENCE_FIELDS = %w[ min_age max_age interested_in max_distance_km country relationship_intent ].freeze
-    SUPPORTED_COLLECTIONS = %w[ photos ].freeze
+    SUPPORTED_COLLECTIONS = %w[ photos location ].freeze
+    COLLECTION_PRESENCE = {
+      "photos" => ->(profile) { profile.profile_photos.kept.exists? },
+      "location" => ->(profile) { profile.profile_locations.kept.exists? }
+    }.freeze
 
     # Informational section → option-group keys that count towards it. These are
     # reasonable defaults spanning generic capability keys and brand keys; a brand
@@ -105,9 +109,7 @@ module Profiles
     end
 
     def missing_collections
-      return [] if profile.profile_photos.kept.exists?
-
-      collections.map(&:to_sym)
+      collections.reject { |key| COLLECTION_PRESENCE.fetch(key).call(profile) }.map(&:to_sym)
     end
 
     def missing_option_groups

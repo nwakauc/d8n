@@ -25,7 +25,7 @@ module Profiles
       assert_equal DatezaProfileCatalog::REQUIRED_PREFERENCE_FIELDS, requirements.fetch("preference_fields")
       assert_equal DatezaProfileCatalog::REQUIRED_PROFILE_FIELDS + DatezaProfileCatalog::OPTIONAL_PROFILE_FIELDS,
         requirements.fetch("enabled_profile_fields")
-      assert_equal %w[ photos ], requirements.fetch("collections")
+      assert_equal %w[ photos location ], requirements.fetch("collections")
       assert_equal %w[ phone_password email_password ], brand.auth_methods
     end
 

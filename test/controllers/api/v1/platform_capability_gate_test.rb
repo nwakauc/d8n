@@ -21,59 +21,59 @@ class Api::V1::PlatformCapabilityGateTest < ActionDispatch::IntegrationTest
     assert_no_difference -> { RateLimitCounter.count } do
       get "/api/v1/discovery", headers: bearer_headers
     end
-    assert_not_configured("matching_not_configured")
+    assert_not_configured("brand_not_configured")
 
     assert_no_difference -> { RateLimitCounter.count } do
       get "/api/v1/find", headers: bearer_headers
     end
-    assert_not_configured("find_not_configured")
+    assert_not_configured("brand_not_configured")
   end
 
-  test "unsupported matching surfaces share the stable matching error" do
+  test "unsupported matching surfaces share the stable brand contract error" do
     post "/api/v1/profiles/#{@target.public_id}/likes", headers: bearer_headers
-    assert_not_configured("matching_not_configured")
+    assert_not_configured("brand_not_configured")
 
     post "/api/v1/profiles/#{@target.public_id}/pass", headers: bearer_headers
-    assert_not_configured("matching_not_configured")
+    assert_not_configured("brand_not_configured")
 
     get "/api/v1/matches", headers: bearer_headers
-    assert_not_configured("matching_not_configured")
+    assert_not_configured("brand_not_configured")
   end
 
   test "unsupported messaging surfaces fail before resource lookup" do
     get "/api/v1/conversations", headers: bearer_headers
-    assert_not_configured("messaging_not_configured")
+    assert_not_configured("brand_not_configured")
 
     post "/api/v1/matches/not-a-match/conversation", headers: bearer_headers
-    assert_not_configured("messaging_not_configured")
+    assert_not_configured("brand_not_configured")
 
     get "/api/v1/conversations/not-a-conversation/messages", headers: bearer_headers
-    assert_not_configured("messaging_not_configured")
+    assert_not_configured("brand_not_configured")
 
     post "/api/v1/conversations/not-a-conversation/messages",
       headers: bearer_headers, params: { body: "must not be accepted" }
-    assert_not_configured("messaging_not_configured")
+    assert_not_configured("brand_not_configured")
   end
 
-  test "unsupported Hook surfaces retain their specialized errors" do
+  test "unsupported Hook surfaces fail at the brand contract boundary" do
     post "/api/v1/profiles/#{@target.public_id}/hook",
       headers: bearer_headers, params: { message: "not configured" }
-    assert_not_configured("hook_not_configured")
+    assert_not_configured("brand_not_configured")
 
     get "/api/v1/hooks", headers: bearer_headers
-    assert_not_configured("hook_not_configured")
+    assert_not_configured("brand_not_configured")
 
     get "/api/v1/hook_tonight", headers: bearer_headers
-    assert_not_configured("hook_tonight_not_configured")
+    assert_not_configured("brand_not_configured")
 
     post "/api/v1/hook_tonight", headers: bearer_headers
-    assert_not_configured("hook_tonight_not_configured")
+    assert_not_configured("brand_not_configured")
 
     get "/api/v1/hook_tonight/discovery", headers: bearer_headers
-    assert_not_configured("hook_tonight_not_configured")
+    assert_not_configured("brand_not_configured")
   end
 
-  test "Hook Tonight cleanup remains available when the capability is disabled" do
+  test "Hook Tonight cleanup cannot bypass the production brand contract" do
     state = HookTonightState.create!(
       brand: @brand,
       profile: @viewer,
@@ -82,10 +82,35 @@ class Api::V1::PlatformCapabilityGateTest < ActionDispatch::IntegrationTest
       expires_at: 1.hour.from_now
     )
 
-    delete "/api/v1/hook_tonight", headers: bearer_headers
+    assert_no_changes -> { state.reload.deactivated_at } do
+      delete "/api/v1/hook_tonight", headers: bearer_headers
+    end
 
-    assert_response :no_content
-    assert_predicate state.reload.deactivated_at, :present?
+    assert_not_configured("brand_not_configured")
+  end
+
+  test "unsupported brands cannot probe or mutate a profile from a production brand" do
+    hookus = Brand.create!(slug: "hookus", name: "HookUs")
+    target = create_profile(brand: hookus, gender: "man", interested_in: [ "woman" ])
+
+    assert_no_difference [ -> { Like.count }, -> { Match.count }, -> { ProfilePass.count } ] do
+      post "/api/v1/profiles/#{target.public_id}/likes", headers: bearer_headers
+    end
+    assert_not_configured("brand_not_configured")
+
+    assert_no_difference [ -> { Like.count }, -> { Match.count }, -> { ProfilePass.count } ] do
+      post "/api/v1/profiles/#{SecureRandom.uuid}/likes", headers: bearer_headers
+    end
+    assert_not_configured("brand_not_configured")
+  end
+
+  test "unknown hosts retain authentication-first behavior" do
+    host! "unknown.test"
+
+    post "/api/v1/profiles/#{@target.public_id}/likes", headers: bearer_headers
+
+    assert_response :unauthorized
+    assert_equal({ "error" => "unauthorized" }, JSON.parse(response.body))
   end
 
   test "ungated profile detail remains a shared profile capability" do

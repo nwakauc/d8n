@@ -1,5 +1,6 @@
 class Api::V1::DiscoveryController < ApplicationController
   before_action :authenticate_user!
+  requires_platform_contract
   before_action :authorize_discovery_surface!
   before_action -> { enforce_rate_limit!(:discovery) }, only: :index
   before_action :set_active_storage_url_options, only: :index
@@ -55,7 +56,7 @@ class Api::V1::DiscoveryController < ApplicationController
   def authorize_discovery_surface!
     @discovery_surface = Matching::StrategyRegistry.surface_for(brand: Current.brand, mode: params[:mode])
     D8n::Platform::CapabilityAccess.authorize!(
-      brand: Current.brand,
+      contract: Current.platform_contract,
       capability: @discovery_surface.delivery_capability_key,
       surface: @discovery_surface.key
     )

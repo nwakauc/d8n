@@ -22,8 +22,7 @@ module D8n
         end
       end
 
-      def self.authorize!(capability:, surface: nil, brand: nil, contract: nil)
-        contract ||= BrandRegistry.fetch(brand:)
+      def self.authorize!(contract:, capability:, surface: nil)
         if surface
           return contract.surface(surface) if contract.capability_enabled?(capability) && contract.surface_enabled?(surface)
         elsif contract.capability_enabled?(capability)
@@ -32,8 +31,6 @@ module D8n
 
         key = surface || capability
         raise NotConfigured, configured_error_code(contract:, key:, capability:)
-      rescue BrandRegistry::UnsupportedBrand
-        raise NotConfigured, DEFAULT_ERROR_CODES.fetch(capability.to_s, :capability_not_configured)
       end
 
       def self.configured_error_code(contract:, key:, capability:)

@@ -1,5 +1,6 @@
 class Api::V1::InteractionController < ApplicationController
   before_action :authenticate_user!
+  requires_platform_contract if: -> { required_platform_capability.present? }
   before_action :authorize_platform_capability!
   before_action :authorize_interaction_access!
 

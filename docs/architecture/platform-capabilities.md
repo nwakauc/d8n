@@ -102,6 +102,16 @@ persisted allocation remains unchanged and may be smaller until rollover. This
 filter-only behavior prioritizes safety without allowing ordinary ranking changes
 to make the curated batch unstable.
 
+Having a platform `User` is not candidate eligibility. A candidate must have an
+active identity, active membership in the resolved brand, active and visible
+adult profile, complete matching preference row, reciprocal gender and age fit,
+and satisfy the configured bilateral fresh-location/distance policy. Shared
+blocks are applied by `Matching::VisibilityScope`; outgoing Likes, Passes, and
+active Matches are applied by `Matching::ExclusionsScope`. If a viewer configures
+a maximum distance but has no location fresh enough for the surface policy, the
+shared eligibility scope fails closed and the honest daily allocation can be
+empty.
+
 Frontend navigation names and presentation are outside the capability key. A
 future brand can call a configured D8N Discovery surface “Explore” without a new
 controller, candidate engine, or brand namespace.
