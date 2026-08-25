@@ -6,7 +6,9 @@ class Brand < ApplicationRecord
     "collections" => %w[ photos ],
     "option_groups" => []
   }.freeze
-  PROFILE_CONFIGURATION_KEYS = %w[ enabled_identity_fields enabled_profile_fields enabled_preference_fields ].freeze
+  PROFILE_CONFIGURATION_KEYS = %w[
+    enabled_identity_fields enabled_profile_fields enabled_preference_fields rich_profile_sections
+  ].freeze
   PROFILE_REQUIREMENT_KEYS = (DEFAULT_PROFILE_REQUIREMENTS.keys + PROFILE_CONFIGURATION_KEYS).freeze
 
   has_many :brand_memberships, dependent: :restrict_with_exception
@@ -100,6 +102,8 @@ class Brand < ApplicationRecord
     unsupported_enabled_identity_fields = enabled_identity_fields - Profiles::Configuration::IDENTITY_FIELD_LABELS.keys
     unsupported_enabled_profile_fields = enabled_profile_fields - Profiles::Configuration::PROFILE_FIELD_LABELS.keys
     unsupported_enabled_preference_fields = enabled_preference_fields - Profiles::Configuration::PREFERENCE_FIELD_LABELS.keys
+    unsupported_rich_profile_sections = requirements.fetch("rich_profile_sections", []) -
+      Profiles::RichCompletion::SECTION_WEIGHTS.keys
 
     errors.add(:profile_requirements, "contains unsupported identity fields") if unsupported_identity_fields.any?
     errors.add(:profile_requirements, "contains unsupported profile fields") if unsupported_profile_fields.any?
@@ -115,6 +119,9 @@ class Brand < ApplicationRecord
     if unsupported_enabled_preference_fields.any? ||
         (requirements.fetch("preference_fields") - enabled_preference_fields).any?
       errors.add(:profile_requirements, "contains unsupported enabled preference fields")
+    end
+    if unsupported_rich_profile_sections.any?
+      errors.add(:profile_requirements, "contains unsupported rich profile sections")
     end
   end
 end

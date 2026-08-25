@@ -104,6 +104,13 @@ module Matching
         def for_eligible_pair(brand:, viewer:, candidate:)
           new(brand:, viewer:).for_eligible_pair(candidate:)
         end
+
+        # Profile detail has already passed the shared visibility/safety scope but
+        # deliberately does not reapply ranking preferences. Calculate the same
+        # presentation payload without changing eligibility or matching semantics.
+        def for_visible_pair(brand:, viewer:, candidate:)
+          new(brand:, viewer:).for_visible_pair(candidate:)
+        end
       end
 
       def initialize(brand:, viewer:, eligibility_policy: nil)
@@ -120,6 +127,11 @@ module Matching
       end
 
       def for_eligible_pair(candidate:)
+        assert_pair_scope!(candidate)
+        calculate(candidate)
+      end
+
+      def for_visible_pair(candidate:)
         assert_pair_scope!(candidate)
         calculate(candidate)
       end

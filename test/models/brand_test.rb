@@ -87,4 +87,19 @@ class BrandTest < ActiveSupport::TestCase
     assert_not brand.valid?
     assert_includes brand.errors[:profile_requirements], "must contain only supported string lists"
   end
+
+  test "accepts only supported rich profile section composition" do
+    supported = Brand.new(
+      slug: "dateza", name: "DateZA",
+      profile_requirements: { rich_profile_sections: %w[ photos interests prompts ] }
+    )
+    unsupported = Brand.new(
+      slug: "unsafe-richness", name: "Unsafe Richness",
+      profile_requirements: { rich_profile_sections: [ "arbitrary_rule" ] }
+    )
+
+    assert supported.valid?
+    assert_not unsupported.valid?
+    assert_includes unsupported.errors[:profile_requirements], "contains unsupported rich profile sections"
+  end
 end

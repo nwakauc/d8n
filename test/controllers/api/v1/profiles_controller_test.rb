@@ -333,6 +333,54 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_not profile.fetch("options").key?("physical_affection")
   end
 
+  test "DateZA detail includes existing compatibility and explicit contact verification without private inputs" do
+    brand = Brand.create!(slug: "dateza", name: "DateZA")
+    Profiles::DatezaProfileCatalog.install!(brand:)
+    BrandDomain.create!(brand:, host: "dateza.test")
+    viewer = create_profile(
+      brand:, gender: "woman", age: 30, interested_in: [ "man" ],
+      min_age: 25, max_age: 40, display_name: "Viewer"
+    )
+    target = create_profile(
+      brand:, gender: "man", age: 31, interested_in: [ "woman" ],
+      min_age: 25, max_age: 40, display_name: "Target"
+    )
+    target.update!(company_name: "Private Corp", looking_for_text: "Something lasting")
+    shared = {
+      relationship_intent: [ "long_term_relationship" ],
+      has_children: [ "no" ], wants_children: [ "yes" ],
+      religion_importance: [ "somewhat_important" ], social_style: [ "ambivert" ],
+      meeting_pace: [ "few_days" ]
+    }
+    Profiles::OptionSelections.replace!(profile: viewer, selections: shared)
+    Profiles::OptionSelections.replace!(profile: target, selections: shared)
+    viewer.update!(status: :active, visibility: :visible)
+    target.update!(status: :active, visibility: :visible)
+    IdentityIdentifier.create!(
+      user: target.user, kind: :email, normalized_value: "target@example.com", verified_at: Time.current
+    )
+    viewer_identifier = IdentityIdentifier.create!(
+      user: viewer.user, kind: :email, normalized_value: "viewer@example.com", verified_at: Time.current
+    )
+    credential = Credential.create!(
+      user: viewer.user, identity_identifier: viewer_identifier, kind: :password, status: :active
+    )
+    token, = Session.issue!(brand:, user: viewer.user, credential:)
+    host! "dateza.test"
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(token)
+
+    assert_response :success
+    profile = JSON.parse(response.body).fetch("profile")
+    assert_equal "Something lasting", profile.fetch("looking_for_text")
+    assert_equal "dateza_v1", profile.fetch("compatibility").fetch("version")
+    assert_equal true, profile.dig("verification", "contact", "verified")
+    assert_not profile.key?("company_name")
+    assert_not profile.fetch("options").key?("has_children")
+    assert_not profile.fetch("options").key?("wants_children")
+    assert_not profile.fetch("verification").key?("realme")
+  end
+
   private
 
   def bearer_headers(token)

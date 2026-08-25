@@ -1349,10 +1349,13 @@ paths:
         "Public" means *safe information visible to another eligible authenticated
         member* — it is NOT unauthenticated web-public data.
 
-        The response is the same safe public profile shape as discovery, minus the
-        ranking-only `compatibility` payload. `photos` are safe, EXIF-stripped
-        display derivatives with short-lived signed URLs, in deterministic
-        position order; raw originals and storage keys are never exposed.
+        The response extends the safe public profile shape used by discovery with
+        prompts, categorized interests, explicit contact-verification state, and
+        DateZA's existing pair compatibility payload where configured.
+        Compatibility is presentation-only here and does not change eligibility
+        or matching semantics. `photos` are safe, EXIF-stripped display derivatives
+        with short-lived signed URLs, in deterministic position order; raw
+        originals and storage keys are never exposed.
 
         Availability enforces the SAME fundamental safety rules as discovery —
         brand isolation, active/visible lifecycle, suspension, account closure,
@@ -3084,6 +3087,9 @@ components:
           description: Async physical media-purge status; starts pending.
     Completion:
       type: object
+      description: |
+        Publication completeness: whether the member may publish and enter the
+        dating experience. Distinct from RichProfileCompletion.
       required: [complete, percent, missing]
       properties:
         complete:
@@ -3109,6 +3115,83 @@ components:
             properties:
               complete:
                 type: boolean
+    RichProfileCompletion:
+      type: [object, "null"]
+      description: |
+        Optional post-onboarding richness score. null means the brand has not
+        composed a richness model. It never affects publication or eligibility.
+      required: [percent, level, missing, suggestions, sections]
+      properties:
+        percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+        level:
+          type: string
+          enum: [starter, growing, good, standout]
+        missing:
+          type: array
+          items:
+            type: string
+            enum: [more_photos, bio, looking_for, interests, prompt, work_or_education, lifestyle, relationship_intent, family_plans, languages, personality]
+        suggestions:
+          type: array
+          items:
+            type: object
+            required: [key, label]
+            properties:
+              key:
+                type: string
+              label:
+                type: string
+        sections:
+          type: object
+          additionalProperties:
+            type: object
+            required: [percent, complete]
+            properties:
+              percent:
+                type: integer
+                minimum: 0
+                maximum: 100
+              complete:
+                type: boolean
+    ProfileCounts:
+      type: object
+      required: [photos, prompts, interests]
+      properties:
+        photos:
+          type: integer
+          minimum: 0
+        prompts:
+          type: integer
+          minimum: 0
+        interests:
+          type: integer
+          minimum: 0
+    ContactVerification:
+      type: object
+      required: [contact]
+      description: Contact-control verification only; no RealMe or identity proof is implied.
+      properties:
+        contact:
+          type: object
+          required: [verified]
+          properties:
+            verified:
+              type: boolean
+    PublicationState:
+      type: object
+      required: [published, status, visibility]
+      properties:
+        published:
+          type: boolean
+        status:
+          type: string
+          enum: [draft, active, suspended]
+        visibility:
+          type: string
+          enum: [hidden, visible]
     ProfileUpdate:
       type: object
       description: |
@@ -3210,7 +3293,7 @@ components:
           description: >-
             Owner profile scalars are present only when enabled by the resolved
             brand configuration. Stable platform envelope fields remain present.
-          required: [id, brand, status, visibility, options, completion]
+          required: [id, brand, status, visibility, location, options, prompts, counts, verification, publication, completion, publication_completion, profile_completion]
           properties:
             id:
               type: string
@@ -3223,6 +3306,8 @@ components:
             visibility:
               type: string
               enum: [hidden, visible]
+            location:
+              $ref: "#/components/schemas/OwnerProfileLocation"
             options:
               $ref: "#/components/schemas/ProfileOptionSelections"
             prompts:
@@ -3231,6 +3316,16 @@ components:
                 $ref: "#/components/schemas/PromptAnswer"
             completion:
               $ref: "#/components/schemas/Completion"
+            publication_completion:
+              $ref: "#/components/schemas/Completion"
+            profile_completion:
+              $ref: "#/components/schemas/RichProfileCompletion"
+            counts:
+              $ref: "#/components/schemas/ProfileCounts"
+            verification:
+              $ref: "#/components/schemas/ContactVerification"
+            publication:
+              $ref: "#/components/schemas/PublicationState"
     OwnerProfileResponse:
       type: object
       required: [profile]
@@ -3304,6 +3399,21 @@ components:
         precision:
           type: string
           enum: [approximate]
+    OwnerProfileLocation:
+      type: object
+      required: [configured]
+      description: Owner-safe location state. Raw coordinates are never returned.
+      properties:
+        configured:
+          type: boolean
+        place:
+          type: object
+          required: [name, display_path]
+          properties:
+            name:
+              type: string
+            display_path:
+              type: string
     ProfileInterest:
       type: object
       required: [slug, label]
@@ -3676,13 +3786,13 @@ components:
     ProfileDetail:
       description: |
         The rich single-profile view (GET /profiles/:id): the public profile with
-        viewer-relative status, plus the heavier detail-only sections (prompts and a
-        categorized interests view). matches_only option groups appear under
-        `options` only when an active Match exists between the viewer and member.
+        viewer-relative status, detail-only sections, explicit contact verification,
+        and DateZA compatibility where configured. matches_only option groups appear
+        under `options` only when an active Match exists.
       allOf:
         - $ref: "#/components/schemas/ProfileWithStatus"
         - type: object
-          required: [prompts, interests]
+          required: [prompts, interests, verification]
           properties:
             prompts:
               type: array
@@ -3693,6 +3803,10 @@ components:
               description: Categorized interests derived from the `interests` group's selections.
               items:
                 $ref: "#/components/schemas/ProfileInterest"
+            verification:
+              $ref: "#/components/schemas/ContactVerification"
+            compatibility:
+              $ref: "#/components/schemas/DatezaCompatibility"
     ProfileDetailResponse:
       type: object
       required: [profile]

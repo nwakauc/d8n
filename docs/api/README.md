@@ -473,7 +473,8 @@ After authentication, a brand frontend should:
    limits, requiredness, and the server-owned `onboarding`/`next_step` state.
 3. Read or create the profile through `GET/PATCH /api/v1/profile`.
 4. Update preferences, controlled options, photos, and location through their focused endpoints.
-5. Use the profile `completion` object and activate through `POST /api/v1/profile/publication`.
+5. Use `publication_completion` (or its backward-compatible `completion` alias)
+   and activate through `POST /api/v1/profile/publication`.
 6. Request discovery only after activation, then use returned public profile UUIDs for likes, passes, blocks, and profile detail.
 7. Open a profile page from a public profile UUID through `GET /api/v1/profiles/:profile_id`; treat this as the source of truth so refresh, new-tab, and deep-link navigation resolve without a client-side cache.
 8. Use a public match UUID with `POST /api/v1/matches/:match_id/conversation`, then list started chats through `GET /api/v1/conversations`.
@@ -491,6 +492,14 @@ D8N profile field that is not listed for the resolved brand is rejected by
 public profile JSON omit disabled fields, including values retained on historical
 rows. Stable envelope fields such as profile id, brand/status/visibility where
 applicable, options, prompts, completion, and photos are not brand scalars.
+
+For DateZA, the owner response also returns `profile_completion`: a deterministic,
+post-onboarding richness score with `level`, `missing`, `suggestions`, and section
+progress. It is informational only. Optional enrichment never changes onboarding,
+publication, Discover, or Find eligibility. `counts` reports photos, prompts, and
+interests; `location.configured`, `publication.published`, and
+`verification.contact.verified` are server-authoritative. Brands that have not
+composed a richness model return `profile_completion: null`.
 
 Password registration and login, plus `GET/PATCH /api/v1/profile`, return a
 resumable `onboarding` state. `profile_required` starts profile creation,
@@ -538,11 +547,19 @@ It is the authoritative, refreshable source for a profile page: a browser
 refresh, a new tab, and a deep link all resolve independently, so the frontend
 must not depend on a client-side Discover cache for correctness.
 
-The body is the same safe public shape as a discovery entry — public id, display
-name, derived age, bio, coarse location, occupation, gender, height/body-type,
-languages, lifestyle flags, deterministically ordered safe photos, and public
-option groups — minus the ranking-only `compatibility` payload. No email, phone,
-credentials, internal ids, coordinates, raw media, or storage keys are exposed.
+The body extends the same safe public shape as a discovery entry — public id,
+display name, derived age, bio, coarse location, work/education, languages,
+lifestyle fields, deterministically ordered safe photos, and public option groups
+— with prompts, categorized interests, and explicit
+`verification.contact.verified`. DateZA detail also includes its existing
+compatibility payload; calculating it for detail does not change eligibility or
+matching behavior. No email, phone, credentials, internal ids, coordinates, raw
+media, storage keys, provider data, or identity-verification assertion is exposed.
+
+DateZA keeps `company_name`, `has_children`, `wants_children`, `religion`, and
+`religion_importance` owner-only. `physical_affection` and
+`chemistry_importance` are matches-only. Public work presentation may use
+`occupation`, `job_title`, `school_or_institution`, and `education_level`.
 
 Availability enforces the same fundamental safety rules as discovery (brand
 isolation, active/visible lifecycle, suspension, closure, discard, and blocks in

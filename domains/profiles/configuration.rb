@@ -44,6 +44,7 @@ module Profiles
       "last_name" => { visibility: "owner_only" },
       "bio" => { input_type: "textarea" },
       "birthdate" => { input_type: "date", visibility: "owner_only" },
+      "company_name" => { visibility: "owner_only" },
       "children_count" => { input_type: "integer", visibility: "owner_only" },
       "height_cm" => { input_type: "integer" },
       "languages" => { input_type: "language_list", cardinality: "multiple" },

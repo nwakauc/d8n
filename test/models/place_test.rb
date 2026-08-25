@@ -71,8 +71,29 @@ class PlaceTest < ActiveSupport::TestCase
       latitude: -22.5, longitude: 17.0)
 
     codes = Place.top_level(country_code: "za").pluck(:code)
+    expected = Geography::SouthAfricaCatalog::REGIONS.keys + [ Geography::SouthAfricaCatalog::OUTSIDE_COUNTRY_FALLBACK.fetch(:code) ]
 
-    assert_equal Geography::SouthAfricaCatalog::REGIONS.keys.sort, codes.sort
+    assert_equal expected.sort, codes.sort
     assert_not_includes codes, "khomas"
+  end
+
+  test "the outside-country fallback resolves over 500km from every real region" do
+    Geography::SouthAfricaCatalog.install!
+    fallback = Place.kept.find_by!(code: Geography::SouthAfricaCatalog::OUTSIDE_COUNTRY_FALLBACK.fetch(:code))
+    real_regions = Place.kept.status_active.where(kind: :region).where.not(id: fallback.id)
+
+    real_regions.find_each do |region|
+      km = haversine_km(fallback.latitude, fallback.longitude, region.latitude, region.longitude)
+      assert_operator km, :>, 500, "#{region.name} is only #{km.round}km from the fallback"
+    end
+  end
+
+  private
+
+  def haversine_km(lat1, lon1, lat2, lon2)
+    rad = Math::PI / 180
+    a = Math.sin((lat2 - lat1).to_f * rad / 2)**2 +
+      Math.cos(lat1.to_f * rad) * Math.cos(lat2.to_f * rad) * Math.sin((lon2 - lon1).to_f * rad / 2)**2
+    6371.0 * 2 * Math.asin(Math.sqrt(a))
   end
 end

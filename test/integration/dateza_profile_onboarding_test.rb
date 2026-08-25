@@ -42,6 +42,25 @@ class DatezaProfileOnboardingTest < ActiveSupport::TestCase
     assert_includes Profiles::Completion.call(profile:).missing, :bio
   end
 
+  test "post-onboarding enrichment changes richness without returning the member to onboarding" do
+    profile = complete_profile
+    Profiles::Publication.activate!(user: @user, brand: @brand)
+    before = Profiles::RichCompletion.call(profile:)
+
+    Profiles::CurrentProfile.upsert!(
+      user: @user, brand: @brand,
+      attributes: { looking_for_text: "Someone kind.", school_or_institution: "UCT" }
+    )
+    Profiles::OptionSelections.replace!(profile:, selections: { sleep_schedule: [ "early_bird" ] })
+
+    after = Profiles::RichCompletion.call(profile: profile.reload)
+    assert_operator after.percent, :>, before.percent
+    assert Profiles::Completion.call(profile:).complete?
+    assert profile.active?
+    assert profile.visible?
+    assert_equal "complete", Profiles::OnboardingStatus.call(user: @user, brand: @brand).fetch(:state)
+  end
+
   test "public DateZA profile omits owner-only compatibility inputs and exact coordinates" do
     profile = complete_profile
     profile.update_columns(
@@ -60,7 +79,7 @@ class DatezaProfileOnboardingTest < ActiveSupport::TestCase
     assert_not payload.key?(:pronouns)
     assert_not payload.key?(:body_type)
     assert_not payload.key?(:company_name)
-    assert_not payload.key?(:looking_for_text)
+    assert_equal "A legacy value", payload.fetch(:looking_for_text)
     assert_not payload.key?(:languages_spoken)
     assert_not payload.fetch(:options).key?("has_children")
     assert_not payload.fetch(:options).key?("religion_importance")

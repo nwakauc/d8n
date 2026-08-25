@@ -10,6 +10,7 @@ module Profiles
     end
 
     def call
+      publication_completion = completion_payload
       {
         id: profile.public_id,
         brand: { slug: profile.brand.slug, name: profile.brand.name },
@@ -19,7 +20,14 @@ module Profiles
         # The owner sees ALL their selections regardless of group visibility.
         options: selected_options,
         prompts: Profiles::PromptPresenter.call(profile:),
-        completion: completion_payload
+        counts: counts_payload,
+        verification: verification_payload,
+        publication: publication_payload,
+        # Backward-compatible alias. New clients should use the explicitly named
+        # publication_completion and profile_completion contracts.
+        completion: publication_completion,
+        publication_completion:,
+        profile_completion: rich_completion_payload
       }.merge(owner_profile_fields).merge(private_identity_payload)
     end
 
@@ -71,6 +79,44 @@ module Profiles
         percent: completion.percent,
         missing: completion.missing.map(&:to_s),
         sections: completion.sections
+      }
+    end
+
+    def rich_completion_payload
+      completion = RichCompletion.call(profile:)
+      return if completion.nil?
+
+      {
+        percent: completion.percent,
+        level: completion.level,
+        missing: completion.missing,
+        suggestions: completion.suggestions,
+        sections: completion.sections
+      }
+    end
+
+    def counts_payload
+      {
+        photos: profile.profile_photos.kept.count,
+        prompts: profile.prompt_answers.kept.count,
+        interests: profile.profile_option_selections.kept
+          .joins(:profile_option_group).where(profile_option_groups: { key: "interests" }).count
+      }
+    end
+
+    def verification_payload
+      {
+        contact: {
+          verified: IdentityIdentifier.kept.where(user_id: profile.user_id).where.not(verified_at: nil).exists?
+        }
+      }
+    end
+
+    def publication_payload
+      {
+        published: profile.active? && profile.visible?,
+        status: profile.status,
+        visibility: profile.visibility
       }
     end
   end

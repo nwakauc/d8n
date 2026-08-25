@@ -45,7 +45,7 @@ module Profiles
       assert_not ended.fetch(:options).key?("physical_affection")
     end
 
-    test "DateZA detail omits scalar fields disabled by its brand catalogue" do
+    test "DateZA detail exposes enabled rich scalars and omits disabled historical scalars" do
       brand = Brand.create!(slug: "dateza", name: "DateZA")
       DatezaProfileCatalog.install!(brand:)
       viewer = build_profile_for(brand:)
@@ -57,7 +57,8 @@ module Profiles
       payload = DetailSerializer.call(profile: target, viewer:)
 
       assert_equal "Engineer", payload.fetch(:job_title)
-      %i[pronouns body_type looking_for_text languages_spoken].each do |field|
+      assert_equal "A historical value", payload.fetch(:looking_for_text)
+      %i[pronouns body_type languages_spoken].each do |field|
         assert_not payload.key?(field), "expected disabled #{field} to be omitted"
       end
       assert payload.key?(:prompts)

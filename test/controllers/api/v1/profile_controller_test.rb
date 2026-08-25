@@ -138,7 +138,7 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
     assert_not profile.key?("future_client_hint")
   end
 
-  test "DateZA owner response omits disabled fields from historical rows" do
+  test "DateZA owner response exposes enabled rich fields and omits disabled historical fields" do
     dateza, token = install_dateza_for_current_user
     membership = BrandMembership.find_by!(brand: dateza, user: @user)
     profile = Profile.create!(
@@ -154,7 +154,12 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body).fetch("profile")
     assert_equal profile.birthdate.iso8601, payload.fetch("birthdate")
     assert_equal "Engineer", payload.fetch("job_title")
-    %w[pronouns body_type company_name languages_spoken].each do |field|
+    assert_equal "Private Corp", payload.fetch("company_name")
+    assert payload.key?("publication_completion")
+    assert payload.key?("profile_completion")
+    assert_equal({ "photos" => 0, "prompts" => 0, "interests" => 0 }, payload.fetch("counts"))
+    assert_equal false, payload.dig("verification", "contact", "verified")
+    %w[pronouns body_type languages_spoken].each do |field|
       assert_not payload.key?(field), "expected disabled #{field} to be omitted"
     end
   end

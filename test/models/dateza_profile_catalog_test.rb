@@ -23,6 +23,7 @@ module Profiles
       assert_equal DatezaProfileCatalog::REQUIRED_OPTION_GROUPS, requirements.fetch("option_groups")
       assert_equal DatezaProfileCatalog::REQUIRED_PROFILE_FIELDS, requirements.fetch("profile_fields")
       assert_equal DatezaProfileCatalog::REQUIRED_PREFERENCE_FIELDS, requirements.fetch("preference_fields")
+      assert_equal DatezaProfileCatalog::RICH_PROFILE_SECTIONS, requirements.fetch("rich_profile_sections")
       assert_equal DatezaProfileCatalog::REQUIRED_PROFILE_FIELDS + DatezaProfileCatalog::OPTIONAL_PROFILE_FIELDS,
         requirements.fetch("enabled_profile_fields")
       assert_equal %w[ photos location ], requirements.fetch("collections")
@@ -41,6 +42,9 @@ module Profiles
       assert groups.fetch("interests").visibility_public_profile?
       assert groups.fetch("has_children").visibility_owner_only?
       assert groups.fetch("religion_importance").visibility_owner_only?
+      assert groups.fetch("sleep_schedule").visibility_public_profile?
+      assert groups.fetch("physical_affection").visibility_matches_only?
+      assert groups.fetch("chemistry_importance").visibility_matches_only?
       assert groups.fetch("relationship_intent").cardinality_single?
       assert_equal DatezaProfileCatalog::INTERESTS.sort,
         groups.fetch("interests").profile_options.kept.status_active.pluck(:code).sort
@@ -69,6 +73,8 @@ module Profiles
       assert_equal DatezaProfileCatalog::REQUIRED_PREFERENCE_FIELDS.sort, preferences.keys.sort
       assert fields.fetch("bio").fetch(:required)
       assert_not fields.fetch("occupation").fetch(:required)
+      assert_not fields.fetch("looking_for_text").fetch(:required)
+      assert_equal "owner_only", fields.fetch("company_name").fetch(:visibility)
       assert_equal "textarea", fields.fetch("bio").fetch(:input_type)
       assert_equal "owner_only", fields.fetch("birthdate").fetch(:visibility)
       assert_equal %w[ never occasionally regularly ], fields.fetch("smoking").fetch(:options).pluck(:code)

@@ -78,9 +78,27 @@ module Geography
       }
     }.freeze
 
+    # A deliberately far-away centroid (South Atlantic, well over 500km from
+    # every real South African place in this catalog) for members who are
+    # honestly not in South Africa and have no accurate local option. Selecting
+    # it satisfies the location-required publication invariant without
+    # fabricating a plausible nearby coordinate; ordinary max_distance_km
+    # filtering (capped at ProfilePreference::MAX_DISTANCE_KM, 500) then
+    # naturally excludes them from every real candidate's distance-matched
+    # pool rather than silently matching them into the wrong city.
+    OUTSIDE_COUNTRY_FALLBACK = {
+      code: "outside-south-africa", name: "Outside South Africa", latitude: -20.0, longitude: 0.0
+    }.freeze
+
     def self.install!
       country = upsert!(kind: "country", parent: nil, code: COUNTRY.fetch(:code), name: COUNTRY.fetch(:name),
         country_code: "ZA", latitude: 0, longitude: 0)
+
+      upsert!(
+        kind: "region", parent: country, code: OUTSIDE_COUNTRY_FALLBACK.fetch(:code),
+        name: OUTSIDE_COUNTRY_FALLBACK.fetch(:name), country_code: "ZA",
+        latitude: OUTSIDE_COUNTRY_FALLBACK.fetch(:latitude), longitude: OUTSIDE_COUNTRY_FALLBACK.fetch(:longitude)
+      )
 
       REGIONS.each do |region_code, region|
         region_row = upsert!(

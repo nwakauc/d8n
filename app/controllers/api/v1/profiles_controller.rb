@@ -3,8 +3,9 @@ class Api::V1::ProfilesController < Api::V1::InteractionController
 
   # Authoritative, refreshable public detail for a single member, resolved from a
   # stable public profile UUID (as surfaced by discovery). The representation is
-  # identical to discovery's safe public profile, minus the ranking-only
-  # compatibility payload. Availability is enforced in the domain layer
+  # based on discovery's safe public profile plus detail-only rich sections and,
+  # where the brand contract supports it, pair compatibility. Availability is
+  # enforced in the domain layer
   # (Profiles::PublicProfile / Matching::VisibilityScope), never here.
   def show
     profile = Profiles::PublicProfile.call(
@@ -24,7 +25,12 @@ class Api::V1::ProfilesController < Api::V1::InteractionController
       viewer:, profiles: [ profile ], decorators: contract&.profile&.detail_decorators || []
     ).fetch(profile.id, {})
 
-    render json: { profile: Profiles::DetailSerializer.call(profile:, viewer:).merge(status).merge(decorations) }
+    detail = Profiles::DetailSerializer.call(profile:, viewer:).merge(status).merge(decorations)
+    detail[:verification] = { contact: { verified: status.fetch(:verified, false) } }
+    compatibility = detail_compatibility(contract:, viewer:, profile:)
+    detail[:compatibility] = compatibility unless compatibility == :unsupported
+
+    render json: { profile: detail }
   rescue Profiles::PublicProfile::ViewerIneligible
     render json: { error: "discoverable_profile_required" }, status: :forbidden
   rescue Profiles::PublicProfile::Unavailable
@@ -41,5 +47,13 @@ class Api::V1::ProfilesController < Api::V1::InteractionController
 
   def profile_eligibility_policy(contract)
     contract&.interaction&.eligibility_policy || Matching::EligibilityPolicy::DEFAULT
+  end
+
+  def detail_compatibility(contract:, viewer:, profile:)
+    strategy = contract&.interaction&.compatibility_strategy
+    return :unsupported unless strategy&.respond_to?(:for_visible_pair)
+
+    result = strategy.for_visible_pair(brand: Current.brand, viewer:, candidate: profile)
+    result.respond_to?(:public_payload) ? result.public_payload : result
   end
 end

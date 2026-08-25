@@ -25,9 +25,11 @@ class Api::V1::PlacesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     places = JSON.parse(response.body).fetch("places")
-    assert_equal Geography::SouthAfricaCatalog::REGIONS.size, places.size
+    assert_equal Geography::SouthAfricaCatalog::REGIONS.size + 1, places.size
     assert(places.all? { |p| p.fetch("kind") == "region" })
-    assert_not_includes places.map { |p| p.fetch("code") }, @foreign_region.code
+    codes = places.map { |p| p.fetch("code") }
+    assert_not_includes codes, @foreign_region.code
+    assert_includes codes, Geography::SouthAfricaCatalog::OUTSIDE_COUNTRY_FALLBACK.fetch(:code)
   end
 
   test "lists children of a given parent_id" do

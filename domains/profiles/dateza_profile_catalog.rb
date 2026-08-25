@@ -40,19 +40,34 @@ module Profiles
       { key: "religion", visibility: :owner_only },
       { key: "diet" },
       { key: "pets" },
+      { key: "sleep_schedule" },
       { key: "travel_frequency" },
       { key: "communication_style" },
-      { key: "planning_style" }
+      { key: "planning_style" },
+      { key: "physical_affection", visibility: :matches_only },
+      { key: "chemistry_importance", visibility: :matches_only }
     ].freeze
 
     REQUIRED_PROFILE_FIELDS = %w[
       display_name birthdate gender country_code city bio smoking drinking
     ].freeze
     REQUIRED_IDENTITY_FIELDS = %w[ first_name last_name ].freeze
-    OPTIONAL_PROFILE_FIELDS = %w[ occupation job_title height_cm languages fitness ].freeze
+    OPTIONAL_PROFILE_FIELDS = %w[
+      occupation job_title company_name school_or_institution looking_for_text
+      height_cm languages fitness
+    ].freeze
     REQUIRED_PREFERENCE_FIELDS = %w[ interested_in min_age max_age max_distance_km ].freeze
     REQUIRED_OPTION_GROUPS = %w[
       relationship_intent has_children wants_children religion_importance social_style meeting_pace
+    ].freeze
+
+    # Post-onboarding richness is deliberately separate from publication. These
+    # are fixed, reusable section keys understood by Profiles::RichCompletion;
+    # there are no executable rules in brand JSON. Sensitive optional fields
+    # (company, religion, physical affection, chemistry) are not needed for 100%.
+    RICH_PROFILE_SECTIONS = %w[
+      photos about interests prompts work_education lifestyle
+      relationship_intent family_plans languages personality
     ].freeze
 
     REQUIREMENTS = {
@@ -63,7 +78,8 @@ module Profiles
       preference_fields: REQUIRED_PREFERENCE_FIELDS,
       enabled_preference_fields: REQUIRED_PREFERENCE_FIELDS,
       collections: %w[ photos location ],
-      option_groups: REQUIRED_OPTION_GROUPS
+      option_groups: REQUIRED_OPTION_GROUPS,
+      rich_profile_sections: RICH_PROFILE_SECTIONS
     }.freeze
 
     def self.install!(brand:)

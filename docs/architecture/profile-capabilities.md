@@ -48,7 +48,7 @@ Composite foreign keys ensure that selections, options, groups, profiles, users,
 
 The catalog also installs HookUs's initial required profile fields, preferences, and photo collection. It can be run through seeds after the HookUs brand exists.
 
-## Completion
+## Publication And Richness Completion
 
 `Profiles::Completion` is the authoritative completion calculation. It evaluates:
 
@@ -58,6 +58,18 @@ The catalog also installs HookUs's initial required profile fields, preferences,
 - Required controlled option groups
 
 The owner profile response derives its completion status from this service. Branded clients should not maintain a separate completion predicate.
+
+`Profiles::RichCompletion` is a separate, reusable post-onboarding enrichment
+calculation. A brand composes a fixed set of supported richness section keys; it
+cannot store executable rules in JSON. DateZA composes photos, about, interests,
+prompts, work/education, lifestyle, relationship intent, family plans, languages,
+and personality. Partial targets receive deterministic partial credit.
+
+Richness never participates in publication or unpublication. A member can publish
+once `Profiles::Completion` is complete and continue enriching later. Reaching
+100% does not require company, religion, physical-affection, chemistry, income,
+politics, or another sensitive/private field. A supported "prefer not to say"
+answer counts as answered where the section itself is configured.
 
 ## API Contract
 
