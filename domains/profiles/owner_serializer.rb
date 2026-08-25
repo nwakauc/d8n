@@ -15,7 +15,7 @@ module Profiles
         brand: { slug: profile.brand.slug, name: profile.brand.name },
         status: profile.status,
         visibility: profile.visibility,
-        location: { configured: ProfileLocation.kept.exists?(profile:) },
+        location: location_payload,
         # The owner sees ALL their selections regardless of group visibility.
         options: selected_options,
         prompts: Profiles::PromptPresenter.call(profile:),
@@ -51,6 +51,17 @@ module Profiles
         group_selections.sort_by { |selection| [ selection.profile_option.position, selection.profile_option.id ] }
           .map { |selection| selection.profile_option.code }
       end
+    end
+
+    # Never latitude/longitude here — only a safe, human-readable place label
+    # when the location came from a catalog selection (Profiles::CurrentPlace).
+    # A raw device-GPS location has no Place to name, so it stays boolean-only.
+    def location_payload
+      location = ProfileLocation.kept.includes(:place).find_by(profile:)
+      return { configured: false } if location.blank?
+      return { configured: true } if location.place.blank?
+
+      { configured: true, place: { name: location.place.name, display_path: location.place.display_path } }
     end
 
     def completion_payload

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_25_060000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_070500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -530,6 +530,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_060000) do
     t.index ["identity_identifier_id"], name: "index_otp_challenges_on_identity_identifier_id"
   end
 
+  create_table "places", force: :cascade do |t|
+    t.string "code", null: false
+    t.string "country_code", limit: 2, null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.integer "kind", null: false
+    t.decimal "latitude", precision: 10, scale: 7, null: false
+    t.decimal "longitude", precision: 10, scale: 7, null: false
+    t.string "name", null: false
+    t.bigint "parent_id"
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["country_code", "kind"], name: "index_places_on_country_code_and_kind"
+    t.index ["country_code"], name: "idx_places_unique_country", unique: true, where: "((kind = 0) AND (deleted_at IS NULL))"
+    t.index ["parent_id", "code"], name: "idx_places_active_parent_code", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["parent_id"], name: "index_places_on_parent_id"
+    t.check_constraint "char_length(country_code::text) = 2", name: "chk_places_country_code_length"
+    t.check_constraint "kind = 0 AND parent_id IS NULL OR kind <> 0 AND parent_id IS NOT NULL", name: "chk_places_country_has_no_parent"
+    t.check_constraint "kind >= 0 AND kind <= 3", name: "chk_places_kind"
+    t.check_constraint "latitude >= '-90'::integer::numeric AND latitude <= 90::numeric", name: "chk_places_latitude"
+    t.check_constraint "longitude >= '-180'::integer::numeric AND longitude <= 180::numeric", name: "chk_places_longitude"
+    t.check_constraint "status >= 0 AND status <= 1", name: "chk_places_status"
+  end
+
   create_table "profile_blocks", force: :cascade do |t|
     t.bigint "blocked_profile_id", null: false
     t.bigint "blocker_profile_id", null: false
@@ -554,19 +578,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_060000) do
     t.datetime "deleted_at"
     t.decimal "latitude", precision: 10, scale: 7, null: false
     t.decimal "longitude", precision: 10, scale: 7, null: false
+    t.bigint "place_id"
     t.bigint "profile_id", null: false
     t.string "source", limit: 32, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["brand_id", "latitude", "longitude"], name: "idx_profile_locations_active_coordinates", where: "(deleted_at IS NULL)"
     t.index ["brand_id"], name: "index_profile_locations_on_brand_id"
+    t.index ["place_id"], name: "index_profile_locations_on_place_id"
     t.index ["profile_id"], name: "idx_profile_locations_active_profile", unique: true, where: "(deleted_at IS NULL)"
     t.index ["profile_id"], name: "index_profile_locations_on_profile_id"
     t.index ["user_id"], name: "index_profile_locations_on_user_id"
     t.check_constraint "accuracy_meters >= 0 AND accuracy_meters <= 100000", name: "chk_profile_locations_accuracy"
     t.check_constraint "latitude >= '-90'::integer::numeric AND latitude <= 90::numeric", name: "chk_profile_locations_latitude"
     t.check_constraint "longitude >= '-180'::integer::numeric AND longitude <= 180::numeric", name: "chk_profile_locations_longitude"
-    t.check_constraint "source::text = ANY (ARRAY['device'::character varying::text, 'manual'::character varying::text, 'imported'::character varying::text])", name: "chk_profile_locations_source"
+    t.check_constraint "source::text = ANY (ARRAY['device'::character varying, 'manual'::character varying, 'imported'::character varying, 'place'::character varying]::text[])", name: "chk_profile_locations_source"
   end
 
   create_table "profile_option_groups", force: :cascade do |t|
@@ -932,10 +958,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_060000) do
   add_foreign_key "notifications", "users"
   add_foreign_key "otp_challenges", "brands"
   add_foreign_key "otp_challenges", "identity_identifiers"
+  add_foreign_key "places", "places", column: "parent_id"
   add_foreign_key "profile_blocks", "brands"
   add_foreign_key "profile_blocks", "profiles", column: ["blocked_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_blocks_blocked_tenant"
   add_foreign_key "profile_blocks", "profiles", column: ["blocker_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_blocks_blocker_tenant"
   add_foreign_key "profile_locations", "brands"
+  add_foreign_key "profile_locations", "places"
   add_foreign_key "profile_locations", "profiles"
   add_foreign_key "profile_locations", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_profile_locations_profile_tenant"
   add_foreign_key "profile_locations", "users"

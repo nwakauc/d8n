@@ -48,6 +48,8 @@ Rails.application.routes.draw do
       delete "profile/publication" => "profile_publications#destroy"
       put "profile/location" => "profile_locations#update"
       delete "profile/location" => "profile_locations#destroy"
+      get "places" => "places#index"
+      put "profile/place" => "profile_places#update"
       get "profile/configuration" => "profile_configuration#show"
       patch "profile/options" => "profile_options#update"
       get "profile/prompts" => "profile_prompts#show"

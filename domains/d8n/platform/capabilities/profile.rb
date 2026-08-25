@@ -19,6 +19,8 @@ module D8n
             implementations: %w[Profiles::Languages]),
           CapabilityDefinition.new(key: "profile.location", status: :available,
             implementations: %w[Profiles::CurrentLocation]),
+          CapabilityDefinition.new(key: "profile.location.place_selection", status: :available,
+            implementations: %w[Place Profiles::CurrentPlace]),
           CapabilityDefinition.new(key: "profile.photos", status: :available,
             implementations: %w[Profiles::PhotoLibrary Profiles::PhotoUpload]),
           CapabilityDefinition.new(key: "profile.completion", status: :available,

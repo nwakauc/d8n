@@ -1,11 +1,12 @@
 class ProfileLocation < ApplicationRecord
   MAX_ACCURACY_METERS = 100_000
   MAX_FUTURE_SKEW = 5.minutes
-  SOURCES = %w[ device manual imported ].freeze
+  SOURCES = %w[ device manual imported place ].freeze
 
   belongs_to :profile
   belongs_to :user
   belongs_to :brand
+  belongs_to :place, optional: true
 
   scope :kept, -> { where(deleted_at: nil) }
 

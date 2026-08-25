@@ -23,6 +23,7 @@ module D8n
           profile.interests
           profile.languages
           profile.location
+          profile.location.place_selection
           profile.photos
           profile.completion
           profile.publication
@@ -95,6 +96,7 @@ module D8n
             capabilities: CAPABILITIES,
             profile: BrandContract::ProfileConfiguration.new(catalog: Profiles::DatezaProfileCatalog),
             discovery_surfaces: SURFACES,
+            place_country_codes: %w[ ZA ],
             default_discovery_surface: "discovery.curated_daily",
             interaction: BrandContract::InteractionConfiguration.new(
               eligibility_policy: ELIGIBILITY_POLICY,

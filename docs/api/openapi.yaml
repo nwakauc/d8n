@@ -971,6 +971,88 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/ProfileOrMembershipRequired"
+  /api/v1/places:
+    get:
+      operationId: listPlaces
+      tags: [Profile]
+      summary: List the current brand's canonical place catalog
+      description: |
+        Brand/country-scoped hierarchy (currently region → city → locality for
+        DateZA; `country_code = ZA` is implicit and never listed). Omit
+        `parent_id` for the top-level regions; pass a region/city `id` as
+        `parent_id` to list its children. Returns `404 place_not_found` if
+        `parent_id` does not resolve within the brand's configured countries.
+        `404 capability_not_configured` for brands without place selection
+        (e.g. HookUs).
+      parameters:
+        - name: parent_id
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Selectable places at the requested level.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [places]
+                properties:
+                  places:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Place"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/profile/place:
+    put:
+      operationId: replaceProfilePlace
+      tags: [Profile]
+      summary: Set the current profile's dating location from the canonical place catalog
+      description: |
+        Resolves `place_id` (a region/city/locality, never a country) to its
+        server-held centroid coordinates and writes the same authoritative
+        location record `PUT /api/v1/profile/location` does — the two paths
+        are mutually exclusive updates to one location, not parallel systems.
+        A client cannot submit or influence coordinates directly; only a valid
+        `place_id` within the brand's configured countries is accepted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [place_id]
+              properties:
+                place_id:
+                  type: integer
+      responses:
+        "200":
+          description: Location configured from the selected place, without coordinates.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileLocationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: Unknown place, or outside the brand's configured countries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+                    enum: [invalid_place]
   /api/v1/profile/photos:
     get:
       operationId: listProfilePhotos
@@ -3688,16 +3770,46 @@ components:
           type: integer
         source:
           type: string
-          enum: [device, manual, imported]
+          enum: [device, manual, imported, place]
         captured_at:
           type: string
           format: date-time
+        place:
+          description: Present only when source is `place`. Never includes coordinates.
+          type: object
+          required: [id, name, display_path]
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            display_path:
+              type: string
+              description: Human-readable, fine-to-coarse label, e.g. "Sea Point, Cape Town, Western Cape".
     ProfileLocationResponse:
       type: object
       required: [location]
       properties:
         location:
           $ref: "#/components/schemas/ProfileLocationState"
+    Place:
+      type: object
+      required: [id, kind, name, code, has_children]
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [region, city, locality]
+          description: Country-level entries are never listed; DateZA's country_code is implicit.
+        name:
+          type: string
+        code:
+          type: string
+          description: Stable slug, unique among siblings.
+        has_children:
+          type: boolean
+          description: Whether a more specific level exists to drill into (not every city has cataloged localities).
     ProfilePhoto:
       type: object
       required: [id, profile_id, position, status, visibility, processing_state, deleted_at, image]

@@ -40,7 +40,7 @@ module D8n
       attr_reader :slug, :auth_methods, :capabilities, :profile, :discovery_surfaces,
         :default_discovery_surface_key,
         :interaction, :media, :notifications, :error_codes, :enabled_identity_fields,
-        :enabled_profile_fields, :enabled_preference_fields
+        :enabled_profile_fields, :enabled_preference_fields, :place_country_codes
 
       def initialize(
         brand:,
@@ -51,7 +51,8 @@ module D8n
         interaction:,
         media:,
         notifications:,
-        error_codes: {}
+        error_codes: {},
+        place_country_codes: []
       )
         raise ArgumentError, "brand is required" unless brand.is_a?(Brand)
 
@@ -70,6 +71,7 @@ module D8n
         @media = media
         @notifications = notifications
         @error_codes = error_codes.transform_keys(&:to_s).transform_values(&:to_sym).freeze
+        @place_country_codes = Array(place_country_codes).map { |code| code.to_s.upcase }.freeze
 
         validate!
         freeze
@@ -143,6 +145,10 @@ module D8n
 
         if default_discovery_surface_key.present? && !surface_enabled?(default_discovery_surface_key)
           raise ArgumentError, "default discovery surface is not configured"
+        end
+
+        if place_country_codes.any? && !capability_enabled?("profile.location.place_selection")
+          raise ArgumentError, "place country codes require the place_selection capability"
         end
       end
     end
