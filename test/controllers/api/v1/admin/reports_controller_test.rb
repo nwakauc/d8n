@@ -151,6 +151,37 @@ class Api::V1::Admin::ReportsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "the detail view distinguishes profile, message, and conversation report evidence" do
+    profile_a_id, profile_b_id = Match.canonical_pair(@reporter.id, @target.id)
+    match = Match.create!(brand: @brand, profile_a_id:, profile_b_id:)
+    conversation = Messaging::StartConversation.call(
+      user: @reporter.user, brand: @brand, match_public_id: match.public_id
+    ).conversation
+    message = Message.create!(brand: @brand, conversation:, sender_profile: @target, body: "abuse")
+
+    message_report = Trust::FileReport.call(
+      user: @reporter.user, brand: @brand, target_type: "message", target_id: message.public_id, reason: "harassment"
+    ).report
+    conversation_report = Trust::FileReport.call(
+      user: @reporter.user, brand: @brand, target_type: "conversation", target_id: conversation.public_id,
+      reason: "harassment"
+    ).report
+
+    get "/api/v1/admin/reports/#{@report.id}", headers: bearer_headers(@admin_token)
+    assert_equal "profile", JSON.parse(response.body).dig("report", "target_type")
+
+    get "/api/v1/admin/reports/#{message_report.id}", headers: bearer_headers(@admin_token)
+    body = JSON.parse(response.body).fetch("report")
+    assert_equal "message", body.fetch("target_type")
+    assert_equal "abuse", body.dig("evidence", "body")
+
+    get "/api/v1/admin/reports/#{conversation_report.id}", headers: bearer_headers(@admin_token)
+    body = JSON.parse(response.body).fetch("report")
+    assert_equal "conversation", body.fetch("target_type")
+    assert_equal [ "abuse" ], body.dig("evidence", "messages").pluck("body")
+    assert_equal @target.id, body.dig("evidence", "messages").first.fetch("sender_profile_id")
+  end
+
   # --- transitions -----------------------------------------------------------
 
   test "a moderator moves a report through reviewing to actioned and the decision is recorded" do

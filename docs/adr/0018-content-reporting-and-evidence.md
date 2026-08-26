@@ -8,6 +8,10 @@ Builds on blocking (ADR 0009/0010), the admin review queue (TS-03), account
 enforcement (ADR 0013), and account closure (ADR 0014). It deliberately does NOT
 build image/video messaging, Private Albums, or automated enforcement.
 
+Extended on 2026-08-26 with a fifth target type, `conversation`, for
+pattern-level chat harm — see "Conversation reporting" below. Message reporting
+itself was already fully covered by this ADR and required no change.
+
 ## Context
 
 Reporting needed to grow from "report this person" to "report this message /
@@ -89,6 +93,44 @@ The generic endpoint accepts an optional `block: true` that blocks the responsib
 profile after the report is filed (both idempotent). Reports never automatically
 suspend, ban, hide, or otherwise enforce — a report is evidence for human/system
 review (ADR 0013 enforcement stays a separate, explicit moderator action).
+
+### Conversation reporting: bounded pattern-level evidence, not a second message report
+
+`target_type: "conversation"` (`Trust::ReportTargets::ConversationTarget`) reports
+the interaction as a whole for harm that no single message captures — repeated
+harassment, a scam pattern, escalating coercion. Authorization is identical to
+`message`: the viewer must be a kept `ConversationParticipant` of the target
+conversation, deliberately not `MatchAccess`, so the report survives a block,
+suspension, or closure of the other participant exactly as message reporting
+does. The responsible profile is the other participant, derived server-side via
+`Conversation#other_profile`.
+
+Its evidence is deliberately **not** the same shape as a message report's: it is
+a bounded window of the most recent 20 kept messages that existed at report
+time (sender, body, timestamp per message), reversed into chronological order.
+This is a considered difference in kind, not an inconsistency — a message report
+is evidence for one piece of content; a conversation report is evidence for a
+*pattern*, which by definition requires more than one message to be legible to
+a moderator, while still being bounded (never the full history, regardless of
+how old or long the conversation is). `MessageTarget`'s single-message-only rule
+is unchanged (see "Message evidence snapshots only the reported message, not
+surrounding history" in the test suite) — a request from a later ticket to add
+surrounding context to individual message reports was deliberately not applied,
+because it would have weakened an existing, tested, deliberate invariant; the
+conversation report is the correct, already-designed vehicle for that need.
+
+Conversation origin is irrelevant to any of this: an accepted-Hook-origin
+conversation (`Hooks::ReplyToHook`) and a Match-origin conversation
+(`Messaging::StartConversation`) are both plain `Conversation` records once
+created (ADR: 🔥 Hook interaction), so `ConversationTarget` needed no
+Opener-specific branch and no `match_id` prerequisite — conversation
+participation alone is the authorization boundary, exactly as the platform's
+messaging endpoints already require.
+
+No new endpoint was added: `POST /api/v1/reports` with
+`target_type: "conversation"` reuses the entire existing generic-reporting
+contract (reason taxonomy, duplicate suppression, rate limiting, report-and-block,
+audit event, admin queue/serializer) unchanged, the same way `message` did.
 
 ## Media evidence retention: a documented beta limitation
 

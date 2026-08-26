@@ -2208,8 +2208,15 @@ paths:
         server-side from it. Supported targets: a `profile`, a chat `message`
         (reportable by a conversation participant, and still reportable after the
         sender is blocked/suspended/closed), a `profile_media` photo (reportable
-        while the owner is visible to the viewer), and a `hook` opener (reportable
-        by its recipient).
+        while the owner is visible to the viewer), a `hook` opener (reportable by
+        its recipient), and a `conversation` (reportable by either participant,
+        for pattern-level harm across several messages; works identically for a
+        Match-origin or an accepted-Opener-origin conversation).
+
+        Message evidence snapshots only the reported message. Conversation
+        evidence snapshots a bounded window of the most recent messages that
+        existed at report time — never the full history. Filing a report never
+        blocks, unmatches, or hides the conversation; those are separate actions.
 
         Idempotent per open (reporter, target): a repeat returns `created: false`.
         Distinct content from the same person can each be reported. Unknown,
@@ -4721,10 +4728,12 @@ components:
     ReportTargetType:
       type: string
       description: |
-        The kind of thing being reported. `profile` reports a person; the others
-        report a specific piece of that person's content. New types are added as
-        the underlying features ship.
-      enum: [profile, message, profile_media, hook]
+        The kind of thing being reported. `profile` reports a person; `message`,
+        `profile_media`, and `hook` each report one specific piece of content;
+        `conversation` reports the interaction as a whole for pattern-level harm
+        no single message captures. New types are added as the underlying
+        features ship.
+      enum: [profile, message, profile_media, hook, conversation]
     ReportRequest:
       type: object
       required: [reason]
@@ -4753,10 +4762,10 @@ components:
         target_id:
           type: [string, "null"]
           description: |
-            Opaque public id of the target content — a message id, photo id, or
-            Hook id (a profile's public id when `target_type` is `profile`). The
-            responsible profile is always derived server-side from this target,
-            never supplied by the client.
+            Opaque public id of the target content — a message id, photo id,
+            Hook id, or conversation id (a profile's public id when
+            `target_type` is `profile`). The responsible profile is always
+            derived server-side from this target, never supplied by the client.
         reason:
           $ref: "#/components/schemas/ReportReason"
         details:

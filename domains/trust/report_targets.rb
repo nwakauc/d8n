@@ -19,7 +19,8 @@ module Trust
       "profile" => ProfileTarget,
       "message" => MessageTarget,
       "profile_media" => MediaTarget,
-      "hook" => HookTarget
+      "hook" => HookTarget,
+      "conversation" => ConversationTarget
     }.freeze
 
     def self.resolver_for(target_type)

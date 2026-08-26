@@ -31,11 +31,15 @@ class Report < ApplicationRecord
   # `target_id`; every other type identifies a specific content record via
   # `target_id` (an internal id) whose owner is mirrored into `reported_profile`.
   # New target types are appended here as the underlying features ship.
+  # `conversation` (4) is the whole conversation, for pattern-level harm no
+  # single message captures; unlike `message`, its evidence is a bounded window
+  # of recent messages rather than a single one (see ADR 0018).
   enum :target_type, {
     profile: 0,
     message: 1,
     profile_media: 2,
-    hook: 3
+    hook: 3,
+    conversation: 4
   }, prefix: :target
 
   # Administrative review lifecycle. `open` until an admin triages it. Only one

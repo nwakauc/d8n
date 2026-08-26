@@ -186,6 +186,122 @@ class Api::V1::GenericReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :created
   end
 
+  # ---- conversation reporting --------------------------------------------
+
+  test "a participant reports the conversation with the other participant derived as responsible" do
+    conversation = conversation_between(@reporter, @offender)
+    Message.create!(brand: @brand, conversation:, sender_profile: @offender, body: "one")
+    Message.create!(brand: @brand, conversation:, sender_profile: @reporter, body: "two")
+
+    assert_difference -> { Report.count } => 1 do
+      post_report(target_type: "conversation", target_id: conversation.public_id, reason: "harassment",
+        details: "keeps escalating")
+    end
+    assert_response :created
+    report = Report.sole
+    assert report.target_conversation?
+    assert_equal conversation.id, report.target_id
+    assert_equal @offender.id, report.reported_profile_id
+    assert_equal @reporter.id, report.reporter_profile_id
+    assert_equal conversation.public_id, report.evidence.fetch("conversation_public_id")
+  end
+
+  test "conversation evidence is a bounded window of recent messages, not the entire history" do
+    conversation = conversation_between(@reporter, @offender)
+    30.times { |i| Message.create!(brand: @brand, conversation:, sender_profile: @offender, body: "m#{i}") }
+
+    post_report(target_type: "conversation", target_id: conversation.public_id, reason: "harassment")
+    assert_response :created
+    messages = Report.sole.evidence.fetch("messages")
+    assert_equal Trust::ReportTargets::ConversationTarget::CONTEXT_WINDOW, messages.size
+    assert_equal "m29", messages.last.fetch("body"), "window is the most recent messages"
+    assert_equal "m10", messages.first.fetch("body"), "window is bounded, not the whole 30-message history"
+  end
+
+  test "an outsider cannot report a conversation they do not belong to" do
+    conversation = conversation_between(@reporter, @offender)
+    outsider = create_profile(brand: @brand)
+    outsider_token, = Session.issue!(brand: @brand, user: outsider.user)
+
+    assert_no_difference -> { Report.count } do
+      post_report(token: outsider_token, target_type: "conversation", target_id: conversation.public_id, reason: "harassment")
+    end
+    assert_neutral_unavailable
+  end
+
+  test "an unknown conversation id is a neutral target_unavailable" do
+    post_report(target_type: "conversation", target_id: SecureRandom.uuid, reason: "spam")
+    assert_neutral_unavailable
+  end
+
+  test "reporting a conversation neither blocks, unmatches, nor hides it" do
+    conversation = conversation_between(@reporter, @offender)
+    Message.create!(brand: @brand, conversation:, sender_profile: @offender, body: "abuse")
+
+    post_report(target_type: "conversation", target_id: conversation.public_id, reason: "harassment")
+    assert_response :created
+
+    assert_not ProfileBlock.kept.exists?(brand: @brand, blocker_profile: @reporter, blocked_profile: @offender)
+    conversation.reload
+    assert conversation.status_active?
+    assert conversation.match.reload.status_active?
+  end
+
+  test "reporting a conversation is idempotent while a message report on the same conversation is independent" do
+    conversation = conversation_between(@reporter, @offender)
+    message = Message.create!(brand: @brand, conversation:, sender_profile: @offender, body: "abuse")
+
+    assert_difference -> { Report.count } => 1 do
+      post_report(target_type: "conversation", target_id: conversation.public_id, reason: "harassment")
+    end
+    assert_no_difference -> { Report.count } do
+      post_report(target_type: "conversation", target_id: conversation.public_id, reason: "spam")
+    end
+    assert_response :success
+    assert_not JSON.parse(response.body).fetch("created")
+
+    assert_difference -> { Report.count } => 1 do
+      post_report(target_type: "message", target_id: message.public_id, reason: "harassment")
+    end
+  end
+
+  test "a conversation report survives account closure of the other participant" do
+    conversation = conversation_between(@reporter, @offender)
+    Message.create!(brand: @brand, conversation:, sender_profile: @offender, body: "abuse")
+    post_report(target_type: "conversation", target_id: conversation.public_id, reason: "harassment")
+    assert_response :created
+
+    Accounts::CloseAccount.call(user: @offender.user, brand: @brand)
+
+    report = Report.sole
+    assert_equal conversation.public_id, report.evidence.fetch("conversation_public_id")
+    assert_equal @offender.id, report.reported_profile_id
+  end
+
+  test "conversation reporting works identically for an Opener-origin conversation (HookUs)" do
+    hook = send_hook(@offender, to: @reporter, message: "hey there")
+    result = Hooks::ReplyToHook.call(user: @reporter.user, brand: @brand, hook_public_id: hook.public_id, message: "hi!")
+    conversation = result.conversation
+    assert conversation.match_id.present?, "Opener-origin conversations are ordinary Match-backed conversations"
+
+    assert_difference -> { Report.count } => 1 do
+      post_report(target_type: "conversation", target_id: conversation.public_id, reason: "harassment")
+    end
+    assert_response :created
+    assert_equal @offender.id, Report.sole.reported_profile_id
+  end
+
+  test "content from another brand is a neutral target_unavailable for conversation reports too" do
+    other = Brand.create!(slug: "other-chat", name: "Other Chat")
+    BrandDomain.create!(brand: other, host: "other-chat.test")
+    o_a = create_profile(brand: other)
+    o_b = create_profile(brand: other)
+    foreign_conversation = conversation_between(o_a, o_b)
+
+    post_report(target_type: "conversation", target_id: foreign_conversation.public_id, reason: "harassment")
+    assert_neutral_unavailable
+  end
+
   # ---- duplicate / concurrency ------------------------------------------
 
   test "reporting the same target twice is idempotent" do

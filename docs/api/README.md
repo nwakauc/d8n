@@ -674,6 +674,42 @@ recheck active-match, participant, brand, account, and block access.
 
 `DELETE /api/v1/profiles/:profile_id/block` removes only the current profile's outgoing block. It is idempotent and returns `204` for absent, unknown, cross-brand, self, and soft-deleted targets without revealing whether the target exists. Unblocking permits future eligible interaction but never restores earlier likes, reactivates an ended match, or restores access to its ended conversation/history.
 
+## Reporting
+
+`POST /api/v1/reports` is the single shared D8N TRUST reporting endpoint for every
+brand and every reportable subject: `{"target_type": "profile"|"message"|
+"profile_media"|"hook"|"conversation", "target_id": "...", "reason": "...",
+"details": "...", "block": false}`. The reporter is always the authenticated
+caller; the responsible profile (message/Hook sender, photo owner, other
+conversation participant) is always derived server-side and can never be
+supplied by the client. Unknown, inaccessible, self-owned, and cross-brand
+targets are indistinguishable — a neutral `404 target_unavailable` — so nothing
+about a target's existence is enumerable. Filing a report never blocks,
+unmatches, or hides the conversation; those remain separate, explicit actions
+(optionally combined via `block: true`, which blocks the responsible profile
+after the report is filed).
+
+A **message report** (`target_type: "message"`) requires the reporter to be a
+participant of the message's conversation and captures only that one message
+(sender, conversation, body, timestamp) as evidence — never surrounding
+history. A **conversation report** (`target_type: "conversation"`) is for
+pattern-level harm (repeated harassment, a scam pattern, escalating coercion)
+that no single message captures, and instead snapshots a bounded window of the
+most recent messages (currently 20) that existed at report time — never the
+entire history. Both work identically regardless of whether the conversation
+originated from a Match or from an accepted D8N Opener (Hook reply), and both
+remain reportable after the other participant is blocked, suspended, or
+closes their account, because report evidence is retained safety data (see
+ADR 0018). Every reportable subject shares one reason taxonomy and one report
+lifecycle — there is no message- or conversation-specific moderation system.
+
+```sh
+curl -X POST https://hookus.example.com/api/v1/reports \
+  -H 'Authorization: Bearer REPLACE_WITH_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"target_type":"conversation","target_id":"CONVERSATION_UUID","reason":"harassment"}'
+```
+
 ## Profile Detail
 
 `GET /api/v1/profiles/:profile_id` returns one member's safe public profile from
