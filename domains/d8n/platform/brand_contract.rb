@@ -10,6 +10,14 @@ module D8n
       end
       InteractionConfiguration = Data.define(:eligibility_policy, :compatibility_strategy, :verification_requirement)
       MediaConfiguration = Data.define(:photo_policy, :initial_visibility, :max_profile_photos)
+      # D8N Opener: a brand's one-shot-opener-then-reply-unlocks-chat policy
+      # (implemented by Hooks::SendHook et al. — see Hook/ProfileOpener). Nil for
+      # a brand that doesn't enable match.hook/match.opener at all.
+      # `catalog_required` selects freeform (HookUs) vs. curated-catalog-only
+      # (DateZA) sends; `daily_limit`/`expires_in` are the sender's per-brand
+      # anti-spam allowance and the pending window before an unanswered opener
+      # lapses.
+      OpenerConfiguration = Data.define(:catalog_required, :daily_limit, :expires_in)
       NotificationPlan = Data.define(:notification_type, :email_template)
 
       class NotificationConfiguration
@@ -39,7 +47,7 @@ module D8n
 
       attr_reader :slug, :auth_methods, :capabilities, :profile, :discovery_surfaces,
         :default_discovery_surface_key,
-        :interaction, :media, :notifications, :error_codes, :enabled_identity_fields,
+        :interaction, :media, :opener, :notifications, :error_codes, :enabled_identity_fields,
         :enabled_profile_fields, :enabled_preference_fields, :place_country_codes
 
       def initialize(
@@ -50,6 +58,7 @@ module D8n
         default_discovery_surface: nil,
         interaction:,
         media:,
+        opener: nil,
         notifications:,
         error_codes: {},
         place_country_codes: []
@@ -69,6 +78,7 @@ module D8n
         @default_discovery_surface_key = default_discovery_surface&.to_s&.freeze
         @interaction = interaction
         @media = media
+        @opener = opener
         @notifications = notifications
         @error_codes = error_codes.transform_keys(&:to_s).transform_values(&:to_sym).freeze
         @place_country_codes = Array(place_country_codes).map { |code| code.to_s.upcase }.freeze
@@ -129,6 +139,12 @@ module D8n
         end
         unless notifications.is_a?(NotificationConfiguration)
           raise ArgumentError, "notification configuration is required"
+        end
+        if opener && !(opener.is_a?(OpenerConfiguration) && opener.daily_limit.to_i.positive? && opener.expires_in.present?)
+          raise ArgumentError, "valid opener configuration is required"
+        end
+        if (capability_enabled?("match.hook") || capability_enabled?("match.opener")) && opener.nil?
+          raise ArgumentError, "opener configuration is required when match.hook or match.opener is enabled"
         end
 
         capabilities.each do |key|

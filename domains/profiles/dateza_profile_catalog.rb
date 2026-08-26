@@ -23,6 +23,20 @@ module Profiles
       dealbreaker
     ].freeze
 
+    # Placeholder D8N Opener catalog (see CapabilityCatalog::OPENERS). Product
+    # copy TBD — editable any time via CapabilityCatalog.install_opener!, no
+    # schema change required.
+    ENABLED_OPENERS = %w[
+      coffee_or_tea
+      weekend_plans
+      last_watched
+      hidden_talent
+      go_to_meal
+      travel_next
+      song_on_repeat
+      good_energy
+    ].freeze
+
     INTERESTS = %w[
       foodie cooking coffee live_music festivals afrobeats amapiano hip_hop rnb
       travel road_trips beach hiking nature gym running yoga football rugby cricket
@@ -99,6 +113,7 @@ module Profiles
           brand:, position: ENABLED_CAPABILITIES.size, only: INTERESTS, max_selections: 10
         )
         CapabilityCatalog.enable_prompts!(brand:, keys: ENABLED_PROMPTS)
+        CapabilityCatalog.enable_openers!(brand:, keys: ENABLED_OPENERS)
         retire_unconfigured_interest_options!
         brand.update!(
           profile_requirements: REQUIREMENTS,

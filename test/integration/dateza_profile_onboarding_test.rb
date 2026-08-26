@@ -68,7 +68,9 @@ class DatezaProfileOnboardingTest < ActiveSupport::TestCase
       looking_for_text: "A legacy value", languages_spoken: [ "English" ]
     )
 
+    ActiveStorage::Current.url_options = { host: "http://test.local" }
     payload = Profiles::PublicSerializer.call(profile:)
+    ActiveStorage::Current.reset
 
     assert_equal({ city: "Johannesburg", country_code: "ZA", precision: "approximate" }, payload.fetch(:location))
     assert_not payload.key?(:birthdate)
@@ -138,7 +140,10 @@ class DatezaProfileOnboardingTest < ActiveSupport::TestCase
   end
 
   def attach_photo(profile)
-    photo = ProfilePhoto.new(profile:, user: @user, brand: @brand)
+    initial = Media::PhotoPolicy.initial_state(brand: @brand)
+    photo = ProfilePhoto.new(
+      profile:, user: @user, brand: @brand, status: initial.status, visibility: initial.visibility
+    )
     photo.image.attach(
       io: Rails.root.join("test/fixtures/files/profile_photo.png").open,
       filename: "profile_photo.png", content_type: "image/png"

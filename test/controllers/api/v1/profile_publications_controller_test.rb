@@ -176,7 +176,10 @@ class Api::V1::ProfilePublicationsControllerTest < ActionDispatch::IntegrationTe
         religion_importance: [ "not_important" ], social_style: [ "introverted" ], meeting_pace: [ "meet_soon" ]
       }
     )
-    photo = ProfilePhoto.new(brand: dateza, user:, profile:)
+    initial = Media::PhotoPolicy.initial_state(brand: dateza)
+    photo = ProfilePhoto.new(
+      brand: dateza, user:, profile:, status: initial.status, visibility: initial.visibility
+    )
     photo.image.attach(
       io: Rails.root.join("test/fixtures/files/profile_photo.png").open,
       filename: "profile_photo.png",

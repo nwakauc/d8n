@@ -66,10 +66,7 @@ module Profiles
       def build(person:, content:, brand:)
         DemoSeed::Builder.call(
           person:, content:, brand:, email: email_for(person), seed_tag: SEED_TAG,
-          identity_attributes: identity_attributes(person), seed_device: SEED_DEVICE,
-          # Curated demo media must be visible in Discovery, but remains honestly
-          # pending review. This does not alter DateZA's moderate-first upload policy.
-          photo_initial_state: Media::PhotoPolicy::IMMEDIATE
+          identity_attributes: identity_attributes(person), seed_device: SEED_DEVICE
         )
       end
 

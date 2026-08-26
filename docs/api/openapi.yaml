@@ -33,9 +33,11 @@ info:
     - **Available:** Profile photos use a direct-to-R2
       upload — request an intent, `PUT` the bytes to the returned short-lived
       presigned URL, then attach the returned `signed_id`. Attached photos begin
-      `pending_review`; initial visibility is a per-brand policy — HookUs photos
-      are `visible` immediately and moderated asynchronously, while moderate-first
-      brands stay `hidden` until approval. Public delivery positively requires a
+      `pending_review`; initial visibility is a per-brand policy — HookUs and
+      DateZA photos are `visible` immediately and moderated asynchronously in the
+      background, while a brand without an explicit immediate policy stays
+      `hidden` until approval. `pending_review` means moderation has not yet run;
+      it is never presented as approval or verification. Public delivery positively requires a
       kept, visible, successfully processed safe derivative whose moderation state
       is pending/approved; rejected media is independently excluded. Signed URLs
       are short-lived. The endpoints require private R2 storage, so they return
@@ -1089,9 +1091,10 @@ paths:
         presigned URL. D8N confirms the object exists in private R2, verifies its
         real file signature and size (the declared MIME is only a hint), and
         attaches it to the authenticated owner's profile. New photos begin
-        `pending_review`; initial visibility follows the brand policy (HookUs:
-        `visible` immediately with asynchronous moderation; other brands: `hidden`
-        until moderated). A `signed_id` may be attached only once. The upload is
+        `pending_review`; initial visibility follows the brand policy (HookUs and
+        DateZA: `visible` immediately with asynchronous moderation; a brand
+        without an explicit immediate policy: `hidden` until moderated). A
+        `signed_id` may be attached only once. The upload is
         then processed asynchronously into a safe, EXIF-stripped display
         derivative (`processing_state`); other users only ever see that
         derivative, and only once it is `ready`. Until then the photo is not
@@ -1693,6 +1696,192 @@ paths:
             The resolved database brand has no production contract
             (`brand_not_configured`), Hook is disabled by its contract
             (`hook_not_configured`), or the Hook is not live for this member
+            (`hook_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/profiles/{profile_id}/opener:
+    post:
+      operationId: sendOpener
+      tags: [D8N Opener]
+      summary: Send a D8N Opener (one curated opener) to an eligible profile
+      description: |
+        The generic, brand-configurable version of `POST
+        /api/v1/profiles/{profile_id}/hook` — same engine (Hook model,
+        Hooks::SendHook), different brand policy. A brand enabling `match.opener`
+        with a curated catalog (DateZA) requires `opener_key` to reference an
+        active entry from `GET /api/v1/profile/configuration` → `openers`; the
+        resolved catalog text is what gets sent (there is no freeform field). No
+        Match/Conversation/Message is created yet: the opener is held on the
+        record, and the sender is locked out from any further message until the
+        recipient replies (and a second Opener to the same person is rejected).
+
+        Reachability matches Like exactly: blocked (either direction), suspended,
+        closed, hidden, cross-brand, self, and otherwise-ineligible targets all
+        fail closed as `profile_unavailable` (404), never revealing which.
+
+        V1 anti-spam: exactly one Opener per (sender → recipient) pair, ever — a
+        second attempt (including after decline/expiry) returns `already_hooked`
+        (409). Sending is also bounded by a per-sender daily allowance
+        (`hook_rate_limited`, 429, with `Retry-After`).
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendOpenerRequest"
+      responses:
+        "201":
+          description: The Opener was created and is pending the recipient's reply.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendOpenerResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: >-
+            The resolved database brand has no production contract
+            (`brand_not_configured`), D8N Opener is disabled by its contract
+            (`opener_not_configured`), or the target profile is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: |
+            Interaction conflict: `already_hooked` (already used your one Opener
+            to this person), `already_matched`, `already_liked`, or
+            `incoming_hook` (they sent you one — reply from your inbox instead).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Unknown or retired `opener_key` (`invalid_opener`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: The sender's daily Opener allowance is exhausted (`hook_rate_limited`).
+          headers:
+            Retry-After:
+              description: Seconds until the sender may send an Opener again.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/openers:
+    get:
+      operationId: listReceivedOpeners
+      tags: [D8N Opener]
+      summary: List D8N Openers received and awaiting the current member's reply
+      description: |
+        The recipient inbox: live (pending, unexpired) Openers addressed to the
+        current member, newest-first and cursor-paginated. Each entry carries the
+        resolved opener text and the sender's safe public profile. Openers are
+        private — only the recipient sees them; a sender never sees their own
+        sent Openers here. Senders who became unavailable (blocked, suspended,
+        closed) silently drop off without disclosure.
+      parameters:
+        - $ref: "#/components/parameters/OpenerLimit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of live received D8N Openers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenerInboxResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "404":
+          $ref: "#/components/responses/OpenerNotConfigured"
+        "422":
+          description: Invalid `limit` (`invalid_limit`) or `cursor` (`invalid_cursor`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/openers/{opener_id}/reply:
+    post:
+      operationId: replyToOpener
+      tags: [D8N Opener]
+      summary: Reply to a D8N Opener — accepts it and unlocks a conversation
+      description: |
+        The recipient's first reply. There is no separate accept step: replying IS
+        acceptance. Atomically creates the canonical Match + Conversation,
+        materializes the sender's opener as the first message and this text as the
+        second, and returns the unlocked conversation. All further messages flow
+        through the standard `POST /conversations/{conversation_id}/messages`.
+
+        An Opener that is not live for this member — already accepted/declined,
+        expired, blocked either way, or not addressed to the caller — returns the
+        neutral `hook_unavailable` (404), never revealing which.
+      parameters:
+        - $ref: "#/components/parameters/OpenerId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HookReplyRequest"
+      responses:
+        "201":
+          description: The Opener was accepted; the conversation is unlocked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HookReplyResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: >-
+            The resolved database brand has no production contract
+            (`brand_not_configured`), D8N Opener is disabled by its contract
+            (`opener_not_configured`), or the Opener is not live for this member
+            (`hook_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Blank (`message_blank`) or oversized (`message_too_long`) reply.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/openers/{opener_id}/decline:
+    post:
+      operationId: declineOpener
+      tags: [D8N Opener]
+      summary: Decline a pending D8N Opener
+      description: |
+        The recipient declines. Terminal and private: the sender is never told a
+        decline happened (their `opener_state` simply collapses to `unavailable`,
+        indistinguishable from being ignored-then-expired or blocked). An Opener
+        that is not live for this member returns the neutral `hook_unavailable`
+        (404).
+      parameters:
+        - $ref: "#/components/parameters/OpenerId"
+      responses:
+        "204":
+          description: The Opener was declined; nothing is disclosed to the sender.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: >-
+            The resolved database brand has no production contract
+            (`brand_not_configured`), D8N Opener is disabled by its contract
+            (`opener_not_configured`), or the Opener is not live for this member
             (`hook_unavailable`).
           content:
             application/json:
@@ -2680,6 +2869,24 @@ components:
         minimum: 1
         maximum: 50
         default: 20
+    OpenerId:
+      name: opener_id
+      in: path
+      required: true
+      description: Stable public D8N Opener UUID from the received-openers inbox.
+      schema:
+        type: string
+        format: uuid
+    OpenerLimit:
+      name: limit
+      in: query
+      required: false
+      description: Page size for the received-openers inbox.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
     ReportId:
       name: id
       in: path
@@ -2733,6 +2940,15 @@ components:
         The resolved database brand has no production contract
         (`brand_not_configured`), or Hook is disabled by its contract
         (`hook_not_configured`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    OpenerNotConfigured:
+      description: >-
+        The resolved database brand has no production contract
+        (`brand_not_configured`), or D8N Opener is disabled by its contract
+        (`opener_not_configured`).
       content:
         application/json:
           schema:
@@ -4144,7 +4360,7 @@ components:
           $ref: "#/components/schemas/ProfileOnboardingStatus"
     ProfileConfiguration:
       type: object
-      required: [identity_fields, profile_fields, preference_fields, collections, option_groups, prompts]
+      required: [identity_fields, profile_fields, preference_fields, collections, option_groups, prompts, openers]
       properties:
         identity_fields:
           type: array
@@ -4172,6 +4388,15 @@ components:
           description: Brand-enabled prompt definitions a member may answer.
           items:
             $ref: "#/components/schemas/ConfiguredPrompt"
+        openers:
+          type: array
+          description: >-
+            Brand-enabled D8N Opener catalog. Empty for a freeform brand
+            (HookUs); a brand whose opener policy requires curation (DateZA)
+            lists the entries a sender must choose from for
+            `POST /api/v1/profiles/{profile_id}/opener`.
+          items:
+            $ref: "#/components/schemas/ConfiguredOpener"
     ConfiguredField:
       type: object
       required: [key, label, required, cardinality, input_type, visibility, options]
@@ -4259,6 +4484,14 @@ components:
           type: string
         category:
           type: [string, "null"]
+    ConfiguredOpener:
+      type: object
+      required: [key, text]
+      properties:
+        key:
+          type: string
+        text:
+          type: string
     IncompleteProfileError:
       allOf:
         - $ref: "#/components/schemas/ErrorResponse"
@@ -4685,6 +4918,34 @@ components:
           $ref: "#/components/schemas/Conversation"
         message:
           $ref: "#/components/schemas/Message"
+    SendOpenerRequest:
+      type: object
+      required: [opener_key]
+      properties:
+        opener_key:
+          type: string
+          description: |
+            The stable key of one entry from the brand's curated opener catalog
+            (`GET /api/v1/profile/configuration` → `openers`). D8N Opener brands
+            are catalog-only — there is no freeform text field; the resolved
+            catalog `text` is what gets sent.
+    SendOpenerResponse:
+      type: object
+      required: [opener]
+      properties:
+        opener:
+          $ref: "#/components/schemas/HookAcknowledgement"
+    OpenerInboxResponse:
+      type: object
+      required: [openers, next_cursor]
+      properties:
+        openers:
+          type: array
+          description: Newest-first page of live received D8N Openers.
+          items:
+            $ref: "#/components/schemas/ReceivedHook"
+        next_cursor:
+          type: [string, "null"]
     AdminProfilePhotoModeration:
       type: object
       required: [id, profile_id, position, status, visibility, processing_state]

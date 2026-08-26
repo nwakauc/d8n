@@ -40,6 +40,27 @@ class HookTest < ActiveSupport::TestCase
     end
   end
 
+  test "a curated opener's message must match the catalog entry it references" do
+    opener = @brand.profile_openers.create!(key: "test_opener", text: "What's your favorite trip so far?", position: 0)
+
+    hook = Hook.new(
+      brand: @brand, sender_profile: @sender, recipient_profile: @recipient,
+      message: opener.text, profile_opener: opener
+    )
+    assert hook.valid?
+
+    hook.message = "some other tampered text"
+    assert_not hook.valid?
+    assert_includes hook.errors[:message], "must match the selected opener"
+  end
+
+  test "a freeform (no catalog) hook does not require a profile_opener" do
+    hook = Hook.new(brand: @brand, sender_profile: @sender, recipient_profile: @recipient, message: "hi there")
+
+    assert hook.valid?
+    assert_nil hook.profile_opener
+  end
+
   test "live scope excludes expired and non-pending hooks" do
     live = Hook.create!(brand: @brand, sender_profile: @sender, recipient_profile: @recipient, message: "live")
     other = create_member(brand: @brand)

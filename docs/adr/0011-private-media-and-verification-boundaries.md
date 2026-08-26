@@ -9,11 +9,17 @@ Reconciliation note (2026-08-17): the **media-storage half** of this ADR has bee
 implemented and staging-proven ahead of formal acceptance — private R2, direct
 client uploads with server-allocated PII-free keys, verified decode + safe
 re-encode, EXIF/GPS stripping, stranger-safe signed display derivatives, and
-durable raw purge (A-F lifecycle proven on staging 2026-08-15). Still Proposed /
-not built: **moderation enforcement** on the media states and the **verification
-assertion** boundary. The per-brand photo-visibility policy (HookUs visible-on-
-attach vs default hidden, `Media::PhotoPolicy`) is a durable decision made under
-this ADR. Founder/CTO to confirm whether to promote the media half to Accepted.
+durable raw purge (A-F lifecycle proven on staging 2026-08-15).
+
+Reconciliation note (2026-08-26): **moderation enforcement** is now built —
+`Trust::ModerateProfilePhoto` records a brand-scoped admin approve/reject
+decision (audited via `SecurityEvent`) and `Media::PhotoPolicy` decides each
+brand's initial visibility. HookUs and DateZA are both configured `immediate`
+(pending review, but visible and publicly deliverable from the moment a safe
+derivative exists); a brand with no explicit policy stays `moderate_first`
+(hidden until approved). The **verification assertion** boundary is still
+Proposed / not built. Founder/CTO to confirm whether to promote the media half
+to Accepted.
 
 ## Context
 
@@ -65,9 +71,12 @@ must pass all required processing before public use:
 - brand moderation policy.
 
 Only processed, visible variants admitted by explicit brand moderation policy
-may appear in public profiles, discovery, matches, or conversations. HookUs may
-show pending processed media under its immediate policy; moderate-first brands
-require approval. Rejected media is never eligible regardless of visibility.
+may appear in public profiles, discovery, matches, or conversations. HookUs and
+DateZA both show pending processed media under their immediate policy —
+moderation continues asynchronously in the background and never blocks
+onboarding, publication, or ordinary editing; moderate-first brands (the
+default for any brand without an explicit opt-in) require approval before a
+photo is shown. Rejected media is never eligible regardless of visibility.
 Originals remain private and are never served to other consumers.
 
 ### Delivery Is Authorized And Revocable

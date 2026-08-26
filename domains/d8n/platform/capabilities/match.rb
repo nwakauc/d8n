@@ -20,6 +20,13 @@ module D8n
           CapabilityDefinition.new(key: "match.relationship.unmatch", status: :planned),
           CapabilityDefinition.new(key: "match.hook", status: :available,
             implementations: %w[Hooks::SendHook Hooks::ReceivedInbox]),
+          # D8N Opener: the same one-shot-opener/reply-unlocks-chat engine as
+          # match.hook, exposed under generic naming for brands (DateZA and
+          # future brands) whose product does not use the "Hook" label. Shares
+          # every implementation class with match.hook; only the brand's
+          # OpenerConfiguration (catalog_required, allowance) differs.
+          CapabilityDefinition.new(key: "match.opener", status: :available,
+            implementations: %w[Hooks::SendHook Hooks::ReceivedInbox]),
           CapabilityDefinition.new(key: "match.hook_tonight", status: :available,
             implementations: %w[HookTonight::Activate HookTonight::Discovery])
         ].freeze

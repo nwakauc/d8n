@@ -181,7 +181,10 @@ this is a finalized curated allocation, not a per-card consumption allowance.
 Discovery facets and optional response fields are surface-configured. HookUs
 keeps its `vibe` and `online` facets plus `hook_state` and
 `hook_tonight_active` on configured Discovery and profile-detail surfaces.
-DateZA and brands without Hook capabilities do not receive those HookUs fields.
+DateZA instead decorates Discovery/Find/profile-detail with `opener_state`
+(same values — `available`/`pending`/`hooked`/`unavailable` — same underlying
+engine as `hook_state`, just labeled for its D8N Opener product name). A brand
+without either capability receives neither field.
 
 Optional product routes are globally present but authorized through the resolved
 brand's D8N capability contract after authentication. Route presence therefore
@@ -199,6 +202,7 @@ Find                                   find_not_configured
 Conversations / Messages               messaging_not_configured
 Hook                                   hook_not_configured
 Hook Tonight                           hook_tonight_not_configured
+D8N Opener                             opener_not_configured
 ```
 
 HookUs and DateZA both enable current text conversations/messages. Hook Tonight
@@ -279,8 +283,9 @@ DateZA deliberately uses **browse first, verify before interacting**. A member
 whose current login identifier is still unverified may call `GET /api/v1/find`
 and consume the normal Find exposure allowance. The server requires verification
 before full profile detail, Like, Pass, match/conversation access, message
-history/send, or conversation initiation. Hook and Hook Tonight are not DateZA
-capabilities and fail earlier with their product-specific 404 errors.
+history/send, conversation initiation, or sending/replying to a D8N Opener.
+Hook and Hook Tonight are not DateZA capabilities and fail earlier with their
+product-specific 404 errors.
 
 The verification source is the identifier attached to the current brand-bound
 session credential. A different verified phone/email on the same D8N identity
@@ -320,6 +325,38 @@ for Hook Tonight state, activation, and reciprocal discovery. Both use HTTP 404
 and are evaluated before DateZA's identifier-verification interaction rule.
 `DELETE /api/v1/hook_tonight` intentionally remains available to authenticated
 members of any brand so legacy availability state can always be deactivated.
+
+### D8N Opener
+
+D8N Opener is the brand-configurable generalization of the same one-shot-opener
+/ reply-unlocks-conversation engine (`Hook` model, `Hooks::SendHook` et al.) —
+HookUs and DateZA share every implementation class; only the brand's policy
+differs (`BrandContract::OpenerConfiguration`). DateZA enables `match.opener`
+(distinct from `match.hook`, which stays HookUs-only) under its own routes:
+
+```txt
+POST   /api/v1/profiles/:profile_id/opener
+GET    /api/v1/openers
+POST   /api/v1/openers/:opener_id/reply
+POST   /api/v1/openers/:opener_id/decline
+```
+
+Unlike HookUs's Hook, DateZA's opener policy is `catalog_required: true` — the
+sender must select `opener_key` from the brand's curated catalog (`GET
+/api/v1/profile/configuration` → `openers`, each `{key, text}`) rather than
+write freeform text to a stranger; the server resolves and stores the catalog's
+`text` server-side, and an unknown/retired key returns `422 invalid_opener`. A
+brand may edit its catalog copy any time (`Profiles::CapabilityCatalog.install_opener!`)
+without a data migration or rewriting history, because past sends keep their
+already-resolved message. The recipient's reply remains freeform, exactly like
+Hook: replying IS acceptance, and the reply becomes a normal message in the
+newly unlocked Match + Conversation. Rate limiting (`hook_rate_limited`, 429,
+`Retry-After`), one-opener-per-pair-ever (`already_hooked`, 409), and
+block/report enforcement are all unchanged from Hook — same engine, same rules.
+
+HookUs does not currently enable `match.opener` (it uses `match.hook` instead);
+a future brand — or HookUs itself later — can enable `match.opener` with either
+policy without any new engine code, purely through its brand contract.
 
 The allowance model has two separate DateZA surfaces: Find exposes up to 10
 unique profiles per Johannesburg day through `find_profile_exposures`; Discover
@@ -535,9 +572,11 @@ the real file signature, and stores an owner-only record. Retrieval is a
 short-lived signed GET; delete soft-deletes and asynchronously purges the R2
 object. Rails' generic Active Storage routes stay disabled; object identity and
 delivery are mediated only by this API. Attached photos begin `pending_review`;
-HookUs makes them `visible` immediately and moderates asynchronously, while
-DateZA and brands without an immediate policy stay `hidden` until moderation
-makes them visible. Public/other-user delivery positively requires a kept,
+HookUs and DateZA both make them `visible` immediately and moderate
+asynchronously in the background, while a brand without an explicit immediate
+policy stays `hidden` until moderation makes it visible. `pending_review` means
+moderation has not yet run — it is not verification or approval, and a pending
+photo is never labeled as such. Public/other-user delivery positively requires a kept,
 visible, successfully processed safe derivative in an allowed moderation state;
 rejected media is excluded independently even if visibility is inconsistent.
 Raw originals are never returned.
@@ -559,13 +598,19 @@ flag to reconcile.
 
 Publication photo eligibility and public delivery are distinct. Every required
 photo must be kept and have a completed safe derivative; rejected, failed,
-deleted, or derivative-less records never count. HookUs additionally requires
-its pending/approved placement to be visible. DateZA's moderate-first flow allows
-a safe `pending_review + hidden` photo to satisfy onboarding so review latency
-does not block entry to Discover, but it remains absent from every public payload
-until approval. Approval changes pending media to `approved + visible`; rejection
-changes it to `rejected + hidden`, can unpublish a profile that loses its required
-eligible photo set, and can never be delivered.
+deleted, or derivative-less records never count. HookUs and DateZA both require
+their pending/approved placement to be visible — since both attach photos as
+immediately visible, a processed `pending_review + visible` photo already
+satisfies onboarding, publication, Discover, and Find; moderation continues in
+the background and never blocks any of them. A brand without an explicit
+immediate policy stays moderate-first: a safe `pending_review + hidden` photo
+still satisfies onboarding so review latency does not block entry, but it
+remains absent from every public payload until approval. Approval confirms an
+already-visible immediate-policy photo (no visibility change) or, for a
+moderate-first brand, changes pending media to `approved + visible`. Rejection
+always changes the photo to `rejected + hidden`, can unpublish a profile that
+loses its required eligible photo set, and the photo can never be delivered
+again regardless of the visibility column's value.
 
 Brand-assigned moderators apply the terminal decision through `PATCH
 /api/v1/admin/profile_photos/:photo_uuid` with `{"status":"approved"}` or

@@ -25,6 +25,18 @@ module Profiles
       assert_equal 2, @profile.profile_option_selections.where.not(deleted_at: nil).count
     end
 
+    test "an explicit empty array clears a group while omitted groups stay untouched" do
+      OptionSelections.replace!(profile: @profile, selections: {
+        intents: %w[ hookups casual ],
+        vibes: %w[ chill music ]
+      })
+
+      OptionSelections.replace!(profile: @profile, selections: { intents: [] })
+
+      assert_empty selected_codes("intents")
+      assert_equal %w[ music chill ], selected_codes("vibes"), "omitted group is unaffected by clearing another"
+    end
+
     test "rejects unknown groups and retired options" do
       error = assert_raises OptionSelections::InvalidSelection do
         OptionSelections.replace!(profile: @profile, selections: { unknown: [ "value" ] })

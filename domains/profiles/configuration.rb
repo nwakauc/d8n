@@ -86,7 +86,8 @@ module Profiles
         ),
         collections: collections(requirements.fetch("collections")),
         option_groups: option_groups(requirements.fetch("option_groups")),
-        prompts: prompts
+        prompts: prompts,
+        openers: openers
       }
     end
 
@@ -97,6 +98,15 @@ module Profiles
     def prompts
       brand.profile_prompts.kept.status_active.ordered.map do |prompt|
         { key: prompt.key, text: prompt.text, category: prompt.category }
+      end
+    end
+
+    # Empty for a freeform brand (HookUs) that has no catalog installed; a brand
+    # whose opener policy requires curation (DateZA) seeds its own set — see
+    # ProfileOpener / BrandContract::OpenerConfiguration#catalog_required.
+    def openers
+      brand.profile_openers.kept.status_active.ordered.map do |opener|
+        { key: opener.key, text: opener.text }
       end
     end
 

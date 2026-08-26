@@ -4,6 +4,10 @@ class Hook < ApplicationRecord
   belongs_to :recipient_profile, class_name: "Profile"
   # Nil until the recipient's first reply accepts the Hook (Hooks::ReplyToHook).
   belongs_to :conversation, optional: true
+  # Nil for a freeform brand (HookUs). Set when the sender's opener was resolved
+  # from a brand's curated catalog (see Hooks::Policy, D8N Opener); `message`
+  # remains the source of truth for what was actually sent.
+  belongs_to :profile_opener, optional: true
 
   # `pending` = the sender has spent their one opener and is waiting on the
   # recipient. The first reply moves it to `accepted`; `declined` is an explicit
@@ -24,6 +28,7 @@ class Hook < ApplicationRecord
   validates :expires_at, presence: true
   validate :profiles_match_brand
   validate :cannot_hook_self
+  validate :opener_matches_catalog
 
   before_validation :ensure_public_id, on: :create
   before_validation :ensure_expires_at, on: :create
@@ -39,7 +44,7 @@ class Hook < ApplicationRecord
   end
 
   def ensure_expires_at
-    self.expires_at ||= Hooks::Policy::EXPIRES_IN.from_now
+    self.expires_at ||= Hooks::Policy.expires_in(brand).from_now
   end
 
   def profiles_match_brand
@@ -51,5 +56,15 @@ class Hook < ApplicationRecord
 
   def cannot_hook_self
     errors.add(:recipient_profile, "cannot be the sender profile") if sender_profile_id == recipient_profile_id
+  end
+
+  # Defense in depth: even if a caller assembled the message some other way, a
+  # curated send can never persist text that drifts from the catalog entry it
+  # claims to be.
+  def opener_matches_catalog
+    return if profile_opener.blank?
+    return if message == profile_opener.text
+
+    errors.add(:message, "must match the selected opener")
   end
 end

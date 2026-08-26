@@ -8,7 +8,9 @@ class Api::V1::Admin::ProfilePhotosControllerTest < ActionDispatch::IntegrationT
     )
     BrandDomain.create!(brand: @brand, host: "dateza.test")
     @profile = create_profile(brand: @brand)
-    @photo = create_ready_photo(profile: @profile, visibility: :hidden)
+    # DateZA is an immediate-visibility brand: a freshly attached, safely
+    # processed photo is already visible and deliverable while pending review.
+    @photo = create_ready_photo(profile: @profile, visibility: :visible)
     @admin, @token = create_admin(brand: @brand)
     host! "dateza.test"
   end
@@ -23,7 +25,9 @@ class Api::V1::Admin::ProfilePhotosControllerTest < ActionDispatch::IntegrationT
     assert_response :forbidden
   end
 
-  test "pending approval makes a safe DateZA photo publicly deliverable and audits the decision" do
+  test "approval confirms an already-visible pending DateZA photo without disturbing it, and audits the decision" do
+    assert @photo.deliverable?, "DateZA photos are deliverable while pending_review, before any moderation decision"
+
     assert_difference -> { SecurityEvent.where(event_type: "admin.profile_photo_moderated").count }, 1 do
       patch "/api/v1/admin/profile_photos/#{@photo.public_id}",
         headers: bearer_headers(@token), params: { status: "approved" }
@@ -34,7 +38,8 @@ class Api::V1::Admin::ProfilePhotosControllerTest < ActionDispatch::IntegrationT
     assert payload.fetch("transitioned")
     assert_equal "approved", payload.dig("photo", "status")
     assert_equal "visible", payload.dig("photo", "visibility")
-    assert @photo.reload.deliverable?
+    assert_equal 0, @photo.reload.position, "approval does not reorder or disturb the photo"
+    assert @photo.deliverable?
 
     event = SecurityEvent.where(event_type: "admin.profile_photo_moderated").last
     assert_equal @admin.id, event.metadata.fetch("admin_user_id")
@@ -43,9 +48,10 @@ class Api::V1::Admin::ProfilePhotosControllerTest < ActionDispatch::IntegrationT
     assert_equal "manual_moderation_decision", event.metadata.fetch("reason_code")
   end
 
-  test "pending rejection hides the photo and unpublishes a profile that loses photo eligibility" do
+  test "rejection withdraws a visible pending DateZA photo and unpublishes a profile that loses photo eligibility" do
     @profile.update!(status: :active, visibility: :visible)
     assert Profiles::Completion.call(profile: @profile).complete?
+    assert @photo.deliverable?, "the photo was publicly deliverable before rejection"
 
     patch "/api/v1/admin/profile_photos/#{@photo.public_id}",
       headers: bearer_headers(@token), params: { status: "rejected" }
@@ -56,6 +62,27 @@ class Api::V1::Admin::ProfilePhotosControllerTest < ActionDispatch::IntegrationT
     assert_not @photo.deliverable?
     assert @profile.reload.draft?
     assert @profile.hidden?
+  end
+
+  test "rejecting the primary photo promotes the next deliverable photo and keeps the profile published" do
+    second = create_ready_photo(profile: @profile, visibility: :visible, position: 1)
+    @profile.update!(status: :active, visibility: :visible)
+    assert Profiles::Completion.call(profile: @profile).complete?
+
+    patch "/api/v1/admin/profile_photos/#{@photo.public_id}",
+      headers: bearer_headers(@token), params: { status: "rejected" }
+
+    assert_response :success
+    assert @photo.reload.rejected?
+    assert_not @photo.deliverable?
+    assert second.reload.deliverable?
+    ActiveStorage::Current.url_options = { host: "http://test.local" }
+    photos = Profiles::PublicSerializer.call(profile: @profile.reload).fetch(:photos)
+    ActiveStorage::Current.reset
+    assert_equal [ second.public_id ], photos.map { |entry| entry.fetch(:id) }
+    assert photos.first.fetch(:primary)
+    assert @profile.active?, "another eligible photo remains, so the profile stays published"
+    assert @profile.visible?
   end
 
   test "same terminal decision is idempotent and conflicting decision is rejected" do
@@ -106,9 +133,9 @@ class Api::V1::Admin::ProfilePhotosControllerTest < ActionDispatch::IntegrationT
     Profile.create!(brand:, user:, brand_membership: membership)
   end
 
-  def create_ready_photo(profile:, visibility:)
+  def create_ready_photo(profile:, visibility:, position: 0)
     photo = ProfilePhoto.new(
-      brand: profile.brand, user: profile.user, profile:, visibility:, status: :pending_review
+      brand: profile.brand, user: profile.user, profile:, visibility:, status: :pending_review, position:
     )
     fixture = Rails.root.join("test/fixtures/files/profile_photo.png")
     photo.image.attach(io: fixture.open, filename: "original.png", content_type: "image/png")

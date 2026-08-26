@@ -307,6 +307,20 @@ module Profiles
       "adventure" => { text: "The most spontaneous thing I've done…", category: "spontaneity" }
     }.freeze
 
+    # D8N Opener definitions (stable keys, editable copy). A brand whose opener
+    # policy requires curation (see BrandContract::OpenerConfiguration) enables a
+    # subset — mirrors PROMPTS/enable_prompts!.
+    OPENERS = {
+      "coffee_or_tea" => { text: "Coffee or tea person — go." },
+      "weekend_plans" => { text: "What does a perfect weekend look like for you?" },
+      "last_watched" => { text: "What's the last show or movie you couldn't stop watching?" },
+      "hidden_talent" => { text: "What's a hidden talent nobody would guess you have?" },
+      "go_to_meal" => { text: "What's your go-to order when you're not sure what to get?" },
+      "travel_next" => { text: "Where's next on your travel list?" },
+      "song_on_repeat" => { text: "What song have you had on repeat lately?" },
+      "good_energy" => { text: "You seem like good energy — what's making you smile this week?" }
+    }.freeze
+
     class UnknownCapability < StandardError; end
 
     class << self
@@ -360,6 +374,19 @@ module Profiles
         end
       end
 
+      # Enable a subset of generic D8N Opener definitions for a brand (stable
+      # keys, editable copy).
+      def enable_openers!(brand:, keys:, start_position: 0, overrides: {})
+        keys.each_with_index do |key, index|
+          definition = OPENERS.fetch(key) { raise UnknownCapability, key }
+          override = overrides.fetch(key, {})
+          install_opener!(
+            brand:, key:, position: start_position + index,
+            text: override[:text] || definition.fetch(:text)
+          )
+        end
+      end
+
       # Low-level, idempotent option-group upsert. Reusable by brand catalogues to
       # install BRAND-SPECIFIC groups too (not just generic capabilities), so the
       # upsert lives in exactly one place. `options` is an array of
@@ -384,6 +411,13 @@ module Profiles
         prompt = brand.profile_prompts.kept.find_or_initialize_by(key:)
         prompt.update!(text:, category:, status: :active, position:)
         prompt
+      end
+
+      # Low-level, idempotent opener-definition upsert.
+      def install_opener!(brand:, key:, text:, position:)
+        opener = brand.profile_openers.kept.find_or_initialize_by(key:)
+        opener.update!(text:, status: :active, position:)
+        opener
       end
     end
   end

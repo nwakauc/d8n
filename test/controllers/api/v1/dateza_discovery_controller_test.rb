@@ -220,6 +220,31 @@ class Api::V1::DatezaDiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, DiscoveryAllocation.where(brand: @brand, brand_membership: @viewer.brand_membership).count
   end
 
+  test "a processed pending-review DateZA photo is deliverable in Discover, still awaiting moderation" do
+    candidate = create_candidate
+    photo = attach_photo(candidate)
+    assert photo.pending_review?
+    assert photo.visible?
+
+    get "/api/v1/discovery", headers: bearer_headers
+    photos = JSON.parse(response.body).fetch("profiles").sole.fetch("photos")
+
+    assert_equal [ photo.public_id ], photos.map { |entry| entry.fetch("id") }
+  end
+
+  test "an unprocessed or rejected DateZA photo never reaches Discover" do
+    candidate = create_candidate
+    attach_photo(candidate, processing_state: :pending)
+    rejected = create_candidate
+    attach_photo(rejected, status: :rejected)
+
+    get "/api/v1/discovery", headers: bearer_headers
+    profiles = JSON.parse(response.body).fetch("profiles")
+
+    assert_equal [ candidate.public_id, rejected.public_id ].sort, profiles.pluck("id").sort
+    profiles.each { |profile| assert_empty profile.fetch("photos") }
+  end
+
   private
 
   def create_candidate(**attributes)
@@ -244,6 +269,22 @@ class Api::V1::DatezaDiscoveryControllerTest < ActionDispatch::IntegrationTest
 
   def bearer_headers(token = @token)
     { "Authorization" => "Bearer #{token}" }
+  end
+
+  def attach_photo(profile, processing_state: :ready, status: nil)
+    initial = Media::PhotoPolicy.initial_state(brand: profile.brand)
+    photo = ProfilePhoto.new(
+      brand: profile.brand, user: profile.user, profile:,
+      status: status || initial.status, visibility: initial.visibility
+    )
+    fixture = Rails.root.join("test/fixtures/files/profile_photo.png")
+    photo.image.attach(io: fixture.open, filename: "original.png", content_type: "image/png")
+    photo.save!
+    if processing_state == :ready
+      photo.display_image.attach(io: fixture.open, filename: "display.jpg", content_type: "image/jpeg")
+    end
+    photo.update!(processing_state:)
+    photo
   end
 
   def create_location(profile, latitude:, longitude:)

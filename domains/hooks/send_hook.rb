@@ -14,15 +14,20 @@ module Hooks
   class SendHook
     Result = Data.define(:hook)
 
-    def self.call(user:, brand:, target_public_id:, message:, eligibility_policy: nil)
-      new(user:, brand:, target_public_id:, message:, eligibility_policy:).call
+    # Exactly one of `message:` (freeform) or `opener_key:` (curated catalog
+    # selection) is meaningful for a given brand — Policy.catalog_required?
+    # decides which; the other is ignored. HookUs callers only ever pass
+    # `message:`, unchanged from before D8N Opener existed.
+    def self.call(user:, brand:, target_public_id:, message: nil, opener_key: nil, eligibility_policy: nil)
+      new(user:, brand:, target_public_id:, message:, opener_key:, eligibility_policy:).call
     end
 
-    def initialize(user:, brand:, target_public_id:, message:, eligibility_policy:)
+    def initialize(user:, brand:, target_public_id:, message:, opener_key:, eligibility_policy:)
       @user = user
       @brand = brand
       @target_public_id = target_public_id
       @raw_message = message
+      @opener_key = opener_key
       @eligibility_policy = eligibility_policy
     end
 
@@ -31,9 +36,10 @@ module Hooks
       target = brand.profiles.kept.find_by(public_id: target_public_id)
       raise Matching::InteractionError, :profile_unavailable if target.blank? || target.id == viewer.id
 
-      # Validate the opener before opening a transaction — a blank/oversized body
-      # is the caller's error, not a reason to hold row locks.
-      message = Messaging::MessageBody.prepare(raw_message)
+      # Resolve the opener before opening a transaction — an invalid catalog key
+      # or a blank/oversized freeform body is the caller's error, not a reason to
+      # hold row locks.
+      message, profile_opener = resolve_opener
 
       result = nil
       Profile.transaction do
@@ -47,7 +53,7 @@ module Hooks
 
         hook = Hook.create!(
           brand:, sender_profile: viewer, recipient_profile: target,
-          message:, expires_at: Policy::EXPIRES_IN.from_now
+          message:, profile_opener:, expires_at: Policy.expires_in(brand).from_now
         )
         record_event(brand:, user:, viewer:, target:, hook:)
         result = Result.new(hook:)
@@ -60,7 +66,17 @@ module Hooks
 
     private
 
-    attr_reader :user, :brand, :target_public_id, :raw_message, :eligibility_policy
+    attr_reader :user, :brand, :target_public_id, :raw_message, :opener_key, :eligibility_policy
+
+    def resolve_opener
+      if Policy.catalog_required?(brand)
+        opener = ProfileOpener.kept.status_active.find_by(brand:, key: opener_key.to_s)
+        raise Matching::InteractionError, :invalid_opener if opener.blank?
+        [ opener.text, opener ]
+      else
+        [ Messaging::MessageBody.prepare(raw_message), nil ]
+      end
+    end
 
     def lock_participants!(viewer:, target:)
       locked_ids = Profile.kept.where(brand:, id: [ viewer.id, target.id ]).order(:id).lock.pluck(:id)

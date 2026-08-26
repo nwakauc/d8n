@@ -30,7 +30,10 @@ module Profiles
     def replace!
       normalized = normalize
 
-      profile.with_lock { apply!(normalized) }
+      profile.with_lock do
+        apply!(normalized)
+        Publication.unpublish_if_incomplete!(profile:)
+      end
 
       profile.prompt_answers.kept.ordered.includes(:profile_prompt)
     end

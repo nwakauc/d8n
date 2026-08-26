@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_25_070500) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_070100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -337,6 +337,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_070500) do
     t.datetime "deleted_at"
     t.datetime "expires_at", null: false
     t.text "message", null: false
+    t.bigint "profile_opener_id"
     t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
     t.bigint "recipient_profile_id", null: false
     t.bigint "sender_profile_id", null: false
@@ -348,6 +349,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_070500) do
     t.index ["brand_id"], name: "index_hooks_on_brand_id"
     t.index ["conversation_id"], name: "index_hooks_on_conversation_id"
     t.index ["id", "brand_id"], name: "idx_hooks_on_id_brand", unique: true
+    t.index ["profile_opener_id"], name: "index_hooks_on_profile_opener_id"
     t.index ["public_id"], name: "index_hooks_on_public_id", unique: true
     t.index ["recipient_profile_id"], name: "index_hooks_on_recipient_profile_id"
     t.index ["sender_profile_id"], name: "index_hooks_on_sender_profile_id"
@@ -593,6 +595,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_070500) do
     t.check_constraint "latitude >= '-90'::integer::numeric AND latitude <= 90::numeric", name: "chk_profile_locations_latitude"
     t.check_constraint "longitude >= '-180'::integer::numeric AND longitude <= 180::numeric", name: "chk_profile_locations_longitude"
     t.check_constraint "source::text = ANY (ARRAY['device'::character varying, 'manual'::character varying, 'imported'::character varying, 'place'::character varying]::text[])", name: "chk_profile_locations_source"
+  end
+
+  create_table "profile_openers", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.string "key", limit: 80, null: false
+    t.integer "position", default: 0, null: false
+    t.integer "status", default: 0, null: false
+    t.string "text", limit: 200, null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "key"], name: "idx_profile_openers_active_key", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["brand_id"], name: "index_profile_openers_on_brand_id"
+    t.index ["id", "brand_id"], name: "idx_profile_openers_on_id_brand", unique: true
+    t.check_constraint "\"position\" >= 0", name: "chk_profile_openers_position"
   end
 
   create_table "profile_option_groups", force: :cascade do |t|
@@ -926,6 +943,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_070500) do
   add_foreign_key "hook_tonight_states", "profiles", column: ["profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hook_tonight_states_profile_tenant"
   add_foreign_key "hooks", "brands"
   add_foreign_key "hooks", "conversations", column: ["conversation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_conversation_tenant"
+  add_foreign_key "hooks", "profile_openers", column: ["profile_opener_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_profile_opener_tenant"
   add_foreign_key "hooks", "profiles", column: ["recipient_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_recipient_tenant"
   add_foreign_key "hooks", "profiles", column: ["sender_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_sender_tenant"
   add_foreign_key "identity_identifiers", "users"
@@ -967,6 +985,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_070500) do
   add_foreign_key "profile_locations", "profiles"
   add_foreign_key "profile_locations", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_profile_locations_profile_tenant"
   add_foreign_key "profile_locations", "users"
+  add_foreign_key "profile_openers", "brands"
   add_foreign_key "profile_option_groups", "brands"
   add_foreign_key "profile_option_selections", "brands"
   add_foreign_key "profile_option_selections", "profile_option_groups"

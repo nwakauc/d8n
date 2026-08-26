@@ -201,7 +201,11 @@ class Api::V1::DatezaInteractionVerificationTest < ActionDispatch::IntegrationTe
   end
 
   def attach_photo(profile)
-    photo = ProfilePhoto.new(brand: profile.brand, user: profile.user, profile:, position: 0)
+    initial = Media::PhotoPolicy.initial_state(brand: profile.brand)
+    photo = ProfilePhoto.new(
+      brand: profile.brand, user: profile.user, profile:, position: 0,
+      status: initial.status, visibility: initial.visibility
+    )
     bytes = Rails.root.join("test/fixtures/files/profile_photo.png").binread
     photo.image.attach(io: StringIO.new(bytes), filename: "profile.png", content_type: "image/png")
     photo.save!

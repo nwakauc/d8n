@@ -14,6 +14,7 @@ module Profiles
       CapabilityCatalog.enable_option_capability!(brand: @brand, key: "religion", position: 1, visibility: :public_profile)
       CapabilityCatalog.enable_interests!(brand: @brand, position: 2, categories: %w[ food music ])
       CapabilityCatalog.enable_prompts!(brand: @brand, keys: %w[ perfect_night dealbreaker ])
+      CapabilityCatalog.enable_openers!(brand: @brand, keys: %w[ coffee_or_tea weekend_plans ])
 
       intent = @brand.profile_option_groups.kept.find_by!(key: "relationship_intent")
       assert_equal "Looking for", intent.label
@@ -28,6 +29,7 @@ module Profiles
       interests = @brand.profile_option_groups.kept.find_by!(key: "interests")
       assert_equal %w[ food music ].to_set, interests.profile_options.kept.pluck(:category).to_set
       assert_equal 2, @brand.profile_prompts.kept.count
+      assert_equal %w[ coffee_or_tea weekend_plans ], @brand.profile_openers.kept.ordered.pluck(:key)
     end
 
     test "generic sensitive capabilities default to a conservative, non-public visibility" do
@@ -47,6 +49,16 @@ module Profiles
       end
       assert_raises(CapabilityCatalog::UnknownCapability) do
         CapabilityCatalog.enable_option_capability!(brand: @brand, key: "not_a_thing", position: 9)
+      end
+    end
+
+    test "opener install is idempotent and raises on an unknown key" do
+      CapabilityCatalog.enable_openers!(brand: @brand, keys: %w[ coffee_or_tea ])
+      assert_no_difference -> { ProfileOpener.count } do
+        CapabilityCatalog.enable_openers!(brand: @brand, keys: %w[ coffee_or_tea ])
+      end
+      assert_raises(CapabilityCatalog::UnknownCapability) do
+        CapabilityCatalog.enable_openers!(brand: @brand, keys: %w[ not_a_thing ])
       end
     end
   end

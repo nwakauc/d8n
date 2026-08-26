@@ -41,6 +41,7 @@ module D8n
           match.interaction.pass
           match.relationship.create
           match.relationship.list
+          match.opener
           chat.conversation
           chat.message.text
           trust.block
@@ -71,6 +72,11 @@ module D8n
           time_zone: "Africa/Johannesburg"
         )
 
+        # D8N Opener viewer-state (available/pending/hooked/unavailable), under
+        # the `opener_state` key — same engine and rules as HookUs's 🔥 Hook
+        # (Hooks::ViewerStates), just labeled for DateZA's product naming.
+        PROFILE_DECORATORS = [ Hooks::OpenerStateDecorator ].freeze
+
         SURFACES = [
           DiscoverySurface.new(
             key: "discovery.find",
@@ -78,6 +84,7 @@ module D8n
             strategy: Matching::Strategies::DatezaV1,
             policy: Matching::Find::Policies::Dateza,
             eligibility_policy: ELIGIBILITY_POLICY,
+            decorators: PROFILE_DECORATORS,
             error_code: :find_not_configured
           ),
           DiscoverySurface.new(
@@ -86,6 +93,7 @@ module D8n
             strategy: Matching::Strategies::DatezaV1,
             eligibility_policy: ELIGIBILITY_POLICY,
             allocation: CURATED_DAILY_ALLOCATION,
+            decorators: PROFILE_DECORATORS,
             error_code: :matching_not_configured
           )
         ].freeze
@@ -94,7 +102,10 @@ module D8n
           BrandContract.new(
             brand:,
             capabilities: CAPABILITIES,
-            profile: BrandContract::ProfileConfiguration.new(catalog: Profiles::DatezaProfileCatalog),
+            profile: BrandContract::ProfileConfiguration.new(
+              catalog: Profiles::DatezaProfileCatalog,
+              detail_decorators: PROFILE_DECORATORS
+            ),
             discovery_surfaces: SURFACES,
             place_country_codes: %w[ ZA ],
             default_discovery_surface: "discovery.curated_daily",
@@ -105,8 +116,17 @@ module D8n
             ),
             media: BrandContract::MediaConfiguration.new(
               photo_policy: Media::PhotoPolicy,
-              initial_visibility: :moderate_first,
+              initial_visibility: :immediate,
               max_profile_photos: 6
+            ),
+            # DateZA's browse-first/verify-before-interacting model requires the
+            # sender to pick from a curated catalog rather than write freeform
+            # text to a stranger (see ProfileOpener). Allowance/expiry reuse the
+            # same numbers as HookUs's freeform Hook today.
+            opener: BrandContract::OpenerConfiguration.new(
+              catalog_required: true,
+              daily_limit: Hooks::Policy::FREE_DAILY_LIMIT,
+              expires_in: Hooks::Policy::EXPIRES_IN
             ),
             notifications: BrandContract::NotificationConfiguration.new(
               event_plans: {
@@ -120,7 +140,8 @@ module D8n
               "discovery.surface.feed" => :matching_not_configured,
               "discovery.find" => :find_not_configured,
               "match.hook" => :hook_not_configured,
-              "match.hook_tonight" => :hook_tonight_not_configured
+              "match.hook_tonight" => :hook_tonight_not_configured,
+              "match.opener" => :opener_not_configured
             }
           )
         end

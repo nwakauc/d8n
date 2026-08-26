@@ -295,7 +295,30 @@ class Api::V1::FindControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, FindProfileExposure.where(brand: @brand, viewer_profile: @viewer).count
   end
 
+  test "a processed pending-review DateZA photo is deliverable in Find results" do
+    candidate = create_candidate
+    photo = attach_photo(candidate)
+
+    get "/api/v1/find", headers: bearer_headers(@token)
+    photos = JSON.parse(response.body).fetch("profiles").sole.fetch("photos")
+
+    assert_equal [ photo.public_id ], photos.map { |entry| entry.fetch("id") }
+  end
+
   private
+
+  def attach_photo(profile)
+    initial = Media::PhotoPolicy.initial_state(brand: profile.brand)
+    photo = ProfilePhoto.new(
+      brand: profile.brand, user: profile.user, profile:, status: initial.status, visibility: initial.visibility
+    )
+    fixture = Rails.root.join("test/fixtures/files/profile_photo.png")
+    photo.image.attach(io: fixture.open, filename: "original.png", content_type: "image/png")
+    photo.save!
+    photo.display_image.attach(io: fixture.open, filename: "display.jpg", content_type: "image/jpeg")
+    photo.update!(processing_state: :ready)
+    photo
+  end
 
   def create_candidate(**attributes)
     profile = create_profile(

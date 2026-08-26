@@ -122,6 +122,11 @@ module D8n
               initial_visibility: :immediate,
               max_profile_photos: 6
             ),
+            opener: BrandContract::OpenerConfiguration.new(
+              catalog_required: false,
+              daily_limit: Hooks::Policy::FREE_DAILY_LIMIT,
+              expires_in: Hooks::Policy::EXPIRES_IN
+            ),
             notifications: BrandContract::NotificationConfiguration.new,
             error_codes: {
               "discovery.surface.feed" => :matching_not_configured,

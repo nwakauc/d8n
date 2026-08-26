@@ -91,6 +91,30 @@ class Api::V1::HookBrandCapabilityTest < ActionDispatch::IntegrationTest
     assert_response :created
   end
 
+  test "DateZA sends a D8N Opener from its curated catalog; HookUs cannot use match.opener" do
+    Profiles::CapabilityCatalog.enable_openers!(brand: @dateza, keys: %w[coffee_or_tea])
+
+    assert_difference -> { Hook.count }, 1 do
+      post "/api/v1/profiles/#{@target.public_id}/opener",
+        headers: bearer_headers(@token), params: { opener_key: "coffee_or_tea" }
+    end
+    assert_response :created
+
+    hookus = Brand.create!(slug: "hookus", name: "HookUs")
+    BrandDomain.create!(brand: hookus, host: "hookus.test")
+    viewer = create_profile(brand: hookus, gender: "woman", interested_in: [ "man" ])
+    target = create_profile(brand: hookus, gender: "man", interested_in: [ "woman" ])
+    token, = Session.issue!(brand: hookus, user: viewer.user)
+    host! "hookus.test"
+
+    assert_no_difference -> { Hook.count } do
+      post "/api/v1/profiles/#{target.public_id}/opener",
+        headers: bearer_headers(token), params: { opener_key: "coffee_or_tea" }
+    end
+    assert_response :not_found
+    assert_equal "capability_not_configured", JSON.parse(response.body).fetch("error")
+  end
+
   test "a DateZA session cannot cross into HookUs to use its enabled capability" do
     hookus = Brand.create!(slug: "hookus", name: "HookUs")
     BrandDomain.create!(brand: hookus, host: "hookus.test")

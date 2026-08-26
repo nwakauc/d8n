@@ -329,6 +329,47 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
     assert_equal "she/her", profile.pronouns
   end
 
+  test "a profile with many missing optional fields can still save one valid field" do
+    patch "/api/v1/profile", headers: bearer_headers(@token), params: { display_name: "Ada" }
+    assert_response :success
+    completion = JSON.parse(response.body).fetch("profile").fetch("publication_completion")
+    assert_operator completion.fetch("percent"), :<, 100
+
+    patch "/api/v1/profile", headers: bearer_headers(@token), params: { job_title: "Designer" }
+
+    assert_response :success
+    assert_equal "Designer", Profile.last.job_title
+  end
+
+  test "an invalid field fails atomically without touching or erroring unrelated fields" do
+    patch "/api/v1/profile", headers: bearer_headers(@token),
+      params: { display_name: "Ada", bio: "Existing bio." }
+    assert_response :success
+
+    patch "/api/v1/profile", headers: bearer_headers(@token),
+      params: { bio: "New bio.", height_cm: -50 }
+
+    assert_response :unprocessable_entity
+    body = JSON.parse(response.body)
+    assert_equal %w[ height_cm ], body.fetch("details").keys
+    profile = Profile.last.reload
+    assert_equal "Existing bio.", profile.bio, "the whole request is atomic: bio must not have been persisted either"
+    assert_nil profile.height_cm
+  end
+
+  test "an unpublished profile can continue making valid incremental edits" do
+    patch "/api/v1/profile", headers: bearer_headers(@token), params: { display_name: "Ada" }
+    assert_response :success
+    profile = Profile.last
+    assert profile.draft?
+    assert_not Profiles::Completion.call(profile:).complete?
+
+    patch "/api/v1/profile", headers: bearer_headers(@token), params: { bio: "Still incomplete, still editable." }
+
+    assert_response :success
+    assert_equal "Still incomplete, still editable.", profile.reload.bio
+  end
+
   private
 
   def install_dateza_for_current_user

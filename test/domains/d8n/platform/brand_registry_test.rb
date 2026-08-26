@@ -58,14 +58,16 @@ module D8n
         assert contract.capability_enabled?("discovery.surface.daily_batch")
         assert_not contract.capability_enabled?("match.hook")
         assert_not contract.capability_enabled?("match.hook_tonight")
+        assert contract.capability_enabled?("match.opener")
+        assert contract.opener.catalog_required
         assert surface
         assert_equal :browse, surface.delivery_type
         assert_equal Matching::Find::Policies::Dateza, surface.policy
         assert_equal Matching::Strategies::DatezaV1, surface.strategy
         assert_empty surface.exclusions
         assert_empty surface.facets
-        assert_empty surface.decorators
-        assert_empty contract.profile.detail_decorators
+        assert_equal [ Hooks::OpenerStateDecorator ], surface.decorators
+        assert_equal [ Hooks::OpenerStateDecorator ], contract.profile.detail_decorators
         assert_nil surface.allocation
         assert_equal 10, surface.policy::DAILY_LIMIT
         assert_equal "Africa/Johannesburg", surface.policy::TIME_ZONE
@@ -77,7 +79,7 @@ module D8n
         assert_equal "Africa/Johannesburg", curated.allocation.time_zone
         assert_equal "discovery.curated_daily", contract.default_discovery_surface_key
         assert_equal :verified_login_identifier, contract.interaction.verification_requirement
-        assert_equal :moderate_first, contract.media.initial_visibility
+        assert_equal :immediate, contract.media.initial_visibility
         assert_equal %w[membership_registered], contract.notifications.event_types
       end
 

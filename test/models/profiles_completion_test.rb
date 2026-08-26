@@ -61,7 +61,7 @@ module Profiles
       assert_not_includes Completion.call(profile:).missing, :photos
     end
 
-    test "DateZA moderate-first pending photo can complete onboarding only after safe processing" do
+    test "DateZA immediate-visibility pending photo can complete onboarding only after safe processing" do
       brand = Brand.create!(
         slug: "dateza", name: "DateZA",
         profile_requirements: { profile_fields: [], preference_fields: [], collections: %w[ photos ] }
@@ -69,9 +69,12 @@ module Profiles
       user = User.create!
       membership = BrandMembership.create!(brand:, user:)
       profile = Profile.create!(brand:, user:, brand_membership: membership)
-      photo = attach_photo(profile, visibility: :hidden, ready: false)
+      # DateZA is immediate: attach! would mark the photo visible right away, but
+      # it must still fail closed for delivery/completion until processing ready.
+      photo = attach_photo(profile, visibility: :visible, ready: false)
 
       assert_not Completion.call(profile:).complete?
+      assert_not photo.deliverable?
 
       photo.display_image.attach(
         io: Rails.root.join("test/fixtures/files/profile_photo.png").open,
@@ -80,7 +83,21 @@ module Profiles
       photo.update!(processing_state: :ready)
 
       assert Completion.call(profile:).complete?
-      assert_not photo.reload.deliverable?
+      assert photo.reload.deliverable?, "processed pending photos are immediately deliverable on DateZA"
+    end
+
+    test "DateZA hidden pending photo does not satisfy publication despite being processed" do
+      brand = Brand.create!(
+        slug: "dateza", name: "DateZA",
+        profile_requirements: { profile_fields: [], preference_fields: [], collections: %w[ photos ] }
+      )
+      user = User.create!
+      membership = BrandMembership.create!(brand:, user:)
+      profile = Profile.create!(brand:, user:, brand_membership: membership)
+      photo = attach_photo(profile, visibility: :hidden)
+
+      assert_not Completion.call(profile:).complete?
+      assert_not photo.deliverable?
     end
 
     test "HookUs hidden pending photo does not satisfy publication" do
