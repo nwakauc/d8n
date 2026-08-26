@@ -147,6 +147,10 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
       pronouns: "she/her", body_type: "athletic", company_name: "Private Corp",
       languages_spoken: [ "English" ], job_title: "Engineer"
     )
+    IdentityIdentifier.create!(
+      user: @user, kind: :device_fingerprint,
+      normalized_value: "device-fingerprint", verified_at: Time.current
+    )
 
     get "/api/v1/profile", headers: bearer_headers(token)
 

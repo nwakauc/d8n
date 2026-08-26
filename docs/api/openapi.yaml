@@ -3172,7 +3172,9 @@ components:
     ContactVerification:
       type: object
       required: [contact]
-      description: Contact-control verification only; no RealMe or identity proof is implied.
+      description: |
+        Contact-control verification only: at least one kept email or phone
+        identifier has been verified. No RealMe or identity proof is implied.
       properties:
         contact:
           type: object
@@ -3351,7 +3353,7 @@ components:
           enum: [profile_required, profile_incomplete, ready_to_publish, complete, profile_suspended]
         next_step:
           type: [string, "null"]
-          enum: [profile, preferences, photos, options, publication, null]
+          enum: [profile, preferences, photos, location, options, publication, null]
         profile_exists:
           type: boolean
         profile_complete:
@@ -3619,7 +3621,9 @@ components:
             The member has proven ownership of at least one contact identifier
             (email or phone). This is CONTACT verification, not photo/identity
             ("it's really them") verification, which does not exist yet — treat it
-            as a "reachable" signal rather than a strong trust badge.
+            as a "reachable" signal rather than a strong trust badge. On profile
+            detail, prefer `verification.contact.verified`; this top-level field
+            remains as a backward-compatible legacy projection.
         active_today:
           type: boolean
           description: An active brand session was used within the last 24 hours.
@@ -3639,9 +3643,13 @@ components:
           type: [integer, "null"]
           minimum: 1
           description: |
-            Whole-kilometre great-circle distance from the viewer, floored to 1km
-            (never 0, which would read as exact co-location). null unless BOTH the
-            viewer and the member have a location no older than 24h.
+            Server-calculated whole-kilometre great-circle distance from the
+            viewer, floored to 1km (never 0, which would read as exact
+            co-location). null unless both members have a location valid under
+            the resolved brand policy: DateZA locations persist until replaced or
+            removed; HookUs locations must be no older than 24 hours. Clients
+            must not calculate distance from coordinates (coordinates are never
+            returned).
     HookUsProfileState:
       type: object
       description: Optional HookUs capability state, composed only for HookUs surfaces that enable it.

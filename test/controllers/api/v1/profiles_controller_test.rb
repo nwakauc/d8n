@@ -71,6 +71,21 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "available", profile.fetch("hook_state")
   end
 
+  test "contact verification ignores verified non-contact identifiers" do
+    target = create_candidate(display_name: "Sam")
+    IdentityIdentifier.create!(
+      user: target.user, kind: :oauth_provider_uid,
+      normalized_value: "provider:subject", verified_at: Time.current
+    )
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    assert_response :success
+    profile = JSON.parse(response.body).fetch("profile")
+    assert_equal false, profile.fetch("verified")
+    assert_equal false, profile.dig("verification", "contact", "verified")
+  end
+
   test "profile detail reflects a live outgoing hook as pending" do
     target = create_candidate(display_name: "Sam")
     Hooks::SendHook.call(
@@ -345,12 +360,21 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
       brand:, gender: "man", age: 31, interested_in: [ "woman" ],
       min_age: 25, max_age: 40, display_name: "Target"
     )
-    target.update!(company_name: "Private Corp", looking_for_text: "Something lasting")
+    target.update!(
+      company_name: "Private Corp", looking_for_text: "Something lasting",
+      job_title: "Engineer", occupation: "Software", school_or_institution: "UCT",
+      height_cm: 181, languages: [ { "code" => "en", "primary" => true } ],
+      smoking: "never", drinking: "occasionally", fitness: "regularly"
+    )
     shared = {
       relationship_intent: [ "long_term_relationship" ],
       has_children: [ "no" ], wants_children: [ "yes" ],
       religion_importance: [ "somewhat_important" ], social_style: [ "ambivert" ],
-      meeting_pace: [ "few_days" ]
+      meeting_pace: [ "few_days" ], religion: [ "christian" ],
+      education_level: [ "postgraduate" ], diet: [ "anything" ], pets: [ "dog" ],
+      sleep_schedule: [ "early_bird" ], travel_frequency: [ "sometimes" ],
+      communication_style: [ "mixed" ], planning_style: [ "planner" ],
+      interests: %w[ hiking live_music ]
     }
     Profiles::OptionSelections.replace!(profile: viewer, selections: shared)
     Profiles::OptionSelections.replace!(profile: target, selections: shared)
@@ -373,11 +397,23 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     profile = JSON.parse(response.body).fetch("profile")
     assert_equal "Something lasting", profile.fetch("looking_for_text")
+    assert_equal "Engineer", profile.fetch("job_title")
+    assert_equal "Software", profile.fetch("occupation")
+    assert_equal "UCT", profile.fetch("school_or_institution")
+    assert_equal 181, profile.fetch("height_cm")
+    assert_equal "en", profile.fetch("languages").sole.fetch("code")
+    assert_equal %w[ live_music hiking ], profile.fetch("interests").pluck("slug")
+    %w[relationship_intent social_style meeting_pace education_level diet pets sleep_schedule
+      travel_frequency communication_style planning_style interests].each do |key|
+      assert profile.fetch("options").key?(key), "expected public DateZA option #{key}"
+    end
     assert_equal "dateza_v1", profile.fetch("compatibility").fetch("version")
     assert_equal true, profile.dig("verification", "contact", "verified")
     assert_not profile.key?("company_name")
     assert_not profile.fetch("options").key?("has_children")
     assert_not profile.fetch("options").key?("wants_children")
+    assert_not profile.fetch("options").key?("religion")
+    assert_not profile.fetch("options").key?("religion_importance")
     assert_not profile.fetch("verification").key?("realme")
   end
 

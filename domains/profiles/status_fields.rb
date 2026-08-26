@@ -81,7 +81,7 @@ module Profiles
     # Identifiers are user-level (cross-brand), so verification is not
     # brand-scoped — proving you own an email once proves it everywhere.
     def verified_user_ids
-      IdentityIdentifier.kept
+      IdentityIdentifier.kept.contact
         .where(user_id: user_ids)
         .where.not(verified_at: nil)
         .distinct

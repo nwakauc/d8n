@@ -83,7 +83,7 @@ module Profiles
     end
 
     def verified?
-      IdentityIdentifier.kept.where(user_id: profile.user_id).where.not(verified_at: nil).exists?
+      IdentityIdentifier.kept.contact.where(user_id: profile.user_id).where.not(verified_at: nil).exists?
     end
 
     def basics_complete?

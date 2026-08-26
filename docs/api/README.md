@@ -501,6 +501,12 @@ interests; `location.configured`, `publication.published`, and
 `verification.contact.verified` are server-authoritative. Brands that have not
 composed a richness model return `profile_completion: null`.
 
+`verification.contact.verified` is the canonical profile-detail/owner contact
+verification field and means at least one kept email or phone identifier is
+verified. The older top-level public-profile `verified` projection remains for
+backward compatibility; new detail consumers should prefer the nested field.
+Neither field is RealMe, selfie, liveness, photo, age, or identity verification.
+
 Password registration and login, plus `GET/PATCH /api/v1/profile`, return a
 resumable `onboarding` state. `profile_required` starts profile creation,
 `profile_incomplete` points to the next incomplete domain, `ready_to_publish`
@@ -518,7 +524,7 @@ concepts remain independently editable. Public profile, Find, discovery, match,
 conversation, and profile-detail JSON never includes the private identity names.
 
 The owner-scoped profile-photo API is live wherever private R2 storage is
-selected (staging today). The flow is direct-to-R2: request an upload intent,
+selected. The flow is direct-to-R2: request an upload intent,
 `PUT` the bytes to a short-lived presigned URL, then attach the returned
 `signed_id`. D8N — never the client — allocates the object key
 (`brands/<slug>/users/<id>/profiles/<uuid>/photos/<uuid>/original.<ext>`), sniffs
@@ -527,17 +533,22 @@ short-lived signed GET; delete soft-deletes and asynchronously purges the R2
 object. Rails' generic Active Storage routes stay disabled; object identity and
 delivery are mediated only by this API. Attached photos begin `pending_review`;
 HookUs makes them `visible` immediately and moderates asynchronously, while
-brands without an explicit policy stay `hidden` until moderated. Still gated per
-ADR 0011: public/other-user delivery, safe re-encode, EXIF/metadata stripping,
-and moderation enforcement. When R2 is disabled the endpoints return `404`.
+DateZA and brands without an immediate policy stay `hidden` until moderation
+makes them visible. Public/other-user delivery is implemented for visible,
+successfully processed safe derivatives only; raw originals are never returned.
+The moderation transition/review product remains incomplete. When R2 is disabled
+the endpoints return `404`.
 
-Phase 5 Slice 1 exposes conversation metadata only. No frontend should simulate or persist chat messages against D8N until the documented message-content endpoints ship with block/report and privacy controls.
+Text messaging is live for HookUs and DateZA after an active match. Use
+`GET /api/v1/conversations/:conversation_id/messages` for history and
+`POST /api/v1/conversations/:conversation_id/messages` to send; both paths
+recheck active-match, participant, brand, account, and block access.
 
 ## Blocking
 
 `POST /api/v1/profiles/:profile_id/block` creates a directional block idempotently. Either block direction removes both profiles from each other's discovery, interaction, match-list, and conversation surfaces. Creating a block soft-deletes existing likes in both directions and ends an active match.
 
-`DELETE /api/v1/profiles/:profile_id/block` removes only the current profile's outgoing block. It is idempotent and returns `204` for absent, unknown, cross-brand, self, and soft-deleted targets without revealing whether the target exists. Unblocking permits future eligible interaction but never restores earlier likes or reactivates an ended match. Existing conversation metadata may become visible again under the ended-match read-only history policy; no message-content API exists yet.
+`DELETE /api/v1/profiles/:profile_id/block` removes only the current profile's outgoing block. It is idempotent and returns `204` for absent, unknown, cross-brand, self, and soft-deleted targets without revealing whether the target exists. Unblocking permits future eligible interaction but never restores earlier likes, reactivates an ended match, or restores access to its ended conversation/history.
 
 ## Profile Detail
 

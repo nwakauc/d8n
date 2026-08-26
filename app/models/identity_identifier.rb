@@ -8,6 +8,7 @@ class IdentityIdentifier < ApplicationRecord
   enum :kind, { email: 0, phone: 1, oauth_provider_uid: 2, device_fingerprint: 3 }
 
   scope :kept, -> { where(deleted_at: nil) }
+  scope :contact, -> { where(kind: %i[email phone]) }
 
   before_validation :normalize_value
 

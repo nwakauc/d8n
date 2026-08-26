@@ -107,7 +107,7 @@ module Profiles
     def verification_payload
       {
         contact: {
-          verified: IdentityIdentifier.kept.where(user_id: profile.user_id).where.not(verified_at: nil).exists?
+          verified: IdentityIdentifier.kept.contact.where(user_id: profile.user_id).where.not(verified_at: nil).exists?
         }
       }
     end
