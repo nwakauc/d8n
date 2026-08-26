@@ -45,7 +45,7 @@ env:
     # DateZA frontends talk to the real staging backend during integration.
     # Origins are not secrets; never use "*" here. Extend this comma-separated
     # list only for approved frontend origins.
-    D8N_CORS_ORIGINS: "http://localhost:3001,http://127.0.0.1:3001,http://192.168.0.109:3001,https://hookus.app,https://www.hookus.app,https://hookus-web.hookus.workers.dev,http://localhost:5173,https://dateza.vercel.app"
+    D8N_CORS_ORIGINS: "http://localhost:3001,http://127.0.0.1:3001,http://192.168.0.109:3001,https://hookus.app,https://www.hookus.app,https://hookus-web.hookus.workers.dev,http://localhost:5173,https://dateza.vercel.app,https://www.date-za.com"
 
   secret:
     - RAILS_MASTER_KEY

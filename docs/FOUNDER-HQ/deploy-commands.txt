@@ -55,3 +55,18 @@ Run it once on the primary role rather than on both web and job roles.
 
 . Real run:
   kamal app exec "bin/rails dateza:seed_demo_profiles" -d staging -p -e SEED_DEMO_ALLOW_PRODUCTION:1
+
+
+SYNC DATEZA CATALOG (prompts / option groups / openers)
+
+Profiles::DatezaProfileCatalog.install! is idempotent and additive — safe to
+re-run any time the catalog definition (domains/profiles/dateza_profile_catalog.rb)
+changes, so an already-provisioned brand picks up new prompts/option
+groups/openers without a full re-seed. Swap -d staging for -d production once
+a production destination exists.
+
+. Check current opener count first (read-only):
+  kamal app exec "bin/rails runner 'b = Brand.find_by!(slug: %q(dateza)); puts %Q(active openers: #{b.profile_openers.kept.status_active.count})'" -d staging -p
+
+. Apply the sync:
+  kamal app exec "bin/rails runner 'b = Brand.find_by!(slug: %q(dateza)); Profiles::DatezaProfileCatalog.install!(brand: b); puts %Q(active openers: #{b.profile_openers.kept.status_active.ordered.pluck(:key).join(%q(, ))})'" -d staging -p
