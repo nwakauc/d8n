@@ -2,6 +2,10 @@ module Identity
   class PasswordRegistration
     Result = Data.define(:success?, :error, :user, :credential, :session, :raw_token, :retry_after)
     PURPOSE = "password_registration"
+    # Advisory-lock identifier for the pre-parse IP gate (see #malformed_identifier_result)
+    # — shared across every submission whose identifier fails to parse for this
+    # brand, since there is no real identifier yet to key on individually.
+    UNPARSED_IDENTIFIER_LOCK_KEY = "unparsed"
 
     def self.call(...)
       new(...).call
@@ -20,7 +24,7 @@ module Identity
       return failure(:brand_required) unless active_brand?
 
       login_identifier = LoginIdentifier.call(identifier_input)
-      return invalid_registration unless login_identifier
+      return malformed_identifier_result unless login_identifier
       return failure(:auth_method_unavailable) unless AuthPolicy.enabled?(brand:, method: login_identifier.auth_method)
       return invalid_registration(login_identifier) unless PasswordEngine.valid?(password:)
 
@@ -32,6 +36,39 @@ module Identity
     private
 
     attr_reader :brand, :identifier_input, :password, :device_name, :ip_address, :user_agent
+
+    # A malformed identifier has no normalized value, so #register's per-identifier
+    # advisory lock and throttle (both keyed on it) never run for this path —
+    # without this gate, Identity::PasswordEngine.burn below (a real bcrypt
+    # comparison, done for timing-attack resistance) would be completely
+    # unthrottled: free, repeatable, expensive CPU work for any attacker who
+    # simply never sends a parseable identifier. This checks the brand's normal
+    # registration IP ceiling before that burn ever runs. PasswordThrottle's
+    # identifier scope is inherently a no-op here (`identifier: nil` can never
+    # match auth_attempts.identifier, a NOT NULL column), so only the IP scope —
+    # the one that actually applies to an attacker with no valid identifier —
+    # can trip. Locked (like #register) so concurrent malformed submissions from
+    # one IP cannot race past the same check before either has recorded an
+    # attempt.
+    def malformed_identifier_result
+      result = nil
+
+      ActiveRecord::Base.transaction do
+        AuthenticationLock.with_lock(
+          brand:, purpose: PURPOSE, identifier: UNPARSED_IDENTIFIER_LOCK_KEY, ip_address:
+        ) do
+          throttle = PasswordThrottle.call(brand:, purpose: PURPOSE, identifier: nil, ip_address:)
+          result = if throttle.throttled?
+            audit(nil, result: :throttled, retry_after: throttle.retry_after)
+            failure(:rate_limited, retry_after: throttle.retry_after)
+          else
+            invalid_registration
+          end
+        end
+      end
+
+      result
+    end
 
     # Kicks off phone/email verification through the shared OTP delivery seam AFTER
     # the account transaction has committed. Registration proves a password, never

@@ -58,5 +58,46 @@ module Identity
         brand.destroy!
       end
     end
+
+    test "concurrent malformed-identifier submissions from one IP cannot both slip past the IP ceiling" do
+      brand = Brand.create!(
+        slug: "malformed-race-#{SecureRandom.hex(6)}",
+        name: "Malformed Race",
+        auth_methods: %w[ email_password ]
+      )
+      ip_address = "198.51.100.42"
+      ip_limit = PasswordThrottle::POLICIES.fetch("password_registration").fetch(:ip_limit)
+      (ip_limit - 1).times do
+        AuthAttempt.create!(
+          brand:, kind: :password, result: :failed, identifier: "invalid",
+          ip_address:, metadata: { purpose: "password_registration" }
+        )
+      end
+
+      results = Queue.new
+      start = Queue.new
+      threads = 2.times.map do
+        Thread.new do
+          ActiveRecord::Base.connection_pool.with_connection do
+            start.pop
+            results << PasswordRegistration.call(
+              brand:, identifier: "not-a-valid-identifier", password: "secret", ip_address:
+            )
+          end
+        end
+      end
+      2.times { start << true }
+      threads.each(&:join)
+      outcomes = 2.times.map { results.pop }
+
+      assert_equal 1, outcomes.count { |result| result.error == :registration_unavailable }
+      assert_equal 1, outcomes.count { |result| result.error == :rate_limited }
+    ensure
+      if brand
+        AuthAttempt.where(brand:).delete_all
+        SecurityEvent.where(brand:).delete_all
+        brand.destroy!
+      end
+    end
   end
 end

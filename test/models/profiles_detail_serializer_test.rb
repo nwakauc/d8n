@@ -21,7 +21,11 @@ module Profiles
       payload = DetailSerializer.call(profile: @target, viewer: @viewer)
 
       assert_equal "Someone fun", payload.fetch(:looking_for_text)
-      assert_equal "en", payload.fetch(:languages).first.fetch(:code)
+      language = payload.fetch(:languages).first
+      assert_equal "en", language.fetch(:code)
+      assert_equal "English", language.fetch(:label)
+      assert_equal "fluent", language.fetch(:proficiency)
+      assert_equal true, language.fetch(:primary)
       assert_equal %w[ foodie travel ], payload.fetch(:options).fetch("interests")
       assert_equal %w[ foodie travel ], payload.fetch(:interests).map { |i| i.fetch(:slug) }
       assert_equal "food", payload.fetch(:interests).find { |i| i.fetch(:slug) == "foodie" }.fetch(:category)

@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
   setup do
     @brand = Brand.create!(
       slug: "hookus",
@@ -191,6 +193,96 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
     assert_equal({ "error" => "brand_required" }, JSON.parse(response.body))
+  end
+
+  test "rate limits many distinct SUCCESSFUL registrations from one IP, creating no partial state" do
+    Identity::PasswordThrottle::POLICIES.fetch("password_registration").fetch(:ip_limit).times do |index|
+      post "/api/v1/auth/password/register",
+        params: { identifier: "ip-flood-#{index}@example.com", password: "secret", device_name: "Bot" }
+      assert_response :created
+    end
+
+    assert_no_difference [
+      -> { User.count }, -> { IdentityIdentifier.count }, -> { Credential.count },
+      -> { BrandMembership.where(brand: @brand).count }, -> { Session.where(brand: @brand).count }
+    ] do
+      assert_no_enqueued_jobs only: Notifications::DeliverChallengeJob do
+        post "/api/v1/auth/password/register",
+          params: { identifier: "one-more@example.com", password: "secret", device_name: "Bot" }
+      end
+    end
+
+    assert_response :too_many_requests
+    assert_equal({ "error" => "rate_limited" }, JSON.parse(response.body))
+    assert response.headers.fetch("Retry-After").to_i.positive?
+  end
+
+  test "the registration IP throttle is platform-wide: switching brand host does not reset it" do
+    other_brand = Brand.create!(slug: "dateza", name: "DateZA", auth_methods: %w[ email_password ])
+    BrandDomain.create!(brand: other_brand, host: "dateza.test")
+    ip_limit = Identity::PasswordThrottle::POLICIES.fetch("password_registration").fetch(:ip_limit)
+
+    (ip_limit - 1).times do |index|
+      post "/api/v1/auth/password/register",
+        params: { identifier: "split-#{index}@example.com", password: "secret" }
+      assert_response :created
+    end
+
+    host! "dateza.test"
+    post "/api/v1/auth/password/register", params: { identifier: "split-last@example.com", password: "secret" }
+    assert_response :created
+
+    post "/api/v1/auth/password/register", params: { identifier: "one-more-still@example.com", password: "secret" }
+    assert_response :too_many_requests
+  end
+
+  test "the registration identifier throttle is platform-wide: switching brand host does not reset it" do
+    other_brand = Brand.create!(slug: "dateza", name: "DateZA", auth_methods: %w[ email_password ])
+    BrandDomain.create!(brand: other_brand, host: "dateza.test")
+    identifier_limit = Identity::PasswordThrottle::POLICIES.fetch("password_registration").fetch(:identifier_limit)
+    remote_ips = (1..(identifier_limit + 1)).map { |n| "203.0.113.#{n}" }
+
+    # First attempt succeeds and claims the identifier; every attempt after that
+    # against the SAME already-registered identifier fails with 422 — each still
+    # counts toward the identifier throttle, spread across different source IPs
+    # so only the identifier scope (never the much higher ip_limit) can trip.
+    post "/api/v1/auth/password/register",
+      params: { identifier: "taken@example.com", password: "secret" },
+      headers: { "REMOTE_ADDR" => remote_ips[0] }
+    assert_response :created
+
+    (identifier_limit - 1).times do |index|
+      post "/api/v1/auth/password/register",
+        params: { identifier: "taken@example.com", password: "secret" },
+        headers: { "REMOTE_ADDR" => remote_ips[index + 1] }
+      assert_response :unprocessable_entity
+    end
+
+    host! "dateza.test"
+    post "/api/v1/auth/password/register",
+      params: { identifier: "taken@example.com", password: "secret" },
+      headers: { "REMOTE_ADDR" => remote_ips.last }
+
+    assert_response :too_many_requests
+    assert_equal({ "error" => "rate_limited" }, JSON.parse(response.body))
+  end
+
+  test "malformed identifiers cannot bypass the registration IP throttle" do
+    ip_limit = Identity::PasswordThrottle::POLICIES.fetch("password_registration").fetch(:ip_limit)
+
+    ip_limit.times do
+      post "/api/v1/auth/password/register", params: { identifier: "not-an-email-or-phone", password: "secret" }
+      assert_response :unprocessable_entity
+      assert_equal({ "error" => "registration_unavailable" }, JSON.parse(response.body))
+    end
+
+    assert_no_difference -> { User.count } do
+      post "/api/v1/auth/password/register", params: { identifier: "still-not-valid", password: "secret" }
+    end
+
+    assert_response :too_many_requests
+    assert_equal({ "error" => "rate_limited" }, JSON.parse(response.body))
+    assert_equal "throttled", AuthAttempt.where(brand: @brand).order(:created_at).last.result
   end
 
   test "audits successful registration and failed login without password content" do

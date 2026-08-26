@@ -436,6 +436,10 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     end
     assert_equal "dateza_v1", profile.fetch("compatibility").fetch("version")
     assert_equal true, profile.dig("verification", "contact", "verified")
+    # D8N Opener state is projected onto DateZA profile detail (same engine as
+    # HookUs's hook_state, under its own key); no HookUs-only field leaks in.
+    assert_equal "available", profile.fetch("opener_state")
+    assert_not profile.key?("hook_state")
     assert_not profile.key?("company_name")
     assert_not profile.fetch("options").key?("has_children")
     assert_not profile.fetch("options").key?("wants_children")

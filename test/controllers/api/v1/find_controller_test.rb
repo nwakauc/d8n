@@ -295,6 +295,22 @@ class Api::V1::FindControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, FindProfileExposure.where(brand: @brand, viewer_profile: @viewer).count
   end
 
+  test "projects opener_state (not HookUs's hook_state) onto Find candidates" do
+    candidate = create_candidate
+
+    get "/api/v1/find", headers: bearer_headers(@token)
+    entry = JSON.parse(response.body).fetch("profiles").sole
+    assert_equal "available", entry.fetch("opener_state")
+    assert_not entry.key?("hook_state")
+
+    post "/api/v1/profiles/#{candidate.public_id}/opener",
+      headers: bearer_headers(@token), params: { opener_key: "coffee_or_tea" }
+    assert_response :created
+
+    get "/api/v1/find", headers: bearer_headers(@token)
+    assert_equal "pending", JSON.parse(response.body).fetch("profiles").sole.fetch("opener_state")
+  end
+
   test "a processed pending-review DateZA photo is deliverable in Find results" do
     candidate = create_candidate
     photo = attach_photo(candidate)

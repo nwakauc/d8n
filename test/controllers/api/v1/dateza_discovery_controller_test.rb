@@ -220,6 +220,28 @@ class Api::V1::DatezaDiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, DiscoveryAllocation.where(brand: @brand, brand_membership: @viewer.brand_membership).count
   end
 
+  test "projects opener_state (not HookUs's hook_state) onto Discover candidates" do
+    candidate = create_candidate
+    identifier = IdentityIdentifier.create!(
+      user: @viewer.user, kind: :email, normalized_value: "opener-state@example.com", verified_at: Time.current
+    )
+    credential = Credential.create!(user: @viewer.user, identity_identifier: identifier, kind: :password)
+    verified_token, = Session.issue!(brand: @brand, user: @viewer.user, credential:)
+
+    get "/api/v1/discovery", headers: bearer_headers(verified_token)
+    entry = JSON.parse(response.body).fetch("profiles").sole
+
+    assert_equal "available", entry.fetch("opener_state")
+    assert_not entry.key?("hook_state")
+
+    post "/api/v1/profiles/#{candidate.public_id}/opener",
+      headers: bearer_headers(verified_token), params: { opener_key: "coffee_or_tea" }
+    assert_response :created
+
+    get "/api/v1/discovery", headers: bearer_headers(verified_token)
+    assert_equal "pending", JSON.parse(response.body).fetch("profiles").sole.fetch("opener_state")
+  end
+
   test "a processed pending-review DateZA photo is deliverable in Discover, still awaiting moderation" do
     candidate = create_candidate
     photo = attach_photo(candidate)

@@ -3,10 +3,24 @@ module Identity
     Result = Data.define(:throttled?, :scope, :retry_after)
 
     POLICIES = {
+      # Registration is the one purpose where a SUCCESSFUL attempt is itself the
+      # abuse signal (an attacker's distinct new accounts all "succeed"). Every
+      # other purpose counts failures only, so a legitimate member logging in or
+      # changing their password repeatedly is never throttled by their own
+      # success. See #counted_attempts_scope.
+      #
+      # Also platform-wide (`brand_scoped: false`): IdentityIdentifier has no
+      # brand_id and is globally unique across D8N (app/models/identity_identifier.rb),
+      # so there is no legitimate "separate per-brand registration" with the same
+      # identifier to protect — and a brand-scoped IP counter would let an
+      # attacker multiply their registration budget by switching Host between
+      # brands. See #counted_attempts_scope.
       "password_registration" => {
         window: 1.hour,
         identifier_limit: 5,
-        ip_limit: 20
+        ip_limit: 20,
+        count_successes: true,
+        brand_scoped: false
       },
       "password_login" => {
         window: 15.minutes,
@@ -48,7 +62,7 @@ module Identity
     def identifier_result(policy)
       throttled_result(
         scope: :identifier,
-        relation: failed_scope.where(identifier:),
+        relation: counted_attempts_scope(policy).where(identifier:),
         window: policy.fetch(:window),
         limit: policy.fetch(:identifier_limit)
       )
@@ -59,15 +73,23 @@ module Identity
 
       throttled_result(
         scope: :ip,
-        relation: failed_scope.where(ip_address:),
+        relation: counted_attempts_scope(policy).where(ip_address:),
         window: policy.fetch(:window),
         limit: policy.fetch(:ip_limit)
       )
     end
 
-    def failed_scope
-      scope = AuthAttempt.where(brand:, kind: :password, result: :failed)
+    # Every purpose always counts `failed`; `password_registration` additionally
+    # counts `succeeded` (see POLICIES) because an attacker's account-creation
+    # attempts routinely succeed — a throttle that only watches for failure would
+    # never see them. Every purpose except `password_registration` is brand-scoped
+    # (default `true`), matching each purpose's own resource scope (credentials
+    # and sessions are brand-bound).
+    def counted_attempts_scope(policy)
+      results = policy.fetch(:count_successes, false) ? %w[ failed succeeded ] : %w[ failed ]
+      scope = AuthAttempt.where(kind: :password, result: results)
         .where("metadata ->> 'purpose' = ?", purpose)
+      scope = scope.where(brand:) if policy.fetch(:brand_scoped, true)
       return scope unless %w[ password_change email_change ].include?(purpose)
 
       scope.where("metadata ->> 'failure_stage' = ?", "reauthentication")
