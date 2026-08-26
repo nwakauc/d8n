@@ -30,15 +30,16 @@ info:
     - **Preview (limited scope):** Messaging supports match-gated plain-text
       messages and history. Client idempotency, delivery/read receipts, realtime,
       and message media are not available.
-    - **Available (owner-scoped, private):** Profile photos use a direct-to-R2
+    - **Available:** Profile photos use a direct-to-R2
       upload — request an intent, `PUT` the bytes to the returned short-lived
       presigned URL, then attach the returned `signed_id`. Attached photos begin
       `pending_review`; initial visibility is a per-brand policy — HookUs photos
-      are `visible` immediately and moderated asynchronously, while brands without
-      an explicit policy stay `hidden` until moderated. Delivery is a short-lived
-      signed URL. Public/other-user delivery, safe re-encoding, EXIF removal, and
-      moderation enforcement remain gated (ADR 0011). The endpoints require private
-      R2 storage, so they return `404` when R2 is disabled.
+      are `visible` immediately and moderated asynchronously, while moderate-first
+      brands stay `hidden` until approval. Public delivery positively requires a
+      kept, visible, successfully processed safe derivative whose moderation state
+      is pending/approved; rejected media is independently excluded. Signed URLs
+      are short-lived. The endpoints require private R2 storage, so they return
+      `404` when R2 is disabled.
     - **Preview (limited scope):** Admin exposes brand-scoped report review and
       suspension APIs; stronger admin authentication/RBAC and the complete admin
       product remain gated.
@@ -1094,7 +1095,8 @@ paths:
         then processed asynchronously into a safe, EXIF-stripped display
         derivative (`processing_state`); other users only ever see that
         derivative, and only once it is `ready`. Until then the photo is not
-        exposed in discovery/matches even if visible.
+        exposed in discovery/matches even if visible. The current brand's
+        `configuration.collections[photos].maximum_count` is enforced atomically.
       requestBody:
         required: true
         content:
@@ -1129,7 +1131,59 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "422":
-          $ref: "#/components/responses/ValidationFailed"
+          description: Invalid/reused upload, invalid insertion position, or the configured photo maximum was reached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/profile/photos/order:
+    put:
+      operationId: reorderProfilePhotos
+      tags: [Profile]
+      summary: Replace the current profile's complete kept-photo order
+      description: |
+        `photo_ids` must contain every and only kept photo id returned by the
+        owner photo library, exactly once. The replacement is atomic and assigns
+        sequential positions from zero. The first ordered owner photo is primary;
+        public surfaces independently select the first deliverable ordered photo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [photo_ids]
+              properties:
+                photo_ids:
+                  type: array
+                  uniqueItems: true
+                  items:
+                    type: integer
+      responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "200":
+          description: Complete owner photo library in its new order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [photos]
+                properties:
+                  photos:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProfilePhoto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: Malformed, duplicate, incomplete, deleted, or foreign photo ids.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/profile/photos/uploads:
     post:
       operationId: createProfilePhotoUpload
@@ -2200,6 +2254,63 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/admin/profile_photos/{id}:
+    patch:
+      operationId: moderateProfilePhoto
+      tags: [Trust]
+      summary: Apply a terminal moderation decision to a pending profile photo
+      description: |
+        Requires an authenticated active admin assigned to the request brand.
+        The opaque photo UUID is resolved only inside that brand. Approval makes
+        the placement visible; rejection makes it hidden and independently
+        non-deliverable. Repeating the same terminal decision is idempotent;
+        attempting the opposite terminal decision returns a conflict. Every real
+        transition is audited without media bytes, URLs, keys, or free-form notes.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+      responses:
+        "200":
+          description: Current terminal state and whether this request performed the transition.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [photo, transitioned]
+                properties:
+                  transitioned:
+                    type: boolean
+                  photo:
+                    $ref: "#/components/schemas/AdminProfilePhotoModeration"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The photo already has the opposite terminal decision.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
   /api/v1/admin/reports:
     get:
       operationId: listReports
@@ -3089,7 +3200,11 @@ components:
       type: object
       description: |
         Publication completeness: whether the member may publish and enter the
-        dating experience. Distinct from RichProfileCompletion.
+        dating experience. A required photo must have a ready safe derivative
+        and be admitted by brand policy; rejected/deleted/failed/unready photos
+        never count. Moderate-first brands may count a hidden pending safe
+        derivative for onboarding while still withholding it publicly. Distinct
+        from RichProfileCompletion.
       required: [complete, percent, missing]
       properties:
         complete:
@@ -3158,11 +3273,16 @@ components:
                 type: boolean
     ProfileCounts:
       type: object
+      description: |
+        Backward-compatible stored/kept-record counts. These are not silently
+        redefined as public/renderable counts; use the returned active prompt and
+        interest arrays when that distinction matters.
       required: [photos, prompts, interests]
       properties:
         photos:
           type: integer
           minimum: 0
+          description: Kept owner photo placements, regardless of processing/moderation delivery state.
         prompts:
           type: integer
           minimum: 0
@@ -3451,11 +3571,13 @@ components:
           maxLength: 300
     PublicProfilePhoto:
       type: object
-      required: [id, position, url, url_expires_in]
+      required: [id, position, primary, url, url_expires_in]
       description: |
         A safe, D8N-generated display derivative of a profile photo. It is
         decoded, re-encoded, and stripped of EXIF/GPS/other metadata. Only
-        deliverable photos (visible and finished processing) appear; the raw
+        deliverable photos (kept, visible, moderation-eligible, and finished
+        processing) appear; rejected media never appears even if its visibility
+        is inconsistent. The raw
         original and its storage key are never exposed. The `url` is a
         short-lived signed URL — refetch the profile to renew it.
       properties:
@@ -3469,6 +3591,9 @@ components:
         position:
           type: integer
           minimum: 0
+        primary:
+          type: boolean
+          description: True only for the first deliverable photo in deterministic display order.
         url:
           type: string
           format: uri
@@ -3535,8 +3660,8 @@ components:
         photos:
           type: array
           description: |
-            Safe display derivatives, ordered by position. Empty when the profile
-            has no photo that is both visible and finished processing.
+            Safe display derivatives, ordered by position. The first returned item
+            is the public primary photo. Empty when no photo is deliverable.
           items:
             $ref: "#/components/schemas/PublicProfilePhoto"
         options:
@@ -3934,7 +4059,7 @@ components:
           description: Whether a more specific level exists to drill into (not every city has cataloged localities).
     ProfilePhoto:
       type: object
-      required: [id, profile_id, position, status, visibility, processing_state, deleted_at, image]
+      required: [id, profile_id, position, primary, status, visibility, processing_state, deleted_at, image]
       properties:
         id:
           type: integer
@@ -3943,6 +4068,9 @@ components:
           format: uuid
         position:
           type: integer
+        primary:
+          type: boolean
+          description: True for the first kept owner photo in position/id order; derived, never stored separately.
         status:
           type: string
           description: Moderation lifecycle; independent of processing_state and visibility.
@@ -4076,7 +4204,7 @@ components:
                 type: string
     ConfiguredCollection:
       type: object
-      required: [key, label, required, minimum_count]
+      required: [key, label, required, minimum_count, maximum_count]
       properties:
         key:
           type: string
@@ -4087,6 +4215,10 @@ components:
         minimum_count:
           type: integer
           minimum: 1
+        maximum_count:
+          type: integer
+          minimum: 1
+          description: Server-enforced brand-policy maximum for this collection.
     ConfiguredOptionGroup:
       type: object
       required: [key, label, cardinality, max_selections, required, visibility, options]
@@ -4553,6 +4685,28 @@ components:
           $ref: "#/components/schemas/Conversation"
         message:
           $ref: "#/components/schemas/Message"
+    AdminProfilePhotoModeration:
+      type: object
+      required: [id, profile_id, position, status, visibility, processing_state]
+      properties:
+        id:
+          type: string
+          format: uuid
+        profile_id:
+          type: string
+          format: uuid
+        position:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum: [approved, rejected]
+        visibility:
+          type: string
+          enum: [hidden, visible]
+        processing_state:
+          type: string
+          enum: [pending, processing, ready, failed]
     AdminReportParty:
       description: Minimal identity of a report participant, or null if unresolved.
       oneOf:

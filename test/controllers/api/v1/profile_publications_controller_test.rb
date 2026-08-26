@@ -183,6 +183,7 @@ class Api::V1::ProfilePublicationsControllerTest < ActionDispatch::IntegrationTe
       content_type: "image/png"
     )
     photo.save!
+    attach_ready_derivative(photo)
 
     [ dateza, token, profile ]
   end
@@ -193,13 +194,23 @@ class Api::V1::ProfilePublicationsControllerTest < ActionDispatch::IntegrationTe
       brand: @brand, user: @user, profile: @profile,
       min_age: 25, max_age: 40, interested_in: [ "man" ]
     ) unless ProfilePreference.kept.exists?(profile: @profile)
-    photo = ProfilePhoto.new(brand: @brand, user: @user, profile: @profile)
+    photo = ProfilePhoto.new(brand: @brand, user: @user, profile: @profile, visibility: :visible)
     photo.image.attach(
       io: Rails.root.join("test/fixtures/files/profile_photo.png").open,
       filename: "profile_photo.png",
       content_type: "image/png"
     )
     photo.save!
+    attach_ready_derivative(photo)
     photo
+  end
+
+  def attach_ready_derivative(photo)
+    photo.display_image.attach(
+      io: Rails.root.join("test/fixtures/files/profile_photo.png").open,
+      filename: "display.jpg",
+      content_type: "image/jpeg"
+    )
+    photo.update!(processing_state: :ready)
   end
 end

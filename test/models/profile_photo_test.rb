@@ -56,6 +56,36 @@ class ProfilePhotoTest < ActiveSupport::TestCase
     assert_includes photo.errors[:image], "must be a JPEG, PNG, or WebP image"
   end
 
+  test "rejected photo is never deliverable even when visible and ready" do
+    brand, user, profile = profile_setup
+    photo = ProfilePhoto.new(brand:, user:, profile:, visibility: :visible, status: :rejected)
+    attach_image(photo)
+    photo.save!
+    photo.display_image.attach(
+      io: Rails.root.join("test/fixtures/files/profile_photo.png").open,
+      filename: "display.jpg", content_type: "image/jpeg"
+    )
+    photo.update!(processing_state: :ready)
+
+    assert_not photo.deliverable?
+    assert_not_includes ProfilePhoto.deliverable, photo
+  end
+
+  test "enforces the configured photo maximum" do
+    brand, user, profile = profile_setup
+    Media::PhotoPolicy.max_count(brand:).times do |position|
+      photo = ProfilePhoto.new(brand:, user:, profile:, position:)
+      attach_image(photo)
+      photo.save!
+    end
+
+    extra = ProfilePhoto.new(brand:, user:, profile:, position: Media::PhotoPolicy.max_count(brand:))
+    attach_image(extra)
+
+    assert_not extra.valid?
+    assert_includes extra.errors[:base], "profile photo limit reached"
+  end
+
   private
 
   def profile_setup(slug: "hookus", user: User.create!)

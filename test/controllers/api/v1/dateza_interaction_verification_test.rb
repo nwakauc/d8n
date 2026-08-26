@@ -205,6 +205,8 @@ class Api::V1::DatezaInteractionVerificationTest < ActionDispatch::IntegrationTe
     bytes = Rails.root.join("test/fixtures/files/profile_photo.png").binread
     photo.image.attach(io: StringIO.new(bytes), filename: "profile.png", content_type: "image/png")
     photo.save!
+    photo.display_image.attach(io: StringIO.new(bytes), filename: "display.jpg", content_type: "image/jpeg")
+    photo.update!(processing_state: :ready)
   end
 
   def create_match(first, second)

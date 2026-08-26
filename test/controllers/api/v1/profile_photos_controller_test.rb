@@ -260,9 +260,84 @@ class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, photos.size
     image = photos.first.fetch("image")
     assert_equal photo.id, photos.first.fetch("id")
+    assert photos.first.fetch("primary")
     assert_equal "image/png", image.fetch("content_type")
     assert image.fetch("url").present?
     assert_operator image.fetch("url_expires_in"), :>, 0
+  end
+
+
+  test "reorders the full kept photo set atomically and derives primary from order" do
+    first = create_attached_photo
+    second = create_attached_photo
+    third = create_attached_photo
+
+    put "/api/v1/profile/photos/order",
+      headers: bearer_headers(@token),
+      params: { photo_ids: [ third.id, first.id, second.id ] },
+      as: :json
+
+    assert_response :success
+    photos = JSON.parse(response.body).fetch("photos")
+    assert_equal [ third.id, first.id, second.id ], photos.pluck("id")
+    assert_equal [ 0, 1, 2 ], photos.pluck("position")
+    assert_equal [ true, false, false ], photos.pluck("primary")
+  end
+
+  test "reorder rejects duplicate missing deleted foreign and malformed ids without partial changes" do
+    first = create_attached_photo
+    second = create_attached_photo
+    deleted = create_attached_photo
+    deleted.update!(deleted_at: Time.current, visibility: :hidden)
+    other_brand = Brand.create!(slug: "date9ja", name: "Date9ja")
+    other_membership = BrandMembership.create!(brand: other_brand, user: @user)
+    other_profile = Profile.create!(brand: other_brand, user: @user, brand_membership: other_membership)
+    foreign = build_attached_photo(brand: other_brand, profile: other_profile)
+
+    invalid_orders = [
+      [ first.id, first.id ],
+      [ first.id ],
+      [ first.id, deleted.id ],
+      [ first.id, foreign.id ],
+      [ first.id.to_s, second.id.to_s ],
+      "not-an-array"
+    ]
+
+    invalid_orders.each do |photo_ids|
+      put "/api/v1/profile/photos/order",
+        headers: bearer_headers(@token), params: { photo_ids: }, as: :json
+
+      assert_response :unprocessable_entity
+      assert_equal "invalid_photo_order", JSON.parse(response.body).fetch("error")
+      assert_equal [ [ first.id, 0 ], [ second.id, 1 ] ],
+        @profile.profile_photos.kept.ordered.pluck(:id, :position)
+    end
+  end
+
+  test "deleting the ordered primary deterministically promotes the next kept photo" do
+    first = create_attached_photo
+    second = create_attached_photo
+
+    delete "/api/v1/profile/photos/#{first.id}", headers: bearer_headers(@token)
+    assert_response :success
+
+    get "/api/v1/profile/photos", headers: bearer_headers(@token)
+    photos = JSON.parse(response.body).fetch("photos")
+    assert_equal [ second.id ], photos.pluck("id")
+    assert photos.sole.fetch("primary")
+  end
+
+  test "enforces the brand photo maximum before issuing or attaching another upload" do
+    Media::PhotoPolicy.max_count(brand: @brand).times { create_attached_photo }
+
+    assert_no_difference -> { ActiveStorage::Blob.count } do
+      post "/api/v1/profile/photos/uploads", headers: bearer_headers(@token), params: valid_intent_params
+    end
+
+    assert_response :unprocessable_entity
+    payload = JSON.parse(response.body)
+    assert_equal "profile_photo_limit_reached", payload.fetch("error")
+    assert_equal 6, payload.fetch("max_count")
   end
 
   test "soft deletes a current brand photo and enqueues purge" do
@@ -343,7 +418,9 @@ class Api::V1::ProfilePhotosControllerTest < ActionDispatch::IntegrationTest
   end
 
   def build_attached_photo(brand:, profile:)
-    photo = ProfilePhoto.new(brand: brand, user: @user, profile: profile)
+    position = profile.profile_photos.kept.maximum(:position).to_i
+    position += 1 if profile.profile_photos.kept.exists?
+    photo = ProfilePhoto.new(brand: brand, user: @user, profile: profile, position:)
     photo.image.attach(
       io: StringIO.new(png_bytes),
       filename: "profile_photo.png",

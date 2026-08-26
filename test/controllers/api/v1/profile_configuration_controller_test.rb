@@ -34,6 +34,9 @@ class Api::V1::ProfileConfigurationControllerTest < ActionDispatch::IntegrationT
     assert groups.fetch("vibes").fetch("required")
     assert_not_includes groups.fetch("vibes").fetch("options").pluck("code"), "raves"
     assert_not groups.key?("faith")
+    photos = configuration.fetch("collections").find { |collection| collection.fetch("key") == "photos" }
+    assert_equal 1, photos.fetch("minimum_count")
+    assert_equal 6, photos.fetch("maximum_count")
     assert_equal "profile_required", onboarding.fetch("state")
     assert_equal "profile", onboarding.fetch("next_step")
   end

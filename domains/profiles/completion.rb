@@ -14,7 +14,7 @@ module Profiles
     SUPPORTED_PREFERENCE_FIELDS = %w[ min_age max_age interested_in max_distance_km country relationship_intent ].freeze
     SUPPORTED_COLLECTIONS = %w[ photos location ].freeze
     COLLECTION_PRESENCE = {
-      "photos" => ->(profile) { profile.profile_photos.kept.exists? },
+      "photos" => ->(profile) { profile.profile_photos.kept.with_attached_display_image.any?(&:publication_eligible?) },
       "location" => ->(profile) { profile.profile_locations.kept.exists? }
     }.freeze
 
@@ -52,7 +52,9 @@ module Profiles
 
     def sections
       {
-        "photos" => { complete: profile.profile_photos.kept.exists? },
+        "photos" => {
+          complete: profile.profile_photos.kept.with_attached_display_image.any?(&:publication_eligible?)
+        },
         "bio" => { complete: profile.bio.present? },
         "basics" => { complete: basics_complete? },
         "intent" => { complete: any_selection?(INTENT_GROUP_KEYS) || preference&.relationship_intent.present? },

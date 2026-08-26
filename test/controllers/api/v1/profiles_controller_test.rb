@@ -249,6 +249,7 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, photos.size
     entry = photos.sole
     assert_equal 0, entry.fetch("position")
+    assert entry.fetch("primary")
     assert_operator entry.fetch("url_expires_in"), :>, 0
     assert_includes entry.fetch("url"), "display.jpg"
     assert_not_includes response.body, raw_key
@@ -267,6 +268,30 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_empty JSON.parse(response.body).fetch("profile").fetch("photos")
   end
 
+  test "fails closed when a rejected photo is otherwise visible and ready" do
+    target = create_candidate
+    attach_photo(target, visibility: :visible, processing_state: :ready, status: :rejected)
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert_empty JSON.parse(response.body).fetch("profile").fetch("photos")
+  end
+
+  test "a rejected or hidden ordered lead promotes the next deliverable photo" do
+    target = create_candidate
+    attach_photo(target, position: 0, visibility: :visible, processing_state: :ready, status: :rejected)
+    attach_photo(target, position: 1, visibility: :hidden, processing_state: :ready)
+    next_photo = attach_photo(target, position: 2, visibility: :visible, processing_state: :ready)
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    assert_response :success
+    photos = JSON.parse(response.body).fetch("profile").fetch("photos")
+    assert_equal [ next_photo.public_id ], photos.pluck("id")
+    assert photos.sole.fetch("primary")
+  end
+
   test "multiple eligible photos preserve deterministic position order" do
     target = create_candidate
     attach_photo(target, position: 2, visibility: :visible, processing_state: :ready)
@@ -276,8 +301,10 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
 
     assert_response :success
-    positions = JSON.parse(response.body).fetch("profile").fetch("photos").pluck("position")
+    photos = JSON.parse(response.body).fetch("profile").fetch("photos")
+    positions = photos.pluck("position")
     assert_equal [ 0, 1, 2 ], positions
+    assert_equal [ true, false, false ], photos.pluck("primary")
   end
 
   test "assembles the profile without an N+1 explosion across photos and options" do
@@ -445,9 +472,9 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
 
   # Simulates a processed photo: a raw original plus (when ready) the safe
   # display derivative other users may see.
-  def attach_photo(profile, position: 0, visibility: :visible, processing_state: :ready)
+  def attach_photo(profile, position: 0, visibility: :visible, processing_state: :ready, status: :pending_review)
     jpeg = Vips::Image.black(60, 40).add([ 120 ]).cast("uchar").write_to_buffer(".jpg")
-    photo = ProfilePhoto.new(brand: profile.brand, user: profile.user, profile:, position:, visibility:)
+    photo = ProfilePhoto.new(brand: profile.brand, user: profile.user, profile:, position:, visibility:, status:)
     photo.image.attach(io: StringIO.new(jpeg), filename: "original.jpg", content_type: "image/jpeg")
     photo.save!
     if processing_state.to_sym == :ready

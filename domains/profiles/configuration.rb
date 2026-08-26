@@ -117,7 +117,13 @@ module Profiles
 
     def collections(required_keys)
       COLLECTION_LABELS.map do |key, label|
-        { key:, label:, required: required_keys.include?(key), minimum_count: 1 }
+        {
+          key:,
+          label:,
+          required: required_keys.include?(key),
+          minimum_count: 1,
+          maximum_count: key == "photos" ? Media::PhotoPolicy.max_count(brand:) : nil
+        }.compact
       end
     end
 

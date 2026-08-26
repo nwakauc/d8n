@@ -3,12 +3,13 @@ class Api::V1::ProfilePhotosController < ApplicationController
   before_action :authenticate_user!
   before_action -> { enforce_rate_limit!(:media_upload_intent) }, only: :create_upload
   before_action -> { enforce_rate_limit!(:media_attach) }, only: :create
-  before_action :set_active_storage_url_options, only: %i[index create create_upload]
+  before_action -> { enforce_rate_limit!(:profile_write) }, only: :reorder
+  before_action :set_active_storage_url_options, only: %i[index create create_upload reorder]
 
   def index
     photos = Profiles::PhotoLibrary.list(user: Current.user, brand: Current.brand)
 
-    render json: { photos: photos.map { |photo| photo_payload(photo) } }
+    render json: { photos: owner_photo_payloads(photos) }
   end
 
   # Control plane: authorize the caller and return a short-lived presigned PUT so
@@ -39,6 +40,8 @@ class Api::V1::ProfilePhotosController < ApplicationController
       status: :unprocessable_entity
   rescue Profiles::PhotoUpload::InvalidUpload
     render json: { error: "checksum_required" }, status: :unprocessable_entity
+  rescue Profiles::PhotoUpload::LimitReached => e
+    render json: { error: "profile_photo_limit_reached", max_count: e.max_count }, status: :unprocessable_entity
   end
 
   # Data plane completion: attach a verified, already-uploaded object to the
@@ -51,7 +54,8 @@ class Api::V1::ProfilePhotosController < ApplicationController
       position: attach_params[:position]
     )
 
-    render json: { photo: photo_payload(photo) }, status: :created
+    photos = Profiles::PhotoLibrary.list(user: Current.user, brand: Current.brand)
+    render json: { photo: owner_photo_payloads(photos).find { |item| item.fetch(:id) == photo.id } }, status: :created
   rescue ActionController::ParameterMissing
     render json: { error: "signed_id_required" }, status: :unprocessable_entity
   rescue Profiles::PhotoUpload::ProfileRequired
@@ -67,6 +71,10 @@ class Api::V1::ProfilePhotosController < ApplicationController
   rescue Profiles::PhotoUpload::InvalidSize
     render json: { error: "invalid_byte_size", byte_size_limit: Profiles::PhotoUpload::MAX_FILE_SIZE },
       status: :unprocessable_entity
+  rescue Profiles::PhotoUpload::LimitReached => e
+    render json: { error: "profile_photo_limit_reached", max_count: e.max_count }, status: :unprocessable_entity
+  rescue Profiles::PhotoOrder::InvalidOrder
+    render json: { error: "invalid_photo_position" }, status: :unprocessable_entity
   rescue ActiveRecord::RecordInvalid => e
     render json: { error: "invalid_photo", details: e.record.errors.to_hash }, status: :unprocessable_entity
   end
@@ -77,6 +85,20 @@ class Api::V1::ProfilePhotosController < ApplicationController
     render json: { photo: photo_payload(photo) }
   rescue ActiveRecord::RecordNotFound
     render json: { error: "not_found" }, status: :not_found
+  end
+
+  def reorder
+    photos = Profiles::PhotoOrder.reorder!(
+      user: Current.user,
+      brand: Current.brand,
+      ids: params[:photo_ids]
+    )
+
+    render json: { photos: owner_photo_payloads(photos) }
+  rescue ActiveRecord::RecordNotFound
+    render json: { error: "not_found" }, status: :not_found
+  rescue Profiles::PhotoOrder::InvalidOrder
+    render json: { error: "invalid_photo_order" }, status: :unprocessable_entity
   end
 
   private
@@ -100,12 +122,19 @@ class Api::V1::ProfilePhotosController < ApplicationController
       id: photo.id,
       profile_id: photo.profile.public_id,
       position: photo.position,
+      primary: false,
       status: photo.status,
       visibility: photo.visibility,
       processing_state: photo.processing_state,
       deleted_at: photo.deleted_at&.iso8601,
       image: image_payload(photo)
     }
+  end
+
+  def owner_photo_payloads(photos)
+    photos.each_with_index.map do |photo, index|
+      photo_payload(photo).merge(primary: index.zero?)
+    end
   end
 
   # Private media is served through a short-lived signed retrieval URL straight

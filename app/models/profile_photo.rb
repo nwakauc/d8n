@@ -22,11 +22,13 @@ class ProfilePhoto < ApplicationRecord
   scope :ordered, -> { order(:position, :id) }
   # Photos eligible for delivery to other eligible users: shown by moderation
   # policy AND with a completed safe derivative. Fails closed on anything else.
-  scope :deliverable, -> { kept.visible.processing_ready }
+  scope :moderation_publicly_eligible, -> { where(status: %i[pending_review approved]) }
+  scope :deliverable, -> { kept.visible.processing_ready.moderation_publicly_eligible }
 
   validates :public_id, presence: true, uniqueness: true, format: { with: Profile::PUBLIC_ID_FORMAT }
   validates :position, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :profile_matches_scope
+  validate :within_brand_photo_limit, on: :create
 
   before_validation :ensure_public_id, on: :create
   # The raw-image guarantees are enforced at attach time (:create). They are not
@@ -38,7 +40,15 @@ class ProfilePhoto < ApplicationRecord
 
   # True when a safe derivative exists and this photo may be shown to others.
   def deliverable?
-    kept? && visible? && processing_ready? && display_image.attached?
+    safe_derivative_ready? && visible? && (pending_review? || approved?)
+  end
+
+  def safe_derivative_ready?
+    kept? && processing_ready? && display_image.attached?
+  end
+
+  def publication_eligible?
+    Media::PhotoPolicy.publication_eligible?(photo: self)
   end
 
   def kept?
@@ -56,6 +66,13 @@ class ProfilePhoto < ApplicationRecord
     return if profile.user_id == user_id && profile.brand_id == brand_id
 
     errors.add(:profile, "must belong to the same user and brand")
+  end
+
+  def within_brand_photo_limit
+    return if profile.blank? || brand.blank?
+    return if profile.profile_photos.kept.count < Media::PhotoPolicy.max_count(brand:)
+
+    errors.add(:base, "profile photo limit reached")
   end
 
   def image_is_attached

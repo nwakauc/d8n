@@ -347,6 +347,7 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, photos.size
     entry = photos.sole
     assert_equal 0, entry.fetch("position")
+    assert entry.fetch("primary")
     assert entry.fetch("url").present?
     assert_operator entry.fetch("url_expires_in"), :>, 0
     # The raw original's key/object is never revealed; only the safe derivative.
@@ -360,6 +361,16 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     attach_photo(candidate, position: 0, visibility: :hidden, processing_state: :ready)
     attach_photo(candidate, position: 1, visibility: :visible, processing_state: :pending)
     attach_photo(candidate, position: 2, visibility: :visible, processing_state: :failed)
+
+    get "/api/v1/discovery", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert_empty JSON.parse(response.body).fetch("profiles").sole.fetch("photos")
+  end
+
+  test "fails closed when rejected media is otherwise visible and ready" do
+    candidate = create_candidate
+    attach_photo(candidate, visibility: :visible, processing_state: :ready, status: :rejected)
 
     get "/api/v1/discovery", headers: bearer_headers(@token)
 
@@ -620,9 +631,9 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
 
   # Simulates a processed photo: a raw original plus (when ready) the safe
   # display derivative other users may see.
-  def attach_photo(profile, position: 0, visibility: :visible, processing_state: :ready)
+  def attach_photo(profile, position: 0, visibility: :visible, processing_state: :ready, status: :pending_review)
     jpeg = Vips::Image.black(60, 40).add([ 120 ]).cast("uchar").write_to_buffer(".jpg")
-    photo = ProfilePhoto.new(brand: profile.brand, user: profile.user, profile:, position:, visibility:)
+    photo = ProfilePhoto.new(brand: profile.brand, user: profile.user, profile:, position:, visibility:, status:)
     photo.image.attach(io: StringIO.new(jpeg), filename: "original.jpg", content_type: "image/jpeg")
     photo.save!
     if processing_state.to_sym == :ready

@@ -60,12 +60,13 @@ module Profiles
         profile.profile_photos.deliverable.ordered.with_attached_display_image
       end
 
-      photos.map do |photo|
+      photos.each_with_index.map do |photo, index|
         {
           # Stable, opaque photo id — the reference a viewer uses to report this
           # specific photo. Never the internal id or R2 object key.
           id: photo.public_id,
           position: photo.position,
+          primary: index.zero?,
           url: photo.display_image.url(expires_in: Profiles::PhotoUpload::RETRIEVAL_URL_EXPIRES_IN),
           url_expires_in: Profiles::PhotoUpload::RETRIEVAL_URL_EXPIRES_IN.to_i
         }

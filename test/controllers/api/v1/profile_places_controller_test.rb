@@ -32,6 +32,11 @@ class Api::V1::ProfilePlacesControllerTest < ActionDispatch::IntegrationTest
       filename: "profile_photo.png", content_type: "image/png"
     )
     photo.save!
+    photo.display_image.attach(
+      io: Rails.root.join("test/fixtures/files/profile_photo.png").open,
+      filename: "display.jpg", content_type: "image/jpeg"
+    )
+    photo.update!(processing_state: :ready)
 
     @token, = Session.issue!(brand: @brand, user: @user)
     host! "dateza.test"

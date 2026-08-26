@@ -60,13 +60,17 @@ be serialized publicly.
   media uses.
 - Integrate the selected moderation provider behind a small Media/Trust boundary.
 - Record audited automated and human decisions with bounded reason codes.
-- Count only policy-eligible photos toward public profile completion.
+- Count only safe, policy-eligible photos toward publication completion. A
+  moderate-first brand may count a processed pending photo for onboarding while
+  withholding it from public delivery; this prevents review latency from
+  deadlocking onboarding without treating an unusable upload as public media.
 - Automatically unpublish an active profile when it loses its required eligible
   photo set.
 
 Gate: founder/Trust approval exists for categories, reviewer permissions, appeal,
-and retention. Pending or rejected photos cannot satisfy production publication
-or enter public serializers.
+and retention. Rejected photos cannot satisfy publication or enter public
+serializers. Pending photos enter public serializers only for an explicit
+immediate-visibility brand policy; moderate-first pending photos remain hidden.
 
 ### Slice 4: Authorized Delivery And Purge
 

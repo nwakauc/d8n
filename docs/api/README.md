@@ -44,7 +44,7 @@ the API root (`GET /`) and the summary at the top of `openapi.yaml`.
 | Matching | Available | HookUs cursor Discovery, DateZA stable daily Discovery, and DateZA Find are live on shared eligibility. Both DateZA surfaces use deterministic `dateza_v1` compatibility while retaining separate persistence and budgets. |
 | Messaging | Preview | Match-gated plain-text messages and history exist. Client idempotency, receipts, realtime and message media remain future work. |
 | Trust | Preview | Blocking, profile/content reporting, brand-scoped report review and suspension exist. DateZA public Trust standing is not implemented. |
-| Media | Preview | Owner-scoped profile-photo upload/retrieval is live on private R2 (direct-to-R2 intent → attach → short-lived signed GET → delete/purge). Public/other-user delivery, re-encode, EXIF removal, and moderation enforcement remain gated. Endpoints require R2, so they return `404` when R2 is disabled. |
+| Media | Available foundation | Brand-scoped direct upload, safe re-encoding, short-lived signed owner/public delivery, ordering/primary semantics, limits, deletion/purge, and audited approve/reject transitions are implemented. Provider automation, appeals, and an admin UI remain future work. |
 | Verification | Planned | RealMe identity/selfie verification has no endpoints yet. Identifier verification is an Identity capability, not RealMe. |
 | Admin | Preview | Brand-scoped report review and suspension endpoints exist; stronger admin auth/RBAC and a complete admin product remain gated. |
 | Product Notifications | Available | Brand-scoped inbox/read API and DateZA registration welcome email. Device storage/push boundary exists; device enrollment API and production push provider are deferred. Identity challenge delivery remains separate. |
@@ -498,8 +498,11 @@ post-onboarding richness score with `level`, `missing`, `suggestions`, and secti
 progress. It is informational only. Optional enrichment never changes onboarding,
 publication, Discover, or Find eligibility. `counts` reports photos, prompts, and
 interests; `location.configured`, `publication.published`, and
-`verification.contact.verified` are server-authoritative. Brands that have not
-composed a richness model return `profile_completion: null`.
+`verification.contact.verified` are server-authoritative. The existing `counts`
+members retain their historical stored/kept-record meaning; clients needing a
+renderable prompt/interest count can derive it from the returned active arrays.
+Brands that have not composed a richness model return
+`profile_completion: null`.
 
 `verification.contact.verified` is the canonical profile-detail/owner contact
 verification field and means at least one kept email or phone identifier is
@@ -534,10 +537,44 @@ object. Rails' generic Active Storage routes stay disabled; object identity and
 delivery are mediated only by this API. Attached photos begin `pending_review`;
 HookUs makes them `visible` immediately and moderates asynchronously, while
 DateZA and brands without an immediate policy stay `hidden` until moderation
-makes them visible. Public/other-user delivery is implemented for visible,
-successfully processed safe derivatives only; raw originals are never returned.
-The moderation transition/review product remains incomplete. When R2 is disabled
-the endpoints return `404`.
+makes them visible. Public/other-user delivery positively requires a kept,
+visible, successfully processed safe derivative in an allowed moderation state;
+rejected media is excluded independently even if visibility is inconsistent.
+Raw originals are never returned.
+
+`GET /api/v1/profile/configuration` publishes the server-enforced brand maximum
+as the photos collection's `maximum_count`; HookUs and DateZA currently configure
+six. Upload intent and final attachment both check capacity, and attachment holds
+the profile lock so concurrent completions cannot exceed it. `PUT
+/api/v1/profile/photos/order` atomically replaces the full kept-photo order with
+`{"photo_ids":[3,1,2]}`. IDs must be the complete owner-library set, unique,
+same-profile/current-brand, undeleted integers. The response reassigns positions
+to `0...n`.
+
+Primary is derived, not stored: the first owner photo in `(position,id)` order has
+`primary: true`; public profile arrays omit non-deliverable media and mark their
+first returned photo primary. Deleting an owner primary or hiding/rejecting a
+public primary therefore promotes the next valid ordered photo without a second
+flag to reconcile.
+
+Publication photo eligibility and public delivery are distinct. Every required
+photo must be kept and have a completed safe derivative; rejected, failed,
+deleted, or derivative-less records never count. HookUs additionally requires
+its pending/approved placement to be visible. DateZA's moderate-first flow allows
+a safe `pending_review + hidden` photo to satisfy onboarding so review latency
+does not block entry to Discover, but it remains absent from every public payload
+until approval. Approval changes pending media to `approved + visible`; rejection
+changes it to `rejected + hidden`, can unpublish a profile that loses its required
+eligible photo set, and can never be delivered.
+
+Brand-assigned moderators apply the terminal decision through `PATCH
+/api/v1/admin/profile_photos/:photo_uuid` with `{"status":"approved"}` or
+`{"status":"rejected"}`. Same-decision retries are idempotent; an opposite
+terminal decision returns `409 profile_photo_moderation_conflict`. Real
+transitions are audited with actor, brand, opaque photo/profile IDs, decision,
+timestamp, and a bounded server reason code—never bytes, keys, URLs, or notes.
+Provider automation, appeals, richer reason taxonomies, and admin UI remain open.
+When R2 is disabled the owner endpoints return `404`.
 
 Text messaging is live for HookUs and DateZA after an active match. Use
 `GET /api/v1/conversations/:conversation_id/messages` for history and

@@ -105,7 +105,8 @@ module D8n
             ),
             media: BrandContract::MediaConfiguration.new(
               photo_policy: Media::PhotoPolicy,
-              initial_visibility: :moderate_first
+              initial_visibility: :moderate_first,
+              max_profile_photos: 6
             ),
             notifications: BrandContract::NotificationConfiguration.new(
               event_plans: {

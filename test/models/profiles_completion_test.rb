@@ -42,6 +42,57 @@ module Profiles
       assert_empty completion.missing
     end
 
+    test "photo completion requires a safe publication-eligible derivative" do
+      profile = build_profile
+      raw_only = attach_photo(profile, ready: false)
+      assert_includes Completion.call(profile:).missing, :photos
+
+      raw_only.display_image.attach(
+        io: Rails.root.join("test/fixtures/files/profile_photo.png").open,
+        filename: "display.jpg", content_type: "image/jpeg"
+      )
+      raw_only.update!(processing_state: :ready, status: :rejected, visibility: :visible)
+      assert_includes Completion.call(profile:).missing, :photos
+
+      raw_only.update!(status: :approved, visibility: :hidden)
+      assert_includes Completion.call(profile:).missing, :photos
+
+      raw_only.update!(visibility: :visible)
+      assert_not_includes Completion.call(profile:).missing, :photos
+    end
+
+    test "DateZA moderate-first pending photo can complete onboarding only after safe processing" do
+      brand = Brand.create!(
+        slug: "dateza", name: "DateZA",
+        profile_requirements: { profile_fields: [], preference_fields: [], collections: %w[ photos ] }
+      )
+      user = User.create!
+      membership = BrandMembership.create!(brand:, user:)
+      profile = Profile.create!(brand:, user:, brand_membership: membership)
+      photo = attach_photo(profile, visibility: :hidden, ready: false)
+
+      assert_not Completion.call(profile:).complete?
+
+      photo.display_image.attach(
+        io: Rails.root.join("test/fixtures/files/profile_photo.png").open,
+        filename: "display.jpg", content_type: "image/jpeg"
+      )
+      photo.update!(processing_state: :ready)
+
+      assert Completion.call(profile:).complete?
+      assert_not photo.reload.deliverable?
+    end
+
+    test "HookUs hidden pending photo does not satisfy publication" do
+      profile = build_profile
+      profile.brand.update!(profile_requirements: {
+        profile_fields: [], preference_fields: [], collections: %w[ photos ]
+      })
+      attach_photo(profile, visibility: :hidden)
+
+      assert_not Completion.call(profile:).complete?
+    end
+
     test "uses brand-specific profile completion requirements" do
       brand = Brand.create!(
         slug: "hookus",
@@ -178,14 +229,23 @@ module Profiles
       )
     end
 
-    def attach_photo(profile)
-      photo = ProfilePhoto.new(profile:, user: profile.user, brand: profile.brand)
+    def attach_photo(profile, visibility: :visible, ready: true)
+      photo = ProfilePhoto.new(profile:, user: profile.user, brand: profile.brand, visibility:)
       photo.image.attach(
         io: Rails.root.join("test/fixtures/files/profile_photo.png").open,
         filename: "profile_photo.png",
         content_type: "image/png"
       )
       photo.save!
+      if ready
+        photo.display_image.attach(
+          io: Rails.root.join("test/fixtures/files/profile_photo.png").open,
+          filename: "display.jpg",
+          content_type: "image/jpeg"
+        )
+        photo.update!(processing_state: :ready)
+      end
+      photo
     end
   end
 end

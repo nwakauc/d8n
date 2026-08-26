@@ -27,5 +27,11 @@ module Media
       assert_equal :pending_review, PhotoPolicy::IMMEDIATE.status
       assert_equal :pending_review, PhotoPolicy::MODERATE_FIRST.status
     end
+
+    test "registered brands expose the shared configured maximum" do
+      assert_equal 6, PhotoPolicy.max_count(brand: Brand.new(slug: "hookus", name: "HookUs"))
+      assert_equal 6, PhotoPolicy.max_count(brand: Brand.new(slug: "dateza", name: "DateZA"))
+      assert_equal 6, PhotoPolicy.max_count(brand: Brand.new(slug: "future", name: "Future"))
+    end
   end
 end

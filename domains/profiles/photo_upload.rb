@@ -24,6 +24,14 @@ module Profiles
     InvalidSize = Class.new(Error)
     InvalidUpload = Class.new(Error)
     AlreadyAttached = Class.new(Error)
+    LimitReached = Class.new(Error) do
+      attr_reader :max_count
+
+      def initialize(max_count)
+        @max_count = max_count
+        super("profile photo limit reached")
+      end
+    end
     MissingObject = Class.new(Error)
     InvalidObject = Class.new(Error)
 
@@ -49,14 +57,17 @@ module Profiles
       )
       service_name = storage_resolver.service_name(brand:)
 
-      blob = ActiveStorage::Blob.create_before_direct_upload!(
-        key:,
-        filename: filename.to_s.presence || "photo",
-        byte_size:,
-        checksum:,
-        content_type:,
-        service_name:
-      )
+      blob = profile.with_lock do
+        ensure_capacity!(profile:, brand:)
+        ActiveStorage::Blob.create_before_direct_upload!(
+          key:,
+          filename: filename.to_s.presence || "photo",
+          byte_size:,
+          checksum:,
+          content_type:,
+          service_name:
+        )
+      end
 
       {
         signed_id: blob.signed_id,
@@ -80,17 +91,23 @@ module Profiles
 
       verify_uploaded_object!(blob)
 
-      initial = Media::PhotoPolicy.initial_state(brand:)
-      photo = ProfilePhoto.new(
-        profile:,
-        user:,
-        brand:,
-        position: position.presence || next_position(profile),
-        status: initial.status,
-        visibility: initial.visibility
-      )
-      photo.image.attach(blob)
-      photo.save!
+      photo = profile.with_lock do
+        raise AlreadyAttached if blob.attachments.exists?
+        ensure_capacity!(profile:, brand:)
+
+        initial = Media::PhotoPolicy.initial_state(brand:)
+        record = ProfilePhoto.new(
+          profile:,
+          user:,
+          brand:,
+          position: PhotoOrder.prepare_insert!(profile:, position:),
+          status: initial.status,
+          visibility: initial.visibility
+        )
+        record.image.attach(blob)
+        record.save!
+        record
+      end
 
       # Kick off async safe-derivative generation. The photo stays
       # processing-pending (fail-closed for other-user delivery) until the
@@ -119,8 +136,9 @@ module Profiles
       Profile.kept.find_by(user:, brand:) || raise(ProfileRequired)
     end
 
-    def self.next_position(profile)
-      profile.profile_photos.kept.maximum(:position).to_i + 1
+    def self.ensure_capacity!(profile:, brand:)
+      max_count = Media::PhotoPolicy.max_count(brand:)
+      raise LimitReached, max_count if profile.profile_photos.kept.count >= max_count
     end
 
     # Magic-byte detection for the supported image types. The client-declared
@@ -149,6 +167,6 @@ module Profiles
       nil
     end
 
-    private_class_method :require_profile!, :verify_uploaded_object!, :object_byte_size
+    private_class_method :require_profile!, :verify_uploaded_object!, :object_byte_size, :ensure_capacity!
   end
 end

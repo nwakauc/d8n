@@ -15,6 +15,7 @@ module Media
   #
   # Moderation capability is unchanged — this only decides the starting state.
   class PhotoPolicy
+    DEFAULT_MAX_COUNT = 6
     InitialState = Data.define(:status, :visibility)
 
     # Usable on upload; moderation runs afterwards.
@@ -23,10 +24,39 @@ module Media
     MODERATE_FIRST = InitialState.new(status: :pending_review, visibility: :hidden)
 
     def self.initial_state(brand:)
-      policy = D8n::Platform::BrandRegistry.fetch(brand:).media.initial_visibility
-      policy == :immediate ? IMMEDIATE : MODERATE_FIRST
+      immediate?(brand:) ? IMMEDIATE : MODERATE_FIRST
     rescue D8n::Platform::BrandRegistry::UnsupportedBrand
       MODERATE_FIRST
+    end
+
+    def self.max_count(brand:)
+      Integer(D8n::Platform::BrandRegistry.fetch(brand:).media.max_profile_photos)
+    rescue D8n::Platform::BrandRegistry::UnsupportedBrand, ArgumentError, TypeError
+      DEFAULT_MAX_COUNT
+    end
+
+    # Publication eligibility is deliberately broader than public delivery for
+    # moderate-first brands. A processed, safe photo that is still legitimately
+    # awaiting review may finish onboarding, but remains absent from every public
+    # serializer until approval makes it visible. Terminal rejection, failed or
+    # incomplete processing, deletion, and inconsistent terminal visibility all
+    # fail closed.
+    def self.publication_eligible?(photo:)
+      return false unless photo.safe_derivative_ready?
+      return false if photo.rejected?
+      return photo.visible? if photo.approved?
+
+      moderate_first?(brand: photo.brand) || photo.visible?
+    end
+
+    def self.immediate?(brand:)
+      D8n::Platform::BrandRegistry.fetch(brand:).media.initial_visibility == :immediate
+    rescue D8n::Platform::BrandRegistry::UnsupportedBrand
+      false
+    end
+
+    def self.moderate_first?(brand:)
+      !immediate?(brand:)
     end
   end
 end

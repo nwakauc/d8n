@@ -9,7 +9,7 @@ module D8n
         end
       end
       InteractionConfiguration = Data.define(:eligibility_policy, :compatibility_strategy, :verification_requirement)
-      MediaConfiguration = Data.define(:photo_policy, :initial_visibility)
+      MediaConfiguration = Data.define(:photo_policy, :initial_visibility, :max_profile_photos)
       NotificationPlan = Data.define(:notification_type, :email_template)
 
       class NotificationConfiguration
@@ -123,6 +123,10 @@ module D8n
           raise ArgumentError, "interaction eligibility policy is required"
         end
         raise ArgumentError, "media configuration is required" unless media.is_a?(MediaConfiguration)
+        unless media.photo_policy.respond_to?(:initial_state) && media.photo_policy.respond_to?(:max_count) &&
+            media.max_profile_photos.is_a?(Integer) && media.max_profile_photos.positive?
+          raise ArgumentError, "valid media photo policy and maximum are required"
+        end
         unless notifications.is_a?(NotificationConfiguration)
           raise ArgumentError, "notification configuration is required"
         end

@@ -64,9 +64,11 @@ must pass all required processing before public use:
 - malware/content-safety integration point;
 - brand moderation policy.
 
-Only processed, approved, visible variants may appear in public profiles,
-discovery, matches, or conversations. Originals remain private and are never
-served to other consumers.
+Only processed, visible variants admitted by explicit brand moderation policy
+may appear in public profiles, discovery, matches, or conversations. HookUs may
+show pending processed media under its immediate policy; moderate-first brands
+require approval. Rejected media is never eligible regardless of visibility.
+Originals remain private and are never served to other consumers.
 
 ### Delivery Is Authorized And Revocable
 
@@ -74,7 +76,7 @@ Owner previews and public profile variants have distinct authorization paths.
 
 - Owner access rechecks the current brand, user, membership, profile lifecycle,
   and undeleted photo.
-- Public access is issued only for an approved, visible variant attached to an
+- Public access is issued only for a moderation-policy-eligible, visible variant attached to an
   otherwise authorized public profile surface.
 - URLs are short-lived signed capabilities or controlled CDN URLs whose access
   can be revoked. They must not reveal bucket keys or provider identifiers.

@@ -39,6 +39,7 @@ Rails.application.routes.draw do
         get "reports" => "reports#index"
         get "reports/:id" => "reports#show"
         patch "reports/:id" => "reports#update"
+        patch "profile_photos/:id" => "profile_photos#update"
         post "profiles/:profile_id/suspension" => "suspensions#create"
         delete "profiles/:profile_id/suspension" => "suspensions#destroy"
       end
@@ -59,6 +60,7 @@ Rails.application.routes.draw do
       get "profile/photos" => "profile_photos#index"
       post "profile/photos/uploads" => "profile_photos#create_upload"
       post "profile/photos" => "profile_photos#create"
+      put "profile/photos/order" => "profile_photos#reorder"
       delete "profile/photos/:id" => "profile_photos#destroy"
       get "auth/methods" => "auth/methods#show"
       post "auth/password/register" => "auth/passwords#register"

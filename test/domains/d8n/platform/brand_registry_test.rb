@@ -219,7 +219,9 @@ module D8n
       end
 
       def media_configuration
-        BrandContract::MediaConfiguration.new(photo_policy: Media::PhotoPolicy, initial_visibility: :moderate_first)
+        BrandContract::MediaConfiguration.new(
+          photo_policy: Media::PhotoPolicy, initial_visibility: :moderate_first, max_profile_photos: 6
+        )
       end
 
       def notification_configuration
