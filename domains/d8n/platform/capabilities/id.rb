@@ -27,7 +27,11 @@ module D8n
           CapabilityDefinition.new(key: "id.membership", status: :available,
             implementations: %w[BrandMembership]),
           CapabilityDefinition.new(key: "id.account.close_brand_membership", status: :available,
-            implementations: %w[Accounts::CloseAccount])
+            implementations: %w[Accounts::CloseAccount]),
+          CapabilityDefinition.new(key: "id.account.password_change", status: :available,
+            implementations: %w[Identity::PasswordChange]),
+          CapabilityDefinition.new(key: "id.account.deactivate", status: :available,
+            implementations: %w[Accounts::DeactivateAccount Identity::AccountReactivation])
         ].freeze
 
         def self.definitions = DEFINITIONS

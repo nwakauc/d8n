@@ -1,4 +1,5 @@
 class Api::V1::MeController < ApplicationController
+  requires_platform_contract
   before_action :authenticate_user!
 
   # Explicit confirmation guards this one-way destructive action so it can never be
@@ -21,7 +22,15 @@ class Api::V1::MeController < ApplicationController
       },
       identifier: identifier_payload(verification),
       verification_required: verification.present? && !verification.verified,
-      verification: verification_payload(verification)
+      verification: verification_payload(verification),
+      # Always "active": SessionAuthenticator only authenticates sessions backed
+      # by an active BrandMembership, so a deactivated or deleted account can
+      # never reach this action in the first place. The client observes
+      # "deactivated" as the `account_deactivated` error from
+      # POST /api/v1/auth/password/login, and "deleted" as simply being logged
+      # out — no `deletion_pending` exists because closure is immediate.
+      account_status: "active",
+      account_controls: account_controls
     }
   end
 
@@ -73,5 +82,13 @@ class Api::V1::MeController < ApplicationController
 
   def confirmed?
     params[:confirmation].to_s == CLOSE_CONFIRMATION
+  end
+
+  def account_controls
+    {
+      password_change: Current.platform_contract.capability_enabled?("id.account.password_change"),
+      deactivation: Current.platform_contract.capability_enabled?("id.account.deactivate"),
+      deletion: Current.platform_contract.capability_enabled?("id.account.close_brand_membership")
+    }
   end
 end

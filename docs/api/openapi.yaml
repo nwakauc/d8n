@@ -244,6 +244,17 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: |
+            The identifier and password are correct, but the brand membership is
+            deactivated (`account_deactivated`). Only ever returned after
+            password verification, so it cannot be used to enumerate account
+            state. Call `POST /api/v1/auth/password/reactivation` with the same
+            credentials to restore access.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "422":
           description: The supplied `session_mode` is unsupported (`invalid_session_mode`).
           content:
@@ -252,6 +263,102 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "429":
           $ref: "#/components/responses/RateLimited"
+  /api/v1/auth/password/reactivation:
+    post:
+      operationId: reactivateAccount
+      tags: [Authentication]
+      summary: Reactivate a deactivated account and issue a new session
+      description: |
+        Explicit, credential-verified reactivation of an account deactivated via
+        `POST /api/v1/account/deactivation`. Deliberately mirrors login rather
+        than a bare confirm button on a stale session: deactivation revokes every
+        session for the brand, so restoring access requires re-proving the
+        password. Shares the login throttle budget for the identifier (this is
+        still fundamentally a credential-verification attempt).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordAuthRequest"
+      responses:
+        "201":
+          description: Brand membership restored and a new brand-bound session issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordAuthSessionResponse"
+        "401":
+          description: Identifier or password is invalid (`invalid_credentials`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Authentication method or browser-session capability is unavailable for the resolved brand.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: |
+            The request already carries an authenticated D8N session, or the
+            credentials are correct but the membership is not currently
+            deactivated (`account_not_deactivated`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /api/v1/account/deactivation:
+    post:
+      operationId: deactivateAccount
+      tags: [Authentication]
+      summary: Reversibly deactivate the current user's account for this brand
+      description: |
+        Brand-level, reversible deactivation. Requires an explicit
+        `confirmation: "deactivate"` so it can never be triggered accidentally.
+        Immediately revokes every session and device registration for this
+        brand (including the caller's) and removes the member from discovery,
+        find, matching, and messaging via the same shared eligibility predicate
+        used platform-wide — but profile, photos, matches, likes, conversations,
+        location, and preferences are left completely intact. Restore access
+        with `POST /api/v1/auth/password/reactivation`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountDeactivationRequest"
+      responses:
+        "200":
+          description: The account was deactivated (or was already deactivated).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountDeactivationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: No active membership for this brand (`account_unavailable`), or deactivation is unavailable for the resolved brand.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The membership cannot be deactivated from its current lifecycle state (`account_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Missing or wrong confirmation (`confirmation_required`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/auth/password:
     patch:
       operationId: changePassword
@@ -3360,7 +3467,7 @@ components:
           $ref: "#/components/schemas/ProfileOnboardingStatus"
     MeResponse:
       type: object
-      required: [user_id, brand, session, identifier, verification_required, verification]
+      required: [user_id, brand, session, identifier, verification_required, verification, account_status, account_controls]
       properties:
         user_id:
           type: integer
@@ -3391,6 +3498,46 @@ components:
           oneOf:
             - $ref: "#/components/schemas/VerificationDispatchState"
             - type: "null"
+        account_status:
+          const: active
+          description: |
+            Always "active" here — an authenticated session can only exist against
+            an active BrandMembership (see SessionAuthenticator), so a deactivated
+            or deleted account can never reach this endpoint. A deactivated
+            account is observed by the client as an `account_deactivated` error
+            from `POST /api/v1/auth/password/login`; a deleted account is
+            observed as simply being logged out. There is no `deletion_pending`
+            state because account closure is immediate.
+        account_controls:
+          $ref: "#/components/schemas/AccountControls"
+    AccountControls:
+      type: object
+      required: [password_change, deactivation, deletion]
+      description: Brand-policy availability of D8N ID account-lifecycle capabilities, for Settings to render only supported actions.
+      properties:
+        password_change:
+          type: boolean
+        deactivation:
+          type: boolean
+        deletion:
+          type: boolean
+    AccountDeactivationRequest:
+      type: object
+      required: [confirmation]
+      properties:
+        confirmation:
+          type: string
+          enum: [deactivate]
+          description: Must equal "deactivate" to authorize this action.
+    AccountDeactivationResponse:
+      type: object
+      required: [deactivated, already_deactivated]
+      properties:
+        deactivated:
+          const: true
+        already_deactivated:
+          type: boolean
+          description: True when the account was already deactivated (idempotent).
     CloseAccountRequest:
       type: object
       required: [confirmation]

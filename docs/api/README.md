@@ -39,7 +39,7 @@ the API root (`GET /`) and the summary at the top of `openapi.yaml`.
 
 | Domain | Status | Notes |
 | --- | --- | --- |
-| Identity | Available | Phone/email + password register, login, password and login-email change, recovery, brand-bound session, identifier verification. |
+| Identity | Available | Phone/email + password register, login, password and login-email change, recovery, brand-bound session, identifier verification, reversible account deactivation/reactivation, and brand-membership closure. |
 | Profiles | Available | Profile, configuration, options, preferences, location, publication. |
 | Matching | Available | HookUs cursor Discovery, DateZA stable daily Discovery, and DateZA Find are live on shared eligibility. Both DateZA surfaces use deterministic `dateza_v1` compatibility while retaining separate persistence and budgets. |
 | Messaging | Preview | Match-gated plain-text messages and history exist. Client idempotency, receipts, realtime and message media remain future work. |
@@ -468,6 +468,48 @@ On success the current session remains valid and other active sessions issued
 from that password credential are revoked. This settings flow is deliberately
 separate from unauthenticated phone/email account recovery, which is not yet an
 available API.
+
+### Account deactivation, reactivation, and closure
+
+Password change, deactivation, and closure are shared D8N ID capabilities — the
+same implementation for every brand, gated only by brand policy. A client should
+read `account_controls` off `GET /api/v1/me` before rendering Settings actions
+rather than assuming all three are always available:
+
+```json
+{
+  "account_status": "active",
+  "account_controls": { "password_change": true, "deactivation": true, "deletion": true }
+}
+```
+
+Deactivation is reversible and brand-scoped: it revokes this brand's sessions and
+devices and removes the member from discovery/find/matching/messaging, but
+leaves profile, photos, matches, and conversations untouched.
+
+```sh
+curl -i -X POST https://hookus.example.com/api/v1/account/deactivation \
+  -H 'Authorization: Bearer REPLACE_WITH_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"confirmation":"deactivate"}'
+```
+
+Because deactivation revokes sessions, restoring access means proving the
+password again rather than calling an authenticated "undo" endpoint. A login
+attempt against a deactivated account returns `409 account_deactivated` (only
+after the password has matched, so this cannot be used to enumerate account
+state); reactivate with the same identifier/password shape as login:
+
+```sh
+curl -i -X POST https://hookus.example.com/api/v1/auth/password/reactivation \
+  -H 'Content-Type: application/json' \
+  -d '{"identifier":"+27821234567","password":"secret"}'
+```
+
+Closure (`DELETE /api/v1/me` with `{"confirmation":"close"}`) is the one-way
+counterpart: it tombstones the brand membership, discards/anonymizes the profile,
+ends matches, and purges media asynchronously. It never touches the D8N identity
+itself or other brands' memberships — see ADR 0014.
 
 ### Correcting or changing a login email
 

@@ -15,6 +15,8 @@ module D8n
           id.contact_change.email
           id.membership
           id.account.close_brand_membership
+          id.account.password_change
+          id.account.deactivate
           profile.onboarding
           profile.scalar_fields
           profile.options

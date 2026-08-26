@@ -447,6 +447,91 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert Identity::PasswordEngine.matches?(credential: session.credential, password: "secret")
   end
 
+  test "login surfaces account_deactivated only after the password has been verified" do
+    register_phone
+    user = Session.last.user
+    Accounts::DeactivateAccount.call(user:, brand: @brand)
+
+    assert_no_difference -> { Session.count } do
+      post "/api/v1/auth/password/login",
+        params: { identifier: "+27 82 123 4567", password: "secret" }
+    end
+    assert_response :conflict
+    assert_equal({ "error" => "account_deactivated" }, JSON.parse(response.body))
+
+    assert_no_difference -> { Session.count } do
+      post "/api/v1/auth/password/login",
+        params: { identifier: "+27 82 123 4567", password: "wrong-password" }
+    end
+    assert_response :unauthorized
+    assert_equal({ "error" => "invalid_credentials" }, JSON.parse(response.body))
+  end
+
+  test "reactivates a deactivated account and issues a working session" do
+    register_phone
+    user = Session.last.user
+    Accounts::DeactivateAccount.call(user:, brand: @brand)
+
+    assert_difference -> { Session.where(brand: @brand).count }, 1 do
+      post "/api/v1/auth/password/reactivation",
+        params: { identifier: "+27 82 123 4567", password: "secret" }
+    end
+
+    assert_response :created
+    body = JSON.parse(response.body)
+    assert body.fetch("token").present?
+    assert user.brand_memberships.find_by(brand: @brand).active?
+    assert SecurityEvent.exists?(event_type: "account.reactivated", user:)
+
+    get "/api/v1/me", headers: bearer_headers(body.fetch("token"))
+    assert_response :success
+  end
+
+  test "reactivation requires the correct password and leaves the account deactivated on failure" do
+    register_phone
+    user = Session.last.user
+    Accounts::DeactivateAccount.call(user:, brand: @brand)
+
+    assert_no_difference -> { Session.where(brand: @brand).count } do
+      post "/api/v1/auth/password/reactivation",
+        params: { identifier: "+27 82 123 4567", password: "wrong-password" }
+    end
+
+    assert_response :unauthorized
+    assert_equal({ "error" => "invalid_credentials" }, JSON.parse(response.body))
+    assert user.brand_memberships.find_by(brand: @brand).deactivated?
+  end
+
+  test "reactivation fails cleanly for an account that is not deactivated" do
+    register_phone
+
+    post "/api/v1/auth/password/reactivation",
+      params: { identifier: "+27 82 123 4567", password: "secret" }
+
+    assert_response :conflict
+    assert_equal({ "error" => "account_not_deactivated" }, JSON.parse(response.body))
+  end
+
+  test "reactivation shares the login throttle budget for the same identifier" do
+    register_phone
+    user = Session.last.user
+    Accounts::DeactivateAccount.call(user:, brand: @brand)
+    10.times do
+      AuthAttempt.create!(
+        brand: @brand, kind: :password, result: :failed,
+        identifier: "27821234567", ip_address: "127.0.0.1",
+        metadata: { purpose: "password_login" }
+      )
+    end
+
+    post "/api/v1/auth/password/reactivation",
+      params: { identifier: "+27 82 123 4567", password: "secret" }
+
+    assert_response :too_many_requests
+    assert_equal({ "error" => "rate_limited" }, JSON.parse(response.body))
+    assert user.brand_memberships.find_by(brand: @brand).deactivated?
+  end
+
   private
 
   def phone_registration

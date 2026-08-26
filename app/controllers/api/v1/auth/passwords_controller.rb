@@ -1,6 +1,6 @@
 class Api::V1::Auth::PasswordsController < ApplicationController
-  skip_before_action :verify_browser_session_csrf!, only: %i[register login]
-  before_action :authorize_session_mode!, only: %i[register login]
+  skip_before_action :verify_browser_session_csrf!, only: %i[register login reactivate]
+  before_action :authorize_session_mode!, only: %i[register login reactivate]
 
   before_action :authenticate_user!, only: :update
 
@@ -27,6 +27,31 @@ class Api::V1::Auth::PasswordsController < ApplicationController
       ip_address: request.remote_ip,
       user_agent: request.user_agent
     )
+
+    render_result(result, failure_error: "invalid_credentials")
+  end
+
+  # Explicit reactivation of a deactivated account — see Identity::AccountReactivation.
+  # Reuses the login request/response contract exactly (identifier + password in,
+  # session payload out) since re-proving the password is the reactivation
+  # confirmation itself.
+  def reactivate
+    if Current.user.present?
+      render json: { error: "already_authenticated" }, status: :conflict
+      return
+    end
+
+    result = Identity::AccountReactivation.call(
+      brand: Current.brand,
+      **password_params,
+      ip_address: request.remote_ip,
+      user_agent: request.user_agent
+    )
+
+    if !result.success? && result.error == :account_not_deactivated
+      render json: { error: "account_not_deactivated" }, status: :conflict
+      return
+    end
 
     render_result(result, failure_error: "invalid_credentials")
   end
@@ -81,6 +106,8 @@ class Api::V1::Auth::PasswordsController < ApplicationController
       render json: { error: "rate_limited" }, status: :too_many_requests
     when :invalid_credentials
       render json: { error: failure_error }, status: :unauthorized
+    when :account_deactivated
+      render json: { error: "account_deactivated" }, status: :conflict
     else
       render json: { error: failure_error }, status: :unprocessable_entity
     end

@@ -30,6 +30,11 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, response_body.fetch("verification_required")
     assert_nil response_body.fetch("verification")
     assert Session.find(session.id).last_used_at > session.last_used_at
+    assert_equal "active", response_body.fetch("account_status")
+    assert_equal(
+      { "password_change" => true, "deactivation" => true, "deletion" => true },
+      response_body.fetch("account_controls")
+    )
   end
 
   test "returns masked verification state for the session credential" do
