@@ -111,6 +111,14 @@ module AbuseProtection
       hook_tonight_activation: [
         rule("burst",     scope: :user, limit: 20,  window: 1.minute),
         rule("sustained", scope: :user, limit: 120, window: 1.hour)
+      ],
+
+      # Location/area search: an interactive, debounced typeahead. The burst
+      # ceiling comfortably covers a member typing a whole suburb name; the
+      # sustained ceiling curbs scripted enumeration of the geography catalog.
+      location_search: [
+        rule("burst",     scope: :user, limit: 20,  window: 10.seconds),
+        rule("sustained", scope: :user, limit: 300, window: 1.hour)
       ]
     }.freeze
 

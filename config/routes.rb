@@ -62,6 +62,7 @@ Rails.application.routes.draw do
       put "profile/location" => "profile_locations#update"
       delete "profile/location" => "profile_locations#destroy"
       get "places" => "places#index"
+      get "locations/search" => "location_search#index"
       put "profile/place" => "profile_places#update"
       get "profile/configuration" => "profile_configuration#show"
       patch "profile/options" => "profile_options#update"

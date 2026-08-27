@@ -1149,6 +1149,64 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/locations/search:
+    get:
+      operationId: searchLocations
+      tags: [Profile]
+      summary: Search area-level dating locations (suburb, city, town) for "Enter my area or suburb"
+      description: |
+        Server-side search over D8N's own geography data, scoped to the
+        request brand's configured countries (DateZA: South Africa only) —
+        the client never calls an external geocoding provider directly, and
+        the provider behind this endpoint may change without changing this
+        contract. Never returns a country-level entry, individual addresses,
+        or raw coordinates: only area-level results (region, city, or
+        locality) suitable as a general dating-area choice. Each result's
+        `place_id` is directly usable as-is with
+        `PUT /api/v1/profile/place` — there is no separate selection/token
+        endpoint. Same brand gate as `GET /places`: `404
+        capability_not_configured` for brands without place selection
+        configured (e.g. HookUs).
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+          description: Free-text area/suburb/city query. Whitespace is normalized; at least 2 meaningful characters are required.
+      responses:
+        "200":
+          description: Up to 8 normalized, area-level matches, best first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [results]
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LocationSearchResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: The query was blank or below the minimum length.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, min_length]
+                properties:
+                  error:
+                    type: string
+                    enum: [query_too_short]
+                  min_length:
+                    type: integer
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /api/v1/profile/place:
     put:
       operationId: replaceProfilePlace
@@ -4699,6 +4757,30 @@ components:
         has_children:
           type: boolean
           description: Whether a more specific level exists to drill into (not every city has cataloged localities).
+    LocationSearchResult:
+      type: object
+      required: [place_id, label, area, city, region, country_code, kind]
+      properties:
+        place_id:
+          type: integer
+          description: Directly usable as the place_id body param for PUT /api/v1/profile/place.
+        label:
+          type: string
+          description: Human-readable, fine-to-coarse display label, e.g. "Sea Point, Cape Town, Western Cape".
+        area:
+          type: string
+          description: The matched area's own name (suburb, town, or city name).
+        city:
+          type: [string, "null"]
+          description: Null when the result itself is a region, or no cataloged city ancestor exists.
+        region:
+          type: [string, "null"]
+        country_code:
+          type: string
+        kind:
+          type: string
+          enum: [region, city, locality]
+          description: Never "country" — a country is never an acceptable dating-area selection.
     ProfilePhoto:
       type: object
       required: [id, profile_id, position, primary, status, visibility, processing_state, deleted_at, image]
