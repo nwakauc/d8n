@@ -138,7 +138,8 @@ class Api::V1::Auth::PasswordsController < ApplicationController
       verification_channel: verified ? nil : verification.kind,
       verification: {
         code_dispatched: verification.code_dispatched,
-        resend_available_in: verification.resend_available_in
+        resend_available_in: verification.resend_available_in,
+        expires_at: verification.expires_at&.iso8601
       },
       onboarding: Profiles::OnboardingStatus.call(user: result.user, brand: Current.brand)
     }

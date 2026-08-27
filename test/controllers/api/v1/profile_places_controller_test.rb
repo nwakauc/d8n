@@ -115,6 +115,46 @@ class Api::V1::ProfilePlacesControllerTest < ActionDispatch::IntegrationTest
     assert @profile.hidden?
   end
 
+  test "GET /api/v1/profile/location reflects the persisted place and updates when the place changes" do
+    get "/api/v1/profile/location", headers: bearer_headers(@token)
+    assert_response :success
+    assert_equal({ "location" => { "configured" => false } }, JSON.parse(response.body))
+
+    put "/api/v1/profile/place", headers: bearer_headers(@token), params: { place_id: @locality.id }
+
+    get "/api/v1/profile/location", headers: bearer_headers(@token)
+    assert_response :success
+    body = JSON.parse(response.body).fetch("location")
+    assert_equal true, body.fetch("configured")
+    assert_equal "place", body.fetch("source")
+    assert_equal "Sea Point, Cape Town, Western Cape", body.dig("place", "display_path")
+    assert_equal @locality.id, body.dig("place", "id")
+    assert_equal "locality", body.dig("place", "kind")
+    assert_not body.key?("latitude")
+    assert_not body.key?("longitude")
+    assert_not_includes response.body, @locality.latitude.to_s
+    assert_not_includes response.body, @locality.longitude.to_s
+
+    other_locality = Place.kept.find_by!(code: "camps-bay")
+    put "/api/v1/profile/place", headers: bearer_headers(@token), params: { place_id: other_locality.id }
+
+    get "/api/v1/profile/location", headers: bearer_headers(@token)
+    assert_equal other_locality.id, JSON.parse(response.body).dig("location", "place", "id")
+  end
+
+  test "GET /api/v1/profile/location agrees with GET /profile's location summary" do
+    put "/api/v1/profile/place", headers: bearer_headers(@token), params: { place_id: @locality.id }
+
+    get "/api/v1/profile/location", headers: bearer_headers(@token)
+    detailed = JSON.parse(response.body).dig("location", "place", "display_path")
+
+    get "/api/v1/profile", headers: bearer_headers(@token)
+    summary = JSON.parse(response.body).dig("profile", "location", "place", "display_path")
+
+    assert_equal "Sea Point, Cape Town, Western Cape", detailed
+    assert_equal detailed, summary
+  end
+
   test "a stale place-selected location remains eligible for Discovery/Find" do
     put "/api/v1/profile/place", headers: bearer_headers(@token), params: { place_id: @locality.id }
     post "/api/v1/profile/publication", headers: bearer_headers(@token)

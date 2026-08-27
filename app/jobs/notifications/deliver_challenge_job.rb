@@ -10,7 +10,7 @@ module Notifications
   # run a no-op — proportional, beta-safe idempotency without distributed locks.
   #
   # Retries: only transient provider failures retry, with bounded backoff kept well
-  # inside the 10-minute code lifetime; every attempt re-checks that the code is
+  # inside the purpose-specific code lifetime; every attempt re-checks that the code is
   # still deliverable, so an expired/consumed/already-sent code is never delivered.
   class DeliverChallengeJob < ApplicationJob
     class TransientDeliveryError < StandardError; end

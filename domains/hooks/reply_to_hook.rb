@@ -41,6 +41,16 @@ module Hooks
         ensure_available!(sender:, recipient: viewer)
 
         conversation, created = ensure_conversation(brand:, sender:, recipient: viewer)
+        # A reply always creates a brand-new Match: SendHook.guard_relationship!
+        # refuses to let a Hook be sent while an active Match already exists
+        # between the two profiles, so this can never resolve to a pre-existing
+        # Match. That makes a separate "opener_replied" notification redundant
+        # by construction — it would tell the sender the same thing match_created
+        # already does ("they responded, you're now connected") for the exact
+        # same transition, which is the same confusing-duplicate problem the
+        # taxonomy avoids for Like -> Match. So only match_created is published
+        # here; "opener_replied" is not a materialized notification type.
+        Notifications::EventPublisher.match_created!(match: conversation.match)
         # Only stamp the opener when the conversation is brand new — a match that
         # somehow already existed keeps its own history intact.
         Message.create!(brand:, conversation:, sender_profile: sender, body: hook.message) if created

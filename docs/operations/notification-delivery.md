@@ -14,6 +14,19 @@ NotificationDelivery.where.not(notification_id: nil).failed.order(failed_at: :de
 NotificationDelivery.where.not(notification_id: nil).group(:brand_id, :channel, :provider, :status).count
 ```
 
+Authentication challenge delivery is not a product `Notification`, but it uses
+the same provider delivery rows. Inspect it without recipients or codes:
+
+```ruby
+NotificationDelivery.where(notification_id: nil).group(:brand_id, :channel, :provider, :status).count
+SecurityEvent.where("event_type LIKE ?", "auth.%.delivery_failed").order(created_at: :desc).limit(100)
+```
+
+`SecurityEvent#metadata["delivery_error_code"]` safely distinguishes
+`provider_not_configured` from `sender_not_configured`. Provider rejections after
+enqueue are stored on `NotificationDelivery#error_code`; never print the recipient,
+message body, encrypted challenge code, credentials, or raw provider response.
+
 ## Recovery
 
 1. Confirm the web registration/membership committed and locate its

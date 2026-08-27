@@ -55,6 +55,7 @@ Rails.application.routes.draw do
       patch "profile" => "profile#update"
       post "profile/publication" => "profile_publications#create"
       delete "profile/publication" => "profile_publications#destroy"
+      get "profile/location" => "profile_locations#show"
       put "profile/location" => "profile_locations#update"
       delete "profile/location" => "profile_locations#destroy"
       get "places" => "places#index"

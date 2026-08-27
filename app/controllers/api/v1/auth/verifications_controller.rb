@@ -13,7 +13,8 @@ class Api::V1::Auth::VerificationsController < ApplicationController
     if result.success?
       render json: {
         message: "If this identifier can receive D8N codes, a code has been sent.",
-        resend_available_in: result.retry_after || 0
+        resend_available_in: result.retry_after || 0,
+        expires_at: result.expires_at&.iso8601
       },
         status: :accepted
     else

@@ -11,13 +11,27 @@ module Notifications
       end
 
       test "is configured from API-key credentials and never requires the account auth token" do
-        with_env(twilio_env) { assert TwilioGateway.configured? }
+        with_env(twilio_env) { assert TwilioGateway.configured?(brand: @brand) }
         # Missing API-key secret => not configured.
-        with_env(twilio_env.merge("TWILIO_CLIENT_SECRET" => nil)) { assert_not TwilioGateway.configured? }
+        with_env(twilio_env.merge("TWILIO_CLIENT_SECRET" => nil)) { assert_not TwilioGateway.configured?(brand: @brand) }
         # Missing API-key SID => not configured.
-        with_env(twilio_env.merge("TWILIO_API_KEY_SID" => nil)) { assert_not TwilioGateway.configured? }
+        with_env(twilio_env.merge("TWILIO_API_KEY_SID" => nil)) { assert_not TwilioGateway.configured?(brand: @brand) }
         # The legacy Account Auth Token is irrelevant to configuration.
-        with_env(twilio_env.merge("TWILIO_AUTH_TOKEN" => nil)) { assert TwilioGateway.configured? }
+        with_env(twilio_env.merge("TWILIO_AUTH_TOKEN" => nil)) { assert TwilioGateway.configured?(brand: @brand) }
+      end
+
+      test "is not configured for a brand without a sender and exposes a safe error code" do
+        dateza = Brand.create!(slug: "dateza", name: "DateZA")
+
+        with_env(twilio_env.merge("TWILIO_DATEZA_MESSAGING_SERVICE_SID" => nil)) do
+          assert_not TwilioGateway.configured?(brand: dateza)
+          assert_equal "sender_not_configured", TwilioGateway.configuration_error_code(brand: dateza)
+          response = TwilioGateway.deliver(
+            to: "27821234567", body: "verification", brand: dateza, delivery: @delivery
+          )
+          assert_equal "sender_not_configured", response.error_code
+          assert_not response.retryable
+        end
       end
 
       test "authenticates with the API-key SID and secret, not the account auth token" do
@@ -48,6 +62,27 @@ module Notifications
         end
 
         assert_equal "+27821234567", captured[:form]["To"]
+      end
+
+      test "normalizes a South African national destination at the provider boundary" do
+        dateza = Brand.create!(slug: "dateza", name: "DateZA")
+        delivery = NotificationDelivery.create!(
+          brand: dateza, channel: :sms, provider: "twilio", recipient: "0821234567", status: :pending
+        )
+        captured = {}
+        stub = ->(_url, headers:, form:) {
+          captured[:form] = form
+          HttpClient::Response.new(status: 201, body: { sid: "SM1" }.to_json)
+        }
+
+        with_env(twilio_env.merge("TWILIO_DATEZA_MESSAGING_SERVICE_SID" => "MG_dateza")) do
+          stub_method(HttpClient, :post_form, stub) do
+            TwilioGateway.deliver(to: "0821234567", body: "hi", brand: dateza, delivery:)
+          end
+        end
+
+        assert_equal "+27821234567", captured[:form]["To"]
+        assert_equal "MG_dateza", captured[:form]["MessagingServiceSid"]
       end
 
       test "rate limiting and 5xx are transient/retryable" do
@@ -91,6 +126,7 @@ module Notifications
           "TWILIO_API_KEY_SID" => "SKtest",
           "TWILIO_CLIENT_SECRET" => "secretvalue",
           "TWILIO_HOOKUS_MESSAGING_SERVICE_SID" => "MG_hookus",
+          "TWILIO_DATEZA_MESSAGING_SERVICE_SID" => nil,
           "TWILIO_MESSAGING_SERVICE_SID" => nil,
           "TWILIO_FROM_NUMBER" => nil,
           "TWILIO_AUTH_TOKEN" => nil }

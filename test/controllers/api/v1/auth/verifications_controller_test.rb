@@ -56,6 +56,8 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
     assert_equal @user, NotificationDelivery.sms.last.user
     assert_equal "identifier_verification", NotificationDelivery.sms.last.metadata.fetch("purpose")
     assert_equal 60, JSON.parse(response.body).fetch("resend_available_in")
+    assert_in_delta 1.hour.from_now.to_i, challenge.expires_at.to_i, 5
+    assert_equal challenge.expires_at.iso8601, JSON.parse(response.body).fetch("expires_at")
   end
 
   test "verifies the caller's phone without issuing or changing a session" do
@@ -85,6 +87,7 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
 
     mail = ActionMailer::Base.deliveries.last
     assert_equal [ "ada@example.com" ], mail.to
+    assert_includes mail.text_part.body.to_s, "expires in 60 minutes"
     code = mail.text_part.body.to_s[/\b\d{6}\b/]
     assert code.present?
 
@@ -97,6 +100,37 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
     assert_response :success
     assert @email.reload.verified_at.present?
     assert_equal "email", JSON.parse(response.body).dig("identifier", "kind")
+  end
+
+  test "accepts a contact verification code after the former ten-minute boundary" do
+    request_phone_code
+    code = delivered_sms_code
+
+    travel 11.minutes do
+      patch "/api/v1/auth/verification", headers: bearer_headers, params: { kind: "phone", code: }
+      assert_response :success
+    end
+  end
+
+  test "accepts a contact verification code just before one hour" do
+    request_phone_code
+    code = delivered_sms_code
+
+    travel 59.minutes do
+      patch "/api/v1/auth/verification", headers: bearer_headers, params: { kind: "phone", code: }
+      assert_response :success
+    end
+  end
+
+  test "rejects a contact verification code after one hour" do
+    request_phone_code
+    code = delivered_sms_code
+
+    travel 61.minutes do
+      patch "/api/v1/auth/verification", headers: bearer_headers, params: { kind: "phone", code: }
+      assert_response :gone
+      assert_equal({ "error" => "verification_code_expired" }, JSON.parse(response.body))
+    end
   end
 
   test "fails closed when production email delivery is not configured" do
@@ -115,6 +149,27 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
     ENV["D8N_EMAIL_PROVIDER"] = previous
   end
 
+  test "fails visibly and records a safe code when the brand SMS sender is missing" do
+    with_env(
+      "D8N_SMS_PROVIDER" => "twilio",
+      "TWILIO_ACCOUNT_SID" => "AC1",
+      "TWILIO_API_KEY_SID" => "SK1",
+      "TWILIO_CLIENT_SECRET" => "secret",
+      "TWILIO_HOOKUS_MESSAGING_SERVICE_SID" => nil,
+      "TWILIO_MESSAGING_SERVICE_SID" => nil,
+      "TWILIO_FROM_NUMBER" => nil
+    ) do
+      post "/api/v1/auth/verification", headers: bearer_headers, params: { kind: "phone" }
+    end
+
+    assert_response :service_unavailable
+    assert_equal({ "error" => "delivery_unavailable" }, JSON.parse(response.body))
+    assert OtpChallenge.phone_verification.last.consumed?
+    assert_empty NotificationDelivery.sms
+    event = SecurityEvent.find_by!(event_type: "auth.phone_verification.delivery_failed", user: @user)
+    assert_equal "sender_not_configured", event.metadata.fetch("delivery_error_code")
+  end
+
   test "returns a generic accepted response when the caller has no requested identifier" do
     @email.destroy!
 
@@ -128,7 +183,8 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
     assert_equal(
       {
         "message" => "If this identifier can receive D8N codes, a code has been sent.",
-        "resend_available_in" => 0
+        "resend_available_in" => 0,
+        "expires_at" => nil
       },
       JSON.parse(response.body)
     )
@@ -365,5 +421,14 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
     yield
   ensure
     ENV["D8N_SMS_PROVIDER"] = previous
+  end
+
+
+  def with_env(overrides)
+    previous = overrides.keys.index_with { |key| ENV[key] }
+    overrides.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+    yield
+  ensure
+    previous.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
   end
 end

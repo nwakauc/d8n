@@ -24,8 +24,12 @@ module Notifications
     # Cheap, network-free readiness check used by the OTP/recovery/verification
     # domains BEFORE they enqueue async delivery, so a misconfigured provider fails
     # closed at request time (503 / silent) instead of enqueuing a doomed job.
-    def self.configured?
-      gateway.configured?
+    def self.configured?(brand:)
+      gateway.configured?(brand:)
+    end
+
+    def self.configuration_error_code(brand:)
+      gateway.configuration_error_code(brand:)
     end
   end
 end

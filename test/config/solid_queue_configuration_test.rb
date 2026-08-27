@@ -61,6 +61,8 @@ class SolidQueueConfigurationTest < ActiveSupport::TestCase
     assert_equal 30, job_role.fetch("stop_timeout")
     assert_equal [ "145.241.185.41" ], job_role.fetch("hosts")
     assert_not staging.dig("env", "clear").key?("SOLID_QUEUE_IN_PUMA")
+    assert_includes staging.dig("env", "secret"), "TWILIO_DATEZA_MESSAGING_SERVICE_SID"
+    assert_nil job_role["env"], "job must inherit the same top-level provider env as web"
   end
 
   private

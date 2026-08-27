@@ -24,10 +24,16 @@ module Notifications
       PROVIDER = "twilio".freeze
 
       class << self
-        # Account-level credential presence is what determines whether Twilio can be
-        # called at all; API-key auth deliberately does NOT require the legacy
-        # Account Auth Token. The per-brand sender is resolved at send time.
-        def configured? = account_sid.present? && api_key_sid.present? && api_key_secret.present?
+        # Readiness includes the resolved brand sender because a globally valid
+        # Twilio account cannot send for a brand with no Messaging Service/From.
+        def configured?(brand:) = configuration_error_code(brand:).nil?
+
+        def configuration_error_code(brand:)
+          return "provider_not_configured" unless account_configured?
+          "sender_not_configured" if sender(brand).blank?
+        end
+
+        def account_configured? = account_sid.present? && api_key_sid.present? && api_key_secret.present?
 
         def account_sid = ENV["TWILIO_ACCOUNT_SID"].presence
         def api_key_sid = ENV["TWILIO_API_KEY_SID"].presence
@@ -52,7 +58,7 @@ module Notifications
       end
 
       def deliver(to:, body:, brand:, delivery:)
-        return not_configured(brand) unless self.class.configured?
+        return not_configured(brand) unless self.class.account_configured?
         return no_sender(brand) if self.class.sender(brand).blank?
 
         response = HttpClient.post_form(
@@ -68,7 +74,7 @@ module Notifications
       private
 
       def message_params(to:, body:, brand:)
-        params = { "To" => e164(to), "Body" => body }
+        params = { "To" => e164(to, brand:), "Body" => body }
         if (service_sid = self.class.messaging_service_sid(brand))
           params["MessagingServiceSid"] = service_sid
         else
@@ -77,8 +83,10 @@ module Notifications
         params
       end
 
-      def e164(value)
-        value.to_s.start_with?("+") ? value : "+#{value}"
+      def e164(value, brand:)
+        calling_code = Identity::PhonePolicy.country_calling_code(brand:)
+        normalized = Identity::PhoneNormalizer.call(value, country_calling_code: calling_code)
+        "+#{normalized}"
       end
 
       # HTTP Basic with the Standard API Key SID/secret pair.

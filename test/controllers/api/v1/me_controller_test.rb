@@ -48,7 +48,7 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
       identifier: identifier.normalized_value,
       code_digest: OtpChallenge.digest_code("123456"),
       delivery_code: "123456",
-      expires_at: 10.minutes.from_now
+      expires_at: 1.hour.from_now
     )
 
     get "/api/v1/me", headers: bearer_headers(token)
@@ -63,6 +63,7 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, body.fetch("verification_required")
     assert_equal true, body.dig("verification", "code_dispatched")
     assert_in_delta 60, body.dig("verification", "resend_available_in"), 1
+    assert_equal challenge.expires_at.iso8601, body.dig("verification", "expires_at")
     assert_not_includes response.body, identifier.normalized_value
     assert challenge.reload.delivery_code.present?
   end

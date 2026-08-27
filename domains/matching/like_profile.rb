@@ -32,7 +32,18 @@ module Matching
         ensure_not_matched!(viewer:, target:)
         ProfilePass.kept.find_by(brand:, passer_profile: viewer, passed_profile: target)&.update!(deleted_at: Time.current)
         like = Like.create!(brand:, liker_profile: viewer, liked_profile: target, kind: :like)
-        result = Result.new(like:, match: create_match_if_mutual(viewer:, target:), created: true)
+        match = create_match_if_mutual(viewer:, target:)
+        # A Like that immediately completes a mutual match is the higher-value
+        # match_created event for both sides — a bare "someone liked you" would
+        # be a confusing, redundant notification the instant before "it's a
+        # match!" for the same transition, so like_received is only published
+        # when this Like did NOT just create a Match.
+        if match
+          Notifications::EventPublisher.match_created!(match:)
+        else
+          Notifications::EventPublisher.like_received!(like:, recipient: target, actor: viewer)
+        end
+        result = Result.new(like:, match:, created: true)
       end
       result
     end

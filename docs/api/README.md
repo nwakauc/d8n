@@ -425,6 +425,12 @@ Verification never creates an account, credential, membership, or session and
 never blocks normal onboarding. The former unauthenticated phone-OTP login routes
 have been removed; returning users log in with phone/email and password.
 
+Phone and email contact-verification codes remain valid for one hour. The
+successful request, registration/session, and `/me` payloads expose the
+server-authoritative `verification.expires_at` (or `null` when no usable code was
+dispatched). Password-recovery and email-change codes deliberately retain their
+shorter, separate security lifetimes.
+
 Authenticated verification clients branch on stable lifecycle codes:
 
 - `verification_code_invalid`: the current code does not match;
@@ -436,7 +442,8 @@ Authenticated verification clients branch on stable lifecycle codes:
 - `delivery_unavailable`: the configured delivery channel cannot accept the request.
 
 Both resend throttle errors use `429` and an authoritative `Retry-After` header.
-A successful verification-code request returns `resend_available_in`. Password
+A successful verification-code request returns `resend_available_in` and
+`expires_at`. Password
 registration/session and `/api/v1/me` responses expose only a masked destination,
 whether a usable challenge was dispatched, and the server-owned resend delay—never
 the raw identifier. Signed-out password recovery keeps unknown identifiers and

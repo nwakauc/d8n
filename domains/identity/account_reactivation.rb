@@ -30,7 +30,7 @@ module Identity
     def call
       return failure(:brand_required) unless active_brand?
 
-      login_identifier = LoginIdentifier.call(identifier_input)
+      login_identifier = LoginIdentifier.call(identifier_input, brand:)
       return invalid_credentials unless login_identifier
       return failure(:auth_method_unavailable) unless AuthPolicy.enabled?(brand:, method: login_identifier.auth_method)
 
@@ -64,10 +64,11 @@ module Identity
     end
 
     def reactivate_unthrottled(login_identifier)
-      identity_identifier = IdentityIdentifier.kept.find_by(
+      identifiers = IdentityIdentifier.kept.where(
         kind: login_identifier.kind,
-        normalized_value: login_identifier.normalized_value
-      )
+        normalized_value: login_identifier.lookup_values
+      ).limit(2).to_a
+      identity_identifier = identifiers.one? ? identifiers.first : nil
       user = identity_identifier&.user
       credential = identity_identifier&.credentials&.kept&.find_by(kind: :password)
       password_matches = credential.present? ? PasswordEngine.matches?(credential:, password:) : PasswordEngine.burn(password:)

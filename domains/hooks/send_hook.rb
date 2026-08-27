@@ -55,6 +55,7 @@ module Hooks
           brand:, sender_profile: viewer, recipient_profile: target,
           message:, profile_opener:, expires_at: Policy.expires_in(brand).from_now
         )
+        Notifications::EventPublisher.opener_received!(hook:)
         record_event(brand:, user:, viewer:, target:, hook:)
         result = Result.new(hook:)
       end

@@ -76,7 +76,8 @@ class Api::V1::MeController < ApplicationController
 
     {
       code_dispatched: verification.code_dispatched,
-      resend_available_in: verification.resend_available_in
+      resend_available_in: verification.resend_available_in,
+      expires_at: verification.expires_at&.iso8601
     }
   end
 

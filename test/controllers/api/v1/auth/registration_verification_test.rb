@@ -43,6 +43,8 @@ class Api::V1::Auth::RegistrationVerificationTest < ActionDispatch::IntegrationT
     assert_nil identifier.verified_at, "registration must not pretend the phone is verified"
 
     challenge = OtpChallenge.phone_verification.last
+    assert_in_delta 1.hour.from_now.to_i, challenge.expires_at.to_i, 5
+    assert_equal challenge.expires_at.iso8601, body.dig("verification", "expires_at")
     assert_equal identifier, challenge.identity_identifier
     assert_equal @brand, challenge.brand
     assert_equal "identifier_verification", challenge.metadata.fetch("purpose")
@@ -77,6 +79,8 @@ class Api::V1::Auth::RegistrationVerificationTest < ActionDispatch::IntegrationT
     assert_nil identifier.verified_at
 
     challenge = OtpChallenge.email_verification.last
+    assert_in_delta 1.hour.from_now.to_i, challenge.expires_at.to_i, 5
+    assert_equal challenge.expires_at.iso8601, body.dig("verification", "expires_at")
     assert_equal identifier, challenge.identity_identifier
     assert_equal [ challenge.id ], enqueued_jobs.find { |e| e[:job] == Notifications::DeliverChallengeJob }[:args]
 
@@ -111,6 +115,24 @@ class Api::V1::Auth::RegistrationVerificationTest < ActionDispatch::IntegrationT
     body = JSON.parse(response.body)
     assert_equal true, body.fetch("verification_required")
     assert_equal false, body.dig("verification", "code_dispatched")
+    assert_nil body.dig("verification", "expires_at")
+  end
+
+  test "DateZA national phone registration persists E.164 digits and delivers to +E.164" do
+    dateza = Brand.create!(slug: "dateza", name: "DateZA", auth_methods: %w[phone_password email_password])
+    BrandDomain.create!(brand: dateza, host: "dateza.test")
+    host! "dateza.test"
+
+    with_sms_provider("test") do
+      perform_enqueued_jobs do
+        post "/api/v1/auth/password/register",
+          params: { identifier: "0821234567", password: "secret", device_name: "Web" }
+      end
+    end
+
+    assert_response :created
+    assert_equal "27821234567", IdentityIdentifier.phone.last.normalized_value
+    assert_equal "27821234567", Notifications::Sms::TestGateway.deliveries.last.fetch(:to)
   end
 
   # ---- ABUSE / DUPLICATE -------------------------------------------------

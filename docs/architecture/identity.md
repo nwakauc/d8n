@@ -95,6 +95,9 @@ expiry, error, and threat-model decisions.
 - Challenges target only an existing, kept identifier owned by the session user.
 - Challenges are channel- and purpose-bound, single-use, expiring,
   attempt-limited, and resend/IP throttled.
+- Phone/email contact-verification challenges use a one-hour lifetime. Password
+  recovery codes remain 10 minutes and reset authorizations remain 15 minutes;
+  widening contact verification does not widen those security-sensitive flows.
 - Verification changes only identifier `verified_at` and audit records. It never
   creates a user, credential, membership, profile, or session.
 - Missing/already-verified identifiers receive the same generic request response.

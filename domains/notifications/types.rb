@@ -2,6 +2,16 @@ module Notifications
   module Types
     Definition = Data.define(:code, :title, :body, :email_subject, :allowed_payload_keys)
 
+    # `actor`/`target` (shared by every D8N dating event below): opaque public
+    # identifiers only — { actor: { profile_id: }, target: { type:, id: } }. No
+    # name, photo, bio, or message body is ever embedded here; the frontend
+    # resolves `actor`/`target` through the normal owner-scoped endpoints
+    # (profile detail, match, conversation), which already enforce block/
+    # suspension/closure access on their own. That keeps a notification safe to
+    # retain even after the actor is later blocked or becomes unavailable — there
+    # is nothing sensitive in the row to leak, only an id that may fail to resolve.
+    DATING_EVENT_PAYLOAD_KEYS = %w[actor target].freeze
+
     DEFINITIONS = {
       "dateza.welcome" => Definition.new(
         code: "dateza.welcome",
@@ -9,6 +19,34 @@ module Notifications
         body: "Your account is ready. Complete your profile and start meeting people worth meeting.",
         email_subject: "Welcome to DateZA",
         allowed_payload_keys: []
+      ),
+      "dateza.like_received" => Definition.new(
+        code: "dateza.like_received",
+        title: "Someone likes you",
+        body: "You have a new like on DateZA. Open the app to see who.",
+        email_subject: "Someone likes you on DateZA",
+        allowed_payload_keys: DATING_EVENT_PAYLOAD_KEYS
+      ),
+      "dateza.match_created" => Definition.new(
+        code: "dateza.match_created",
+        title: "It's a match!",
+        body: "You have a new match on DateZA. Say hello.",
+        email_subject: "You have a new match on DateZA",
+        allowed_payload_keys: DATING_EVENT_PAYLOAD_KEYS
+      ),
+      "dateza.opener_received" => Definition.new(
+        code: "dateza.opener_received",
+        title: "You received an opener",
+        body: "Someone sent you an opener on DateZA. Open the app to read it.",
+        email_subject: "You received an opener on DateZA",
+        allowed_payload_keys: DATING_EVENT_PAYLOAD_KEYS
+      ),
+      "dateza.message_received" => Definition.new(
+        code: "dateza.message_received",
+        title: "New message",
+        body: "You have a new message on DateZA.",
+        email_subject: "New message on DateZA",
+        allowed_payload_keys: DATING_EVENT_PAYLOAD_KEYS
       )
     }.freeze
 

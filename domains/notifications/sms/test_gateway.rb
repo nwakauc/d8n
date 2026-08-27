@@ -2,7 +2,8 @@ module Notifications
   module Sms
     class TestGateway
       class << self
-        def configured? = true
+        def configured?(brand:) = true
+        def configuration_error_code(brand:) = nil
 
         def deliveries
           @deliveries ||= []

@@ -8,7 +8,8 @@ class IdentityVerificationMailer < ApplicationMailer
     @code = params.fetch(:code)
     @heading = "Verify your email"
     @instruction = "Use this code to verify your #{@brand_name} account."
-    @preheader = "Your #{@brand_name} verification code expires in 10 minutes."
+    @verification_expiry_minutes = Identity::VerificationRequester::EXPIRES_IN.in_minutes.to_i
+    @preheader = "Your #{@brand_name} verification code expires in #{@verification_expiry_minutes} minutes."
 
     mail(
       from: params.fetch(:from_address),

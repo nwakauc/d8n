@@ -1,7 +1,7 @@
 module Identity
   class VerificationRequester
-    Result = Data.define(:success?, :error, :retry_after)
-    EXPIRES_IN = 10.minutes
+    Result = Data.define(:success?, :error, :retry_after, :expires_at)
+    EXPIRES_IN = 1.hour
     SUPPORTED_KINDS = %w[ phone email ].freeze
 
     def self.call(...)
@@ -84,17 +84,29 @@ module Identity
       # existing "delivery_unavailable" contract without enqueuing a doomed job.
       unless delivery_configured?(identity_identifier)
         challenge.consume!
-        record_event(identity_identifier, "delivery_failed", severity: :warning, challenge:)
+        record_event(
+          identity_identifier,
+          "delivery_failed",
+          severity: :warning,
+          challenge:,
+          delivery_error_code: delivery_error_code(identity_identifier)
+        )
         return failure(:delivery_unavailable)
       end
 
       @challenge_to_deliver = challenge
       record_event(identity_identifier, "requested", challenge:)
-      generic_success(retry_after: OtpThrottle::IDENTIFIER_COOLDOWN.to_i)
+      generic_success(retry_after: OtpThrottle::IDENTIFIER_COOLDOWN.to_i, expires_at: challenge.expires_at)
     end
 
     def delivery_configured?(identity_identifier)
-      identity_identifier.phone? ? Notifications::Sms.configured? : Notifications::Email.configured?(brand:)
+      identity_identifier.phone? ? Notifications::Sms.configured?(brand:) : Notifications::Email.configured?(brand:)
+    end
+
+    def delivery_error_code(identity_identifier)
+      return Notifications::Sms.configuration_error_code(brand:) if identity_identifier.phone?
+
+      "provider_not_configured"
     end
 
     def enqueue_delivery
@@ -138,7 +150,14 @@ module Identity
       record_event(identity_identifier, result.to_s, severity: :warning, retry_after:)
     end
 
-    def record_event(identity_identifier, outcome, severity: :info, challenge: nil, retry_after: nil)
+    def record_event(
+      identity_identifier,
+      outcome,
+      severity: :info,
+      challenge: nil,
+      retry_after: nil,
+      delivery_error_code: nil
+    )
       SecurityEvent.create!(
         brand:,
         user:,
@@ -150,17 +169,18 @@ module Identity
           challenge_id: challenge&.id,
           identifier_kind: kind,
           identifier_last4: identity_identifier.normalized_value.last(4),
-          retry_after:
+          retry_after:,
+          delivery_error_code:
         }.compact
       )
     end
 
-    def generic_success(retry_after: nil)
-      Result.new(true, nil, retry_after)
+    def generic_success(retry_after: nil, expires_at: nil)
+      Result.new(true, nil, retry_after, expires_at)
     end
 
     def failure(error, retry_after: nil)
-      Result.new(false, error, retry_after)
+      Result.new(false, error, retry_after, nil)
     end
   end
 end

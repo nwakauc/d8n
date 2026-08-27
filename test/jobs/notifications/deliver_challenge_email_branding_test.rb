@@ -28,7 +28,7 @@ module Notifications
       assert_includes message.fetch(:html), "max-width: 600px"
       assert_includes message.fetch(:text), "Use this code to verify your DateZA account."
       assert_includes message.fetch(:text), "123456"
-      assert_includes message.fetch(:text), "This code expires in 10 minutes."
+      assert_includes message.fetch(:text), "This code expires in 60 minutes."
       assert_not_includes message.to_json, "HookUs"
       assert_nil challenge.reload.delivery_code
     end

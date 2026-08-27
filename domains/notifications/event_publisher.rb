@@ -1,18 +1,98 @@
 module Notifications
+  # D8N's shared dating-event taxonomy. Every method here is brand-agnostic —
+  # callers in Matching/Hooks/Messaging never know or care whether a brand has
+  # DateZA copy, HookUs copy, or no notification plan at all; Policy.handles?
+  # (looked up from the recipient's own brand contract) decides that. A brand
+  # with no plan for an event_type (HookUs today, for all five dating events)
+  # makes every call below a safe no-op — no capability check, no branching,
+  # needed at any call site.
   class EventPublisher
     def self.membership_registered!(membership:)
-      return unless Policy.handles?(brand: membership.brand, event_type: "membership_registered")
+      publish!(
+        event_type: "membership_registered",
+        idempotency_key: "membership_registered:#{membership.id}",
+        brand: membership.brand,
+        user: membership.user,
+        brand_membership: membership,
+        payload: {}
+      )
+    end
 
-      NotificationEvent.create_or_find_by!(
-        idempotency_key: "membership_registered:#{membership.id}"
-      ) do |event|
-        event.brand = membership.brand
-        event.user = membership.user
-        event.brand_membership = membership
-        event.event_type = "membership_registered"
-        event.payload = {}
+    # A Like that does NOT immediately create a mutual Match. When it does,
+    # Matching::LikeProfile calls match_created! instead — see that method's
+    # comment for why the two are mutually exclusive for the same transition.
+    def self.like_received!(like:, recipient:, actor:)
+      publish!(
+        event_type: "like_received",
+        idempotency_key: "like_received:#{like.id}:#{recipient.id}",
+        brand: recipient.brand,
+        user: recipient.user,
+        brand_membership: recipient.brand_membership,
+        payload: { actor: { profile_id: actor.public_id }, target: { type: "profile", id: actor.public_id } }
+      )
+    end
+
+    # Fired once per participant for an active Match, from whichever transition
+    # created it (reciprocal Likes or an Opener reply — see Matching::LikeProfile
+    # and Hooks::ReplyToHook). "One Match row = at most one match_created per
+    # recipient" is enforced by the idempotency_key below, keyed on (match,
+    # recipient) — safe to call unconditionally on every path that produces or
+    # finds an active Match; retries and concurrent reciprocal actions can never
+    # double-notify a participant.
+    def self.match_created!(match:)
+      [ match.profile_a, match.profile_b ].each do |recipient|
+        actor = match.other_profile(recipient)
+        publish!(
+          event_type: "match_created",
+          idempotency_key: "match_created:#{match.public_id}:#{recipient.id}",
+          brand: recipient.brand,
+          user: recipient.user,
+          brand_membership: recipient.brand_membership,
+          payload: { actor: { profile_id: actor.public_id }, target: { type: "match", id: match.public_id } }
+        )
+      end
+    end
+
+    def self.opener_received!(hook:)
+      publish!(
+        event_type: "opener_received",
+        idempotency_key: "opener_received:#{hook.public_id}",
+        brand: hook.recipient_profile.brand,
+        user: hook.recipient_profile.user,
+        brand_membership: hook.recipient_profile.brand_membership,
+        payload: {
+          actor: { profile_id: hook.sender_profile.public_id },
+          target: { type: "opener", id: hook.public_id }
+        }
+      )
+    end
+
+    def self.message_received!(message:, recipient:)
+      publish!(
+        event_type: "message_received",
+        idempotency_key: "message_received:#{message.public_id}:#{recipient.id}",
+        brand: recipient.brand,
+        user: recipient.user,
+        brand_membership: recipient.brand_membership,
+        payload: {
+          actor: { profile_id: message.sender_profile.public_id },
+          target: { type: "conversation", id: message.conversation.public_id }
+        }
+      )
+    end
+
+    def self.publish!(event_type:, idempotency_key:, brand:, user:, brand_membership:, payload:)
+      return unless Policy.handles?(brand:, event_type:)
+
+      NotificationEvent.create_or_find_by!(idempotency_key:) do |event|
+        event.brand = brand
+        event.user = user
+        event.brand_membership = brand_membership
+        event.event_type = event_type
+        event.payload = payload
         event.occurred_at = Time.current
       end
     end
+    private_class_method :publish!
   end
 end

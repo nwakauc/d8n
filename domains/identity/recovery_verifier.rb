@@ -31,13 +31,14 @@ module Identity
     def call
       return failure(:invalid_code) unless active_brand?
 
-      login_identifier = LoginIdentifier.call(identifier_input)
+      login_identifier = LoginIdentifier.call(identifier_input, brand:)
       return failure(:invalid_code) if login_identifier.blank?
 
-      identity_identifier = IdentityIdentifier.kept.find_by(
+      identifiers = IdentityIdentifier.kept.where(
         kind: login_identifier.kind,
-        normalized_value: login_identifier.normalized_value
-      )
+        normalized_value: login_identifier.lookup_values
+      ).limit(2).to_a
+      identity_identifier = identifiers.one? ? identifiers.first : nil
       return failure(:invalid_code) if identity_identifier.blank?
 
       challenge = latest_recovery_challenge(identity_identifier)

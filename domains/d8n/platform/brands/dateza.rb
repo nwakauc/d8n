@@ -111,6 +111,7 @@ module D8n
             ),
             discovery_surfaces: SURFACES,
             place_country_codes: %w[ ZA ],
+            phone_country_calling_code: "27",
             default_discovery_surface: "discovery.curated_daily",
             interaction: BrandContract::InteractionConfiguration.new(
               eligibility_policy: ELIGIBILITY_POLICY,
@@ -136,6 +137,22 @@ module D8n
                 "membership_registered" => BrandContract::NotificationPlan.new(
                   notification_type: "dateza.welcome",
                   email_template: :welcome
+                ),
+                "like_received" => BrandContract::NotificationPlan.new(
+                  notification_type: "dateza.like_received",
+                  email_template: :product
+                ),
+                "match_created" => BrandContract::NotificationPlan.new(
+                  notification_type: "dateza.match_created",
+                  email_template: :product
+                ),
+                "opener_received" => BrandContract::NotificationPlan.new(
+                  notification_type: "dateza.opener_received",
+                  email_template: :product
+                ),
+                "message_received" => BrandContract::NotificationPlan.new(
+                  notification_type: "dateza.message_received",
+                  email_template: :product
                 )
               }
             ),

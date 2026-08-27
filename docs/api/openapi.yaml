@@ -1042,6 +1042,38 @@ paths:
         "403":
           $ref: "#/components/responses/ProfileOrMembershipRequired"
   /api/v1/profile/location:
+    get:
+      operationId: showProfileLocation
+      tags: [Profile]
+      summary: Authoritative owner readback of the current profile's dating location
+      description: |
+        The backend is the sole source of truth for whether a dating location is
+        configured — clients must not derive this from local/device state. Reads
+        the same `ProfileLocation` row every write path (`PUT /profile/location`,
+        `PUT /profile/place`) and Matching's distance filtering consume, so this
+        endpoint can never disagree with what Discover/Find actually use.
+
+        Never returns latitude/longitude, regardless of `source` — only a safe
+        display representation. A missing profile, a profile with no saved
+        location, and a soft-deleted location all resolve to the same
+        `configured: false` response rather than an error, matching
+        `GET /api/v1/profile/preferences`'s null-safe convention. Owner-only:
+        there is no way to address another member's location through this
+        endpoint, and a suspended profile may still read its own location.
+
+        `configured` here is definitionally identical to the `location.configured`
+        summary already returned inline by `GET /api/v1/profile` — the two must
+        never disagree, since both derive from the presence of the same kept
+        `ProfileLocation` row.
+      responses:
+        "200":
+          description: Current dating location, or its configured absence.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileLocationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     put:
       operationId: replaceProfileLocation
       tags: [Profile]
@@ -3372,7 +3404,7 @@ components:
           enum: [phone, email]
     VerificationDeliveryResponse:
       type: object
-      required: [message, resend_available_in]
+      required: [message, resend_available_in, expires_at]
       properties:
         message:
           type: string
@@ -3380,6 +3412,10 @@ components:
           type: integer
           minimum: 0
           description: Server-owned seconds until another code request is eligible.
+        expires_at:
+          type: [string, "null"]
+          format: date-time
+          description: Server-authoritative contact-verification expiry; null for the generic no-delivery response.
     SessionIdentifierVerification:
       type: object
       required: [kind, verified, masked_destination]
@@ -3394,7 +3430,7 @@ components:
           description: Safe display form of the current session credential identifier; never the raw value.
     VerificationDispatchState:
       type: object
-      required: [code_dispatched, resend_available_in]
+      required: [code_dispatched, resend_available_in, expires_at]
       properties:
         code_dispatched:
           type: boolean
@@ -3403,6 +3439,10 @@ components:
           type: integer
           minimum: 0
           description: Server-owned seconds until another code request is eligible.
+        expires_at:
+          type: [string, "null"]
+          format: date-time
+          description: Expiry of the usable contact-verification code (one hour after issue), or null when none was dispatched.
     PasswordAuthRequest:
       type: object
       required: [identifier, password]
@@ -4522,13 +4562,24 @@ components:
           type: string
           format: date-time
         place:
-          description: Present only when source is `place`. Never includes coordinates.
+          description: |
+            Present only when source is `place`. Never includes coordinates.
+            `kind`/`code`/`country_code` are populated by `GET /api/v1/profile/location`;
+            the write endpoints (`PUT /profile/location`, `PUT /profile/place`) only
+            ever return `id`, `name`, `display_path`.
           type: object
           required: [id, name, display_path]
           properties:
             id:
               type: integer
+            kind:
+              type: string
+              enum: [region, city, locality]
             name:
+              type: string
+            code:
+              type: string
+            country_code:
               type: string
             display_path:
               type: string
@@ -4968,22 +5019,68 @@ components:
           format: uuid
         type:
           type: string
-          enum: [dateza.welcome]
+          enum:
+            - dateza.welcome
+            - dateza.like_received
+            - dateza.match_created
+            - dateza.opener_received
+            - dateza.message_received
           description: Stable semantic type. New types are added compatibly.
         title:
           type: string
         body:
           type: string
         payload:
-          type: object
-          description: Type-controlled, presentation-safe structured data. Empty for dateza.welcome.
-          additionalProperties: true
+          oneOf:
+            - $ref: "#/components/schemas/EmptyNotificationPayload"
+            - $ref: "#/components/schemas/DatingEventNotificationPayload"
+          description: |
+            Type-controlled, presentation-safe structured data. Empty for
+            dateza.welcome. For the D8N dating events (like_received,
+            match_created, opener_received, message_received), carries only
+            opaque public identifiers — `actor.profile_id` (who did it) and
+            `target.type`/`target.id` (what to open). Never latitude/longitude,
+            message text, names, or photos; the frontend resolves `actor`/
+            `target` through the normal owner-scoped endpoints (profile detail,
+            match, conversation), which independently enforce block/suspension/
+            closure access. `target.type` is one of `profile`, `match`,
+            `opener`, `conversation`.
         read_at:
           type: [string, "null"]
           format: date-time
         created_at:
           type: string
           format: date-time
+    EmptyNotificationPayload:
+      type: object
+      additionalProperties: false
+      description: The payload shape for dateza.welcome, which carries no fields.
+    DatingEventNotificationPayload:
+      type: object
+      required: [actor, target]
+      additionalProperties: false
+      properties:
+        actor:
+          type: object
+          required: [profile_id]
+          additionalProperties: false
+          description: The profile who performed the action that produced this notification.
+          properties:
+            profile_id:
+              type: string
+              format: uuid
+        target:
+          type: object
+          required: [type, id]
+          additionalProperties: false
+          description: Where the frontend can navigate to act on this notification.
+          properties:
+            type:
+              type: string
+              enum: [profile, match, opener, conversation]
+            id:
+              type: string
+              format: uuid
     NotificationListResponse:
       type: object
       required: [notifications, unread_count]

@@ -114,6 +114,7 @@ module D8n
               detail_decorators: PROFILE_DECORATORS
             ),
             discovery_surfaces: SURFACES,
+            phone_country_calling_code: "27",
             default_discovery_surface: "discovery.for_you",
             interaction: BrandContract::InteractionConfiguration.new(
               eligibility_policy: ELIGIBILITY_POLICY,

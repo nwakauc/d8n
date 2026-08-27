@@ -3,7 +3,8 @@ module Notifications
     # Production default when no real SMS provider is selected. Reports "not
     # configured" so the calling domain fails closed rather than pretending to send.
     class RequiredGateway
-      def self.configured? = false
+      def self.configured?(brand:) = false
+      def self.configuration_error_code(brand:) = "provider_not_configured"
 
       def self.deliver(...)
         new.deliver(...)

@@ -14,9 +14,14 @@ module Messaging
       access = ConversationAccess.find!(user:, brand:, conversation_public_id:)
       content = MessageBody.prepare(body)
 
-      message = Message.create!(
-        brand:, conversation: access.conversation, sender_profile: access.viewer, body: content
-      )
+      message = nil
+      Profile.transaction do
+        message = Message.create!(
+          brand:, conversation: access.conversation, sender_profile: access.viewer, body: content
+        )
+        recipient = access.match.other_profile(access.viewer)
+        Notifications::EventPublisher.message_received!(message:, recipient:)
+      end
       Result.new(message:, viewer: access.viewer)
     end
   end

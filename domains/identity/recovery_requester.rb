@@ -31,7 +31,7 @@ module Identity
     def call
       return generic_success unless active_brand?
 
-      login_identifier = LoginIdentifier.call(identifier_input)
+      login_identifier = LoginIdentifier.call(identifier_input, brand:)
       return generic_success if login_identifier.blank?
       return generic_success unless AuthPolicy.enabled?(brand:, method: login_identifier.auth_method)
 
@@ -56,10 +56,11 @@ module Identity
     # require a kept membership in the *requesting* brand so one brand cannot be used
     # to send recovery codes to identifiers that only belong to another brand.
     def eligible_identifier(login_identifier)
-      identity_identifier = IdentityIdentifier.kept.find_by(
+      identifiers = IdentityIdentifier.kept.where(
         kind: login_identifier.kind,
-        normalized_value: login_identifier.normalized_value
-      )
+        normalized_value: login_identifier.lookup_values
+      ).limit(2).to_a
+      identity_identifier = identifiers.one? ? identifiers.first : nil
       return if identity_identifier.blank?
       return if identity_identifier.verified_at.blank?
 
@@ -131,7 +132,7 @@ module Identity
     end
 
     def delivery_configured?(identity_identifier)
-      identity_identifier.phone? ? Notifications::Sms.configured? : Notifications::Email.configured?(brand:)
+      identity_identifier.phone? ? Notifications::Sms.configured?(brand:) : Notifications::Email.configured?(brand:)
     end
 
     def enqueue_delivery

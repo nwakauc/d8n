@@ -66,12 +66,14 @@ env:
     # Resend (email) — API key only; the From identity is public clear config above.
     - RESEND_API_KEY
     # Twilio (SMS) — Standard API Key auth (no account auth token). Account SID +
-    # API Key SID + API Key secret (TWILIO_CLIENT_SECRET) + the HookUs Messaging
-    # Service SID.
+    # API Key SID + API Key secret (TWILIO_CLIENT_SECRET) + one Messaging Service
+    # SID per enabled brand. Top-level Kamal env is inherited by both web and job
+    # roles, so the Solid Queue worker receives the same delivery configuration.
     - TWILIO_ACCOUNT_SID
     - TWILIO_API_KEY_SID
     - TWILIO_CLIENT_SECRET
     - TWILIO_HOOKUS_MESSAGING_SERVICE_SID
+    - TWILIO_DATEZA_MESSAGING_SERVICE_SID
     # Active Record Encryption keys for the OTP delivery_code ciphertext. MANDATORY
     # in production: the app raises at boot if any is missing (fail-closed). Generate
     # once with `bin/rails db:encryption:init` and store in the password manager.

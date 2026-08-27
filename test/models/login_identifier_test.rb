@@ -18,6 +18,17 @@ module Identity
       assert_equal :phone_password, result.auth_method
     end
 
+    test "normalizes South African national and international forms through brand policy" do
+      brand = Brand.create!(slug: "dateza", name: "DateZA", auth_methods: %w[phone_password])
+
+      results = [ "0821234567", "+27821234567", "27821234567" ].map do |value|
+        LoginIdentifier.call(value, brand:)
+      end
+
+      assert_equal [ "27821234567" ], results.map(&:normalized_value).uniq
+      assert results.all? { |result| result.lookup_values == %w[27821234567 0821234567] }
+    end
+
     test "rejects malformed identifiers" do
       assert_nil LoginIdentifier.call("")
       assert_nil LoginIdentifier.call("not-an-email@")

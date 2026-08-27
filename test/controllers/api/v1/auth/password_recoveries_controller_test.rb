@@ -44,6 +44,7 @@ class Api::V1::Auth::PasswordRecoveriesControllerTest < ActionDispatch::Integrat
     challenge = OtpChallenge.password_recovery.last
     assert_equal @phone, challenge.identity_identifier
     assert_equal "password_recovery", challenge.metadata.fetch("purpose")
+    assert_in_delta 10.minutes.from_now.to_i, challenge.expires_at.to_i, 5
     assert_equal "27821234567", Notifications::Sms::TestGateway.deliveries.last.fetch(:to)
     assert SecurityEvent.exists?(event_type: "auth.password_recovery.requested", user: @user)
   end

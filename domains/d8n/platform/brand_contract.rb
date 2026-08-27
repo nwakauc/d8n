@@ -48,7 +48,8 @@ module D8n
       attr_reader :slug, :auth_methods, :capabilities, :profile, :discovery_surfaces,
         :default_discovery_surface_key,
         :interaction, :media, :opener, :notifications, :error_codes, :enabled_identity_fields,
-        :enabled_profile_fields, :enabled_preference_fields, :place_country_codes
+        :enabled_profile_fields, :enabled_preference_fields, :place_country_codes,
+        :phone_country_calling_code
 
       def initialize(
         brand:,
@@ -61,7 +62,8 @@ module D8n
         opener: nil,
         notifications:,
         error_codes: {},
-        place_country_codes: []
+        place_country_codes: [],
+        phone_country_calling_code: nil
       )
         raise ArgumentError, "brand is required" unless brand.is_a?(Brand)
 
@@ -82,6 +84,7 @@ module D8n
         @notifications = notifications
         @error_codes = error_codes.transform_keys(&:to_s).transform_values(&:to_sym).freeze
         @place_country_codes = Array(place_country_codes).map { |code| code.to_s.upcase }.freeze
+        @phone_country_calling_code = phone_country_calling_code&.to_s&.freeze
 
         validate!
         freeze
@@ -169,6 +172,9 @@ module D8n
 
         if place_country_codes.any? && !capability_enabled?("profile.location.place_selection")
           raise ArgumentError, "place country codes require the place_selection capability"
+        end
+        if phone_country_calling_code.present? && !phone_country_calling_code.match?(/\A[1-9]\d{0,2}\z/)
+          raise ArgumentError, "phone country calling code must contain 1 to 3 digits"
         end
       end
     end

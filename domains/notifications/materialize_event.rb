@@ -46,7 +46,7 @@ module Notifications
         notification.user = event.user
         notification.brand_membership = membership
         notification.notification_type = plan.notification_type
-        notification.payload = {}
+        notification.payload = event.payload
       end
     end
 

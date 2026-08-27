@@ -42,6 +42,7 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "phone", body.fetch("verification_channel")
     assert_equal true, body.dig("verification", "code_dispatched")
     assert_in_delta 60, body.dig("verification", "resend_available_in"), 1
+    assert_equal OtpChallenge.phone_verification.last.expires_at.iso8601, body.dig("verification", "expires_at")
     assert_equal "hookus", body.fetch("brand").fetch("slug")
     assert body.fetch("token").present?
     assert_nil body["browser_session"]
@@ -76,6 +77,27 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_response :created
     assert_equal false, JSON.parse(response.body).fetch("identifier").fetch("verified")
     assert_equal "Returning Web", Session.last.device_name
+  end
+
+  test "international input finds one legacy national-form identity without creating a duplicate" do
+    user = User.create!
+    identifier = user.identity_identifiers.create!(kind: :phone, normalized_value: "0821234567")
+    credential = user.credentials.create!(identity_identifier: identifier, kind: :password, status: :active)
+    Identity::PasswordEngine.set!(credential:, password: "secret")
+    BrandMembership.create!(brand: @brand, user:, status: :active)
+
+    post "/api/v1/auth/password/login",
+      params: { identifier: "+27821234567", password: "secret", device_name: "Returning Web" }
+
+    assert_response :created
+    assert_equal user.id, JSON.parse(response.body).fetch("user_id")
+
+    assert_no_difference -> { User.count } do
+      post "/api/v1/auth/password/register",
+        params: { identifier: "+27821234567", password: "secret", device_name: "Web" }
+    end
+    assert_response :unprocessable_entity
+    assert_equal 1, IdentityIdentifier.phone.where(normalized_value: %w[0821234567 27821234567]).count
   end
 
   test "logs in with a normalized email and password" do

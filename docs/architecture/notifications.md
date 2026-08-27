@@ -76,6 +76,11 @@ requires a brand sender in production:
 D8N_EMAIL_PROVIDER=resend
 RESEND_API_KEY=<secret>
 D8N_DATEZA_EMAIL_FROM=DateZA <no-reply@date-za.com>
+D8N_SMS_PROVIDER=twilio
+TWILIO_ACCOUNT_SID=<secret>
+TWILIO_API_KEY_SID=<secret>
+TWILIO_CLIENT_SECRET=<secret>
+TWILIO_DATEZA_MESSAGING_SERVICE_SID=<secret>
 ```
 
 The brand sender must be a verified identity accepted by the selected email
@@ -95,6 +100,12 @@ plain-text bodies are retained. The readable wordmark remains when a client omit
 inline SVG. No welcome CTA is emitted because D8N does not yet have an approved
 brand-specific frontend/profile URL configuration; adding one must be a separate
 configuration decision, not a hard-coded template URL.
+
+SMS readiness is also brand-aware: valid Twilio account credentials are
+insufficient unless the resolved brand has a messaging-service SID (or an
+explicit generic/from fallback). Kamal's top-level staging env is shared by web
+and job roles so these secrets must be populated once and will reach the Solid
+Queue worker as well as Rails web.
 
 ## Planned, not implemented
 

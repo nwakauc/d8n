@@ -23,7 +23,7 @@ module Identity
     def call
       return failure(:brand_required) unless active_brand?
 
-      login_identifier = LoginIdentifier.call(identifier_input)
+      login_identifier = LoginIdentifier.call(identifier_input, brand:)
       return malformed_identifier_result unless login_identifier
       return failure(:auth_method_unavailable) unless AuthPolicy.enabled?(brand:, method: login_identifier.auth_method)
       return invalid_registration(login_identifier) unless PasswordEngine.valid?(password:)
@@ -113,7 +113,7 @@ module Identity
             result = failure(:rate_limited, retry_after: throttle.retry_after)
           elsif IdentityIdentifier.where(
             kind: login_identifier.kind,
-            normalized_value: login_identifier.normalized_value
+            normalized_value: login_identifier.lookup_values
           ).exists?
             PasswordEngine.burn(password:)
             audit(login_identifier, result: :failed)

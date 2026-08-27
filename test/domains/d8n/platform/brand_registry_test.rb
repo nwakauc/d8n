@@ -14,6 +14,7 @@ module D8n
         assert_equal "hookus", contract.slug
         assert_equal %w[phone_password email_password], contract.auth_methods
         assert_equal Profiles::HookusProfileCatalog, contract.profile.catalog
+        assert_equal "27", contract.phone_country_calling_code
         assert contract.capability_enabled?("id.session.browser_persistence")
         assert_equal Profiles::Configuration::PROFILE_FIELD_LABELS.keys, contract.enabled_profile_fields
         assert contract.capability_enabled?("discovery.surface.feed")
@@ -43,6 +44,7 @@ module D8n
         surface = contract.surface("discovery.find")
 
         assert_equal "dateza", contract.slug
+        assert_equal "27", contract.phone_country_calling_code
         assert_equal Profiles::DatezaProfileCatalog, contract.profile.catalog
         assert_equal Profiles::DatezaProfileCatalog::REQUIRED_IDENTITY_FIELDS, contract.enabled_identity_fields
         assert_equal(

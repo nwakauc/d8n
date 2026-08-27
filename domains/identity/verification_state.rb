@@ -7,7 +7,8 @@ module Identity
       :verified,
       :masked_destination,
       :code_dispatched,
-      :resend_available_in
+      :resend_available_in,
+      :expires_at
     )
 
     def self.call(...)
@@ -25,12 +26,14 @@ module Identity
       return if identifier.blank?
 
       challenge = latest_challenge(identifier)
+      dispatched = code_dispatched?(challenge)
       Result.new(
         identifier.kind,
         identifier.verified_at.present?,
         mask(identifier),
-        code_dispatched?(challenge),
-        resend_available_in(challenge)
+        dispatched,
+        resend_available_in(challenge),
+        dispatched ? challenge.expires_at : nil
       )
     end
 

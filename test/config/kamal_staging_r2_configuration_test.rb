@@ -25,7 +25,15 @@ class KamalStagingR2ConfigurationTest < ActiveSupport::TestCase
     D8N_R2_DATEZA_STAGING_BUCKET
   ].freeze
 
-  REQUIRED_APP_KEYS = (BASE_APP_KEYS + LEGACY_R2_APP_KEYS + BRAND_R2_APP_KEYS).freeze
+  SMS_APP_KEYS = %w[
+    TWILIO_ACCOUNT_SID
+    TWILIO_API_KEY_SID
+    TWILIO_CLIENT_SECRET
+    TWILIO_HOOKUS_MESSAGING_SERVICE_SID
+    TWILIO_DATEZA_MESSAGING_SERVICE_SID
+  ].freeze
+
+  REQUIRED_APP_KEYS = (BASE_APP_KEYS + LEGACY_R2_APP_KEYS + BRAND_R2_APP_KEYS + SMS_APP_KEYS).freeze
 
   test "shared staging proxy serves the HookUs and DateZA hosts with TLS" do
     staging = YAML.safe_load_file(Rails.root.join("config/deploy.staging.yml"))
@@ -77,6 +85,7 @@ class KamalStagingR2ConfigurationTest < ActiveSupport::TestCase
     assert_equal "STAGING_DATEZA_R2_ACCESS_KEY_ID", mapping.fetch("D8N_R2_DATEZA_STAGING_ACCESS_KEY_ID")
     assert_equal "STAGING_DATEZA_R2_SECRET_ACCESS_KEY", mapping.fetch("D8N_R2_DATEZA_STAGING_SECRET_ACCESS_KEY")
     assert_equal "STAGING_DATEZA_R2_BUCKET", mapping.fetch("D8N_R2_DATEZA_STAGING_BUCKET")
+    SMS_APP_KEYS.each { |key| assert_equal key, mapping.fetch(key) }
   end
 
   test "no line in the staging secrets file contains anything other than a KEY=$ENV_VAR reference" do

@@ -524,7 +524,11 @@ Brand presentation is separated from providers:
 - Auth code delivery is shared, but DateZA has custom mailer templates while other brands fall back to generic templates.
 - Product event policy, type definitions, mailer maps, and templates are separate registries; a new brand must be added in several places.
 - `Notifications::Email` retains a correctly narrow legacy HookUs sender fallback.
-- Twilio maps sender by brand dynamically, but current staging configuration exposes only the HookUs Messaging Service SID. A DateZA phone flow can pass global credential readiness yet fail at brand-sender delivery time because `Sms.configured?` is not brand-aware.
+- Twilio maps sender by brand dynamically. Staging now declares both HookUs and
+  DateZA Messaging Service SID secrets, and `Sms.configured?` includes the
+  resolved brand sender instead of checking only account credentials. Whether
+  the DateZA secret currently points to a provider-approved sender remains an
+  operational staging check.
 - Device registrations and push materialization exist, but there is no public device registration route and no production APNs/FCM provider.
 
 The desired “generic events/delivery + brand templates/configuration” direction is present, but only one product event proves it.

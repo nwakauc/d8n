@@ -245,6 +245,9 @@ brand session, address only the caller's existing phone/email identifier, and
 never issue authentication state. Phone uses the SMS adapter; email uses Action
 Mailer and fails closed in production until a provider/transport is configured.
 The former unauthenticated phone-OTP login routes and brand method were removed.
+Phone and email contact-verification codes use a one-hour lifetime; this policy
+is purpose-specific and does not change password recovery, reset authorization,
+or email-change lifetimes.
 
 ### Slice 4: Password Reset And Change
 
