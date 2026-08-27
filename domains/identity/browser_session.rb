@@ -54,8 +54,16 @@ module Identity
         Rails.env.production?
       end
 
+      # D8N's browser session cookie is always host-only (no `Domain=` is ever
+      # set — see #cookie_options) and every web frontend is required to sit
+      # behind a same-origin reverse proxy (e.g. Vercel `/api/*` rewrites to
+      # the shared D8N backend — the browser must never call the D8N hostname
+      # directly). Under that architecture the cookie is always genuinely
+      # first-party, so `:lax` is correct and strictly safer than `:none`:
+      # `:none` was a workaround for the old cross-site topology, which is no
+      # longer a supported browser flow for any D8N brand.
       def same_site
-        secure? ? :none : :lax
+        :lax
       end
 
       private

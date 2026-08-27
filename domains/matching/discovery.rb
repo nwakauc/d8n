@@ -82,8 +82,8 @@ module Matching
     attr_reader :user, :brand, :cursor, :limit, :mode, :facet_params, :restrict, :guard, :surface, :now
 
     def daily_selection_result(selected_surface)
-      FacetFilter.parse(brand:, definitions: selected_surface.facets, params: facet_params)
-      daily = StableDailySelection.call(user:, brand:, surface: selected_surface, now:)
+      filter = FacetFilter.parse(brand:, definitions: selected_surface.facets, params: facet_params)
+      daily = StableDailySelection.call(user:, brand:, surface: selected_surface, filter:, now:)
       Result.new(
         profiles: daily.profiles,
         next_cursor: nil,

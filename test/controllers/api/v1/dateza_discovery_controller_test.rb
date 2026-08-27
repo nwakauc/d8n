@@ -150,7 +150,7 @@ class Api::V1::DatezaDiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_equal profiles.first.fetch("compatibility"), stored
   end
 
-  test "filters invalidated and interacted candidates without refilling or reordering survivors" do
+  test "filters invalidated/interacted candidates from view but keeps their allocation rows" do
     candidates = 6.times.map { |index| create_candidate(created_at: index.minutes.ago) }
     get "/api/v1/discovery", headers: bearer_headers
     allocated_ids = JSON.parse(response.body).fetch("profiles").pluck("id")
@@ -167,15 +167,83 @@ class Api::V1::DatezaDiscoveryControllerTest < ActionDispatch::IntegrationTest
     )
     by_public_id.fetch(allocated_ids[4]).update!(visibility: :hidden)
     by_public_id.fetch(allocated_ids[5]).brand_membership.update!(status: :left)
-    replacement = create_candidate(created_at: 1.second.from_now)
 
     get "/api/v1/discovery", headers: bearer_headers
     payload = JSON.parse(response.body)
 
     assert_empty payload.fetch("profiles")
     assert_equal 0, payload.dig("selection", "count")
-    assert_not_includes payload.fetch("profiles").pluck("id"), replacement.public_id
+    # The original allocation rows are never deleted (they are the durable
+    # daily history/order) — only re-filtered dynamically on every read.
     assert_equal 6, DiscoveryAllocationCandidate.where(brand: @brand).count
+  end
+
+  test "tops up interacted/invalidated candidates instead of shrinking the batch toward zero" do
+    candidates = 6.times.map { |index| create_candidate(created_at: index.minutes.ago) }
+    get "/api/v1/discovery", headers: bearer_headers
+    allocated_ids = JSON.parse(response.body).fetch("profiles").pluck("id")
+    survivors = allocated_ids.last(2)
+
+    by_public_id = candidates.index_by(&:public_id)
+    Like.create!(brand: @brand, liker_profile: @viewer, liked_profile: by_public_id.fetch(allocated_ids[0]))
+    ProfilePass.create!(brand: @brand, passer_profile: @viewer, passed_profile: by_public_id.fetch(allocated_ids[1]))
+    matched = by_public_id.fetch(allocated_ids[2])
+    profile_a_id, profile_b_id = Match.canonical_pair(@viewer.id, matched.id)
+    Match.create!(brand: @brand, profile_a_id:, profile_b_id:)
+    ProfileBlock.create!(
+      brand: @brand, blocker_profile: @viewer,
+      blocked_profile: by_public_id.fetch(allocated_ids[3])
+    )
+    replacements = 4.times.map { |index| create_candidate(created_at: (index + 1).seconds.from_now) }
+
+    get "/api/v1/discovery", headers: bearer_headers
+    payload = JSON.parse(response.body)
+    visible_ids = payload.fetch("profiles").pluck("id")
+
+    # The day's allotment is 10; only 6 distinct people exist at all (2
+    # survivors + 4 fresh replacements), so Discover shows all 6 rather than
+    # shrinking to the 2 that happened to survive the original batch.
+    assert_equal 6, visible_ids.size
+    assert_equal 6, payload.dig("selection", "count")
+    assert_equal survivors, visible_ids.first(2), "already-shown survivors keep their original stable order"
+    assert_equal replacements.map(&:public_id).to_set, visible_ids.last(4).to_set
+    assert_equal 10, DiscoveryAllocationCandidate.where(brand: @brand).count, "6 original rows + 4 topped-up rows"
+
+    # Fetching again must not top up further — the day's people are stable
+    # once genuinely exhausted, not re-shuffled or duplicated on every read.
+    get "/api/v1/discovery", headers: bearer_headers
+    assert_equal visible_ids, JSON.parse(response.body).fetch("profiles").pluck("id")
+    assert_equal 10, DiscoveryAllocationCandidate.where(brand: @brand).count
+  end
+
+  test "top-up never exceeds daily_limit even when the eligible pool is much larger" do
+    initial = 10.times.map { |index| create_candidate(created_at: index.minutes.ago) }
+    get "/api/v1/discovery", headers: bearer_headers
+    allocated_ids = JSON.parse(response.body).fetch("profiles").pluck("id")
+
+    by_public_id = initial.index_by(&:public_id)
+    ProfilePass.create!(brand: @brand, passer_profile: @viewer, passed_profile: by_public_id.fetch(allocated_ids[0]))
+    5.times { |index| create_candidate(created_at: (index + 1).seconds.from_now) } # a large surplus pool
+
+    get "/api/v1/discovery", headers: bearer_headers
+    payload = JSON.parse(response.body)
+
+    assert_equal 10, payload.fetch("profiles").size
+    assert_equal 10, payload.dig("selection", "count")
+    assert_equal 11, DiscoveryAllocationCandidate.where(brand: @brand).count, "10 original rows + exactly 1 top-up row"
+  end
+
+  test "topping up Discover never touches Find's independent exposure ledger" do
+    initial = 6.times.map { |index| create_candidate(created_at: index.minutes.ago) }
+    get "/api/v1/discovery", headers: bearer_headers
+    allocated_ids = JSON.parse(response.body).fetch("profiles").pluck("id")
+    by_public_id = initial.index_by(&:public_id)
+    ProfilePass.create!(brand: @brand, passer_profile: @viewer, passed_profile: by_public_id.fetch(allocated_ids[0]))
+    2.times { |index| create_candidate(created_at: (index + 1).seconds.from_now) }
+
+    assert_no_difference -> { FindProfileExposure.count } do
+      get "/api/v1/discovery", headers: bearer_headers
+    end
   end
 
   test "rolls over at Johannesburg midnight while retaining history" do
