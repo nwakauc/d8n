@@ -19,6 +19,8 @@ Rails.application.routes.draw do
       post "matches/:match_id/conversation" => "conversations#create"
       get "conversations/:conversation_id/messages" => "messages#index"
       post "conversations/:conversation_id/messages" => "messages#create"
+      post "conversations/:conversation_id/attachments/uploads" => "message_attachment_uploads#create"
+      delete "conversations/:conversation_id/messages/:message_id/attachments/:id" => "message_attachments#destroy"
       get "notifications" => "notifications#index"
       patch "notifications/:id/read" => "notifications#read"
       post "notifications/read_all" => "notifications#read_all"

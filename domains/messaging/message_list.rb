@@ -28,7 +28,13 @@ module Messaging
       scope = Message.kept.where(brand:, conversation: access.conversation)
         .order("messages.created_at DESC", "messages.id DESC")
       scope = MessageCursor.apply(scope:, value: cursor, brand:, viewer: access.viewer, conversation: access.conversation)
-      messages = scope.includes(:sender_profile, :conversation).limit(limit + 1).to_a
+      messages = scope.includes(
+        :sender_profile, :conversation,
+        message_attachments: {
+          original_attachment: :blob, rendition_attachment: :blob,
+          download_rendition_attachment: :blob, poster_attachment: :blob
+        }
+      ).limit(limit + 1).to_a
       has_more = messages.length > limit
       messages = messages.first(limit)
 

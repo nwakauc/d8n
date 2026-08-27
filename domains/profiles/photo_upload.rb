@@ -167,6 +167,10 @@ module Profiles
       nil
     end
 
+    # `detect_image_type` is intentionally public: Messaging::MessageAttachmentUpload
+    # reuses it verbatim for chat image attachments rather than duplicating the
+    # magic-byte switch (see that class's comment on reusing existing media
+    # infrastructure).
     private_class_method :require_profile!, :verify_uploaded_object!, :object_byte_size, :ensure_capacity!
   end
 end

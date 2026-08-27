@@ -11,7 +11,8 @@ module D8n
         "match.hook" => :hook_not_configured,
         "match.hook_tonight" => :hook_tonight_not_configured,
         "chat.conversation" => :messaging_not_configured,
-        "chat.message.text" => :messaging_not_configured
+        "chat.message.text" => :messaging_not_configured,
+        "chat.message.media" => :messaging_not_configured
       }.freeze
 
       class NotConfigured < StandardError

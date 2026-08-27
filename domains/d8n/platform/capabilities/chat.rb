@@ -8,7 +8,12 @@ module D8n
           CapabilityDefinition.new(key: "chat.message.text", status: :available,
             implementations: %w[Messaging::SendMessage Messaging::MessageList],
             dependencies: %w[chat.conversation]),
-          CapabilityDefinition.new(key: "chat.message.media", status: :planned),
+          CapabilityDefinition.new(key: "chat.message.media", status: :available,
+            implementations: %w[
+              Messaging::SendMessage Messaging::MessageAttachmentUpload Messaging::DeleteAttachment
+              MessageAttachment Media::ProcessMessageAttachmentJob Media::VideoContainerValidator
+            ],
+            dependencies: %w[chat.message.text]),
           CapabilityDefinition.new(key: "chat.read_state", status: :planned),
           CapabilityDefinition.new(key: "chat.realtime", status: :planned),
           CapabilityDefinition.new(key: "chat.voice", status: :planned),

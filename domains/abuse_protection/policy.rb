@@ -119,6 +119,25 @@ module AbuseProtection
       location_search: [
         rule("burst",     scope: :user, limit: 20,  window: 10.seconds),
         rule("sustained", scope: :user, limit: 300, window: 1.hour)
+      ],
+
+      # Chat media upload intents are expensive downstream (R2 objects, HEAD
+      # verify, and — for video — a full-file async structural walk). Mirrors
+      # media_upload_intent's shape; kept as its own bucket rather than shared
+      # with profile-photo intents because the two surfaces have different
+      # abuse profiles (one conversation vs. onboarding a photo set).
+      chat_media_upload_intent: [
+        rule("burst",     scope: :user, limit: 20,  window: 1.minute),
+        rule("sustained", scope: :user, limit: 120, window: 1.hour),
+        rule("ip",        scope: :ip,   limit: 300, window: 1.hour)
+      ],
+      # Finalizing (attaching) a verified attachment into a sent message. This
+      # is IN ADDITION TO send_message on the same request — a media send
+      # still counts against the ordinary messaging burst/sustained ceilings,
+      # this only adds the extra media-specific ceiling on top.
+      chat_media_attach: [
+        rule("burst",     scope: :user, limit: 20,  window: 1.minute),
+        rule("sustained", scope: :user, limit: 120, window: 1.hour)
       ]
     }.freeze
 

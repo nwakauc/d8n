@@ -18,18 +18,27 @@ module Media
 
     MAX_SOURCE_DIMENSION = 12_000        # px on either edge
     MAX_SOURCE_PIXELS = 40_000_000       # ~40 MP decompression-bomb ceiling
-    DISPLAY_MAX_DIMENSION = 1_600        # longest edge of the derivative
+    DISPLAY_MAX_DIMENSION = 1_600        # longest edge of the inline-view derivative
     JPEG_QUALITY = 82
+    # A second, higher-fidelity derivative for explicit "download" — sanitized
+    # and re-encoded exactly like the display derivative (EXIF/GPS/ICC still
+    # fully stripped), just less aggressively downsized/compressed. Used by
+    # D8N Chat Media so a recipient's download never exposes the sender's raw
+    # original (see Messaging::MessageSerializer / MessageAttachment#download_rendition).
+    DOWNLOAD_MAX_DIMENSION = 3_200
+    DOWNLOAD_JPEG_QUALITY = 92
     OUTPUT_CONTENT_TYPE = "image/jpeg"
 
     Result = Data.define(:bytes, :content_type, :width, :height)
 
-    def self.call(bytes)
-      new(bytes).call
+    def self.call(bytes, max_dimension: DISPLAY_MAX_DIMENSION, quality: JPEG_QUALITY)
+      new(bytes, max_dimension:, quality:).call
     end
 
-    def initialize(bytes)
+    def initialize(bytes, max_dimension: DISPLAY_MAX_DIMENSION, quality: JPEG_QUALITY)
       @bytes = bytes.to_s.b
+      @max_dimension = max_dimension
+      @quality = quality
     end
 
     def call
@@ -43,7 +52,7 @@ module Media
       image = flatten_alpha(image)          # JPEG has no alpha
 
       bytes = image.write_to_buffer(
-        ".jpg", Q: JPEG_QUALITY, strip: true, interlace: true, optimize_coding: true
+        ".jpg", Q: @quality, strip: true, interlace: true, optimize_coding: true
       )
       Result.new(bytes:, content_type: OUTPUT_CONTENT_TYPE, width: image.width, height: image.height)
     rescue Vips::Error
@@ -70,9 +79,9 @@ module Media
 
     def downscale(image)
       longest = [ image.width, image.height ].max
-      return image if longest <= DISPLAY_MAX_DIMENSION
+      return image if longest <= @max_dimension
 
-      image.resize(DISPLAY_MAX_DIMENSION.to_f / longest)
+      image.resize(@max_dimension.to_f / longest)
     end
 
     def flatten_alpha(image)

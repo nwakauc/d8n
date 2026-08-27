@@ -49,6 +49,7 @@ module D8n
           match.hook_tonight
           chat.conversation
           chat.message.text
+          chat.message.media
           trust.block
           trust.report
           trust.report_evidence

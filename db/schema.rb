@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_070100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_27_080100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -405,8 +405,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_070100) do
     t.check_constraint "profile_a_id < profile_b_id", name: "chk_matches_canonical_pair"
   end
 
+  create_table "message_attachments", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "byte_size"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.decimal "duration_seconds", precision: 10, scale: 3
+    t.integer "height"
+    t.integer "media_kind", null: false
+    t.bigint "message_id", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "position", default: 0, null: false
+    t.integer "processing_state", default: 0, null: false
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.datetime "updated_at", null: false
+    t.integer "width"
+    t.index ["brand_id", "processing_state"], name: "index_message_attachments_on_brand_id_and_processing_state"
+    t.index ["brand_id"], name: "index_message_attachments_on_brand_id"
+    t.index ["message_id", "position"], name: "index_message_attachments_on_message_id_and_position", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["message_id"], name: "index_message_attachments_on_message_id"
+    t.index ["public_id"], name: "index_message_attachments_on_public_id", unique: true
+  end
+
   create_table "messages", force: :cascade do |t|
-    t.text "body", null: false
+    t.text "body"
     t.bigint "brand_id", null: false
     t.bigint "conversation_id", null: false
     t.datetime "created_at", null: false
@@ -953,6 +976,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_070100) do
   add_foreign_key "matches", "brands"
   add_foreign_key "matches", "profiles", column: ["profile_a_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_matches_profile_a_tenant"
   add_foreign_key "matches", "profiles", column: ["profile_b_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_matches_profile_b_tenant"
+  add_foreign_key "message_attachments", "brands"
+  add_foreign_key "message_attachments", "messages", column: ["message_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_message_attachments_message_tenant"
   add_foreign_key "messages", "brands"
   add_foreign_key "messages", "conversations", column: ["conversation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_conversation_tenant"
   add_foreign_key "messages", "profiles", column: ["sender_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_sender_tenant"

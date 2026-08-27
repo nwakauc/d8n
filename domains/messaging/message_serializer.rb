@@ -10,8 +10,76 @@ module Messaging
         conversation_id: message.conversation.public_id,
         sender_id: message.sender_profile.public_id,
         body: message.body,
+        attachments: message.message_attachments.map { |attachment| attachment_payload(attachment) },
         created_at: message.created_at.iso8601
       }
     end
+
+    # Private media is served through short-lived signed retrieval URLs straight
+    # from R2 — never a permanent public object path, never proxied through
+    # Puma. `view_url`/`download_url` only appear once a safe rendition exists
+    # AND the attachment has not been deleted; the recipient never sees a
+    # broken half-processed attachment as if it were ready (see
+    # domains/media/photo_policy.rb for the equivalent profile-photo invariant).
+    def self.attachment_payload(attachment)
+      payload = {
+        id: attachment.public_id,
+        media_kind: attachment.media_kind,
+        processing_state: attachment.processing_state,
+        deleted: !attachment.kept?,
+        content_type: attachment.content_type,
+        byte_size: attachment.byte_size,
+        width: attachment.width,
+        height: attachment.height,
+        duration_seconds: attachment.duration_seconds&.to_f
+      }
+      return payload unless attachment.deliverable?
+
+      # Inline view/play always uses the safe, bandwidth-friendly RENDITION
+      # (never forces a full-quality download just to look at something).
+      #
+      # Explicit "download/save":
+      #   * image — the SANITIZED, metadata-stripped `download_rendition`
+      #     (D8N Chat Media 1.1). The recipient never receives the sender's
+      #     untouched original, which could carry EXIF GPS/device metadata;
+      #     see MessageAttachment's class comment.
+      #   * video — still the ORIGINAL, full-quality bytes the sender
+      #     uploaded. Compressed video does not carry the same per-file EXIF
+      #     GPS risk a camera photo does, so this remains the deliberate
+      #     "authorized download of the real upload" product decision (see
+      #     MessageAttachmentUpload's class comment on why the original is
+      #     retained rather than purged).
+      payload.merge(
+        view_url: delivery_url(attachment.rendition, disposition: :inline),
+        download_url: delivery_url(download_source(attachment), disposition: :attachment, filename: download_filename(attachment)),
+        poster_url: poster_url(attachment)
+      )
+    end
+    private_class_method :attachment_payload
+
+    def self.download_source(attachment)
+      attachment.image? ? attachment.download_rendition : attachment.original
+    end
+    private_class_method :download_source
+
+    def self.delivery_url(attached, disposition:, filename: nil)
+      options = { expires_in: Messaging::MessageAttachmentUpload::DELIVERY_URL_EXPIRES_IN, disposition: }
+      options[:filename] = ActiveStorage::Filename.new(filename) if filename.present?
+      attached.url(**options)
+    end
+    private_class_method :delivery_url
+
+    def self.poster_url(attachment)
+      return nil unless attachment.poster.attached?
+
+      delivery_url(attachment.poster, disposition: :inline)
+    end
+    private_class_method :poster_url
+
+    def self.download_filename(attachment)
+      extension = download_source(attachment).blob.filename.extension_with_delimiter
+      "d8n-#{attachment.media_kind}-#{attachment.public_id}#{extension}"
+    end
+    private_class_method :download_filename
   end
 end

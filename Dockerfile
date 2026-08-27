@@ -15,8 +15,12 @@ FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
 WORKDIR /rails
 
 # Install base packages
+# ffmpeg provides `ffmpeg`/`ffprobe` on PATH for Media::VideoProcessor (D8N
+# Chat Media video playback-compatibility transcode + poster generation) — the
+# same "shell out to a real media tool" pattern libvips already serves for
+# Media::ImageProcessor.
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl libjemalloc2 libvips postgresql-client && \
+    apt-get install --no-install-recommends -y curl libjemalloc2 libvips ffmpeg postgresql-client && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Set production environment

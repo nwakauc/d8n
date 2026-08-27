@@ -2710,7 +2710,119 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
-          description: Body is blank (`message_blank`) or too long (`message_too_long`).
+          description: >-
+            Body and attachments are both absent (`message_blank`), body is too
+            long (`message_too_long`), too many attachments
+            (`too_many_attachments`), or an attachment reference is invalid
+            (`invalid_media_kind`, `upload_already_used`, `upload_not_found`,
+            `invalid_attachment`, `invalid_attachment_upload`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/conversations/{conversation_id}/attachments/uploads:
+    post:
+      operationId: createMessageAttachmentUpload
+      tags: [Messaging]
+      summary: Request a direct-to-R2 upload authorization for a chat image or video (D8N Chat Media)
+      description: |
+        Control-plane step of the direct-to-R2 upload for a chat attachment.
+        Authorizes the caller through the same participant/active-match/
+        availability/block gate as sending a message itself. Declare
+        `media_kind`, `content_type`, `byte_size`, and a base64 MD5 `checksum`;
+        D8N allocates the object identity and returns a short-lived presigned
+        `PUT` `url` plus the exact `headers` to send with it. Upload the bytes
+        directly to that URL, then reference the returned `signed_id` in
+        `attachment_uploads` on `POST /conversations/{conversation_id}/messages`
+        — attach and send are the same operation, there is no separate finalize
+        endpoint. The client never receives R2 credentials or chooses the
+        object key. A video's `byte_size_limit` is a technical abuse ceiling
+        (storage/bandwidth/worker protection), not a product-facing video
+        length/size limit.
+      parameters:
+        - $ref: "#/components/parameters/PublicConversationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMessageAttachmentUploadRequest"
+      responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "201":
+          description: Short-lived upload authorization.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [upload]
+                properties:
+                  upload:
+                    $ref: "#/components/schemas/MessageAttachmentUpload"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
+        "404":
+          description: >-
+            The resolved database brand has no production contract
+            (`brand_not_configured`), D8N Chat Media is disabled by its contract
+            (`messaging_not_configured`), or the conversation is unavailable,
+            cross-brand, ended, blocked, or not the current profile's.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: >-
+            Missing/invalid upload parameters (`upload_parameters_required`),
+            unknown `media_kind` (`invalid_media_kind`), unsupported
+            `content_type` for that media kind (`unsupported_content_type`),
+            `byte_size` beyond the technical ceiling (`invalid_byte_size`), or
+            a missing checksum (`checksum_required`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/conversations/{conversation_id}/messages/{message_id}/attachments/{id}:
+    delete:
+      operationId: deleteMessageAttachment
+      tags: [Messaging]
+      summary: Delete an attachment the caller sent, for everyone (D8N Chat Media)
+      description: |
+        "Delete for everyone" at attachment granularity — only the specific
+        attachment is removed; the message and any other attachments/body are
+        unaffected. Only the message's sender may delete; a recipient cannot
+        remove another profile's media. Once deleted, no further `view_url`,
+        `download_url`, or `poster_url` is issued for this attachment (it is
+        shown with `deleted: true`), and the underlying R2 object(s) are purged
+        as soon as Active Storage's purge queue runs. This is deliberately
+        NOT reachable once the conversation itself is unavailable (unmatch,
+        block, suspension) — attachment access always follows the same
+        participant/active-match gate as the rest of messaging, so there is no
+        path to fetch or delete an attachment after messaging access ends.
+      parameters:
+        - $ref: "#/components/parameters/PublicConversationId"
+        - $ref: "#/components/parameters/PublicMessageId"
+        - $ref: "#/components/parameters/PublicAttachmentId"
+      responses:
+        "200":
+          description: The attachment was deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteMessageAttachmentResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
+        "404":
+          description: >-
+            The conversation, message, or attachment is unavailable
+            (`conversation_unavailable`, `message_unavailable`,
+            `attachment_unavailable`), or the caller did not send it
+            (`attachment_not_owned`).
           content:
             application/json:
               schema:
@@ -3263,6 +3375,22 @@ components:
       in: path
       required: true
       description: Stable public conversation UUID from the conversation list or start-conversation response.
+      schema:
+        type: string
+        format: uuid
+    PublicMessageId:
+      name: message_id
+      in: path
+      required: true
+      description: Stable public message UUID from a message list/send response.
+      schema:
+        type: string
+        format: uuid
+    PublicAttachmentId:
+      name: id
+      in: path
+      required: true
+      description: Stable public message-attachment UUID from a message's `attachments` array.
       schema:
         type: string
         format: uuid
@@ -5369,7 +5497,7 @@ components:
           format: date-time
     Message:
       type: object
-      required: [id, conversation_id, sender_id, body, created_at]
+      required: [id, conversation_id, sender_id, body, attachments, created_at]
       properties:
         id:
           type: string
@@ -5385,10 +5513,60 @@ components:
             messages by comparing against the counterpart profile id on the
             conversation (there are exactly two participants).
         body:
-          type: string
+          type: [string, "null"]
+          description: Null for a media-only message (D8N Chat Media). A message always has a body, an attachment, or both.
+        attachments:
+          type: array
+          description: Image/video attachments (D8N Chat Media), ordered by position. Empty for a text-only message.
+          items:
+            $ref: "#/components/schemas/MessageAttachment"
         created_at:
           type: string
           format: date-time
+    MessageAttachment:
+      type: object
+      required: [id, media_kind, processing_state, deleted, content_type, byte_size, width, height, duration_seconds]
+      properties:
+        id:
+          type: string
+          format: uuid
+        media_kind:
+          type: string
+          enum: [image, video]
+        processing_state:
+          type: string
+          description: |
+            `pending`/`processing` until the safe delivery rendition exists
+            (image: re-encoded/EXIF-stripped derivative; video: structural
+            validation — see Media::VideoContainerValidator). Only `ready`
+            attachments carry `view_url`/`download_url`/`poster_url`; the
+            recipient never sees a broken half-processed attachment as ready.
+            `failed` is terminal (corrupt/unsupported upload).
+          enum: [pending, processing, ready, failed]
+        deleted:
+          type: boolean
+          description: True once the sender has deleted this attachment ("delete for everyone"). No delivery URLs are present when true.
+        content_type:
+          type: [string, "null"]
+        byte_size:
+          type: [integer, "null"]
+        width:
+          type: [integer, "null"]
+          description: Image only; null for video (no server-side frame decode is available — see ticket's video processing notes).
+        height:
+          type: [integer, "null"]
+        duration_seconds:
+          type: [number, "null"]
+          description: Video only, best-effort from the container's `mvhd` box; null if unavailable.
+        view_url:
+          type: string
+          description: Short-lived signed URL for inline view/play (the safe rendition, never the full-quality original). Present only when `processing_state` is `ready` and not deleted.
+        download_url:
+          type: string
+          description: Short-lived signed URL with a `Content-Disposition:attachment` header, serving the original full-quality bytes. Present only when `processing_state` is `ready` and not deleted.
+        poster_url:
+          type: string
+          description: Video only. Short-lived signed URL for a client-supplied poster/thumbnail image, if one was provided at send time. Never generated server-side (no video frame decoder in this deployment).
     MessageListResponse:
       type: object
       required: [messages, next_cursor]
@@ -5402,19 +5580,107 @@ components:
           type: [string, "null"]
     SendMessageRequest:
       type: object
-      required: [body]
+      description: >-
+        At least one of `body` or `attachment_uploads` is required; a message
+        with neither is rejected (`message_blank`).
       properties:
         body:
           type: string
           minLength: 1
           maxLength: 2000
-          description: Plain-text message. Non-blank, NFC-normalized, Unicode preserved.
+          description: Plain-text message. NFC-normalized, Unicode preserved. Optional when at least one attachment is present.
+        attachment_uploads:
+          type: array
+          maxItems: 4
+          description: >-
+            Already-uploaded, verified blobs to finalize into this message
+            (D8N Chat Media). Each `signed_id` comes from a prior
+            `POST /api/v1/conversations/{conversation_id}/attachments/uploads`
+            call whose bytes have already been PUT to the returned URL. "Attach"
+            and "send" are the same operation — there is no separate finalize step.
+          items:
+            $ref: "#/components/schemas/AttachmentUploadRef"
+    AttachmentUploadRef:
+      type: object
+      required: [signed_id, media_kind]
+      properties:
+        signed_id:
+          type: string
+          description: Opaque id returned by the upload-authorization endpoint.
+        media_kind:
+          type: string
+          enum: [image, video]
+        poster_signed_id:
+          type: string
+          description: Optional. Signed id of a separately-uploaded (image, media_kind=image) poster/thumbnail for a video attachment.
     SendMessageResponse:
       type: object
       required: [message]
       properties:
         message:
           $ref: "#/components/schemas/Message"
+    MessageAttachmentUpload:
+      type: object
+      required: [signed_id, url, headers, expires_in, media_kind, byte_size_limit, allowed_content_types]
+      properties:
+        signed_id:
+          type: string
+          description: Opaque id to submit as `attachment_uploads[].signed_id` when sending the message.
+        url:
+          type: string
+          description: Short-lived presigned PUT URL for the media bytes.
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          description: Exact headers to send with the PUT (includes Content-MD5).
+        expires_in:
+          type: integer
+          description: Seconds until the presigned upload URL expires.
+        media_kind:
+          type: string
+          enum: [image, video]
+        byte_size_limit:
+          type: integer
+          description: >-
+            Technical abuse ceiling for this media kind (video: a generous
+            infrastructure protection, not a product-facing video length/size
+            limit — see Messaging::MessageAttachmentUpload).
+        allowed_content_types:
+          type: array
+          items:
+            type: string
+    CreateMessageAttachmentUploadRequest:
+      type: object
+      required: [media_kind, content_type, byte_size, checksum]
+      properties:
+        media_kind:
+          type: string
+          enum: [image, video]
+        content_type:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, video/mp4, video/quicktime]
+        byte_size:
+          type: integer
+          minimum: 1
+        checksum:
+          type: string
+          description: Base64-encoded MD5 digest of the file bytes.
+        filename:
+          type: string
+    DeleteMessageAttachmentResponse:
+      type: object
+      required: [attachment]
+      properties:
+        attachment:
+          type: object
+          required: [id, deleted]
+          properties:
+            id:
+              type: string
+              format: uuid
+            deleted:
+              type: boolean
     HookTonightActivateRequest:
       type: object
       description: |
