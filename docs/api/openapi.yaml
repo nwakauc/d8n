@@ -2785,6 +2785,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/admin/profile_photos:
+    get:
+      operationId: listAdminProfilePhotoQueue
+      tags: [Trust]
+      summary: List the profile photo moderation review queue for the current brand
+      description: |
+        Authorized-moderator only. Returns every kept, still-undecided
+        (pending_review) profile photo for the request's brand, oldest-first
+        by (created_at, id), bounded to 100 entries. This is the discovery
+        path a moderator needs to find photos awaiting a decision before
+        calling PATCH /api/v1/admin/profile_photos/{id} — required for any
+        brand configured moderate-first (see the DateZA media policy).
+        Approved and rejected photos never appear here. Cross-brand photos are
+        simply absent, never disclosed.
+      responses:
+        "200":
+          description: The current moderation queue.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProfilePhotoQueueResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
   /api/v1/admin/profile_photos/{id}:
     patch:
       operationId: moderateProfilePhoto
@@ -5473,6 +5498,42 @@ components:
         processing_state:
           type: string
           enum: [pending, processing, ready, failed]
+    AdminProfilePhotoQueueResponse:
+      type: object
+      required: [photos]
+      properties:
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminProfilePhotoQueueEntry"
+    AdminProfilePhotoQueueEntry:
+      type: object
+      required: [id, profile_id, position, created_at, image]
+      properties:
+        id:
+          type: string
+          format: uuid
+        profile_id:
+          type: string
+          format: uuid
+        position:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        image:
+          type: [object, "null"]
+          description: Short-lived signed URL to the safe (EXIF-stripped) display derivative, or null if processing has not completed.
+          required: [content_type, url, url_expires_in]
+          properties:
+            content_type:
+              type: string
+            url:
+              type: string
+              format: uri
+            url_expires_in:
+              type: integer
     AdminReportParty:
       description: Minimal identity of a report participant, or null if unresolved.
       oneOf:

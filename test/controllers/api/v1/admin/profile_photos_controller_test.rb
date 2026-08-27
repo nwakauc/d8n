@@ -29,6 +29,39 @@ class Api::V1::Admin::ProfilePhotosControllerTest < ActionDispatch::IntegrationT
     assert_response :forbidden
   end
 
+  test "index requires a brand-assigned moderator" do
+    get "/api/v1/admin/profile_photos"
+    assert_response :unauthorized
+
+    ordinary_token, = Session.issue!(brand: @brand, user: @profile.user)
+    get "/api/v1/admin/profile_photos", headers: bearer_headers(ordinary_token)
+    assert_response :forbidden
+  end
+
+  test "index lists only kept pending_review photos for this brand, oldest first, with a signed review image" do
+    other_profile = create_profile(brand: @brand)
+    approved = create_ready_photo(profile: other_profile, visibility: :visible)
+    Trust::ModerateProfilePhoto.call(admin_user: @admin, brand: @brand, photo_id: approved.public_id, decision: "approved")
+
+    deleted = create_ready_photo(profile: create_profile(brand: @brand), visibility: :hidden)
+    deleted.update!(deleted_at: Time.current)
+
+    other_brand = Brand.create!(slug: "hookus", name: "HookUs")
+    create_ready_photo(profile: create_profile(brand: other_brand), visibility: :visible)
+
+    second_pending = create_ready_photo(profile: create_profile(brand: @brand), visibility: :hidden)
+
+    get "/api/v1/admin/profile_photos", headers: bearer_headers(@token)
+
+    assert_response :success
+    photos = JSON.parse(response.body).fetch("photos")
+    assert_equal [ @photo.public_id, second_pending.public_id ], photos.map { |entry| entry.fetch("id") }
+    entry = photos.first
+    assert_equal @profile.public_id, entry.fetch("profile_id")
+    assert entry.dig("image", "url").present?
+    assert_equal 300, entry.dig("image", "url_expires_in")
+  end
+
   test "approval confirms an already-visible pending DateZA photo without disturbing it, and audits the decision" do
     assert @photo.deliverable?, "DateZA photos are deliverable while pending_review, before any moderation decision"
 

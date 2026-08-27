@@ -49,6 +49,7 @@ Rails.application.routes.draw do
         get "reports" => "reports#index"
         get "reports/:id" => "reports#show"
         patch "reports/:id" => "reports#update"
+        get "profile_photos" => "profile_photos#index"
         patch "profile_photos/:id" => "profile_photos#update"
         post "profiles/:profile_id/suspension" => "suspensions#create"
         delete "profiles/:profile_id/suspension" => "suspensions#destroy"
