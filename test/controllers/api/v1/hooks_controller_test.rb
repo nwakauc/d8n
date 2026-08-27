@@ -115,16 +115,25 @@ class Api::V1::HooksControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "enforces the daily hook limit with a 429 and Retry-After" do
-    Hooks::Policy::FREE_DAILY_LIMIT.times do
-      target = create_member(brand: @brand)
-      post "/api/v1/profiles/#{target.public_id}/hook", headers: auth(@sender_token), params: { message: "hi" }
-      assert_response :created
+    burst_window = AbuseProtection::Policy.rules_for(:send_hook).first.window
+    base = Time.current
+
+    # Spaced past the generic abuse-protection burst window so this exercises
+    # only Hooks::Policy's own daily allowance.
+    Hooks::Policy::FREE_DAILY_LIMIT.times do |i|
+      travel_to(base + (i * (burst_window + 1.second))) do
+        target = create_member(brand: @brand)
+        post "/api/v1/profiles/#{target.public_id}/hook", headers: auth(@sender_token), params: { message: "hi" }
+        assert_response :created
+      end
     end
 
-    target = create_member(brand: @brand)
-    post "/api/v1/profiles/#{target.public_id}/hook", headers: auth(@sender_token), params: { message: "one more" }
-    assert_response :too_many_requests
-    assert_equal "hook_rate_limited", JSON.parse(response.body).fetch("error")
-    assert response.headers["Retry-After"].present?
+    travel_to(base + (Hooks::Policy::FREE_DAILY_LIMIT * (burst_window + 1.second))) do
+      target = create_member(brand: @brand)
+      post "/api/v1/profiles/#{target.public_id}/hook", headers: auth(@sender_token), params: { message: "one more" }
+      assert_response :too_many_requests
+      assert_equal "hook_rate_limited", JSON.parse(response.body).fetch("error")
+      assert response.headers["Retry-After"].present?
+    end
   end
 end

@@ -124,15 +124,21 @@ module AbuseProtection
       # 🔥 Hook / D8N Opener sends: HooksController and OpenersController both
       # call Hooks::SendHook, which already enforces its own rolling daily
       # product allowance (Hooks::Policy, brand-configurable but 10/24h by
-      # default) — that stays authoritative and is untouched by this layer.
-      # This bucket only stops rapid-fire scripted hammering of the send
-      # endpoint itself, so its ceiling is set comfortably above any brand's
-      # realistic daily allowance: ordinary usage (including exhausting the
-      # allowance one send at a time) never trips it, and it never masks
-      # Hooks::Policy's own `hook_rate_limited` error with the generic one.
+      # default) — that stays authoritative for "has this member used up
+      # their day", and this layer never overrides its `hook_rate_limited`
+      # error once the allowance is genuinely exhausted.
+      #
+      # But a burst ceiling ABOVE the daily allowance protects nothing (a
+      # script can already exhaust 10/day in under a second). The point of
+      # this bucket is the opposite: force rapid sends to spread out even
+      # WITHIN the daily allowance — five scripted sends in one second is
+      # abusive regardless of the eventual daily total. `sustained` is set
+      # just above the daily allowance (never exactly 10) so a member who
+      # paces their ten sends across the day is never accidentally blocked
+      # by this layer before Hooks::Policy's own daily check would apply.
       send_hook: [
-        rule("burst",     scope: :user, limit: 20, window: 1.minute),
-        rule("sustained", scope: :user, limit: 60, window: 1.hour)
+        rule("burst",     scope: :user, limit: 5,  window: 10.minutes),
+        rule("sustained", scope: :user, limit: 15, window: 1.hour)
       ],
 
       # Chat media upload intents are expensive downstream (R2 objects, HEAD

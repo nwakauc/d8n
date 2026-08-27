@@ -163,40 +163,48 @@ class Api::V1::RateLimitingTest < ActionDispatch::IntegrationTest
 
   # --- Hook is NOT governed by the generic layer ---------------------------
 
-  test "hook sending keeps its distinct domain rate-limit code, not the generic one" do
+  test "hook sending keeps its distinct domain rate-limit code once the daily allowance is paced beyond the burst window" do
     sender = create_member(brand: @brand)
     token, = Session.issue!(brand: @brand, user: sender.user)
+    burst_window = AbuseProtection::Policy.rules_for(:send_hook).first.window
+    base = Time.current
 
-    # Exhaust the product Hook allowance (Hooks::Policy), each to a fresh target.
-    Hooks::Policy::FREE_DAILY_LIMIT.times do
-      target = create_member(brand: @brand)
-      post "/api/v1/profiles/#{target.public_id}/hook",
-        params: { message: "hey there, you're my vibe 🔥" }, headers: bearer_headers(token)
-      assert_response :created
+    # Exhaust the product Hook allowance (Hooks::Policy), each to a fresh
+    # target, spaced comfortably past the generic burst window so ONLY the
+    # domain daily allowance is what eventually trips.
+    Hooks::Policy::FREE_DAILY_LIMIT.times do |i|
+      travel_to(base + (i * (burst_window + 1.second))) do
+        target = create_member(brand: @brand)
+        post "/api/v1/profiles/#{target.public_id}/hook",
+          params: { message: "hey there, you're my vibe 🔥" }, headers: bearer_headers(token)
+        assert_response :created
+      end
     end
 
-    target = create_member(brand: @brand)
-    post "/api/v1/profiles/#{target.public_id}/hook",
-      params: { message: "one more 🔥" }, headers: bearer_headers(token)
-    assert_response :too_many_requests
-    assert_equal "hook_rate_limited", JSON.parse(response.body).fetch("error")
+    travel_to(base + (Hooks::Policy::FREE_DAILY_LIMIT * (burst_window + 1.second))) do
+      target = create_member(brand: @brand)
+      post "/api/v1/profiles/#{target.public_id}/hook",
+        params: { message: "one more 🔥" }, headers: bearer_headers(token)
+      assert_response :too_many_requests
+      assert_equal "hook_rate_limited", JSON.parse(response.body).fetch("error")
+    end
   end
 
-  # --- Hook / Opener send still gets a generic burst ceiling on top --------
+  # --- Hook / Opener send also gets a tighter, short-window burst guard ----
 
-  test "hook sending throttles request flooding with the generic 429 once the burst ceiling is hit" do
+  test "hook sending throttles rapid-fire sends with the generic 429 well before the daily allowance is reached" do
     sender = create_member(brand: @brand)
     token, = Session.issue!(brand: @brand, user: sender.user)
     limit = burst_limit(:send_hook)
-    assert_operator limit, :>, Hooks::Policy::FREE_DAILY_LIMIT,
-      "burst ceiling must exceed the daily allowance or it would mask hook_rate_limited"
+    assert_operator limit, :<, Hooks::Policy::FREE_DAILY_LIMIT,
+      "the burst ceiling must be tighter than the daily allowance to guard anything"
 
     freeze_time do
       limit.times do
         target = create_member(brand: @brand)
         post "/api/v1/profiles/#{target.public_id}/hook",
           params: { message: "hey there, you're my vibe 🔥" }, headers: bearer_headers(token)
-        assert_includes [ 201, 429 ], response.status
+        assert_response :created
       end
 
       target = create_member(brand: @brand)

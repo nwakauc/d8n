@@ -121,32 +121,41 @@ class Api::V1::OpenersControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "enforces the same daily allowance as Hook, with a 429 and Retry-After" do
-    Hooks::Policy::FREE_DAILY_LIMIT.times do
-      target = create_member(email: "target#{SecureRandom.hex(4)}@example.com")
-      post "/api/v1/profiles/#{target.public_id}/opener",
-        headers: auth(@sender_token), params: { opener_key: "coffee_or_tea" }
-      assert_response :created
+    burst_window = AbuseProtection::Policy.rules_for(:send_hook).first.window
+    base = Time.current
+
+    # Spaced past the generic burst window (see below) so this exercises only
+    # Hooks::Policy's own daily allowance, not the abuse-protection layer.
+    Hooks::Policy::FREE_DAILY_LIMIT.times do |i|
+      travel_to(base + (i * (burst_window + 1.second))) do
+        target = create_member(email: "target#{SecureRandom.hex(4)}@example.com")
+        post "/api/v1/profiles/#{target.public_id}/opener",
+          headers: auth(@sender_token), params: { opener_key: "coffee_or_tea" }
+        assert_response :created
+      end
     end
 
-    target = create_member(email: "onemore@example.com")
-    post "/api/v1/profiles/#{target.public_id}/opener",
-      headers: auth(@sender_token), params: { opener_key: "coffee_or_tea" }
-    assert_response :too_many_requests
-    assert_equal "hook_rate_limited", JSON.parse(response.body).fetch("error")
-    assert response.headers["Retry-After"].present?
+    travel_to(base + (Hooks::Policy::FREE_DAILY_LIMIT * (burst_window + 1.second))) do
+      target = create_member(email: "onemore@example.com")
+      post "/api/v1/profiles/#{target.public_id}/opener",
+        headers: auth(@sender_token), params: { opener_key: "coffee_or_tea" }
+      assert_response :too_many_requests
+      assert_equal "hook_rate_limited", JSON.parse(response.body).fetch("error")
+      assert response.headers["Retry-After"].present?
+    end
   end
 
-  test "also throttles with the generic 429 once the abuse-protection burst ceiling is hit" do
+  test "also throttles with the generic 429 well before the daily allowance is reached" do
     limit = AbuseProtection::Policy.rules_for(:send_hook).first.limit
-    assert_operator limit, :>, Hooks::Policy::FREE_DAILY_LIMIT,
-      "burst ceiling must exceed the daily allowance or it would mask hook_rate_limited"
+    assert_operator limit, :<, Hooks::Policy::FREE_DAILY_LIMIT,
+      "the burst ceiling must be tighter than the daily allowance to guard anything"
 
     freeze_time do
       limit.times do
         target = create_member(email: "burst#{SecureRandom.hex(4)}@example.com")
         post "/api/v1/profiles/#{target.public_id}/opener",
           headers: auth(@sender_token), params: { opener_key: "coffee_or_tea" }
-        assert_includes [ 201, 429 ], response.status
+        assert_response :created
       end
 
       target = create_member(email: "onemoreburst@example.com")

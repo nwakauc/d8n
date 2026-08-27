@@ -295,7 +295,46 @@ class DatingNotificationsTest < ActionDispatch::IntegrationTest
     assert_equal 1, NotificationDelivery.email.where(brand: @brand, user: carol.user).count
   end
 
-  test "a message after the debounce window has already sent gets its own fresh email delivery" do
+  test "the first message in a burst is never delayed — its delivery is queued immediately, not after the debounce window" do
+    alice = create_member(gender: "woman", interested_in: %w[man])
+    bob = create_member(gender: "man", interested_in: %w[woman])
+    match = create_active_match(alice, bob)
+    conversation = Messaging::StartConversation.call(user: alice.user, brand: @brand, match_public_id: match.public_id).conversation
+
+    perform_enqueued_jobs(only: Notifications::ProcessEventJob) do
+      Messaging::SendMessage.call(user: alice.user, brand: @brand, conversation_public_id: conversation.public_id, body: "hi!")
+    end
+
+    delivery = NotificationDelivery.email.where(brand: @brand, user: bob.user).sole
+    enqueued = enqueued_jobs.find { |job| job[:job] == Notifications::DeliverProductNotificationJob }
+    assert enqueued.present?, "the delivery job must be enqueued"
+    assert_nil enqueued[:at], "a lone/first message must never be artificially delayed"
+    assert delivery.pending?
+  end
+
+  test "a message after the debounce window has fully elapsed gets its own fresh email delivery" do
+    alice = create_member(gender: "woman", interested_in: %w[man])
+    bob = create_member(gender: "man", interested_in: %w[woman])
+    match = create_active_match(alice, bob)
+    conversation = Messaging::StartConversation.call(user: alice.user, brand: @brand, match_public_id: match.public_id).conversation
+
+    travel_to Time.current do
+      perform_enqueued_jobs(only: Notifications::ProcessEventJob) do
+        Messaging::SendMessage.call(user: alice.user, brand: @brand, conversation_public_id: conversation.public_id, body: "first")
+      end
+    end
+    assert_equal 1, NotificationDelivery.email.where(brand: @brand, user: bob.user).count
+
+    travel_to (Notifications::MessageDebounce::WINDOW + 1.second).from_now do
+      perform_enqueued_jobs(only: Notifications::ProcessEventJob) do
+        Messaging::SendMessage.call(user: alice.user, brand: @brand, conversation_public_id: conversation.public_id, body: "second, later")
+      end
+    end
+
+    assert_equal 2, NotificationDelivery.email.where(brand: @brand, user: bob.user).count
+  end
+
+  test "a second message still within the debounce window stays suppressed even after the first was already sent" do
     alice = create_member(gender: "woman", interested_in: %w[man])
     bob = create_member(gender: "man", interested_in: %w[woman])
     match = create_active_match(alice, bob)
@@ -304,14 +343,13 @@ class DatingNotificationsTest < ActionDispatch::IntegrationTest
     perform_enqueued_jobs(only: Notifications::ProcessEventJob) do
       Messaging::SendMessage.call(user: alice.user, brand: @brand, conversation_public_id: conversation.public_id, body: "first")
     end
-    first_delivery = NotificationDelivery.email.where(brand: @brand, user: bob.user).sole
-    first_delivery.update!(status: :sent, sent_at: Time.current)
+    NotificationDelivery.email.where(brand: @brand, user: bob.user).sole.update!(status: :sent, sent_at: Time.current)
 
     perform_enqueued_jobs(only: Notifications::ProcessEventJob) do
-      Messaging::SendMessage.call(user: alice.user, brand: @brand, conversation_public_id: conversation.public_id, body: "second, later")
+      Messaging::SendMessage.call(user: alice.user, brand: @brand, conversation_public_id: conversation.public_id, body: "second, still quick")
     end
 
-    assert_equal 2, NotificationDelivery.email.where(brand: @brand, user: bob.user).count
+    assert_equal 1, NotificationDelivery.email.where(brand: @brand, user: bob.user).count
   end
 
   # -- payload / inbox integration ------------------------------------------
