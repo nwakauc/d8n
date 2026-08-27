@@ -22,6 +22,8 @@ Rails.application.routes.draw do
       get "notifications" => "notifications#index"
       patch "notifications/:id/read" => "notifications#read"
       post "notifications/read_all" => "notifications#read_all"
+      get "notifications/preferences" => "notification_preferences#show"
+      patch "notifications/preferences" => "notification_preferences#update"
       get "likes/incoming" => "likes#incoming"
       get "likes/outgoing" => "likes#outgoing"
       post "profiles/:profile_id/likes" => "likes#create"

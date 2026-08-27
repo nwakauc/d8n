@@ -2719,6 +2719,72 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/notifications/preferences:
+    get:
+      operationId: showNotificationPreferences
+      tags: [Notifications]
+      summary: Effective notification delivery preferences for the current brand membership
+      description: |
+        Returns the authenticated member's current DateZA/HookUs product
+        notification delivery preferences, scoped to their brand membership in
+        the host-resolved brand — the same D8N identity's preferences in
+        another brand are entirely independent rows. If no preference row has
+        been saved yet (or the current brand membership is not active), this
+        returns the same effective defaults `Notifications::Policy` already
+        applies when deciding delivery — both fields default to `true` — never
+        an error, and reading never creates a row.
+
+        These two fields only control the *delivery channel* for D8N product
+        notifications (in-app is never affected — see
+        `GET /api/v1/notifications`). They do not control whether an
+        underlying dating event (e.g. `match_created`) exists.
+      responses:
+        "200":
+          description: Effective current preferences (persisted or default).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferencesResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      operationId: updateNotificationPreferences
+      tags: [Notifications]
+      summary: Partially update notification delivery preferences
+      description: |
+        Updates only the fields provided; omitted fields are left unchanged.
+        Both fields must be real JSON booleans — a string like `"true"` is
+        rejected, not coerced. Unknown keys are rejected rather than silently
+        accepted, since a UI toggle must correspond to real backend behaviour
+        (there is currently no generic product SMS or WhatsApp delivery to
+        control — see the T4/T5 implementation reports).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationPreferencesUpdate"
+      responses:
+        "200":
+          description: The preferences after applying the update.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferencesResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The current brand membership does not exist (no membership to attach preferences to).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: An unknown preference key was supplied, or a value was not a JSON boolean.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/admin/profile_photos/{id}:
     patch:
       operationId: moderateProfilePhoto
@@ -5108,6 +5174,31 @@ components:
           minimum: 0
         unread_count:
           const: 0
+    NotificationPreferences:
+      type: object
+      required: [product_email_enabled, push_enabled]
+      properties:
+        product_email_enabled:
+          type: boolean
+          description: Whether D8N product notifications (e.g. match_created) may be emailed. In-app delivery is unaffected.
+        push_enabled:
+          type: boolean
+          description: Whether D8N product notifications may be pushed to a registered device. In-app delivery is unaffected.
+    NotificationPreferencesResponse:
+      type: object
+      required: [preferences]
+      properties:
+        preferences:
+          $ref: "#/components/schemas/NotificationPreferences"
+    NotificationPreferencesUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        product_email_enabled:
+          type: boolean
+        push_enabled:
+          type: boolean
     Match:
       type: object
       required: [id, matched_at, profile]

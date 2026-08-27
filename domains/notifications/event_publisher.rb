@@ -81,10 +81,19 @@ module Notifications
       )
     end
 
+    # find_or_create_by! (not create_or_find_by!): NotificationEvent also has an
+    # application-level `validates :idempotency_key, uniqueness: true`, which
+    # runs a SELECT before any INSERT and raises RecordInvalid — not
+    # RecordNotUnique — the instant a duplicate key is attempted. create_or_
+    # find_by! only rescues RecordNotUnique, so it cannot recover from that
+    # validation error and would raise on every retry. find_or_create_by! finds
+    # the existing row first for the common sequential-retry case, and the
+    # RecordNotUnique rescue below still covers a genuine concurrent race where
+    # two callers pass the SELECT at the same instant.
     def self.publish!(event_type:, idempotency_key:, brand:, user:, brand_membership:, payload:)
       return unless Policy.handles?(brand:, event_type:)
 
-      NotificationEvent.create_or_find_by!(idempotency_key:) do |event|
+      NotificationEvent.find_or_create_by!(idempotency_key:) do |event|
         event.brand = brand
         event.user = user
         event.brand_membership = brand_membership
@@ -92,6 +101,8 @@ module Notifications
         event.payload = payload
         event.occurred_at = Time.current
       end
+    rescue ActiveRecord::RecordNotUnique
+      NotificationEvent.find_by!(idempotency_key:)
     end
     private_class_method :publish!
   end

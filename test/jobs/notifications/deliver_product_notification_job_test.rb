@@ -166,6 +166,34 @@ module Notifications
       assert_equal 0, event.notification.notification_deliveries.push.count
     end
 
+    # Regression: ProductNotificationMailer used to key its branded template
+    # lookup by brand_slug alone, so ANY DateZA product email (regardless of
+    # notification_type) rendered the "dateza_welcome" template — literal
+    # "Welcome to DateZA" H1 included. Fixed to key by notification_type.
+    test "a like_received email renders its own subject/body, never the welcome template" do
+      actor_public_id = SecureRandom.uuid
+      target_public_id = SecureRandom.uuid
+      event = NotificationEvent.create!(
+        brand: @brand, user: @user, brand_membership: @membership,
+        event_type: "like_received",
+        idempotency_key: "like_received:mailer-regression",
+        payload: { actor: { profile_id: actor_public_id }, target: { type: "profile", id: target_public_id } },
+        occurred_at: Time.current
+      )
+      ProcessEventJob.perform_now(event.id)
+      delivery = event.notification.notification_deliveries.email.sole
+
+      with_env("D8N_EMAIL_PROVIDER" => "test", "D8N_DATEZA_EMAIL_FROM" => "DateZA <hello@dateza.test>") do
+        DeliverProductNotificationJob.perform_now(delivery.id)
+      end
+
+      message = Email::TestGateway.deliveries.sole
+      assert_equal "Someone likes you on DateZA", message.fetch(:subject)
+      assert_includes message.fetch(:html), "Someone likes you"
+      assert_not_includes message.fetch(:html), "Welcome to DateZA"
+      assert_not_includes message.fetch(:text), "Welcome to DateZA"
+    end
+
     test "a membership closed before provider work is skipped" do
       delivery = @event.notification.notification_deliveries.email.sole
       @membership.update!(status: :left)
