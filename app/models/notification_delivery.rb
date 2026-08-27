@@ -24,7 +24,11 @@ class NotificationDelivery < ApplicationRecord
   def enqueue_product_delivery
     return unless notification_id.present? && (email? || push?) && pending?
 
-    Notifications::DeliverProductNotificationJob.perform_later(id)
+    if Notifications::MessageDebounce.applicable?(notification.notification_event.event_type)
+      Notifications::DeliverProductNotificationJob.set(wait: Notifications::MessageDebounce::WINDOW).perform_later(id)
+    else
+      Notifications::DeliverProductNotificationJob.perform_later(id)
+    end
   rescue StandardError => error
     Rails.logger.error(
       "[notifications.enqueue_delivery] delivery_id=#{id} outcome=failed error=#{error.class.name}"

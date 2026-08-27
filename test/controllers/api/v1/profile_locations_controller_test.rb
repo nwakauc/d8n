@@ -246,6 +246,43 @@ class Api::V1::ProfileLocationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "snaps raw device coordinates to coarse precision for a place-selection brand" do
+    dateza = Brand.create!(slug: "dateza", name: "DateZA")
+    Profiles::DatezaProfileCatalog.install!(brand: dateza)
+    BrandDomain.create!(brand: dateza, host: "dateza-loc.test")
+    user = User.create!
+    membership = BrandMembership.create!(brand: dateza, user:)
+    Profile.create!(brand: dateza, user:, brand_membership: membership)
+    token, = Session.issue!(brand: dateza, user:)
+    host! "dateza-loc.test"
+
+    put "/api/v1/profile/location", headers: bearer_headers(token),
+      params: valid_params.merge(accuracy_meters: 10)
+
+    assert_response :success
+    location = ProfileLocation.order(:id).last
+    assert_equal BigDecimal("-33.92"), location.latitude
+    assert_equal BigDecimal("18.42"), location.longitude
+    assert_equal Profiles::CurrentPlace::ACCURACY_METERS_BY_KIND.fetch("locality"), location.accuracy_meters
+  end
+
+  test "does not soften a place-selection brand's already-coarse reported accuracy" do
+    dateza = Brand.create!(slug: "dateza", name: "DateZA")
+    Profiles::DatezaProfileCatalog.install!(brand: dateza)
+    BrandDomain.create!(brand: dateza, host: "dateza-loc2.test")
+    user = User.create!
+    membership = BrandMembership.create!(brand: dateza, user:)
+    Profile.create!(brand: dateza, user:, brand_membership: membership)
+    token, = Session.issue!(brand: dateza, user:)
+    host! "dateza-loc2.test"
+
+    put "/api/v1/profile/location", headers: bearer_headers(token),
+      params: valid_params.merge(accuracy_meters: 50_000)
+
+    assert_response :success
+    assert_equal 50_000, ProfileLocation.order(:id).last.accuracy_meters
+  end
+
   private
 
   def bearer_headers(token)

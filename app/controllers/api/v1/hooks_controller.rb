@@ -4,6 +4,7 @@ class Api::V1::HooksController < Api::V1::InteractionController
   # Both surfaces serialize a counterpart profile (photos), so they need signed
   # media URLs.
   before_action :set_active_storage_url_options, only: [ :index, :reply ]
+  before_action -> { enforce_rate_limit!(:send_hook) }, only: :create
 
   # Recipient inbox: live Hooks awaiting the viewer's reply/decline.
   def index

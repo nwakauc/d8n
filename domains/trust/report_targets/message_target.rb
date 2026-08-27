@@ -44,6 +44,7 @@ module Trust
             "message_type" => message.message_attachments.any? ? "media" : "text",
             "body" => message.body,
             "attachments" => attachment_evidence(message),
+            "reply_to" => message.reply_to_message_id.present? ? message.reply_snapshot : nil,
             "content_created_at" => message.created_at.iso8601
           }
         )

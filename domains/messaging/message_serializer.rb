@@ -11,9 +11,30 @@ module Messaging
         sender_id: message.sender_profile.public_id,
         body: message.body,
         attachments: message.message_attachments.map { |attachment| attachment_payload(attachment) },
-        created_at: message.created_at.iso8601
+        created_at: message.created_at.iso8601,
+        reply_to: reply_to_payload(message)
       }
     end
+
+    # Always rendered from the frozen reply_snapshot captured at send time —
+    # never by re-reading the original message's live body/attachments — so
+    # the preview keeps working even if the original was since deleted. Only
+    # `deleted` reflects live state (a cheap FK-backed association check), so
+    # the client can gray out a preview whose original is gone without the
+    # preview text itself changing underneath it.
+    def self.reply_to_payload(message)
+      return nil if message.reply_to_message_id.blank?
+
+      snapshot = message.reply_snapshot
+      {
+        id: snapshot["message_public_id"],
+        sender_id: snapshot["sender_profile_id"],
+        message_type: snapshot["message_type"],
+        body_excerpt: snapshot["body_excerpt"],
+        deleted: message.reply_to_message.blank? || !message.reply_to_message.kept?
+      }
+    end
+    private_class_method :reply_to_payload
 
     # Private media is served through short-lived signed retrieval URLs straight
     # from R2 — never a permanent public object path, never proxied through

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_27_080100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_27_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -435,6 +435,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_080100) do
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
     t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.jsonb "reply_snapshot", default: {}, null: false
+    t.bigint "reply_to_message_id"
     t.bigint "sender_profile_id", null: false
     t.datetime "updated_at", null: false
     t.index ["brand_id"], name: "index_messages_on_brand_id"
@@ -442,6 +444,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_080100) do
     t.index ["conversation_id"], name: "index_messages_on_conversation_id"
     t.index ["id", "brand_id"], name: "idx_messages_on_id_brand", unique: true
     t.index ["public_id"], name: "index_messages_on_public_id", unique: true
+    t.index ["reply_to_message_id"], name: "index_messages_on_reply_to_message_id"
     t.index ["sender_profile_id"], name: "index_messages_on_sender_profile_id"
   end
 
@@ -980,6 +983,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_080100) do
   add_foreign_key "message_attachments", "messages", column: ["message_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_message_attachments_message_tenant"
   add_foreign_key "messages", "brands"
   add_foreign_key "messages", "conversations", column: ["conversation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_conversation_tenant"
+  add_foreign_key "messages", "messages", column: ["reply_to_message_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_reply_to_message_tenant"
   add_foreign_key "messages", "profiles", column: ["sender_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_sender_tenant"
   add_foreign_key "notification_deliveries", "brands"
   add_foreign_key "notification_deliveries", "device_registrations"

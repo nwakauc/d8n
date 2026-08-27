@@ -70,6 +70,7 @@ module Notifications
     def create_email_delivery(notification)
       recipient = preferred_email
       return unless recipient
+      return if debounced?(channel: :email)
 
       NotificationDelivery.create_or_find_by!(idempotency_key: delivery_key(notification, "email")) do |delivery|
         delivery.notification = notification
@@ -84,6 +85,8 @@ module Notifications
     end
 
     def create_push_deliveries(notification)
+      return if debounced?(channel: :push)
+
       DeviceRegistration.deliverable.where(
         brand: event.brand,
         user: event.user,
@@ -106,6 +109,14 @@ module Notifications
           }
         end
       end
+    end
+
+    def debounced?(channel:)
+      return false unless MessageDebounce.applicable?(event.event_type)
+
+      MessageDebounce.suppress?(
+        brand: event.brand, user: event.user, channel:, conversation_id: event.payload.dig("target", "id")
+      )
     end
 
     def preferred_email

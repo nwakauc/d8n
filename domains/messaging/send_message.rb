@@ -20,14 +20,18 @@ module Messaging
   class SendMessage
     Result = Data.define(:message, :viewer)
 
-    def self.call(user:, brand:, conversation_public_id:, body: nil, attachment_uploads: nil)
+    def self.call(user:, brand:, conversation_public_id:, body: nil, attachment_uploads: nil, reply_to_message_id: nil)
       access = ConversationAccess.find!(user:, brand:, conversation_public_id:)
       uploads = normalize_uploads(attachment_uploads)
       content = prepare_body(body, uploads)
+      reply_to = resolve_reply_to(conversation: access.conversation, reply_to_message_id:)
 
       message = nil
       Profile.transaction do
-        message = Message.new(brand:, conversation: access.conversation, sender_profile: access.viewer, body: content)
+        message = Message.new(
+          brand:, conversation: access.conversation, sender_profile: access.viewer, body: content,
+          reply_to_message: reply_to, reply_snapshot: reply_to ? ReplySnapshot.build(reply_to) : {}
+        )
         uploads.each_with_index do |upload, index|
           message.message_attachments << MessageAttachmentUpload.build_verified!(
             brand:, position: index,
@@ -50,6 +54,20 @@ module Messaging
       MessageBody.prepare(raw)
     end
     private_class_method :prepare_body
+
+    # Same-conversation enforcement: a reply target must be a kept message
+    # already in THIS conversation — never resolved globally by public_id, so
+    # a client can't reference a message from an unrelated conversation (or
+    # one it was never a participant of) to smuggle its preview into a reply.
+    def self.resolve_reply_to(conversation:, reply_to_message_id:)
+      return nil if reply_to_message_id.blank?
+
+      reply_to = conversation.messages.kept.find_by(public_id: reply_to_message_id)
+      raise MessageError.new(:invalid_reply_target) if reply_to.blank?
+
+      reply_to
+    end
+    private_class_method :resolve_reply_to
 
     def self.normalize_uploads(raw)
       uploads = Array(raw)

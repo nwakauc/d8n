@@ -9,6 +9,7 @@ module Messaging
         id: conversation.public_id,
         match_id: conversation.match.public_id,
         status: conversation.status,
+        relationship_state: conversation.match.status,
         created_at: conversation.created_at.iso8601,
         profile: Profiles::PublicSerializer.call(profile: conversation.other_profile(viewer)),
         last_message: last_message && last_message_payload(conversation, last_message)

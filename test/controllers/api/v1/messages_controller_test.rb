@@ -48,6 +48,102 @@ class Api::V1::MessagesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "Hey Sam" ], JSON.parse(response.body).fetch("messages").pluck("body")
   end
 
+  test "replying to a message includes a safe preview of the original" do
+    original = Message.create!(brand: @brand, conversation: @conversation, sender_profile: @ada, body: "Original text")
+
+    post "/api/v1/conversations/#{@conversation.public_id}/messages",
+      headers: bearer_headers(@sam_token), params: { body: "replying", reply_to_message_id: original.public_id }
+
+    assert_response :created
+    body = JSON.parse(response.body).fetch("message")
+    reply_to = body.fetch("reply_to")
+    assert_equal original.public_id, reply_to.fetch("id")
+    assert_equal @ada.public_id, reply_to.fetch("sender_id")
+    assert_equal "text", reply_to.fetch("message_type")
+    assert_equal "Original text", reply_to.fetch("body_excerpt")
+    assert_equal false, reply_to.fetch("deleted")
+
+    message = Message.find_by!(public_id: body.fetch("id"))
+    assert_equal original.id, message.reply_to_message_id
+  end
+
+  test "a message with no reply_to_message_id has a null reply_to in its payload" do
+    post_message(@ada_token, "Hey Sam")
+
+    assert_nil JSON.parse(response.body).fetch("message").fetch("reply_to")
+  end
+
+  test "rejects a reply target from a different conversation" do
+    other_a = create_profile(brand: @brand)
+    other_b = create_profile(brand: @brand)
+    other_conversation = start_conversation(create_match(other_a, other_b), user: other_a.user)
+    foreign_message = Message.create!(brand: @brand, conversation: other_conversation, sender_profile: other_a, body: "elsewhere")
+
+    assert_no_difference -> { Message.count } do
+      post "/api/v1/conversations/#{@conversation.public_id}/messages",
+        headers: bearer_headers(@ada_token), params: { body: "sneaky", reply_to_message_id: foreign_message.public_id }
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "invalid_reply_target", JSON.parse(response.body).fetch("error")
+  end
+
+  test "rejects an unknown reply target" do
+    assert_no_difference -> { Message.count } do
+      post "/api/v1/conversations/#{@conversation.public_id}/messages",
+        headers: bearer_headers(@ada_token), params: { body: "hi", reply_to_message_id: SecureRandom.uuid }
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "invalid_reply_target", JSON.parse(response.body).fetch("error")
+  end
+
+  test "replying to a message with an attachment reports message_type media, without leaking attachment content" do
+    original = Message.new(brand: @brand, conversation: @conversation, sender_profile: @ada, body: nil)
+    original.message_attachments.build(brand: @brand, media_kind: :image, position: 0, processing_state: :ready)
+    original.save!
+
+    post "/api/v1/conversations/#{@conversation.public_id}/messages",
+      headers: bearer_headers(@sam_token), params: { body: "nice pic", reply_to_message_id: original.public_id }
+
+    assert_response :created
+    reply_to = JSON.parse(response.body).fetch("message").fetch("reply_to")
+    assert_equal "media", reply_to.fetch("message_type")
+    assert_nil reply_to.fetch("body_excerpt")
+    assert_not reply_to.key?("attachments")
+  end
+
+  test "the reply preview keeps rendering after the original message is soft-deleted" do
+    original = Message.create!(brand: @brand, conversation: @conversation, sender_profile: @ada, body: "will vanish")
+    reply = Message.create!(
+      brand: @brand, conversation: @conversation, sender_profile: @sam, body: "replying",
+      reply_to_message: original, reply_snapshot: Messaging::ReplySnapshot.build(original)
+    )
+    original.update!(deleted_at: Time.current)
+
+    get "/api/v1/conversations/#{@conversation.public_id}/messages", headers: bearer_headers(@ada_token)
+
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("messages").find { |m| m.fetch("id") == reply.public_id }
+    reply_to = payload.fetch("reply_to")
+    assert_equal "will vanish", reply_to.fetch("body_excerpt")
+    assert_equal true, reply_to.fetch("deleted")
+  end
+
+  test "reporting a reply message includes the reply snapshot as evidence" do
+    original = Message.create!(brand: @brand, conversation: @conversation, sender_profile: @ada, body: "hey")
+    reply = Message.create!(
+      brand: @brand, conversation: @conversation, sender_profile: @ada, body: "how are you",
+      reply_to_message: original, reply_snapshot: Messaging::ReplySnapshot.build(original)
+    )
+
+    result = Trust::FileReport.call(
+      user: @sam.user, brand: @brand, target_type: "message", target_id: reply.public_id, reason: "spam"
+    )
+
+    assert_equal original.public_id, result.report.evidence.dig("reply_to", "message_public_id")
+  end
+
   test "an outsider can neither read nor send in someone else's conversation" do
     outsider = create_profile(brand: @brand)
     outsider_token, = Session.issue!(brand: @brand, user: outsider.user)

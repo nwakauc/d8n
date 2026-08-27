@@ -7,6 +7,7 @@ class Message < ApplicationRecord
   belongs_to :brand
   belongs_to :conversation
   belongs_to :sender_profile, class_name: "Profile"
+  belongs_to :reply_to_message, class_name: "Message", optional: true
 
   # Ordered by default so eager-loaded association access (Messaging::MessageList,
   # Messaging::MessageSerializer) never re-queries just to sort — deleted
@@ -21,8 +22,13 @@ class Message < ApplicationRecord
   validate :sender_participates_in_match
   validate :conversation_matches_brand
   validate :body_or_attachment_present, on: :create
+  validate :reply_to_message_is_same_conversation
 
   before_validation :ensure_public_id, on: :create
+
+  def kept?
+    deleted_at.nil?
+  end
 
   private
 
@@ -52,5 +58,12 @@ class Message < ApplicationRecord
     return if body.present? || message_attachments.size.positive?
 
     errors.add(:base, "message must have a body or at least one attachment")
+  end
+
+  def reply_to_message_is_same_conversation
+    return if reply_to_message.blank?
+    return if reply_to_message.conversation_id == conversation_id
+
+    errors.add(:reply_to_message, "must belong to the same conversation")
   end
 end

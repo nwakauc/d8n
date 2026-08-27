@@ -182,6 +182,31 @@ class Api::V1::RateLimitingTest < ActionDispatch::IntegrationTest
     assert_equal "hook_rate_limited", JSON.parse(response.body).fetch("error")
   end
 
+  # --- Hook / Opener send still gets a generic burst ceiling on top --------
+
+  test "hook sending throttles request flooding with the generic 429 once the burst ceiling is hit" do
+    sender = create_member(brand: @brand)
+    token, = Session.issue!(brand: @brand, user: sender.user)
+    limit = burst_limit(:send_hook)
+    assert_operator limit, :>, Hooks::Policy::FREE_DAILY_LIMIT,
+      "burst ceiling must exceed the daily allowance or it would mask hook_rate_limited"
+
+    freeze_time do
+      limit.times do
+        target = create_member(brand: @brand)
+        post "/api/v1/profiles/#{target.public_id}/hook",
+          params: { message: "hey there, you're my vibe 🔥" }, headers: bearer_headers(token)
+        assert_includes [ 201, 429 ], response.status
+      end
+
+      target = create_member(brand: @brand)
+      post "/api/v1/profiles/#{target.public_id}/hook",
+        params: { message: "one too many 🔥" }, headers: bearer_headers(token)
+      assert_response :too_many_requests
+      assert_equal "rate_limited", JSON.parse(response.body).fetch("error")
+    end
+  end
+
   private
 
   # Builds an active match + conversation between two members (a likes b, b likes

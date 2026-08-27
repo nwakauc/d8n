@@ -127,8 +127,18 @@ class Api::V1::ConversationsControllerTest < ActionDispatch::IntegrationTest
     get "/api/v1/conversations", headers: bearer_headers(@token)
 
     assert_response :success
-    assert_equal conversation.public_id,
-      JSON.parse(response.body).fetch("conversations").sole.fetch("id")
+    card = JSON.parse(response.body).fetch("conversations").sole
+    assert_equal conversation.public_id, card.fetch("id")
+    assert_equal "ended", card.fetch("relationship_state")
+  end
+
+  test "reports relationship_state active while the match is still ongoing" do
+    start_conversation(@match)
+
+    get "/api/v1/conversations", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert_equal "active", JSON.parse(response.body).fetch("conversations").sole.fetch("relationship_state")
   end
 
   test "preloads conversation cards with a bounded query count" do

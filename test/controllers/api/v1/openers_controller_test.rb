@@ -136,6 +136,27 @@ class Api::V1::OpenersControllerTest < ActionDispatch::IntegrationTest
     assert response.headers["Retry-After"].present?
   end
 
+  test "also throttles with the generic 429 once the abuse-protection burst ceiling is hit" do
+    limit = AbuseProtection::Policy.rules_for(:send_hook).first.limit
+    assert_operator limit, :>, Hooks::Policy::FREE_DAILY_LIMIT,
+      "burst ceiling must exceed the daily allowance or it would mask hook_rate_limited"
+
+    freeze_time do
+      limit.times do
+        target = create_member(email: "burst#{SecureRandom.hex(4)}@example.com")
+        post "/api/v1/profiles/#{target.public_id}/opener",
+          headers: auth(@sender_token), params: { opener_key: "coffee_or_tea" }
+        assert_includes [ 201, 429 ], response.status
+      end
+
+      target = create_member(email: "onemoreburst@example.com")
+      post "/api/v1/profiles/#{target.public_id}/opener",
+        headers: auth(@sender_token), params: { opener_key: "coffee_or_tea" }
+      assert_response :too_many_requests
+      assert_equal "rate_limited", JSON.parse(response.body).fetch("error")
+    end
+  end
+
   private
 
   def create_member(email:)

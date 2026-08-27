@@ -121,6 +121,20 @@ module AbuseProtection
         rule("sustained", scope: :user, limit: 300, window: 1.hour)
       ],
 
+      # 🔥 Hook / D8N Opener sends: HooksController and OpenersController both
+      # call Hooks::SendHook, which already enforces its own rolling daily
+      # product allowance (Hooks::Policy, brand-configurable but 10/24h by
+      # default) — that stays authoritative and is untouched by this layer.
+      # This bucket only stops rapid-fire scripted hammering of the send
+      # endpoint itself, so its ceiling is set comfortably above any brand's
+      # realistic daily allowance: ordinary usage (including exhausting the
+      # allowance one send at a time) never trips it, and it never masks
+      # Hooks::Policy's own `hook_rate_limited` error with the generic one.
+      send_hook: [
+        rule("burst",     scope: :user, limit: 20, window: 1.minute),
+        rule("sustained", scope: :user, limit: 60, window: 1.hour)
+      ],
+
       # Chat media upload intents are expensive downstream (R2 objects, HEAD
       # verify, and — for video — a full-file async structural walk). Mirrors
       # media_upload_intent's shape; kept as its own bucket rather than shared

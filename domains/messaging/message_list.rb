@@ -29,7 +29,7 @@ module Messaging
         .order("messages.created_at DESC", "messages.id DESC")
       scope = MessageCursor.apply(scope:, value: cursor, brand:, viewer: access.viewer, conversation: access.conversation)
       messages = scope.includes(
-        :sender_profile, :conversation,
+        :sender_profile, :conversation, :reply_to_message,
         message_attachments: {
           original_attachment: :blob, rendition_attachment: :blob,
           download_rendition_attachment: :blob, poster_attachment: :blob

@@ -34,7 +34,8 @@ class Api::V1::MessagesController < Api::V1::InteractionController
       brand: Current.brand,
       conversation_public_id: params[:conversation_id],
       body: params[:body],
-      attachment_uploads: attachment_uploads_params
+      attachment_uploads: attachment_uploads_params,
+      reply_to_message_id: params[:reply_to_message_id]
     )
 
     render json: { message: Messaging::MessageSerializer.call(message: result.message) }, status: :created

@@ -255,6 +255,65 @@ class DatingNotificationsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "five quick messages in the same conversation collapse into a single pending email delivery" do
+    alice = create_member(gender: "woman", interested_in: %w[man])
+    bob = create_member(gender: "man", interested_in: %w[woman])
+    match = create_active_match(alice, bob)
+    conversation = Messaging::StartConversation.call(user: alice.user, brand: @brand, match_public_id: match.public_id).conversation
+
+    assert_difference -> { Notification.count }, 5 do
+      perform_enqueued_jobs(only: Notifications::ProcessEventJob) do
+        5.times { |i| Messaging::SendMessage.call(user: alice.user, brand: @brand, conversation_public_id: conversation.public_id, body: "msg #{i}") }
+      end
+    end
+
+    # Every message still materializes its own in-app notification (the
+    # inbox/badge stays fully accurate)...
+    assert_equal 5, Notification.where(brand_membership: bob.brand_membership).joins(:notification_deliveries)
+      .merge(NotificationDelivery.in_app.sent).count
+    # ...but only the first message's email delivery was actually queued; the
+    # other four were suppressed because it was still pending within the
+    # debounce window.
+    assert_equal 1, NotificationDelivery.email.where(brand: @brand, user: bob.user).count
+  end
+
+  test "a message in a different conversation is never suppressed by another conversation's debounce" do
+    alice = create_member(gender: "woman", interested_in: %w[man])
+    bob = create_member(gender: "man", interested_in: %w[woman])
+    carol = create_member(gender: "man", interested_in: %w[woman])
+    match_ab = create_active_match(alice, bob)
+    match_ac = create_active_match(alice, carol)
+    conversation_ab = Messaging::StartConversation.call(user: alice.user, brand: @brand, match_public_id: match_ab.public_id).conversation
+    conversation_ac = Messaging::StartConversation.call(user: alice.user, brand: @brand, match_public_id: match_ac.public_id).conversation
+
+    perform_enqueued_jobs(only: Notifications::ProcessEventJob) do
+      Messaging::SendMessage.call(user: alice.user, brand: @brand, conversation_public_id: conversation_ab.public_id, body: "hi bob")
+      Messaging::SendMessage.call(user: alice.user, brand: @brand, conversation_public_id: conversation_ac.public_id, body: "hi carol")
+    end
+
+    assert_equal 1, NotificationDelivery.email.where(brand: @brand, user: bob.user).count
+    assert_equal 1, NotificationDelivery.email.where(brand: @brand, user: carol.user).count
+  end
+
+  test "a message after the debounce window has already sent gets its own fresh email delivery" do
+    alice = create_member(gender: "woman", interested_in: %w[man])
+    bob = create_member(gender: "man", interested_in: %w[woman])
+    match = create_active_match(alice, bob)
+    conversation = Messaging::StartConversation.call(user: alice.user, brand: @brand, match_public_id: match.public_id).conversation
+
+    perform_enqueued_jobs(only: Notifications::ProcessEventJob) do
+      Messaging::SendMessage.call(user: alice.user, brand: @brand, conversation_public_id: conversation.public_id, body: "first")
+    end
+    first_delivery = NotificationDelivery.email.where(brand: @brand, user: bob.user).sole
+    first_delivery.update!(status: :sent, sent_at: Time.current)
+
+    perform_enqueued_jobs(only: Notifications::ProcessEventJob) do
+      Messaging::SendMessage.call(user: alice.user, brand: @brand, conversation_public_id: conversation.public_id, body: "second, later")
+    end
+
+    assert_equal 2, NotificationDelivery.email.where(brand: @brand, user: bob.user).count
+  end
+
   # -- payload / inbox integration ------------------------------------------
 
   test "the notifications inbox exposes only opaque public identifiers for a dating event, nothing more" do
