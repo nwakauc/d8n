@@ -311,9 +311,22 @@ class Api::V1::FindControllerTest < ActionDispatch::IntegrationTest
     assert_equal "pending", JSON.parse(response.body).fetch("profiles").sole.fetch("opener_state")
   end
 
-  test "a processed pending-review DateZA photo is deliverable in Find results" do
+  test "a hidden pending-review DateZA photo is withheld from Find until moderation approves it" do
     candidate = create_candidate
     photo = attach_photo(candidate)
+    assert photo.pending_review?
+    assert photo.hidden?
+
+    get "/api/v1/find", headers: bearer_headers(@token)
+    entry = JSON.parse(response.body).fetch("profiles").sole
+
+    assert_empty entry.fetch("photos")
+  end
+
+  test "an approved DateZA photo is deliverable in Find results" do
+    candidate = create_candidate
+    photo = attach_photo(candidate)
+    photo.update!(status: :approved, visibility: :visible)
 
     get "/api/v1/find", headers: bearer_headers(@token)
     photos = JSON.parse(response.body).fetch("profiles").sole.fetch("photos")

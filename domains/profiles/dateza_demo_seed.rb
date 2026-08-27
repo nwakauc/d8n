@@ -66,7 +66,14 @@ module Profiles
       def build(person:, content:, brand:)
         DemoSeed::Builder.call(
           person:, content:, brand:, email: email_for(person), seed_tag: SEED_TAG,
-          identity_attributes: identity_attributes(person), seed_device: SEED_DEVICE
+          identity_attributes: identity_attributes(person), seed_device: SEED_DEVICE,
+          # Demo people are fabricated showcase data, never real members (see
+          # DemoSeed.guard!, non-production only) — they exist to populate a
+          # working Discover feed immediately, so they bypass DateZA's
+          # moderate-first policy (T6) the same explicit way a human moderator's
+          # approval would, rather than waiting on a review queue that will
+          # never run against seed data.
+          photo_initial_state: Media::PhotoPolicy::IMMEDIATE
         )
       end
 

@@ -6,12 +6,14 @@ module Media
   # orthogonal on purpose: a photo can be `visible` before a moderator or
   # automated check has approved it.
   #
-  # HookUs and DateZA both treat an ordinary valid photo as usable immediately
-  # after attach (`visible`) and moderate it asynchronously; if a later check
-  # flags it, moderation flips it back to `hidden`/`rejected`. Any brand without
-  # an explicit policy stays moderate-first (`hidden`, `pending_review`) so a
-  # new brand never silently publishes unmoderated media. Date9ja therefore
-  # keeps the conservative default until it opts in.
+  # HookUs treats an ordinary valid photo as usable immediately after attach
+  # (`visible`) and moderates it asynchronously; if a later check flags it,
+  # moderation flips it back to `hidden`/`rejected`. DateZA requires moderation
+  # before publication (T6): photos start `hidden` and only become visible once
+  # an admin approves them. Any brand without an explicit policy stays
+  # moderate-first (`hidden`, `pending_review`) so a new brand never silently
+  # publishes unmoderated media. Date9ja therefore keeps the conservative
+  # default until it opts in.
   #
   # Moderation capability is unchanged — this only decides the starting state.
   class PhotoPolicy

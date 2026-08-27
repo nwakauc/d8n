@@ -8,8 +8,12 @@ class Api::V1::Admin::ProfilePhotosControllerTest < ActionDispatch::IntegrationT
     )
     BrandDomain.create!(brand: @brand, host: "dateza.test")
     @profile = create_profile(brand: @brand)
-    # DateZA is an immediate-visibility brand: a freshly attached, safely
-    # processed photo is already visible and deliverable while pending review.
+    # DateZA is moderate-first (T6): a freshly attached photo defaults to
+    # hidden. These moderation-transition tests pass visibility: :visible
+    # explicitly so they exercise the approve/reject transitions in isolation
+    # from the separate initial-visibility policy (covered in
+    # test/domains/media/photo_policy_test.rb and
+    # test/integration/dateza_photo_publication_test.rb).
     @photo = create_ready_photo(profile: @profile, visibility: :visible)
     @admin, @token = create_admin(brand: @brand)
     host! "dateza.test"

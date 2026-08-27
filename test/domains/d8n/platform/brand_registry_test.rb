@@ -81,7 +81,7 @@ module D8n
         assert_equal "Africa/Johannesburg", curated.allocation.time_zone
         assert_equal "discovery.curated_daily", contract.default_discovery_surface_key
         assert_equal :verified_login_identifier, contract.interaction.verification_requirement
-        assert_equal :immediate, contract.media.initial_visibility
+        assert_equal :moderate_first, contract.media.initial_visibility
         assert_equal %w[membership_registered like_received match_created opener_received message_received].sort,
           contract.notifications.event_types.sort
       end

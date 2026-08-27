@@ -11,14 +11,14 @@ module Media
       assert_equal :pending_review, state.status
     end
 
-    test "DateZA photos are visible immediately, moderated asynchronously" do
+    test "DateZA photos are hidden until moderated (moderate-first)" do
       brand = Brand.new(slug: "dateza", name: "DateZA")
 
       state = PhotoPolicy.initial_state(brand:)
 
-      assert_equal :visible, state.visibility
+      assert_equal :hidden, state.visibility
       assert_equal :pending_review, state.status
-      assert_not PhotoPolicy.moderate_first?(brand:)
+      assert PhotoPolicy.moderate_first?(brand:)
     end
 
     test "brands without an explicit policy stay moderate-first (hidden)" do

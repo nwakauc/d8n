@@ -120,7 +120,10 @@ module D8n
             ),
             media: BrandContract::MediaConfiguration.new(
               photo_policy: Media::PhotoPolicy,
-              initial_visibility: :immediate,
+              # DateZA requires moderation before a photo is publicly visible
+              # (T6): pending photos are hidden from everyone but the owner
+              # until an admin approves them. See domains/media/photo_policy.rb.
+              initial_visibility: :moderate_first,
               max_profile_photos: 6
             ),
             # DateZA's browse-first/verify-before-interacting model requires the

@@ -61,7 +61,7 @@ module Profiles
       assert_not_includes Completion.call(profile:).missing, :photos
     end
 
-    test "DateZA immediate-visibility pending photo can complete onboarding only after safe processing" do
+    test "a visible pending DateZA photo can complete onboarding only after safe processing" do
       brand = Brand.create!(
         slug: "dateza", name: "DateZA",
         profile_requirements: { profile_fields: [], preference_fields: [], collections: %w[ photos ] }
@@ -69,8 +69,9 @@ module Profiles
       user = User.create!
       membership = BrandMembership.create!(brand:, user:)
       profile = Profile.create!(brand:, user:, brand_membership: membership)
-      # DateZA is immediate: attach! would mark the photo visible right away, but
-      # it must still fail closed for delivery/completion until processing ready.
+      # DateZA is moderate-first by default (T6), so a newly attached photo
+      # starts hidden. This test forces visibility: :visible to isolate the
+      # separate processing-readiness gate from the moderation-policy gate.
       photo = attach_photo(profile, visibility: :visible, ready: false)
 
       assert_not Completion.call(profile:).complete?
@@ -86,7 +87,7 @@ module Profiles
       assert photo.reload.deliverable?, "processed pending photos are immediately deliverable on DateZA"
     end
 
-    test "DateZA hidden pending photo does not satisfy publication despite being processed" do
+    test "a hidden pending DateZA photo satisfies onboarding completion but remains non-deliverable" do
       brand = Brand.create!(
         slug: "dateza", name: "DateZA",
         profile_requirements: { profile_fields: [], preference_fields: [], collections: %w[ photos ] }
@@ -96,7 +97,11 @@ module Profiles
       profile = Profile.create!(brand:, user:, brand_membership: membership)
       photo = attach_photo(profile, visibility: :hidden)
 
-      assert_not Completion.call(profile:).complete?
+      # DateZA is moderate-first (T6): a processed, still-pending photo is
+      # enough to finish onboarding — the member isn't forced back into an
+      # incomplete state while awaiting review — but the photo itself stays
+      # non-deliverable to anyone but its owner until an admin approves it.
+      assert Completion.call(profile:).complete?
       assert_not photo.deliverable?
     end
 
