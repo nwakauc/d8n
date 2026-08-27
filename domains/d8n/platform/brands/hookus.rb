@@ -44,6 +44,7 @@ module D8n
           match.interaction.pass
           match.relationship.create
           match.relationship.list
+          match.relationship.unmatch
           match.hook
           match.hook_tonight
           chat.conversation

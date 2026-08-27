@@ -1551,6 +1551,82 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/likes/incoming:
+    get:
+      operationId: listIncomingLikes
+      tags: [Matching]
+      summary: List profiles who have liked the viewer
+      description: |
+        Active Likes where another profile has liked the authenticated viewer's
+        profile, and the pair remains a current, actionable relationship state:
+        not blocked in either direction, not yet a Match (a mutual Like
+        surfaces through `GET /api/v1/matches` instead, not here), and
+        otherwise visible under the same base policy every Matching surface
+        shares. Newest-liked-first, cursor-paginated. Shares its authorization
+        capability with `POST /api/v1/profiles/{profile_id}/likes`.
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Current incoming likes and an opaque next cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
+        "404":
+          description: >-
+            The resolved database brand has no production contract
+            (`brand_not_configured`), or matching interactions are disabled by
+            its contract (`matching_not_configured`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+  /api/v1/likes/outgoing:
+    get:
+      operationId: listOutgoingLikes
+      tags: [Matching]
+      summary: List profiles the viewer has liked
+      description: |
+        Active Likes created by the authenticated viewer that remain a
+        current, actionable pre-match relationship state: not blocked in
+        either direction, not yet a Match (a mutual Like surfaces through
+        `GET /api/v1/matches` instead, not here), and otherwise visible under
+        the same base policy every Matching surface shares. Newest-liked-first,
+        cursor-paginated. Shares its authorization capability with
+        `POST /api/v1/profiles/{profile_id}/likes`.
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Current outgoing likes and an opaque next cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
+        "404":
+          description: >-
+            The resolved database brand has no production contract
+            (`brand_not_configured`), or matching interactions are disabled by
+            its contract (`matching_not_configured`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
   /api/v1/profiles/{profile_id}/likes:
     post:
       operationId: likeProfile
@@ -2338,6 +2414,60 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
           $ref: "#/components/responses/InvalidInput"
+  /api/v1/matches/{match_id}/unmatch:
+    post:
+      operationId: unmatchProfile
+      tags: [Matching]
+      summary: End an active Match without blocking the other member
+      description: |
+        Distinct from Trust's block endpoints: Unmatch ends the relationship
+        (transitions the Match to its ended state and discards active Likes in
+        both directions) but never creates a ProfileBlock — the pair remains
+        free to encounter, like, and rematch each other later through normal
+        discovery/Find/Likes surfaces. Block remains the separate, stronger
+        safety action and is unaffected by this endpoint.
+
+        Idempotent: unmatching an already-ended Match (whether ended by a
+        prior Unmatch or by a Block) is a safe no-op and still returns 204.
+        Only a current participant may unmatch; unknown, cross-brand, and
+        non-participant match ids all receive the same `match_unavailable`
+        response so nothing about the relationship is enumerable.
+
+        The conversation and its message history are not deleted. New
+        messages can no longer be sent or read through the ended Match (this
+        is already enforced by the existing Messaging authorization that
+        every conversation/message endpoint shares), but the conversation's
+        card continues to appear in `GET /api/v1/conversations` as read-only
+        history, exactly as it already does when a Match ends for any other
+        reason.
+      parameters:
+        - $ref: "#/components/parameters/PublicMatchId"
+      responses:
+        "204":
+          description: >-
+            The Match is now ended (or already was). No Block was created.
+            Likes between the pair were discarded.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: >-
+            The authenticated profile is not currently a valid match member
+            (matches `GET /api/v1/matches`'s handling of the same underlying
+            check).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: >-
+            The resolved database brand has no production contract
+            (`brand_not_configured`), unmatching is disabled by its contract
+            (`matching_not_configured`), or the Match is unknown, cross-brand,
+            or does not include the current profile (`match_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/conversations:
     get:
       operationId: listConversations
@@ -4675,6 +4805,37 @@ components:
           format: uuid
         created:
           type: boolean
+    LikeProfile:
+      allOf:
+        - $ref: "#/components/schemas/PublicProfile"
+        - $ref: "#/components/schemas/ProfileStatus"
+        - type: object
+          properties:
+            compatibility:
+              $ref: "#/components/schemas/DatezaCompatibility"
+              description: >-
+                Present only for brands with a pair compatibility strategy
+                configured (DateZA today). Omitted entirely — not null — for
+                brands without one (HookUs).
+    LikeListItem:
+      type: object
+      required: [liked_at, profile]
+      properties:
+        liked_at:
+          type: string
+          format: date-time
+        profile:
+          $ref: "#/components/schemas/LikeProfile"
+    LikeListResponse:
+      type: object
+      required: [likes, next_cursor]
+      properties:
+        likes:
+          type: array
+          items:
+            $ref: "#/components/schemas/LikeListItem"
+        next_cursor:
+          type: [string, "null"]
     PassResponse:
       type: object
       required: [passed, created]

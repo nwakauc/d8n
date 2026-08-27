@@ -9,15 +9,25 @@ module D8n
             implementations: %w[Matching::Strategies::Hookus Matching::Strategies::DatezaV1]),
           CapabilityDefinition.new(key: "match.ranking", status: :available,
             implementations: %w[Matching::StrategyRegistry]),
+          # Read (incoming/outgoing) shares this same key with the write action
+          # (create), matching how match.opener/match.hook already cover
+          # send+inbox+reply+decline under one key — a brand that can create
+          # Likes can read its own Like relationships; no separate policy
+          # question exists between the two.
           CapabilityDefinition.new(key: "match.interaction.like", status: :available,
-            implementations: %w[Matching::LikeProfile]),
+            implementations: %w[Matching::LikeProfile Matching::IncomingLikes Matching::OutgoingLikes]),
           CapabilityDefinition.new(key: "match.interaction.pass", status: :available,
             implementations: %w[Matching::PassProfile]),
           CapabilityDefinition.new(key: "match.relationship.create", status: :available,
             implementations: %w[Matching::LikeProfile Match]),
           CapabilityDefinition.new(key: "match.relationship.list", status: :available,
             implementations: %w[Matching::MatchList]),
-          CapabilityDefinition.new(key: "match.relationship.unmatch", status: :planned),
+          # Distinct capability from match.relationship.list (viewing a match
+          # does not imply the ability to end it) and deliberately does not
+          # touch Trust::BlockProfile — Unmatch never creates a ProfileBlock;
+          # Block remains the stronger, separate safety action.
+          CapabilityDefinition.new(key: "match.relationship.unmatch", status: :available,
+            implementations: %w[Matching::Unmatch]),
           CapabilityDefinition.new(key: "match.hook", status: :available,
             implementations: %w[Hooks::SendHook Hooks::ReceivedInbox]),
           # D8N Opener: the same one-shot-opener/reply-unlocks-chat engine as
