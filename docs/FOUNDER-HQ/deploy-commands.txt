@@ -52,10 +52,10 @@ separate DateZA identities, memberships, profiles, media, and catalogue choices.
 Run it once on the primary role rather than on both web and job roles.
 
 . Dry run (writes nothing):
-  kamal app exec "bin/rails dateza:seed_demo_profiles" -d staging -p -e DRY_RUN:1 SEED_DEMO_ALLOW_PRODUCTION:1
+  kamal app exec "bin/rails dateza:seed_demo_profiles" -d production -p -e DRY_RUN:1 SEED_DEMO_ALLOW_PRODUCTION:1
 
 . Real run:
-  kamal app exec "bin/rails dateza:seed_demo_profiles" -d staging -p -e SEED_DEMO_ALLOW_PRODUCTION:1
+  kamal app exec "bin/rails dateza:seed_demo_profiles" -d production -p -e SEED_DEMO_ALLOW_PRODUCTION:1
 
 
 SYNC DATEZA CATALOG (prompts / option groups / openers)

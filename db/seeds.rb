@@ -15,3 +15,13 @@ end
 if (dateza = Brand.kept.find_by(slug: "dateza"))
   Profiles::DatezaProfileCatalog.install!(brand: dateza)
 end
+
+# Admin::ModeratorContext (see ADR 0013) does not check role name today — any
+# active AdminAssignment for a brand grants moderation. "moderator" is the
+# only role name the current authorization model actually understands or
+# exercises anywhere in the codebase, so it is the only truthful baseline
+# role to seed. Do not add roles like "founder" or "admin" here until
+# differentiated RBAC exists to give them real meaning.
+AdminRole.kept.find_or_create_by!(name: "moderator") do |role|
+  role.description = "Grants report moderation and enforcement for an assigned brand (ADR 0013)."
+end
