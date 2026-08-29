@@ -6,8 +6,10 @@ if [ -z "${LD_PRELOAD+x}" ]; then
     export LD_PRELOAD
 fi
 
-# If running the rails server then create or migrate existing database
-if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
+# If running the rails server or the Solid Queue worker, create/migrate both
+# configured databases (primary + queue) first. db:prepare is idempotent, so
+# this keeps each role self-contained regardless of which one boots first.
+if { [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; } || [ "${@: -1}" == "bin/jobs" ]; then
   ./bin/rails db:prepare
 fi
 

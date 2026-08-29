@@ -1,0 +1,62 @@
+service: d8n
+
+servers:
+  web:
+    - 164.68.106.97
+  job:
+    hosts:
+      - 164.68.106.97
+    cmd: bin/jobs
+    stop_timeout: 30
+
+proxy:
+  ssl: true
+  hosts:
+    - api.d8n.tech
+    - dateza-api.d8n.tech
+
+ssh:
+  user: d8nadmin
+
+builder:
+  arch: amd64
+  local: true
+
+env:
+  clear:
+    RAILS_ENV: production
+    D8N_DATABASE_HOST: "172.18.0.1"
+    D8N_DATABASE_PORT: "5432"
+    D8N_DATABASE_NAME: d8n_production
+    D8N_QUEUE_DATABASE_NAME: d8n_production_queue
+    D8N_DATABASE_USERNAME: d8n_app
+    JOB_CONCURRENCY: "1"
+    D8N_R2_ENABLED: "true"
+    D8N_DEPLOYMENT_ENV: "production"
+    D8N_R2_BRANDS: "hookus,dateza"
+    D8N_EMAIL_PROVIDER: "resend"
+    D8N_SMS_PROVIDER: "twilio"
+    D8N_EMAIL_FROM: "HookUs <no-reply@hookus.app>"
+    D8N_DATEZA_EMAIL_FROM: "DateZA <no-reply@date-za.com>"
+    D8N_DATEZA_APP_URL: "https://www.date-za.com"
+    D8N_CORS_ORIGINS: "https://hookus.app,https://www.hookus.app,https://www.date-za.com"
+
+  secret:
+    - RAILS_MASTER_KEY
+    - D8N_DATABASE_PASSWORD
+    - D8N_R2_ENDPOINT
+    - D8N_R2_HOOKUS_PRODUCTION_ACCESS_KEY_ID
+    - D8N_R2_HOOKUS_PRODUCTION_SECRET_ACCESS_KEY
+    - D8N_R2_HOOKUS_PRODUCTION_BUCKET
+    - D8N_R2_DATEZA_PRODUCTION_ACCESS_KEY_ID
+    - D8N_R2_DATEZA_PRODUCTION_SECRET_ACCESS_KEY
+    - D8N_R2_DATEZA_PRODUCTION_BUCKET
+    - RESEND_API_KEY
+    - TWILIO_ACCOUNT_SID
+    - TWILIO_API_KEY_SID
+    - TWILIO_CLIENT_SECRET
+    - TWILIO_HOOKUS_MESSAGING_SERVICE_SID
+    - TWILIO_DATEZA_MESSAGING_SERVICE_SID
+    - D8N_AR_ENCRYPTION_PRIMARY_KEY
+    - D8N_AR_ENCRYPTION_DETERMINISTIC_KEY
+    - D8N_AR_ENCRYPTION_KEY_DERIVATION_SALT

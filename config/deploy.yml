@@ -13,7 +13,9 @@ registry:
 builder:
   arch: arm64
   local: false
+<% if ENV["KAMAL_DESTINATION"] != "production" -%>
   remote: ssh://ubuntu@145.241.185.41
+<% end -%>
 
 ssh:
   user: ubuntu
