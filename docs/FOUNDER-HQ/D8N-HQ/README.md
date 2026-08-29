@@ -32,6 +32,7 @@ ticket list — not before.
 | [METRICS.md](METRICS.md) | The metric semantic layer — registry pattern, canonical metric definitions, versioning policy | When defining or consuming any number HQ displays |
 | [SECURITY-AND-RBAC.md](SECURITY-AND-RBAC.md) | Current D8N admin authorization reality, the eventual HQ permission model (not decided), audit requirements, PII/privacy boundaries | Before building anything that reads sensitive data or performs a privileged action from HQ |
 | [ROADMAP.md](ROADMAP.md) | Dependency-ordered implementation phases, exact backend/frontend tickets for the first slice, deferred work, open founder decisions | When planning or picking up implementation work |
+| [PHASE-1-IMPLEMENTATION.md](PHASE-1-IMPLEMENTATION.md) | **BUILT**, not planned: what actually shipped for Phase 1 (Member 360, HQ-101–107), file-by-file, with the authorization/isolation/privacy/performance review and frontend integration notes. The JSON contract itself lives in `docs/api/openapi.yaml` (tag `Hq`). | When integrating against the HQ backend, or verifying a claim about what's live today |
 
 ## Naming note
 

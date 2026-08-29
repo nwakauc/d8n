@@ -56,6 +56,19 @@ Rails.application.routes.draw do
         post "profiles/:profile_id/suspension" => "suspensions#create"
         delete "profiles/:profile_id/suspension" => "suspensions#destroy"
       end
+      # HQ: unified company command centre backend (docs/FOUNDER-HQ/D8N-HQ/).
+      # Never a normal consumer API -- authorized identically to the admin
+      # namespace above (Admin::ModeratorContext), never exposed to product
+      # clients. `lookup` may be an email/phone (containing "." or "+") or a
+      # profile public_id, so it needs an explicit constraint to avoid Rails'
+      # default dot-as-format-separator route parsing.
+      namespace :hq do
+        get "members/:lookup" => "members#show", constraints: { lookup: /[^\/]+/ }
+        get "members/:lookup/security_events" => "members#security_events", constraints: { lookup: /[^\/]+/ }
+        get "members/:lookup/auth_attempts" => "members#auth_attempts", constraints: { lookup: /[^\/]+/ }
+        get "members/:lookup/enforcements" => "members#enforcements", constraints: { lookup: /[^\/]+/ }
+        get "members/:lookup/discovery_diagnostic" => "members#discovery_diagnostic", constraints: { lookup: /[^\/]+/ }
+      end
       get "profile" => "profile#show"
       patch "profile" => "profile#update"
       post "profile/publication" => "profile_publications#create"

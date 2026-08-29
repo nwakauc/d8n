@@ -88,6 +88,14 @@ tags:
       the recipient engages. The recipient's first reply IS acceptance: it creates
       a normal Match + Conversation, after which all further chat flows through the
       standard Messaging endpoints. See ADR 0015.
+  - name: Hq
+    description: |
+      D8N HQ — internal company command centre backend (see
+      docs/FOUNDER-HQ/D8N-HQ/). Never a consumer-facing API: every operation
+      here requires an authorized moderator (identical authorization to the
+      Admin tag) and is scoped to the request's brand. See
+      docs/FOUNDER-HQ/D8N-HQ/SECURITY-AND-RBAC.md for the authorization model
+      and audit requirements.
   - name: Hook Tonight
     description: |
       Hook Tonight — a TEMPORARY "I'm available/open to meeting tonight"
@@ -3237,6 +3245,194 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hq/members/{lookup}:
+    get:
+      operationId: getMember360
+      tags: [Hq]
+      summary: Look up a member and return their Member 360 operational summary
+      description: |
+        Authorized-moderator only (identical authorization to the Admin tag —
+        no new permission model). `lookup` may be an email, a phone number (in
+        whatever form `POST /api/v1/auth/password/login` would accept), or a
+        profile `public_id` UUID. Resolution is always scoped to the request's
+        brand: an identifier that exists only on another brand, or does not
+        exist at all, returns the same neutral `member_unavailable` (404) — no
+        enumeration. The read is audited (a `hq.member_360_viewed`
+        SecurityEvent is recorded). Six thin, bounded sections are returned:
+        identity, profile, product, comms, safety, activity. Full paginated
+        history for security events, auth attempts, and enforcements is NOT
+        included here — see the three sub-resources below.
+      parameters:
+        - $ref: "#/components/parameters/HqLookup"
+      responses:
+        "200":
+          description: The member's identity summary and six-section Member 360 payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqMember360Response"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: No member on this brand matches `lookup` (`member_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hq/members/{lookup}/security_events:
+    get:
+      operationId: listMemberSecurityEvents
+      tags: [Hq]
+      summary: Paginated SecurityEvent history for one member
+      description: |
+        Authorized-moderator only, brand-scoped. Newest-first, cursor-paginated
+        (the cursor is bound to this brand, this member, and this resource
+        type — it cannot be replayed elsewhere). The read is audited
+        (`hq.member_security_events_viewed`). This is the same `SecurityEvent`
+        table used throughout the product's audit trail (report views,
+        enforcement actions, this HQ read itself).
+      parameters:
+        - $ref: "#/components/parameters/HqLookup"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/HqHistoryLimit"
+      responses:
+        "200":
+          description: A page of security events and an opaque next cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqSecurityEventListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: No member on this brand matches `lookup` (`member_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Invalid `limit` or `cursor` (`invalid_limit` / `invalid_cursor`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hq/members/{lookup}/auth_attempts:
+    get:
+      operationId: listMemberAuthAttempts
+      tags: [Hq]
+      summary: Paginated AuthAttempt history for one member
+      description: |
+        Authorized-moderator only, brand-scoped. Newest-first, cursor-paginated,
+        identical pagination semantics to `security_events`. The read is
+        audited (`hq.member_auth_attempts_viewed`). Closes the previously
+        console-only read gap over `AuthAttempt` (login/OTP/recovery attempts,
+        including throttled and locked outcomes) — see
+        docs/FOUNDER-HQ/D8N-HQ/CURRENT-STATE.md #1.4.
+      parameters:
+        - $ref: "#/components/parameters/HqLookup"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/HqHistoryLimit"
+      responses:
+        "200":
+          description: A page of auth attempts and an opaque next cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqAuthAttemptListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: No member on this brand matches `lookup` (`member_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Invalid `limit` or `cursor` (`invalid_limit` / `invalid_cursor`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hq/members/{lookup}/enforcements:
+    get:
+      operationId: listMemberEnforcements
+      tags: [Hq]
+      summary: Paginated AccountEnforcement history for one member
+      description: |
+        Authorized-moderator only, brand-scoped. Newest-first, cursor-paginated,
+        identical pagination semantics to `security_events`. The read is
+        audited (`hq.member_enforcements_viewed`). Returns the same
+        `AdminEnforcement` shape as `POST /api/v1/admin/profiles/{profile_id}/suspension`
+        — this is the full history that endpoint only ever showed one row of.
+      parameters:
+        - $ref: "#/components/parameters/HqLookup"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/HqHistoryLimit"
+      responses:
+        "200":
+          description: A page of enforcements and an opaque next cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqEnforcementListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: No member on this brand matches `lookup` (`member_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Invalid `limit` or `cursor` (`invalid_limit` / `invalid_cursor`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hq/members/{lookup}/discovery_diagnostic:
+    get:
+      operationId: getMemberDiscoveryDiagnostic
+      tags: [Hq]
+      summary: "\"Why is Discover empty for this member?\" read-only funnel diagnostic"
+      description: |
+        Authorized-moderator only, brand-scoped. Requires the member to have a
+        profile (`profile_unavailable` 404 otherwise). Re-runs the live
+        discovery engine's own eligibility stages (Matching::VisibilityScope,
+        Matching::EligibilityScope, Matching::ExclusionsScope) read-only,
+        reporting a candidate count at each stage — it never mutates
+        `DiscoveryAllocation`/`DiscoveryAllocationCandidate` and never consumes
+        the member's normal daily discovery quota. When the member themselves
+        is not currently eligible to see discovery at all (incomplete profile,
+        suspended, etc.), `eligible: false` is returned with a reason and no
+        stages, instead of an error. The read is audited
+        (`hq.member_discovery_diagnostic_viewed`).
+      parameters:
+        - $ref: "#/components/parameters/HqLookup"
+      responses:
+        "200":
+          description: Eligibility and, if eligible, a stage-by-stage candidate-count breakdown.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqDiscoveryDiagnosticResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: No member matches `lookup`, or the member has no profile yet (`member_unavailable` / `profile_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -3460,6 +3656,23 @@ components:
       in: query
       required: false
       description: Page size for the moderation queue.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    HqLookup:
+      name: lookup
+      in: path
+      required: true
+      description: An email, a phone number, or a profile `public_id` UUID. Resolved only within the request's brand.
+      schema:
+        type: string
+    HqHistoryLimit:
+      name: limit
+      in: query
+      required: false
+      description: Page size for an HQ member-history sub-resource.
       schema:
         type: integer
         minimum: 1
@@ -6018,6 +6231,451 @@ components:
       properties:
         enforcement:
           $ref: "#/components/schemas/AdminEnforcement"
+    HqMemberSummary:
+      type: object
+      required: [user_id, profile_id, brand, membership_status]
+      properties:
+        user_id:
+          type: integer
+        profile_id:
+          type: [string, "null"]
+          format: uuid
+        brand:
+          type: string
+        membership_status:
+          type: string
+          enum: [active, suspended, left, deactivated]
+    HqIdentifier:
+      type: object
+      required: [kind, value, verified_at, last_seen_at]
+      properties:
+        kind:
+          type: string
+          enum: [email, phone]
+        value:
+          type: string
+        verified_at:
+          type: [string, "null"]
+          format: date-time
+        last_seen_at:
+          type: [string, "null"]
+          format: date-time
+    HqSession:
+      type: object
+      required: [device_name, ip_address, last_used_at, expires_at, revoked_at]
+      properties:
+        device_name:
+          type: [string, "null"]
+        ip_address:
+          type: [string, "null"]
+        last_used_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: [string, "null"]
+          format: date-time
+    HqIdentitySection:
+      type: object
+      required:
+        [user_id, user_status, first_name, last_name, user_created_at, membership_status, member_since,
+         identifiers, recent_sessions]
+      properties:
+        user_id:
+          type: integer
+        user_status:
+          type: string
+          enum: [active, suspended, closed]
+        first_name:
+          type: [string, "null"]
+        last_name:
+          type: [string, "null"]
+        user_created_at:
+          type: string
+          format: date-time
+        membership_status:
+          type: string
+          enum: [active, suspended, left, deactivated]
+        member_since:
+          type: string
+          format: date-time
+        identifiers:
+          type: array
+          description: Up to the 10 oldest kept email/phone identifiers. Never includes oauth or device-fingerprint identifiers.
+          items:
+            $ref: "#/components/schemas/HqIdentifier"
+        recent_sessions:
+          type: array
+          description: Up to the 5 most recently used sessions for this brand. No token digests.
+          items:
+            $ref: "#/components/schemas/HqSession"
+    HqProfileSection:
+      type: object
+      required: [exists]
+      properties:
+        exists:
+          type: boolean
+          description: False when this member has no Profile on this brand yet — every other property is absent in that case.
+        public_id:
+          type: string
+          format: uuid
+        display_name:
+          type: [string, "null"]
+        status:
+          type: string
+          enum: [draft, active, suspended]
+        visibility:
+          type: string
+          enum: [hidden, visible]
+        gender:
+          type: [string, "null"]
+        birthdate:
+          type: [string, "null"]
+          format: date
+        country_code:
+          type: [string, "null"]
+        city:
+          type: [string, "null"]
+        created_at:
+          type: string
+          format: date-time
+        onboarding_state:
+          type: string
+          enum: [profile_required, profile_incomplete, ready_to_publish, complete, profile_suspended]
+        onboarding_next_step:
+          type: [string, "null"]
+        onboarding_completion_percent:
+          type: integer
+        photo_count:
+          type: integer
+        photos:
+          type: array
+          description: Up to the 20 most recent kept photos, ordered by position. No image URLs.
+          items:
+            type: object
+            required: [id, position, status, visibility, processing_state]
+            properties:
+              id:
+                type: string
+              position:
+                type: integer
+              status:
+                type: string
+                enum: [pending_review, approved, rejected]
+              visibility:
+                type: string
+                enum: [hidden, visible]
+              processing_state:
+                type: string
+                enum: [pending, processing, ready, failed]
+        preference:
+          type: object
+          nullable: true
+          properties:
+            min_age:
+              type: [integer, "null"]
+            max_age:
+              type: [integer, "null"]
+            max_distance_km:
+              type: [integer, "null"]
+            relationship_intent:
+              type: [string, "null"]
+            interested_in:
+              type: array
+              items:
+                type: string
+            country:
+              type: [string, "null"]
+    HqProductSection:
+      type: object
+      required:
+        [likes_given, likes_received, matches_active, hooks_sent, hooks_received, hooks_live_sent,
+         hooks_live_received, hook_tonight_live, conversations_count, recent_conversations,
+         blocks_given, blocks_received]
+      properties:
+        likes_given:
+          type: integer
+        likes_received:
+          type: integer
+        matches_active:
+          type: integer
+        hooks_sent:
+          type: integer
+        hooks_received:
+          type: integer
+        hooks_live_sent:
+          type: integer
+        hooks_live_received:
+          type: integer
+        hook_tonight_live:
+          type: boolean
+        conversations_count:
+          type: integer
+        recent_conversations:
+          type: array
+          description: Up to the 5 most recent conversations. No message content.
+          items:
+            type: object
+            required: [id, status, created_at]
+            properties:
+              id:
+                type: string
+                format: uuid
+              status:
+                type: string
+                enum: [active, closed]
+              created_at:
+                type: string
+                format: date-time
+        blocks_given:
+          type: integer
+        blocks_received:
+          type: integer
+    HqCommsSection:
+      type: object
+      required: [delivery_counts_by_status, delivery_counts_by_channel, recent_deliveries]
+      properties:
+        delivery_counts_by_status:
+          type: object
+          description: Counts over the 200 most recent NotificationDelivery rows for this member, keyed by status.
+          additionalProperties:
+            type: integer
+        delivery_counts_by_channel:
+          type: object
+          additionalProperties:
+            type: integer
+        recent_deliveries:
+          type: array
+          description: The 10 most recent deliveries.
+          items:
+            type: object
+            required: [channel, status, provider, sent_at, failed_at, error_code, created_at]
+            properties:
+              channel:
+                type: string
+                enum: [sms, email, push, whatsapp, in_app]
+              status:
+                type: string
+                enum: [pending, sent, failed, skipped, processing]
+              provider:
+                type: string
+              sent_at:
+                type: [string, "null"]
+                format: date-time
+              failed_at:
+                type: [string, "null"]
+                format: date-time
+              error_code:
+                type: [string, "null"]
+              created_at:
+                type: string
+                format: date-time
+    HqSafetySection:
+      type: object
+      required:
+        [reports_filed_count, reports_received_count, recent_reports, active_enforcement,
+         enforcement_count, account_closure]
+      properties:
+        reports_filed_count:
+          type: integer
+        reports_received_count:
+          type: integer
+        recent_reports:
+          type: array
+          description: Up to the 5 most recent reports naming this member in either direction. No evidence/note — see GET /api/v1/admin/reports/{id} for full detail.
+          items:
+            type: object
+            required: [id, status, reason, target_type, direction, created_at]
+            properties:
+              id:
+                type: integer
+              status:
+                type: string
+                enum: [open, reviewing, actioned, dismissed]
+              reason:
+                type: string
+              target_type:
+                type: string
+                enum: [profile, message, profile_media, hook, conversation]
+              direction:
+                type: string
+                enum: [filed, received]
+              created_at:
+                type: string
+                format: date-time
+        active_enforcement:
+          allOf:
+            - $ref: "#/components/schemas/AdminEnforcement"
+          nullable: true
+        enforcement_count:
+          type: integer
+        account_closure:
+          type: object
+          nullable: true
+          properties:
+            media_purge_state:
+              type: string
+              enum: [pending, completed, failed]
+            created_at:
+              type: string
+              format: date-time
+    HqActivitySection:
+      type: object
+      required: [last_login_at, recent_auth_attempts, recent_security_events]
+      properties:
+        last_login_at:
+          type: [string, "null"]
+          format: date-time
+        recent_auth_attempts:
+          type: array
+          description: Up to the 5 most recent auth attempts. Full history via GET .../auth_attempts.
+          items:
+            type: object
+            required: [kind, result, ip_address, created_at]
+            properties:
+              kind:
+                type: string
+                enum: [password, email_otp, phone_otp, oauth, webauthn, recovery_code]
+              result:
+                type: string
+                enum: [succeeded, failed, throttled, locked]
+              ip_address:
+                type: [string, "null"]
+              created_at:
+                type: string
+                format: date-time
+        recent_security_events:
+          type: array
+          description: Up to the 5 most recent security events. Full history via GET .../security_events.
+          items:
+            type: object
+            required: [event_type, severity, created_at]
+            properties:
+              event_type:
+                type: string
+              severity:
+                type: string
+                enum: [info, warning, high, critical]
+              created_at:
+                type: string
+                format: date-time
+    HqMember360Response:
+      type: object
+      required: [member, sections]
+      properties:
+        member:
+          $ref: "#/components/schemas/HqMemberSummary"
+        sections:
+          type: object
+          required: [identity, profile, product, comms, safety, activity]
+          properties:
+            identity:
+              $ref: "#/components/schemas/HqIdentitySection"
+            profile:
+              $ref: "#/components/schemas/HqProfileSection"
+            product:
+              $ref: "#/components/schemas/HqProductSection"
+            comms:
+              $ref: "#/components/schemas/HqCommsSection"
+            safety:
+              $ref: "#/components/schemas/HqSafetySection"
+            activity:
+              $ref: "#/components/schemas/HqActivitySection"
+    HqSecurityEvent:
+      type: object
+      required: [id, event_type, severity, metadata, ip_address, created_at]
+      properties:
+        id:
+          type: integer
+        event_type:
+          type: string
+        severity:
+          type: string
+          enum: [info, warning, high, critical]
+        metadata:
+          type: object
+          description: Opaque ids/status only, per this codebase's existing SecurityEvent convention — never raw message/report content.
+        ip_address:
+          type: [string, "null"]
+        created_at:
+          type: string
+          format: date-time
+    HqSecurityEventListResponse:
+      type: object
+      required: [security_events, next_cursor]
+      properties:
+        security_events:
+          type: array
+          items:
+            $ref: "#/components/schemas/HqSecurityEvent"
+        next_cursor:
+          type: [string, "null"]
+    HqAuthAttempt:
+      type: object
+      required: [id, kind, result, identifier, ip_address, created_at]
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [password, email_otp, phone_otp, oauth, webauthn, recovery_code]
+        result:
+          type: string
+          enum: [succeeded, failed, throttled, locked]
+        identifier:
+          type: string
+          description: The raw identifier string supplied at attempt time (as typed, not necessarily normalized).
+        ip_address:
+          type: [string, "null"]
+        created_at:
+          type: string
+          format: date-time
+    HqAuthAttemptListResponse:
+      type: object
+      required: [auth_attempts, next_cursor]
+      properties:
+        auth_attempts:
+          type: array
+          items:
+            $ref: "#/components/schemas/HqAuthAttempt"
+        next_cursor:
+          type: [string, "null"]
+    HqEnforcementListResponse:
+      type: object
+      required: [enforcements, next_cursor]
+      properties:
+        enforcements:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminEnforcement"
+        next_cursor:
+          type: [string, "null"]
+    HqDiscoveryDiagnosticResponse:
+      type: object
+      required: [eligible, ineligibility_reason, stages]
+      properties:
+        eligible:
+          type: boolean
+          description: Whether this member is currently eligible to see discovery at all.
+        ineligibility_reason:
+          type: [string, "null"]
+          description: Set only when `eligible` is false (e.g. `profile_unavailable`, `discovery_not_configured`).
+        stages:
+          type: array
+          description: Empty when `eligible` is false. Otherwise one entry per discovery funnel stage, in order.
+          items:
+            type: object
+            required: [stage, description, candidate_count]
+            properties:
+              stage:
+                type: string
+                enum: [visible_active_profiles, reciprocal_gender_age_distance, final_eligible_candidates]
+              description:
+                type: string
+              candidate_count:
+                type: integer
     StartConversationResponse:
       type: object
       required: [conversation, created]
