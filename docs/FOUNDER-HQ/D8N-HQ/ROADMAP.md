@@ -1,6 +1,8 @@
 # D8N HQ — Implementation Roadmap
 
-Status: **TARGET ARCHITECTURE / PLAN.** Nothing in this document is built.
+Status: **ACTIVE DELIVERY / CANONICAL ROADMAP.** Phase 1 and Phase 2
+backend work is built, but neither product slice is accepted until its
+frontend, security gates, and operational verification are complete.
 Sequencing is derived from the dependency chains actually found in
 CURRENT-STATE.md and ARCHITECTURE.md, not from the phase numbering in the
 original product brief (which the brief itself said not to copy
@@ -59,6 +61,19 @@ everything after it.
 
 ## Phase 1 — Member 360 + admin read foundation (recommended first slice — see below)
 
+**Reconciled status (2026-08-29): PARTIAL.**
+
+- **Backend: DONE** — HQ-101 through HQ-107 and the discovery diagnostic
+  are implemented and documented in `PHASE-1-IMPLEMENTATION.md` and
+  `docs/api/openapi.yaml`.
+- **Frontend: NOT STARTED** — HQ-F01 through HQ-F04 remain.
+- **Security gates: OUTSTANDING** — admin MFA remains the existing launch
+  gate before exposing Member 360's sensitive identity/activity data to
+  real operators; the V1 Option A authorization decision still requires
+  explicit written confirmation.
+- **Operational verification: OUTSTANDING** — the backend is test-proven,
+  but the agreed end-to-end operator acceptance criterion is not complete.
+
 **Objective:** an operator can look up one member, on one brand, and see
 their real state — identity, profile, product activity, safety history —
 without a Rails console.
@@ -108,6 +123,23 @@ this user and see what's going on" tool — this alone replaces a large
 share of today's Rails-console-driven support/moderation work.
 
 ## Phase 2 — Trust & Safety command surface
+
+**Reconciled status (2026-08-29): PARTIAL.**
+
+- **Backend: DONE** — brand-scoped Trust & Safety overview,
+  repeat-offender aggregation, and brand-wide enforcement history are
+  implemented. The existing admin report queue/detail/transition and
+  suspension/reinstatement APIs remain the canonical moderation paths.
+  See `PHASE-2-IMPLEMENTATION.md` and `docs/api/openapi.yaml`.
+- **Frontend: NOT STARTED** — the Trust & Safety page described below
+  remains outstanding; the canonical roadmap did not assign it an HQ-Fxx
+  ticket ID.
+- **Security gates: OUTSTANDING** — no new RBAC was introduced; the same
+  admin-MFA launch gate and current brand-scoped moderator authorization
+  apply.
+- **Operational verification: OUTSTANDING** — backend tests pass, but an
+  operator has not yet satisfied the phase acceptance criterion through a
+  verified frontend workflow.
 
 **Objective:** the existing reports queue becomes a real command surface:
 aging, repeat-offender visibility, enforcement history, all in one place,

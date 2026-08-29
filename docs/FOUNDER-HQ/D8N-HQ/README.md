@@ -5,8 +5,9 @@ to understand company state, drill into why, and take action, across
 every brand and every domain (growth, product, trust & safety,
 engineering, platform/admin).
 
-**Status as of 2026-08-29: PLANNING ONLY. No HQ backend or frontend code
-exists yet.** This folder is the canonical, reviewable plan for D8N HQ
+**Status as of 2026-08-29: ACTIVE DELIVERY. Phase 1 and Phase 2 backend
+slices are built; their frontend work and slice acceptance remain outstanding.**
+This folder is the canonical, reviewable plan for D8N HQ
 specifically — not for the D8N platform/product as a whole. Nothing here
 should be read as "already built" unless a document explicitly says so
 and cites evidence (file path / route / test).
@@ -33,6 +34,7 @@ ticket list — not before.
 | [SECURITY-AND-RBAC.md](SECURITY-AND-RBAC.md) | Current D8N admin authorization reality, the eventual HQ permission model (not decided), audit requirements, PII/privacy boundaries | Before building anything that reads sensitive data or performs a privileged action from HQ |
 | [ROADMAP.md](ROADMAP.md) | Dependency-ordered implementation phases, exact backend/frontend tickets for the first slice, deferred work, open founder decisions | When planning or picking up implementation work |
 | [PHASE-1-IMPLEMENTATION.md](PHASE-1-IMPLEMENTATION.md) | **BUILT**, not planned: what actually shipped for Phase 1 (Member 360, HQ-101–107), file-by-file, with the authorization/isolation/privacy/performance review and frontend integration notes. The JSON contract itself lives in `docs/api/openapi.yaml` (tag `Hq`). | When integrating against the HQ backend, or verifying a claim about what's live today |
+| [PHASE-2-IMPLEMENTATION.md](PHASE-2-IMPLEMENTATION.md) | **BACKEND BUILT; SLICE PARTIAL:** Trust & Safety overview, repeat-offender aggregation, brand-wide enforcement history, reuse of the existing report/evidence and moderation actions, plus the exact frontend handoff. | Before implementing or verifying the Phase 2 Trust & Safety frontend |
 
 ## Naming note
 

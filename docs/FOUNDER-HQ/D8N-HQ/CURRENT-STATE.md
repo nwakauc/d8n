@@ -52,8 +52,8 @@ brand, for any field. This is the single highest-leverage missing piece.
 | 3.2 | Authorization check (`Admin::ModeratorContext`) | READY, but **role-name-blind** | LIVE | D8N DB | `domains/admin/moderator_context.rb` — any active assignment of any role grants full moderator power (ADR 0013, explicit, intentional deferral) |
 | 3.3 | Founder/initial-admin bootstrap | READY | — | — | `domains/admin/founder_bootstrap.rb`, `bin/rails d8n:bootstrap_founder` (this repo's Phase 2 work) |
 | 3.4 | Admin CRUD API (list/create/modify AdminUsers, Roles, Assignments) | **MISSING** | — | — | No routes exist beyond the 3 domain-specific admin controllers below |
-| 3.5 | `SecurityEvent` audit trail | READY (write-only) | HISTORICAL | D8N DB | `app/models/security_event.rb`; 15+ event types recorded across identity/admin/account domains; **no read API** |
-| 3.6 | Dedicated `AuditLog` model | **MISSING** — see reconciliation below | — | — | `SecurityEvent` + `AuthAttempt` together cover most of what an "audit log" would, but there is no unified, admin-queryable audit surface |
+| 3.5 | `SecurityEvent` audit trail | READY (write + member-scoped HQ read) | HISTORICAL | D8N DB | `app/models/security_event.rb`, `domains/hq/security_event_history.rb`; Phase 1 added a paginated, brand-scoped member read, but no general audit browser |
+| 3.6 | Dedicated `AuditLog` model | **PARTIAL / deliberately not duplicated** — see reconciliation below | HISTORICAL | D8N DB | `SecurityEvent` + `AuthAttempt` remain separate; Phase 1 added member-scoped reads over both, not a third table or unified general browser |
 | 3.7 | Authorization framework | READY (hand-rolled) | — | — | No Pundit/CanCanCan in `Gemfile`; authorization is inline per-domain (`Admin::ModeratorContext`, `Trust::ReportTargets::*`) |
 
 ## 4. Trust & Safety
@@ -62,12 +62,12 @@ brand, for any field. This is the single highest-leverage missing piece.
 |---|---|---|---|---|---|
 | 4.1 | `Report` model + polymorphic target (ADR 0018) | READY | LIVE+HISTORICAL | D8N DB | `app/models/report.rb`; reasons incl. violence/non-consensual/impersonation; targets: profile/message/profile_media/hook/conversation |
 | 4.2 | Admin report queue/detail/transition API | READY | LIVE | D8N DB | `GET/PATCH /api/v1/admin/reports[/:id]`, `domains/admin/{report_queue,report_detail,transition_report}.rb` |
-| 4.3 | SLA/aging on reports (age of oldest case, overdue) | **MISSING** | DERIVABLE from `created_at`/`status` today; no SLA field | D8N DB | No `sla_due_at` or similar column; can compute "age" from `created_at` immediately, but no target/breach concept exists |
-| 4.4 | Repeat-offender / reports-per-member aggregation | **MISSING** | DERIVABLE | D8N DB | No query/endpoint exists; straightforward `GROUP BY reported_profile_id` over existing `reports` table — this is an HQ-side query, not new instrumentation |
+| 4.3 | SLA/aging on reports (age of oldest case, overdue) | **PARTIAL** | LIVE/DERIVABLE | D8N DB | Phase 2 HQ overview exposes oldest-open age and queue counts; true overdue/SLA remains `not_configured` because no approved threshold exists |
+| 4.4 | Repeat-offender / reports-per-member aggregation | READY (bounded HQ read) | LIVE/DERIVABLE | D8N DB | `GET /api/v1/hq/trust_safety/repeat_offenders`, `domains/hq/trust_safety/repeat_offenders.rb` |
 | 4.5 | Case/investigation timeline concept | **MISSING** | — | — | Reports are atomic; no nested case, no linked-evidence timeline beyond the single `evidence` jsonb snapshot |
 | 4.6 | `AccountEnforcement` (suspend/reinstate) | READY | HISTORICAL | D8N DB | `app/models/account_enforcement.rb`; one active enforcement per (brand,user) DB-enforced |
 | 4.7 | Admin suspend/reinstate API | READY | LIVE | D8N DB | `POST/DELETE /api/v1/admin/profiles/:id/suspension` |
-| 4.8 | Enforcement history query (per member / per brand) | **MISSING** | DERIVABLE | D8N DB | No list endpoint; `AccountEnforcement` rows accumulate but only Rails console can read them today |
+| 4.8 | Enforcement history query (per member / per brand) | READY | LIVE+HISTORICAL | D8N DB | Phase 1: `GET /api/v1/hq/members/:lookup/enforcements`; Phase 2: `GET /api/v1/hq/trust_safety/enforcements` |
 | 4.9 | Profile photo moderation queue + decision API | READY | LIVE | D8N DB | `GET/PATCH /api/v1/admin/profile_photos`; `Trust::ModerateProfilePhoto` |
 | 4.10 | Photo moderation analytics (queue depth trend, review time, reviewer load) | **MISSING** | DERIVABLE | D8N DB | Queue exists; no aggregation |
 | 4.11 | Identity/selfie/ID verification | **MISSING (not a gap to "surface", a real product gap)** | NOT AVAILABLE | — | Confirmed: no `Verification`/`UserVerification` model exists anywhere. Only email/phone OTP possession checks (`OtpChallenge`). Do not plan an HQ "verification review" page around anything beyond OTP delivery status until this product capability is actually built. |

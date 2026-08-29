@@ -3245,6 +3245,96 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hq/trust_safety/overview:
+    get:
+      operationId: getHqTrustSafetyOverview
+      tags: [Hq]
+      summary: Current-brand Trust & Safety queue and enforcement overview
+      description: |
+        Authorized-moderator only, brand-scoped, and read-only. Returns current
+        report counts by status, reason, and target type; open-queue aging; and
+        enforcement totals. `overdue` is deliberately null and `sla_status` is
+        `not_configured` because D8N has not defined an SLA threshold. The read
+        is audited as `hq.trust_safety_overview_viewed` without recording report
+        content, filters, or member PII.
+      responses:
+        "200":
+          description: Current Trust & Safety overview for the host-resolved brand.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqTrustSafetyOverviewResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+  /api/v1/hq/trust_safety/repeat_offenders:
+    get:
+      operationId: listHqTrustSafetyRepeatOffenders
+      tags: [Hq]
+      summary: List repeatedly reported profiles for the current brand
+      description: |
+        Authorized-moderator only, brand-scoped, and read-only. "Repeat" means
+        at least two retained reports received by one profile. Results are
+        ordered by report count descending, then latest report descending, and
+        bounded rather than cursor-paginated. This is an investigation signal,
+        never an automatic enforcement decision. `member_360_lookup` can be
+        passed to GET /api/v1/hq/members/{lookup}; it is null when the retained
+        historical profile is no longer available to Member 360. The read is
+        audited as `hq.trust_safety_repeat_offenders_viewed`.
+      parameters:
+        - $ref: "#/components/parameters/HqRepeatOffenderLimit"
+      responses:
+        "200":
+          description: Bounded repeat-offender aggregation for the current brand.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqRepeatOffenderListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "422":
+          description: Invalid `limit` (`invalid_limit`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hq/trust_safety/enforcements:
+    get:
+      operationId: listHqTrustSafetyEnforcements
+      tags: [Hq]
+      summary: Paginated brand-wide account-enforcement history
+      description: |
+        Authorized-moderator only, brand-scoped, read-only, and newest-first.
+        Optional `state` selects active or reverted enforcement. The opaque
+        cursor is signed and bound to both the host-resolved brand and the state
+        filter. The response reuses the established AdminEnforcement shape, so
+        `profile_id` is the Member 360 lookup/deep-link when present. The read is
+        audited as `hq.trust_safety_enforcements_viewed`; only the non-sensitive
+        state filter is retained in audit metadata.
+      parameters:
+        - $ref: "#/components/parameters/HqEnforcementStateFilter"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/HqHistoryLimit"
+      responses:
+        "200":
+          description: A page of brand-wide enforcement history and an opaque next cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqEnforcementListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "422":
+          description: Invalid `state`, `limit`, or `cursor` (`invalid_filter` / `invalid_limit` / `invalid_cursor`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/hq/members/{lookup}:
     get:
       operationId: getMember360
@@ -3678,6 +3768,24 @@ components:
         minimum: 1
         maximum: 100
         default: 25
+    HqRepeatOffenderLimit:
+      name: limit
+      in: query
+      required: false
+      description: "Maximum repeat-offender rows returned. The response reports `truncated: true` when more rows exist."
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    HqEnforcementStateFilter:
+      name: state
+      in: query
+      required: false
+      description: Restrict brand-wide enforcement history to active or reverted rows.
+      schema:
+        type: string
+        enum: [active, reverted]
   responses:
     Unauthorized:
       description: Missing, invalid, expired, revoked, or wrong-brand session. Cookie bootstrap may return `session_expired` or `session_revoked`; other cases return `unauthorized`.
@@ -6231,6 +6339,100 @@ components:
       properties:
         enforcement:
           $ref: "#/components/schemas/AdminEnforcement"
+    HqTrustSafetyOverviewResponse:
+      type: object
+      required: [overview]
+      properties:
+        overview:
+          type: object
+          required: [brand, generated_at, reports, enforcements]
+          properties:
+            brand:
+              type: string
+            generated_at:
+              type: string
+              format: date-time
+            reports:
+              type: object
+              required:
+                [total, by_status, awaiting_decision, oldest_open_report_at,
+                 oldest_open_report_age_seconds, by_reason, by_target_type,
+                 sla_status, overdue]
+              properties:
+                total:
+                  type: integer
+                by_status:
+                  type: object
+                  description: Stable keys `open`, `reviewing`, `actioned`, and `dismissed`; absent states are returned as zero.
+                  additionalProperties:
+                    type: integer
+                awaiting_decision:
+                  type: integer
+                  description: Reports whose status is `open` or `reviewing`.
+                oldest_open_report_at:
+                  type: [string, "null"]
+                  format: date-time
+                oldest_open_report_age_seconds:
+                  type: [integer, "null"]
+                by_reason:
+                  type: object
+                  description: Stable keys for every current Report reason; absent reasons are returned as zero.
+                  additionalProperties:
+                    type: integer
+                by_target_type:
+                  type: object
+                  description: Stable keys for every current Report target type; absent types are returned as zero.
+                  additionalProperties:
+                    type: integer
+                sla_status:
+                  type: string
+                  enum: [not_configured]
+                overdue:
+                  type: [integer, "null"]
+                  description: Null until an approved Trust & Safety SLA policy exists.
+            enforcements:
+              type: object
+              required: [total, active]
+              properties:
+                total:
+                  type: integer
+                active:
+                  type: integer
+    HqRepeatOffender:
+      type: object
+      required:
+        [profile_id, display_name, member_360_lookup, report_count,
+         awaiting_decision_count, latest_report_at]
+      properties:
+        profile_id:
+          type: string
+          format: uuid
+        display_name:
+          type: [string, "null"]
+        member_360_lookup:
+          type: [string, "null"]
+          format: uuid
+        report_count:
+          type: integer
+          minimum: 2
+        awaiting_decision_count:
+          type: integer
+        latest_report_at:
+          type: string
+          format: date-time
+    HqRepeatOffenderListResponse:
+      type: object
+      required: [repeat_offenders, minimum_reports, truncated]
+      properties:
+        repeat_offenders:
+          type: array
+          items:
+            $ref: "#/components/schemas/HqRepeatOffender"
+        minimum_reports:
+          type: integer
+          enum: [2]
+        truncated:
+          type: boolean
     HqMemberSummary:
       type: object
       required: [user_id, profile_id, brand, membership_status]
