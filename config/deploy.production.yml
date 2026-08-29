@@ -42,7 +42,11 @@ env:
     D8N_EMAIL_FROM: "HookUs <no-reply@hookus.app>"
     D8N_DATEZA_EMAIL_FROM: "DateZA <no-reply@date-za.com>"
     D8N_DATEZA_APP_URL: "https://www.date-za.com"
-    D8N_CORS_ORIGINS: "https://hookus.app,https://www.hookus.app,https://www.date-za.com"
+    D8N_CORS_ORIGINS: "https://hookus.app,https://www.hookus.app,https://www.date-za.com,https://date-za.com"
+    # Maps this host to the dateza Brand via the idempotent brands:install_dateza
+    # task, run automatically on web boot (see bin/docker-entrypoint). Must match
+    # the dateza entry in proxy.hosts above.
+    DATEZA_API_HOST: "dateza-api.d8n.tech"
 
   secret:
     - RAILS_MASTER_KEY

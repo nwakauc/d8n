@@ -13,4 +13,12 @@ if { [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; } || [ "
   ./bin/rails db:prepare
 fi
 
+# Brand-to-host resolution is DB-backed (BrandDomain), not env/config-driven.
+# DATEZA_API_HOST maps this environment's DateZA hostname to the shared
+# BrandRegistry via the idempotent brands:install_dateza task, so the mapping
+# can't be silently missing in a freshly provisioned environment.
+if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ] && [ -n "${DATEZA_API_HOST}" ]; then
+  ./bin/rails brands:install_dateza
+fi
+
 exec "${@}"
