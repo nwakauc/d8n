@@ -60,6 +60,7 @@ module Notifications
       ProductNotificationMailer.with(
         brand_slug: notification.brand.slug,
         notification_type: notification.notification_type,
+        notification_id: notification.id,
         recipient:,
         from_address:
       ).welcome

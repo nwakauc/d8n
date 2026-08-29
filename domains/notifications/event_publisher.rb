@@ -76,7 +76,11 @@ module Notifications
         brand_membership: recipient.brand_membership,
         payload: {
           actor: { profile_id: message.sender_profile.public_id },
-          target: { type: "conversation", id: message.conversation.public_id }
+          target: {
+            type: "conversation",
+            id: message.conversation.public_id,
+            message_id: message.public_id
+          }
         }
       )
     end

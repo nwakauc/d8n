@@ -3,7 +3,9 @@ module Notifications
     Definition = Data.define(:code, :title, :body, :email_subject, :allowed_payload_keys)
 
     # `actor`/`target` (shared by every D8N dating event below): opaque public
-    # identifiers only — { actor: { profile_id: }, target: { type:, id: } }. No
+    # identifiers only — { actor: { profile_id: }, target: { type:, id: } }. A
+    # message target also carries an opaque `message_id` so delivery can resolve
+    # the exact message under current authorization without persisting content. No
     # name, photo, bio, or message body is ever embedded here; the frontend
     # resolves `actor`/`target` through the normal owner-scoped endpoints
     # (profile detail, match, conversation), which already enforce block/

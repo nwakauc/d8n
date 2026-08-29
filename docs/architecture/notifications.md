@@ -27,16 +27,24 @@ production. Provider work never runs inside the registration transaction.
 
 ## Implemented types and policy
 
-Only this policy is enabled now:
+DateZA currently enables these product-notification policies:
 
 | Event | Brand | Notification type | Channels |
 | --- | --- | --- | --- |
 | `membership_registered` | DateZA | `dateza.welcome` | In-app; email when an email exists; push for active devices |
+| `like_received` | DateZA | `dateza.like_received` | In-app; email; push for active devices |
+| `match_created` | DateZA | `dateza.match_created` | In-app; email; push for active devices |
+| `opener_received` | DateZA | `dateza.opener_received` | In-app; email; push for active devices |
+| `message_received` | DateZA | `dateza.message_received` | In-app; debounced email/push |
 
 `Notifications::Types` owns stable type codes, safe presentation copy, and an
-allow-list of payload fields. The DateZA welcome payload is empty. Adding a new
-event requires an explicit policy/type entry and privacy review; frontend prose is
-not the sole semantic identifier.
+allow-list of payload fields. The DateZA welcome payload is empty. Dating-event
+payloads contain only opaque actor/target identifiers; message text and media
+never enter the durable event, notification, delivery metadata, or logs. Email
+presentation resolves current authorized records at delivery time and falls back
+to generic copy when a block, closure, deletion, or privacy boundary prevents
+access. Adding a new event requires an explicit policy/type entry and privacy
+review; frontend prose is not the sole semantic identifier.
 
 ## Tenant and recipient integrity
 
@@ -76,6 +84,7 @@ requires a brand sender in production:
 D8N_EMAIL_PROVIDER=resend
 RESEND_API_KEY=<secret>
 D8N_DATEZA_EMAIL_FROM=DateZA <no-reply@date-za.com>
+D8N_DATEZA_APP_URL=https://www.date-za.com
 D8N_SMS_PROVIDER=twilio
 TWILIO_ACCOUNT_SID=<secret>
 TWILIO_API_KEY_SID=<secret>
@@ -88,18 +97,22 @@ provider. Identity verification, password recovery, and product notification mai
 all select this sender from the persisted brand. The legacy `D8N_EMAIL_FROM` key is
 accepted only for HookUs; no other brand falls back to it. Never put provider keys
 in repository files or logs. Development/test use non-routable `<brand>.test`
-sender defaults. The DateZA welcome template is concise, contains no sensitive
-subject data, and does not include an unapproved frontend URL.
+sender defaults. DateZA product templates use brand-owned copy, logo, colors, a
+safe current sender profile image when available, and a direct brand-app CTA.
+Message previews are whitespace-normalized and capped at 100 characters. Media-
+only messages use semantic copy; private message media is never embedded. The
+first message in a conversation burst sends immediately, while further email/
+push interruptions for the same recipient and conversation are suppressed for
+the debounce window.
 
-DateZA verification and welcome mail use dedicated multipart templates selected
+DateZA verification and product mail use dedicated multipart templates selected
 from the persisted brand slug/type. They reuse the canonical DateZA heart mark,
 wordmark, warm-white canvas, ink, and pink (`#E8375A`) from the DateZA frontend.
 The HTML uses a table-based 600px responsive layout with inline styles and an
 Outlook width fallback; all critical copy and codes remain text, and multipart
 plain-text bodies are retained. The readable wordmark remains when a client omits
-inline SVG. No welcome CTA is emitted because D8N does not yet have an approved
-brand-specific frontend/profile URL configuration; adding one must be a separate
-configuration decision, not a hard-coded template URL.
+inline SVG. CTA paths are composed from opaque public identifiers and the
+brand-owned `D8N_DATEZA_APP_URL`; DateZA has an explicit production default.
 
 SMS readiness is also brand-aware: valid Twilio account credentials are
 insufficient unless the resolved brand has a messaging-service SID (or an
@@ -112,5 +125,5 @@ Queue worker as well as Rails web.
 - Device enrollment/revocation API and frontend permission flow.
 - Production APNs/FCM (or other) adapter and invalid-token feedback handling.
 - Preference-management API, quiet hours, digesting, and campaign/newsletter tools.
-- Match/message/RealMe/moderation/security/subscription event policies.
+- RealMe/moderation/security/subscription event policies.
 - Realtime/websocket inbox delivery and notification UI.

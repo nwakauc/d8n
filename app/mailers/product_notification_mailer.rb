@@ -7,18 +7,33 @@ class ProductNotificationMailer < ApplicationMailer
   # about. Anything not listed falls back to the generic, type-agnostic
   # welcome.html.erb/welcome.text.erb, which render only @title/@body.
   TEMPLATES = {
-    "dateza.welcome" => "dateza_welcome"
+    "dateza.welcome" => "dateza_welcome",
+    "dateza.like_received" => "dateza_product",
+    "dateza.match_created" => "dateza_product",
+    "dateza.opener_received" => "dateza_product",
+    "dateza.message_received" => "dateza_product"
   }.freeze
 
   def welcome
-    definition = Notifications::Types.fetch(params.fetch(:notification_type))
-    @title = definition.title
-    @body = definition.body
+    notification = Notification.find_by(id: params[:notification_id])
+    presentation = Notifications::EmailPresentation.call(
+      notification:,
+      notification_type: params.fetch(:notification_type),
+      brand_slug: params.fetch(:brand_slug)
+    )
+    @title = presentation.title
+    @body = presentation.body
+    @preheader = presentation.preheader
+    @actor_name = presentation.actor_name
+    @actor_image_url = presentation.actor_image_url
+    @preview = presentation.preview
+    @cta_label = presentation.cta_label
+    @cta_url = presentation.cta_url
 
     mail(
       from: params.fetch(:from_address),
       to: params.fetch(:recipient),
-      subject: definition.email_subject,
+      subject: presentation.subject,
       template_name: TEMPLATES.fetch(params.fetch(:notification_type), "welcome")
     )
   end

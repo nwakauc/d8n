@@ -20,7 +20,22 @@ module Geography
               "camps-bay" => { name: "Camps Bay", latitude: -33.9500, longitude: 18.3775 },
               "observatory" => { name: "Observatory", latitude: -33.9377, longitude: 18.4720 },
               "claremont" => { name: "Claremont", latitude: -33.9811, longitude: 18.4645 },
-              "woodstock" => { name: "Woodstock", latitude: -33.9270, longitude: 18.4487 }
+              "woodstock" => { name: "Woodstock", latitude: -33.9270, longitude: 18.4487 },
+              "parklands" => { name: "Parklands", latitude: -33.8156, longitude: 18.4948 },
+              "table-view" => { name: "Table View", latitude: -33.8236, longitude: 18.4899 },
+              "bloubergstrand" => { name: "Bloubergstrand", latitude: -33.8064, longitude: 18.4552 },
+              "milnerton" => { name: "Milnerton", latitude: -33.8664, longitude: 18.4989 },
+              "century-city" => { name: "Century City", latitude: -33.8901, longitude: 18.5122 },
+              "green-point" => { name: "Green Point", latitude: -33.9067, longitude: 18.4067 },
+              "gardens" => { name: "Gardens", latitude: -33.9333, longitude: 18.4111 },
+              "rondebosch" => { name: "Rondebosch", latitude: -33.9575, longitude: 18.4747 },
+              "newlands" => { name: "Newlands", latitude: -33.9736, longitude: 18.4572 },
+              "constantia" => { name: "Constantia", latitude: -34.0231, longitude: 18.4297 },
+              "bellville" => { name: "Bellville", latitude: -33.8994, longitude: 18.6292 },
+              "durbanville" => { name: "Durbanville", latitude: -33.8306, longitude: 18.6503 },
+              "muizenberg" => { name: "Muizenberg", latitude: -34.1080, longitude: 18.4700 },
+              "hout-bay" => { name: "Hout Bay", latitude: -34.0492, longitude: 18.3564 },
+              "wynberg" => { name: "Wynberg", latitude: -34.0000, longitude: 18.4667 }
             }
           }
         }
@@ -34,14 +49,20 @@ module Geography
               "sandton" => { name: "Sandton", latitude: -26.1076, longitude: 28.0567 },
               "melville" => { name: "Melville", latitude: -26.1808, longitude: 28.0006 },
               "maboneng" => { name: "Maboneng", latitude: -26.2023, longitude: 28.0567 },
-              "rosebank" => { name: "Rosebank", latitude: -26.1467, longitude: 28.0436 }
+              "rosebank" => { name: "Rosebank", latitude: -26.1467, longitude: 28.0436 },
+              "randburg" => { name: "Randburg", latitude: -26.0939, longitude: 27.9975 },
+              "fourways" => { name: "Fourways", latitude: -26.0128, longitude: 28.0106 },
+              "bryanston" => { name: "Bryanston", latitude: -26.0561, longitude: 28.0181 },
+              "parkhurst" => { name: "Parkhurst", latitude: -26.1508, longitude: 28.0303 }
             }
           },
           "pretoria" => {
             name: "Pretoria", latitude: -25.7479, longitude: 28.2293,
             localities: {
               "hatfield" => { name: "Hatfield", latitude: -25.7487, longitude: 28.2373 },
-              "brooklyn" => { name: "Brooklyn", latitude: -25.7635, longitude: 28.2378 }
+              "brooklyn" => { name: "Brooklyn", latitude: -25.7635, longitude: 28.2378 },
+              "menlyn" => { name: "Menlyn", latitude: -25.7828, longitude: 28.2769 },
+              "centurion" => { name: "Centurion", latitude: -25.8603, longitude: 28.1894 }
             }
           }
         }
@@ -53,7 +74,9 @@ module Geography
             name: "Durban", latitude: -29.8587, longitude: 31.0218,
             localities: {
               "umhlanga" => { name: "Umhlanga", latitude: -29.7267, longitude: 31.0836 },
-              "morningside" => { name: "Morningside", latitude: -29.8232, longitude: 31.0064 }
+              "morningside" => { name: "Morningside", latitude: -29.8232, longitude: 31.0064 },
+              "ballito" => { name: "Ballito", latitude: -29.5389, longitude: 31.2144 },
+              "westville" => { name: "Westville", latitude: -29.8317, longitude: 30.9256 }
             }
           }
         }

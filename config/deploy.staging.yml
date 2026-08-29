@@ -41,6 +41,9 @@ env:
     # never inherit it. These public addresses live in clear deployment config.
     D8N_EMAIL_FROM: "HookUs <no-reply@hookus.app>"
     D8N_DATEZA_EMAIL_FROM: "DateZA <no-reply@date-za.com>"
+    # Brand-owned destination for notification email CTAs. Paths are composed
+    # by the shared notification deep-link boundary from opaque public ids.
+    D8N_DATEZA_APP_URL: "https://www.date-za.com"
     # Explicit browser origins permitted to call the staging API. HookUs and
     # DateZA frontends talk to the real staging backend during integration.
     # Origins are not secrets; never use "*" here. Extend this comma-separated

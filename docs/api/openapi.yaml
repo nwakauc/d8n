@@ -5340,7 +5340,9 @@ components:
             dateza.welcome. For the D8N dating events (like_received,
             match_created, opener_received, message_received), carries only
             opaque public identifiers — `actor.profile_id` (who did it) and
-            `target.type`/`target.id` (what to open). Never latitude/longitude,
+            `target.type`/`target.id` (what to open). Message notifications also
+            carry `target.message_id`, an opaque identifier used to resolve the
+            exact message under current authorization. Never latitude/longitude,
             message text, names, or photos; the frontend resolves `actor`/
             `target` through the normal owner-scoped endpoints (profile detail,
             match, conversation), which independently enforce block/suspension/
@@ -5382,6 +5384,10 @@ components:
             id:
               type: string
               format: uuid
+            message_id:
+              type: string
+              format: uuid
+              description: Present only when target.type is conversation.
     NotificationListResponse:
       type: object
       required: [notifications, unread_count]

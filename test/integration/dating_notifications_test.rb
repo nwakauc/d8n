@@ -212,6 +212,7 @@ class DatingNotificationsTest < ActionDispatch::IntegrationTest
     assert_equal alice.public_id, notification.payload.fetch("actor").fetch("profile_id")
     assert_equal "conversation", notification.payload.fetch("target").fetch("type")
     assert_equal conversation.public_id, notification.payload.fetch("target").fetch("id")
+    assert_equal Message.last.public_id, notification.payload.fetch("target").fetch("message_id")
     assert_equal 0, Notification.where(brand_membership: alice.brand_membership).count
   end
 
