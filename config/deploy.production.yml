@@ -17,6 +17,9 @@ proxy:
 
 ssh:
   user: d8nadmin
+  keys:
+    - ~/.ssh/d8n_production
+  keys_only: true
 
 builder:
   arch: amd64

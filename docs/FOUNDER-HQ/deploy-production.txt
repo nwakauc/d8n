@@ -1,0 +1,44 @@
+# NOTE: D8N_DATABASE_PASSWORD and the R2/Resend/Twilio/AR-encryption secrets
+# below use the SAME .env variable names as the staging check in
+# deploy-commands.txt (per config/deploy.production.yml and
+# .kamal/secrets.production — R2 credentials are intentionally the same
+# underlying staging bucket/keys, just exposed under *_PRODUCTION_* Kamal
+# variable names). D8N_DATABASE_PASSWORD is the one value that must actually
+# DIFFER in content from the staging deploy (new d8n_app production
+# password) even though the .env variable name is identical — make sure
+# .env holds the production value before running this, not the staging one.
+
+set -a
+source .env
+set +a
+
+for v in \
+  KAMAL_REGISTRY_PASSWORD \
+  RAILS_MASTER_KEY \
+  D8N_DATABASE_PASSWORD \
+  STAGING_R2_ACCESS_KEY_ID \
+  STAGING_R2_SECRET_ACCESS_KEY \
+  STAGING_R2_ENDPOINT \
+  STAGING_R2_BUCKET \
+  STAGING_DATEZA_R2_ACCESS_KEY_ID \
+  STAGING_DATEZA_R2_SECRET_ACCESS_KEY \
+  STAGING_DATEZA_R2_BUCKET \
+  RESEND_API_KEY \
+  TWILIO_ACCOUNT_SID \
+  TWILIO_API_KEY_SID \
+  TWILIO_CLIENT_SECRET \
+  TWILIO_HOOKUS_MESSAGING_SERVICE_SID \
+  TWILIO_DATEZA_MESSAGING_SERVICE_SID \
+  D8N_AR_ENCRYPTION_PRIMARY_KEY \
+  D8N_AR_ENCRYPTION_DETERMINISTIC_KEY \
+  D8N_AR_ENCRYPTION_KEY_DERIVATION_SALT
+do
+  [[ -n "${(P)v}" ]] && echo "$v = SET" || echo "$v = MISSING"
+done
+
+
+bundle exec kamal build push -d production
+bundle exec kamal deploy -d production
+bundle exec kamal details -d production
+curl -I https://api.d8n.tech
+curl -I https://dateza-api.d8n.tech
