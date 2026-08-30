@@ -34,6 +34,11 @@ against. This document is the narrative walkthrough.
   brand-scoped, newest-first directory with signed cursor pagination and
   safe operational summaries for the Operations console —
   `domains/hq/member_directory*.rb`, `GET /api/v1/hq/members`.
+- **Operations analytics extension:** `Hq::Analytics::Overview` provides
+  server-computed, brand-scoped signup, session-activity, demographic, and
+  total-member rollups at `GET /api/v1/hq/analytics/overview`. This uses
+  derivable current data only and does not create the future AnalyticsEvent
+  pipeline.
 
 ## Routes
 

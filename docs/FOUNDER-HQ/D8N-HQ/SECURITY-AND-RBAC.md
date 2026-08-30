@@ -62,7 +62,7 @@ Current capabilities:
 - `admin.operators.manage`
 - `admin.brand_operations.manage`
 - `hq.system.read` (reserved for the existing later phase)
-- `hq.analytics.read` (reserved for the existing later phase)
+- `hq.analytics.read` (derivable Operations overview; event-pipeline analytics remain future)
 
 Capability changes are security-sensitive code changes. Seed rows provide
 role vocabulary/descriptions only and cannot silently change authority.

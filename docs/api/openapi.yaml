@@ -3464,6 +3464,29 @@ paths:
           $ref: "#/components/responses/InvalidInput"
         "429":
           $ref: "#/components/responses/AdminMfaRateLimited"
+  /api/v1/hq/analytics/overview:
+    get:
+      operationId: getHqAnalyticsOverview
+      tags: [Hq]
+      summary: Current-brand Operations analytics overview
+      description: |
+        Requires verified admin MFA and `hq.analytics.read`. Metrics are
+        computed server-side for the host-resolved brand using the canonical
+        definitions in METRICS.md. Signup boundaries use the returned
+        `time_zone`; active members are distinct users with a session whose
+        `last_used_at` falls within each trailing window. The read is audited
+        as `hq.analytics_overview_viewed`.
+      responses:
+        "200":
+          description: Brand-scoped analytics overview.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqAnalyticsOverviewResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
   /api/v1/hq/trust_safety/overview:
     get:
       operationId: getHqTrustSafetyOverview
@@ -6881,6 +6904,61 @@ components:
       properties:
         enforcement:
           $ref: "#/components/schemas/AdminEnforcement"
+    HqAnalyticsOverviewResponse:
+      type: object
+      required: [overview]
+      properties:
+        overview:
+          type: object
+          required:
+            [brand, generated_at, time_zone, signups_today,
+             signups_this_week, signups_this_month, active_today, active_7d,
+             active_30d, gender_split, total_registered_members]
+          properties:
+            brand:
+              type: string
+            generated_at:
+              type: string
+              format: date-time
+            time_zone:
+              type: string
+            signups_today:
+              type: integer
+              minimum: 0
+            signups_this_week:
+              type: integer
+              minimum: 0
+            signups_this_month:
+              type: integer
+              minimum: 0
+            active_today:
+              type: integer
+              minimum: 0
+            active_7d:
+              type: integer
+              minimum: 0
+            active_30d:
+              type: integer
+              minimum: 0
+            gender_split:
+              type: object
+              required: [woman, man, other, unknown]
+              properties:
+                woman:
+                  type: integer
+                  minimum: 0
+                man:
+                  type: integer
+                  minimum: 0
+                other:
+                  type: integer
+                  minimum: 0
+                unknown:
+                  type: integer
+                  minimum: 0
+            total_registered_members:
+              type: integer
+              minimum: 0
     HqTrustSafetyOverviewResponse:
       type: object
       required: [overview]

@@ -90,6 +90,10 @@ everything after it.
   brand-scoped `GET /api/v1/hq/members` directory is now available for the
   interim Operations console; it is a safe listing, not a new cross-brand
   authority model or signup notification stream.
+- **Operations analytics extension: DONE** — `GET /api/v1/hq/analytics/overview`
+  exposes only server-computed metrics derivable from current memberships,
+  profiles, and sessions. This does not pull the Phase 5 AnalyticsEvent
+  pipeline forward.
 - **Frontend: IN PROGRESS** — HQ-F01 through HQ-F04 are being implemented
   from the documented contract.
 - **Security gates: BACKEND PASSED / OPERATIONAL ACCEPTANCE OUTSTANDING** —
