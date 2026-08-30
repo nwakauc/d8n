@@ -17,6 +17,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_160100) do
   create_table "account_closures", force: :cascade do |t|
     t.bigint "brand_id", null: false
     t.bigint "brand_membership_id", null: false
+    t.integer "kind", default: 0, null: false
     t.datetime "created_at", null: false
     t.integer "media_purge_state", default: 0, null: false
     t.datetime "media_purged_at"
@@ -36,6 +37,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_160100) do
     t.datetime "created_at", null: false
     t.bigint "profile_id"
     t.text "reason"
+    t.text "note"
     t.bigint "report_id"
     t.datetime "reverted_at"
     t.bigint "reverted_by_admin_user_id"
@@ -49,6 +51,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_160100) do
     t.index ["report_id"], name: "index_account_enforcements_on_report_id"
     t.index ["reverted_by_admin_user_id"], name: "index_account_enforcements_on_reverted_by_admin_user_id"
     t.index ["user_id"], name: "index_account_enforcements_on_user_id"
+    t.index ["kind"], name: "index_account_enforcements_on_kind"
   end
 
   create_table "active_storage_attachments", force: :cascade do |t|

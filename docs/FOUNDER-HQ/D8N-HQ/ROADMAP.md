@@ -94,6 +94,10 @@ everything after it.
   exposes only server-computed metrics derivable from current memberships,
   profiles, and sessions. This does not pull the Phase 5 AnalyticsEvent
   pipeline forward.
+- **Enforcement controls: PARTIAL** — brand-scoped suspension existed; the
+  foundation now distinguishes suspension/ban creation from reinstatement,
+  records operator notes, and exposes audited security alerts. Frontend
+  actions and production acceptance remain outstanding.
 - **Frontend: IN PROGRESS** — HQ-F01 through HQ-F04 are being implemented
   from the documented contract.
 - **Security gates: BACKEND PASSED / OPERATIONAL ACCEPTANCE OUTSTANDING** —
@@ -159,6 +163,8 @@ share of today's Rails-console-driven support/moderation work.
   implemented. The existing admin report queue/detail/transition and
   suspension/reinstatement APIs remain the canonical moderation paths.
   See `PHASE-2-IMPLEMENTATION.md` and `docs/api/openapi.yaml`.
+- Enforcement mutations remain capability-separated: Operations/Trust & Safety
+  may create; Founder/Super Admin may reinstate or override.
 - **Frontend: IN PROGRESS** — the Trust & Safety page described below is
   being implemented; the canonical roadmap did not assign it an HQ-Fxx ID.
 - **Security gates: BACKEND PASSED / OPERATIONAL ACCEPTANCE OUTSTANDING** —

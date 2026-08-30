@@ -429,6 +429,44 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "429":
           $ref: "#/components/responses/RateLimited"
+  /api/v1/auth/phone/change:
+    post:
+      operationId: requestPhoneChange
+      tags: [Authentication]
+      summary: Request an OTP for a replacement phone number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, current_password]
+              properties:
+                phone: { type: string }
+                current_password: { type: string, format: password }
+      responses:
+        "202": { description: OTP dispatched }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+    patch:
+      operationId: confirmPhoneChange
+      tags: [Authentication]
+      summary: Confirm a replacement phone number with an OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone: { type: string }
+                code: { type: string }
+      responses:
+        "200": { description: Phone replaced and verified }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "410": { description: OTP expired }
+        "422": { $ref: "#/components/responses/ValidationError" }
   /api/v1/auth/email/change:
     post:
       operationId: requestEmailChange
@@ -3188,7 +3226,7 @@ paths:
         membership in this brand, revokes all of their sessions for this brand, and
         records an audited, reversible `AccountEnforcement`. Everything happens in
         one transaction. The target's network identity and any other-brand access
-        are untouched (platform-wide bans are not modelled yet). Enforcement is
+        are untouched. Use the ban endpoint for an indefinite brand-scoped ban. Enforcement is
         deliberately separate from the report lifecycle: an optional `report_id`
         links the cause without changing that report's status. Idempotent-by-
         conflict: a second suspension of an already-suspended user returns 409
@@ -3464,6 +3502,31 @@ paths:
           $ref: "#/components/responses/InvalidInput"
         "429":
           $ref: "#/components/responses/AdminMfaRateLimited"
+  /api/v1/hq/security_alerts:
+    get:
+      operationId: listHqSecurityAlerts
+      tags: [HQ]
+      summary: List recent brand-scoped security alerts
+      description: Requires verified admin MFA and `hq.security_alerts.read`.
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Warning, high, and critical security events for the current brand.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [alerts]
+                properties:
+                  alerts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/HqSecurityEvent"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/AdminForbidden" }
   /api/v1/hq/analytics/overview:
     get:
       operationId: getHqAnalyticsOverview
@@ -6866,13 +6929,17 @@ components:
           type: [string, "null"]
           maxLength: 500
           description: Optional short moderator reason (audited, never exposed publicly).
+        note:
+          type: [string, "null"]
+          maxLength: 2000
+          description: Optional internal operator note, never exposed to the member.
         report_id:
           type: [integer, "null"]
           description: Optional id of the report that motivated the enforcement (same brand).
     AdminEnforcement:
       type: object
       required:
-        [id, state, profile_id, reason, report_id, admin_user_id,
+        [id, state, kind, profile_id, reason, note, report_id, admin_user_id,
          reverted_by_admin_user_id, created_at, reverted_at]
       properties:
         id:
@@ -6881,6 +6948,11 @@ components:
           type: string
           enum: [active, reverted]
           description: The enforcement's own state, distinct from account/report status.
+        kind:
+          type: string
+          enum: [suspension, ban]
+        note:
+          type: [string, "null"]
         profile_id:
           type: [string, "null"]
           format: uuid

@@ -252,7 +252,15 @@ them directly, not duplicate them:
   real `founder` on every active brand, one explicit assignment at a time,
   and safely tombstones legacy Moderator assignments. **Known,
   carried-forward architectural coupling:**
-  normal brand login requires an active `BrandMembership`, so founder
+normal brand login requires an active `BrandMembership`, so founder
   bootstrap creates/uses memberships on brands the founder didn't
   originally join. This is treated as a known architectural concern in
-  this plan too (see SECURITY-AND-RBAC.md), not silently redesigned here.
+this plan too (see SECURITY-AND-RBAC.md), not silently redesigned here.
+
+**Enforcement foundation (2026-08-30):** account enforcement now records an
+explicit `suspension` or `ban` kind plus an internal note. Creation and
+reinstatement use separate centralized capabilities; bans require a reason,
+and all enforcement actions remain brand-scoped and audited. Operations and
+Trust & Safety can create enforcement; Founder/Super Admin can reinstate or
+override. HQ security alerts are available through the bounded,
+brand-scoped `GET /api/v1/hq/security_alerts` endpoint.

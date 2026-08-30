@@ -12,12 +12,15 @@ module Admin
   # report's own lifecycle. Idempotency/concurrency is handled by the active-unique
   # index plus a membership row lock.
   class SuspendProfile
-    def self.call(admin_user:, brand:, profile_public_id:, reason: nil, report_id: nil)
+    def self.call(admin_user:, brand:, profile_public_id:, reason: nil, report_id: nil, note: nil, kind: :suspension)
       profile = brand.profiles.kept.find_by(public_id: profile_public_id)
       raise ModerationError, :profile_unavailable if profile.blank?
 
       report = resolve_report(brand:, report_id:)
       reason_text = normalize_reason(reason)
+      kind = kind.to_sym
+      raise ModerationError, :invalid_kind unless %i[suspension ban].include?(kind)
+      raise ModerationError, :invalid_reason if kind == :ban && reason_text.blank?
 
       enforcement = nil
       ActiveRecord::Base.transaction do
@@ -30,10 +33,10 @@ module Admin
         revoke_sessions(user: profile.user, brand:)
         enforcement = AccountEnforcement.create!(
           brand:, user: profile.user, brand_membership: membership, profile:,
-          admin_user:, report:, reason: reason_text
+          admin_user:, report:, reason: reason_text, note: normalize_note(note), kind:
         )
         EnforcementAudit.record(
-          admin_user:, enforcement:, event_type: "admin.account_suspended", severity: :warning
+          admin_user:, enforcement:, event_type: kind == :ban ? "admin.account_banned" : "admin.account_suspended", severity: kind == :ban ? :high : :warning
         )
       end
       enforcement
@@ -68,5 +71,13 @@ module Admin
       text
     end
     private_class_method :normalize_reason
+
+    def self.normalize_note(note)
+      text = note.to_s.strip
+      raise ModerationError, :invalid_note if text.length > 2_000
+
+      text.presence
+    end
+    private_class_method :normalize_note
   end
 end

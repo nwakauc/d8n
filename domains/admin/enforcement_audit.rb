@@ -15,7 +15,9 @@ module Admin
           target_user_id: enforcement.user_id,
           target_profile_id: enforcement.profile_id,
           report_id: enforcement.report_id,
-          has_reason: enforcement.reason.present?
+          has_reason: enforcement.reason.present?,
+          has_note: enforcement.note.present?,
+          kind: enforcement.kind
         }.merge(extra)
       )
     end

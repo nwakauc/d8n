@@ -35,7 +35,7 @@ module Identity
       Notifications::SmsSender.call(
         brand: challenge.brand,
         user: identifier.user,
-        recipient: identifier.normalized_value,
+        recipient: phone_recipient(identifier),
         body: sms_body,
         metadata:
       )
@@ -55,6 +55,10 @@ module Identity
 
     def email_recipient(identifier)
       challenge.email_change? ? challenge.identifier : identifier.normalized_value
+    end
+
+    def phone_recipient(identifier)
+      challenge.phone_change? ? challenge.identifier : identifier.normalized_value
     end
 
     def metadata

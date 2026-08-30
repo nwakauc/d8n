@@ -5,12 +5,15 @@ module Api
       # profile's participation in the moderator's brand. Explicit domain actions,
       # not arbitrary status mutation. Authorization + brand come from BaseController.
       class SuspensionsController < BaseController
-        requires_admin_capability ::Admin::Capabilities::ENFORCEMENTS_MANAGE
+        requires_admin_capability ::Admin::Capabilities::ENFORCEMENTS_CREATE, only: :create
+        requires_admin_capability ::Admin::Capabilities::ENFORCEMENTS_REINSTATE, only: :destroy
 
         CODE_STATUS = {
           profile_unavailable: :not_found,
           invalid_report: :unprocessable_entity,
           invalid_reason: :unprocessable_entity,
+          invalid_note: :unprocessable_entity,
+          invalid_kind: :unprocessable_entity,
           already_suspended: :conflict,
           not_suspended: :conflict
         }.freeze
@@ -23,7 +26,8 @@ module Api
             brand: Current.brand,
             profile_public_id: params[:profile_id],
             reason: params[:reason],
-            report_id: params[:report_id]
+            report_id: params[:report_id],
+            note: params[:note], kind: params[:kind].presence || :suspension
           )
 
           render json: { enforcement: ::Admin::EnforcementSerializer.call(enforcement:) }, status: :created

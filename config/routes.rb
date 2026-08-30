@@ -56,6 +56,8 @@ Rails.application.routes.draw do
         patch "profile_photos/:id" => "profile_photos#update"
         post "profiles/:profile_id/suspension" => "suspensions#create"
         delete "profiles/:profile_id/suspension" => "suspensions#destroy"
+        post "profiles/:profile_id/ban" => "suspensions#create", defaults: { kind: "ban" }
+        delete "profiles/:profile_id/ban" => "suspensions#destroy"
       end
       # HQ: unified company command centre backend (docs/FOUNDER-HQ/D8N-HQ/).
       # Never a normal consumer API -- authorized identically to the admin
@@ -77,6 +79,7 @@ Rails.application.routes.draw do
         get "trust_safety/enforcements" => "trust_safety#enforcements"
         get "members" => "members#index"
         get "analytics/overview" => "analytics#overview"
+        get "security_alerts" => "security_alerts#index"
         get "members/:lookup" => "members#show", constraints: { lookup: /[^\/]+/ }
         get "members/:lookup/security_events" => "members#security_events", constraints: { lookup: /[^\/]+/ }
         get "members/:lookup/auth_attempts" => "members#auth_attempts", constraints: { lookup: /[^\/]+/ }
@@ -111,6 +114,8 @@ Rails.application.routes.draw do
       patch "auth/password" => "auth/passwords#update"
       post "auth/email/change" => "auth/email_changes#create"
       patch "auth/email/change" => "auth/email_changes#update"
+      post "auth/phone/change" => "auth/phone_changes#create"
+      patch "auth/phone/change" => "auth/phone_changes#update"
       post "auth/password/recovery" => "auth/password_recoveries#create"
       post "auth/password/recovery/verify" => "auth/password_recoveries#verify"
       post "auth/password/recovery/reset" => "auth/password_recoveries#reset"

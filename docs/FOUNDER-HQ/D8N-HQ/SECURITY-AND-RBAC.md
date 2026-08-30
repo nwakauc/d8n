@@ -56,7 +56,12 @@ Current capabilities:
 - `hq.trust_safety.read`
 - `admin.reports.read`
 - `admin.reports.moderate`
-- `admin.enforcements.manage`
+- `admin.enforcements.manage` (legacy compatibility)
+- `admin.enforcements.read`
+- `admin.enforcements.create`
+- `admin.enforcements.reinstate`
+- `admin.enforcements.override`
+- `hq.security_alerts.read`
 - `admin.profile_photos.moderate`
 - `admin.operators.read`
 - `admin.operators.manage`
@@ -190,3 +195,15 @@ uses real staging/production member data:
 6. complete frontend integration/verification for Phase 1 and Phase 2.
 
 No Phase 3/HQ-010 work is part of this gate.
+
+## 11. Enforcement and security-alert policy
+
+Enforcements are brand-scoped and use one durable record with `kind` set to
+`suspension` or `ban`. Creation requires `admin.enforcements.create`; reversal
+requires `admin.enforcements.reinstate` (or the Founder/Super Admin override
+capability). Ban creation requires a reason; all actions may include an
+internal note and are recorded as `SecurityEvent` audit events. Operations and
+Trust & Safety can create enforcement, while only Founder and Super Admin can
+reverse or override it. `GET /api/v1/hq/security_alerts` provides a bounded,
+brand-scoped in-console feed of warning/high/critical security events and is
+authorized by `hq.security_alerts.read`.

@@ -7,8 +7,10 @@ module Admin
       {
         id: enforcement.id,
         state: enforcement.reverted? ? "reverted" : "active",
+        kind: enforcement.kind,
         profile_id: enforcement.profile&.public_id,
         reason: enforcement.reason,
+        note: enforcement.note,
         report_id: enforcement.report_id,
         admin_user_id: enforcement.admin_user_id,
         reverted_by_admin_user_id: enforcement.reverted_by_admin_user_id,

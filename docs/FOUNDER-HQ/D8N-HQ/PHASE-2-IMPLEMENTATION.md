@@ -250,3 +250,14 @@ assigned moderator can, for one host-resolved brand:
 Before frontend implementation, read `D8N-HQ-PLAN.md`, `ROADMAP.md`, this
 document, `SECURITY-AND-RBAC.md`, and `docs/api/openapi.yaml`, plus the
 supplied D8N HQ visual reference.
+
+## Foundation security handoff
+
+Phase 2 now shares the centralized enforcement policy with `/ops`: create
+requests use `admin.enforcements.create`, reinstatement uses
+`admin.enforcements.reinstate`, and `AccountEnforcement.kind` distinguishes
+`suspension` from `ban`. Ban requests require a reason and may include an
+internal note. Founder/Super Admin are the only roles currently granted
+reinstatement/override authority. The brand-scoped
+`GET /api/v1/hq/security_alerts` endpoint exposes bounded warning/high/critical
+events for operators with `hq.security_alerts.read`.

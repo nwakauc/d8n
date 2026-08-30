@@ -11,7 +11,9 @@ class AccountEnforcement < ApplicationRecord
   # Not yet reversed. At most one may exist per (brand, user) — DB-enforced.
   scope :active, -> { where(reverted_at: nil) }
 
+  enum :kind, { suspension: 0, ban: 1 }
   validates :reason, length: { maximum: 500 }, allow_blank: true
+  validates :note, length: { maximum: 2_000 }, allow_blank: true
   validates :user_id, uniqueness: { scope: :brand_id, conditions: -> { active } }, if: -> { reverted_at.nil? }
   validate :consistent_brand
 
