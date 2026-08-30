@@ -7,6 +7,7 @@ module Api
       class BaseController < ApplicationController
         before_action :authenticate_admin!
         before_action :require_admin_mfa!
+        before_action :disable_admin_http_caching
 
         def self.requires_admin_capability(capability, **options)
           before_action(**options) { authorize_admin_capability!(capability) }
@@ -43,6 +44,14 @@ module Api
 
         def render_admin_forbidden
           render json: { error: "forbidden" }, status: :forbidden
+        end
+
+        # HQ responses contain live operational state. Do not let conditional
+        # GET turn a JSON API response into a body-less 304 that clients cannot
+        # parse as the documented contract.
+        def disable_admin_http_caching
+          response.headers["Cache-Control"] = "no-store, private"
+          response.headers.delete("ETag")
         end
       end
     end
