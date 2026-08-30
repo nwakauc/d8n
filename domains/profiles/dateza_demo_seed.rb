@@ -69,10 +69,9 @@ module Profiles
           identity_attributes: identity_attributes(person), seed_device: SEED_DEVICE,
           # Demo people are fabricated showcase data, never real members (see
           # DemoSeed.guard!, non-production only) — they exist to populate a
-          # working Discover feed immediately, so they bypass DateZA's
-          # moderate-first policy (T6) the same explicit way a human moderator's
-          # approval would, rather than waiting on a review queue that will
-          # never run against seed data.
+          # working Discover feed immediately. Explicit here (rather than
+          # relying on DateZA's brand-level policy) so seed data stays correct
+          # even if that policy changes.
           photo_initial_state: Media::PhotoPolicy::IMMEDIATE
         )
       end

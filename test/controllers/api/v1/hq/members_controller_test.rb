@@ -71,6 +71,49 @@ class Api::V1::Hq::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_equal @ada.public_id, JSON.parse(response.body).dig("sections", "profile", "public_id")
   end
 
+  test "member directory is brand-scoped, paginated, and audited" do
+    sam = create_profile(brand: @brand, display_name: "Sam")
+    other_brand = Brand.create!(slug: "other", name: "Other")
+    create_profile(brand: other_brand, display_name: "Hidden")
+
+    assert_difference -> { SecurityEvent.where(event_type: "hq.member_directory_viewed").count }, 1 do
+      get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { limit: 1 }
+    end
+    assert_response :success
+
+    body = JSON.parse(response.body)
+    assert_equal 1, body.fetch("members").size
+    assert body.fetch("next_cursor").present?
+    assert_equal sam.public_id, body.fetch("members").first.fetch("profile_id")
+    assert_not_includes body.to_s, "ada@example.com"
+
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { limit: 1, cursor: body.fetch("next_cursor") }
+    assert_response :success
+    assert_equal 1, JSON.parse(response.body).fetch("members").size
+    assert JSON.parse(response.body).fetch("members").first.key?("user_id")
+  end
+
+  test "member directory rejects invalid filters and does not expose another brand" do
+    create_profile(brand: @brand, display_name: "Sam")
+    other_brand = Brand.create!(slug: "other", name: "Other")
+    create_profile(brand: other_brand, display_name: "Hidden")
+
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { status: "unknown" }
+    assert_response :unprocessable_entity
+    assert_equal "invalid_filter", JSON.parse(response.body).fetch("error")
+
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { limit: 0 }
+    assert_response :unprocessable_entity
+    assert_equal "invalid_limit", JSON.parse(response.body).fetch("error")
+
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { limit: 100 }
+    assert_response :success
+    members = JSON.parse(response.body).fetch("members")
+    assert_includes members.filter_map { |member| member["display_name"] }, "Ada"
+    assert_includes members.filter_map { |member| member["display_name"] }, "Sam"
+    assert_not_includes members.filter_map { |member| member["display_name"] }, "Hidden"
+  end
+
   # --- member 360 payload + audit -------------------------------------------
 
   test "member 360 returns all six sections and audits the read without leaking credentials" do

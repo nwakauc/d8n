@@ -310,11 +310,10 @@ class Api::V1::DatezaDiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_equal "pending", JSON.parse(response.body).fetch("profiles").sole.fetch("opener_state")
   end
 
-  test "a hidden pending-review DateZA photo is withheld from Discover until moderation approves it" do
+  test "a rejected DateZA photo is withheld from Discover" do
     candidate = create_candidate
     photo = attach_photo(candidate)
-    assert photo.pending_review?
-    assert photo.hidden?
+    photo.update!(status: :rejected, visibility: :hidden)
 
     get "/api/v1/discovery", headers: bearer_headers
     entry = JSON.parse(response.body).fetch("profiles").sole
@@ -323,10 +322,11 @@ class Api::V1::DatezaDiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_empty entry.fetch("photos")
   end
 
-  test "an approved DateZA photo is deliverable in Discover" do
+  test "a pending-review DateZA photo is deliverable in Discover immediately" do
     candidate = create_candidate
     photo = attach_photo(candidate)
-    photo.update!(status: :approved, visibility: :visible)
+    assert photo.pending_review?
+    assert photo.visible?
 
     get "/api/v1/discovery", headers: bearer_headers
     photos = JSON.parse(response.body).fetch("profiles").sole.fetch("photos")

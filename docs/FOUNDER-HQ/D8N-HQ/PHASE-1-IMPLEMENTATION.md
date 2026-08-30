@@ -30,15 +30,21 @@ against. This document is the narrative walkthrough.
   "why is Discover empty" diagnostic named in D8N-HQ-PLAN.md §12) —
   `domains/hq/member360/discovery_diagnostic.rb`, exposed as a fifth
   endpoint rather than embedded in the Member 360 payload (see below).
+- **Operations directory extension:** `Hq::MemberDirectory` provides a
+  brand-scoped, newest-first directory with signed cursor pagination and
+  safe operational summaries for the Operations console —
+  `domains/hq/member_directory*.rb`, `GET /api/v1/hq/members`.
 
 ## Routes
 
-All under `GET /api/v1/hq/members/:lookup...`, namespaced separately from
+The directory is `GET /api/v1/hq/members`; the remaining routes are under
+`GET /api/v1/hq/members/:lookup...`, namespaced separately from
 `/api/v1/admin` per ARCHITECTURE.md §1.1 (same Rails app, new namespace —
 not a separate service):
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| GET | `/api/v1/hq/members` | Brand-scoped member directory, newest-first, cursor-paginated |
 | GET | `/api/v1/hq/members/{lookup}` | Member 360 six-section summary |
 | GET | `/api/v1/hq/members/{lookup}/security_events` | Paginated `SecurityEvent` history |
 | GET | `/api/v1/hq/members/{lookup}/auth_attempts` | Paginated `AuthAttempt` history |
@@ -65,6 +71,12 @@ Use `GET /api/v1/hq/operator` for effective capabilities and MFA state.
 assignment/capability/revocation denial; `403 admin_mfa_required` means a
 valid operator session must complete MFA. Full frontend bootstrap details
 are in `FOUNDATION-SECURITY-IMPLEMENTATION.md`.
+
+The directory requires `hq.member.sensitive_read`. Its rows intentionally do
+not include email/phone identifiers or full Member 360 sections. The optional
+`status` filter accepts `active`, `suspended`, `left`, or `deactivated`; the
+default page size is 25 and the maximum is 100. Each read emits one
+`hq.member_directory_viewed` audit event with only the selected status filter.
 
 ## Brand isolation
 
@@ -261,6 +273,9 @@ the endpoint returns `eligible: false` with a reason, not an error.
   ideal (see above).
 - No free-text/fuzzy member search — exact identifier lookup only, per
   ARCHITECTURE.md §5.
+- The directory is a safe operational listing, not a signup-event stream;
+  `joined_at` supports newest-signup ordering, but push notifications and
+  aggregate signup metrics remain outside this endpoint.
 - `comms` section's delivery counts are per-member and bounded — no
   brand-wide delivery-health rollup (that's Phase 2+/Provider Health
   territory, not Member 360).

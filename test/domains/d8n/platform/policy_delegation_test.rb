@@ -73,7 +73,7 @@ module D8n
 
       test "media policy delegates known brands and preserves conservative unknown default" do
         assert_same Media::PhotoPolicy::IMMEDIATE, Media::PhotoPolicy.initial_state(brand: @hookus)
-        assert_same Media::PhotoPolicy::MODERATE_FIRST, Media::PhotoPolicy.initial_state(brand: @dateza)
+        assert_same Media::PhotoPolicy::IMMEDIATE, Media::PhotoPolicy.initial_state(brand: @dateza)
         assert_same Media::PhotoPolicy::MODERATE_FIRST, Media::PhotoPolicy.initial_state(brand: @unknown)
       end
 

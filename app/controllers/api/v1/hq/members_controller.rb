@@ -6,7 +6,7 @@ module Api
       # here is a sensitive read and is individually audited (HQ-106) -- see
       # SECURITY-AND-RBAC.md #4.
       class MembersController < BaseController
-        requires_admin_capability ::Admin::Capabilities::MEMBER_SENSITIVE_READ, only: :show
+        requires_admin_capability ::Admin::Capabilities::MEMBER_SENSITIVE_READ, only: %i[index show]
         requires_admin_capability ::Admin::Capabilities::MEMBER_SECURITY_READ,
           only: %i[security_events auth_attempts enforcements]
         requires_admin_capability ::Admin::Capabilities::DISCOVERY_DIAGNOSTICS_READ,
@@ -23,7 +23,32 @@ module Api
           render json: { error: "invalid_cursor" }, status: :unprocessable_entity
         end
 
-        before_action :resolve_member
+        before_action :resolve_member, except: :index
+
+        def index
+          result = ::Hq::MemberDirectory.call(
+            brand: Current.brand,
+            cursor: params[:cursor],
+            limit: params[:limit],
+            status: params[:status]
+          )
+          memberships = result.members
+          profile_ids = memberships.filter_map { |membership| membership.profile&.id }
+          user_ids = memberships.map(&:user_id)
+          report_counts = Report.where(brand: Current.brand, reported_profile_id: profile_ids).group(:reported_profile_id).count
+          pending_photo_counts = ProfilePhoto.where(profile_id: profile_ids, status: :pending_review).group(:profile_id).count
+          active_enforcements = AccountEnforcement.active.where(brand: Current.brand, user_id: user_ids).pluck(:user_id).index_with(true)
+          audit!("hq.member_directory_viewed", extra: { status: params[:status].presence || "all" })
+
+          render json: {
+            members: memberships.map do |membership|
+              ::Hq::MemberDirectorySerializer.call(
+                membership:, report_counts:, pending_photo_counts:, active_enforcements:
+              )
+            end,
+            next_cursor: result.next_cursor
+          }
+        end
         before_action :require_profile, only: :discovery_diagnostic
 
         def show
@@ -104,13 +129,14 @@ module Api
           }
         end
 
-        def audit!(event_type)
+        def audit!(event_type, extra: {})
           ::Hq::SensitiveReadAudit.record(
             admin_user: Current.admin_user,
             brand: Current.brand,
             user: @user,
             session: Current.session,
-            event_type:
+            event_type:,
+            extra:
           )
         end
 

@@ -27,7 +27,7 @@ SYSTEM (doesn't exist yet) · PROVIDER API · DEPLOYMENT SYSTEM · OTHER.
 | # | Item | Status | Data | Source | Evidence |
 |---|---|---|---|---|---|
 | 1.1 | User/IdentityIdentifier/Credential models | READY | LIVE | D8N DB | `app/models/{user,identity_identifier,credential}.rb` |
-| 1.2 | Admin-facing member lookup API (by id/email/phone) | **READY (HQ Member 360)** | LIVE | D8N DB | `GET /api/v1/hq/members/:lookup` via `app/controllers/api/v1/hq/members_controller.rb`; brand-scoped lookup by public id/email/phone with neutral not-found behavior |
+| 1.2 | Admin-facing member lookup and directory API (by id/email/phone) | **READY (HQ Member 360 + Operations directory)** | LIVE | D8N DB | `GET /api/v1/hq/members` and `GET /api/v1/hq/members/:lookup` via `app/controllers/api/v1/hq/members_controller.rb`; brand-scoped, cursor-paginated directory plus exact lookup with neutral not-found behavior |
 | 1.3 | Session/device tracking | READY | LIVE+HISTORICAL | D8N DB | `app/models/session.rb` — token-hashed, 30-day TTL, revocable |
 | 1.4 | Auth attempt / throttle audit | READY (write + member-scoped read) | HISTORICAL | D8N DB | `app/models/auth_attempt.rb`; recorded by `domains/identity/password_audit.rb`; Phase 1 exposes paginated member-scoped history through `GET /api/v1/hq/members/:lookup/auth_attempts` |
 

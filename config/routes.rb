@@ -75,6 +75,7 @@ Rails.application.routes.draw do
         get "trust_safety/overview" => "trust_safety#overview"
         get "trust_safety/repeat_offenders" => "trust_safety#repeat_offenders"
         get "trust_safety/enforcements" => "trust_safety#enforcements"
+        get "members" => "members#index"
         get "members/:lookup" => "members#show", constraints: { lookup: /[^\/]+/ }
         get "members/:lookup/security_events" => "members#security_events", constraints: { lookup: /[^\/]+/ }
         get "members/:lookup/auth_attempts" => "members#auth_attempts", constraints: { lookup: /[^\/]+/ }

@@ -86,6 +86,10 @@ everything after it.
 - **Backend: DONE** — HQ-101 through HQ-107 and the discovery diagnostic
   are implemented and documented in `PHASE-1-IMPLEMENTATION.md` and
   `docs/api/openapi.yaml`.
+- **Operations directory extension: DONE** — the explicitly requested
+  brand-scoped `GET /api/v1/hq/members` directory is now available for the
+  interim Operations console; it is a safe listing, not a new cross-brand
+  authority model or signup notification stream.
 - **Frontend: IN PROGRESS** — HQ-F01 through HQ-F04 are being implemented
   from the documented contract.
 - **Security gates: BACKEND PASSED / OPERATIONAL ACCEPTANCE OUTSTANDING** —
