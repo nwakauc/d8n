@@ -2,6 +2,9 @@ module Api
   module V1
     module Admin
       class ReportsController < BaseController
+        requires_admin_capability ::Admin::Capabilities::REPORTS_READ, only: %i[index show]
+        requires_admin_capability ::Admin::Capabilities::REPORTS_MODERATE, only: :update
+
         CODE_STATUS = {
           report_unavailable: :not_found,
           invalid_filter: :unprocessable_entity,

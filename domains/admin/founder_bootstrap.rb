@@ -26,7 +26,7 @@ module Admin
     class RoleMissing < StandardError; end
     class NoActiveBrands < StandardError; end
 
-    ROLE_NAME = "moderator".freeze
+    ROLE_NAME = "founder".freeze
 
     Result = Data.define(:user, :admin_user, :admin_role, :assignments)
 
@@ -96,12 +96,19 @@ module Admin
     def assign!(user:, admin_user:, brand:, role:)
       BrandMembership.kept.find_or_create_by!(user:, brand:) { |membership| membership.status = :active }
 
-      assignment = AdminAssignment.kept.find_or_initialize_by(admin_user:, brand:, admin_role: role)
-      if assignment.new_record?
-        assignment.status = :active
-        assignment.save!
+      current_assignments = AdminAssignment.kept.where(admin_user:, brand:).to_a
+      founder_assignment = current_assignments.find { |assignment| assignment.admin_role_id == role.id }
+
+      current_assignments.each do |assignment|
+        next if assignment == founder_assignment
+
+        assignment.update!(status: :revoked, deleted_at: Time.current)
       end
-      assignment
+
+      founder_assignment ||= AdminAssignment.new(admin_user:, brand:, admin_role: role)
+      founder_assignment.assign_attributes(status: :active, deleted_at: nil)
+      founder_assignment.save!
+      founder_assignment
     end
   end
 end

@@ -3,7 +3,7 @@ require "test_helper"
 module Admin
   class FounderBootstrapTest < ActiveSupport::TestCase
     def setup
-      @role = AdminRole.kept.find_or_create_by!(name: "moderator")
+      @role = AdminRole.kept.find_or_create_by!(name: "founder")
       @hookus = Brand.create!(slug: "hookus", name: "HookUs", status: :active)
       @dateza = Brand.create!(slug: "dateza", name: "DateZA", status: :active)
       @user = User.create!
@@ -12,7 +12,7 @@ module Admin
       )
     end
 
-    test "promotes an existing user to AdminUser and assigns moderator on every active brand" do
+    test "promotes an existing user to AdminUser and assigns founder on every active brand" do
       result = FounderBootstrap.call(email: " Founder@Example.TEST ")
 
       assert_equal @user, result.user
@@ -84,7 +84,7 @@ module Admin
       assert_equal 1, AdminUser.kept.where(user: @user).count
     end
 
-    test "raises when the moderator role is missing" do
+    test "raises when the founder role is missing" do
       @role.update!(deleted_at: Time.current)
 
       assert_raises(FounderBootstrap::RoleMissing) do
@@ -100,12 +100,27 @@ module Admin
       end
     end
 
-    test "never creates a Credential or a platform-level role" do
+    test "never creates a Credential or a platform-level grant" do
       FounderBootstrap.call(email: "founder@example.test")
 
       assert_equal 0, Credential.count
-      assert_not AdminRole.kept.exists?(name: "founder")
-      assert_equal %w[ moderator ], AdminRole.kept.pluck(:name)
+      assert_equal 2, AdminAssignment.kept.active.where(admin_role: @role).count
+      assert AdminAssignment.kept.active.all? { |assignment| assignment.brand_id.present? }
+    end
+
+    test "safely upgrades legacy moderator assignments to founder" do
+      moderator = AdminRole.kept.find_or_create_by!(name: "moderator")
+      admin_user = AdminUser.create!(user: @user, status: :active)
+      BrandMembership.create!(user: @user, brand: @hookus, status: :active)
+      legacy = AdminAssignment.create!(
+        admin_user:, brand: @hookus, admin_role: moderator, status: :active
+      )
+
+      FounderBootstrap.call(email: "founder@example.test")
+
+      assert legacy.reload.revoked?
+      assert legacy.deleted_at.present?
+      assert AdminAssignment.kept.active.exists?(admin_user:, brand: @hookus, admin_role: @role)
     end
   end
 end

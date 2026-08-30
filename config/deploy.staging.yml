@@ -1,5 +1,10 @@
 service: d8n-staging
 
+builder:
+  args:
+    D8N_GIT_SHA: <%= %x(git rev-parse HEAD).strip %>
+    D8N_BUILD_TIMESTAMP: <%= Time.now.utc.strftime("%Y-%m-%dT%H:%M:%SZ") %>
+
 servers:
   web:
     - 145.241.185.41

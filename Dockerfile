@@ -56,6 +56,11 @@ RUN bundle exec bootsnap precompile app/ lib/
 # Final stage for app image
 FROM base
 
+ARG D8N_GIT_SHA
+ARG D8N_BUILD_TIMESTAMP
+ENV D8N_GIT_SHA=$D8N_GIT_SHA \
+    D8N_BUILD_TIMESTAMP=$D8N_BUILD_TIMESTAMP
+
 # Copy built artifacts: gems, application
 COPY --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --from=build /rails /rails

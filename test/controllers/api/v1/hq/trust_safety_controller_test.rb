@@ -45,7 +45,8 @@ class Api::V1::Hq::TrustSafetyControllerTest < ActionDispatch::IntegrationTest
     assert_nil overview.dig("reports", "overdue")
 
     audit = SecurityEvent.where(event_type: "hq.trust_safety_overview_viewed").last
-    assert_equal({ "admin_user_id" => @admin.id }, audit.metadata)
+    assert_equal @admin.id, audit.metadata.fetch("admin_user_id")
+    assert audit.metadata.fetch("session_id").present?
   end
 
   test "repeat offenders are brand-scoped, bounded, and link to Member 360" do
@@ -120,7 +121,7 @@ class Api::V1::Hq::TrustSafetyControllerTest < ActionDispatch::IntegrationTest
     admin = AdminUser.create!(user:, status: :active)
     role = AdminRole.find_or_create_by!(name: "moderator")
     AdminAssignment.create!(admin_user: admin, brand: assign_brand, admin_role: role, status: :active)
-    token, = Session.issue!(brand: login_brand, user:)
+    token = issue_mfa_verified_admin_session!(user:, brand: login_brand, admin_user: admin)
     [ admin, token ]
   end
 

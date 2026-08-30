@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_27_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_160100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -89,8 +89,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_140000) do
     t.datetime "updated_at", null: false
     t.index ["admin_role_id"], name: "index_admin_assignments_on_admin_role_id"
     t.index ["admin_user_id", "brand_id", "admin_role_id"], name: "index_admin_assignments_on_active_role_scope", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["admin_user_id", "brand_id"], name: "index_admin_assignments_on_one_active_role_per_brand", unique: true, where: "((deleted_at IS NULL) AND (status = 0))"
     t.index ["admin_user_id"], name: "index_admin_assignments_on_admin_user_id"
     t.index ["brand_id"], name: "index_admin_assignments_on_brand_id"
+  end
+
+  create_table "admin_mfa_credentials", force: :cascade do |t|
+    t.bigint "admin_user_id", null: false
+    t.datetime "confirmed_at"
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.jsonb "recovery_code_digests", default: [], null: false
+    t.text "secret", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["admin_user_id"], name: "index_admin_mfa_credentials_on_admin_user_id"
+    t.index ["admin_user_id"], name: "index_admin_mfa_credentials_on_kept_admin", unique: true, where: "(deleted_at IS NULL)"
   end
 
   create_table "admin_roles", force: :cascade do |t|
@@ -887,6 +901,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_140000) do
   end
 
   create_table "sessions", force: :cascade do |t|
+    t.bigint "admin_mfa_credential_id"
+    t.datetime "admin_mfa_verified_at"
     t.bigint "brand_id", null: false
     t.datetime "created_at", null: false
     t.bigint "credential_id"
@@ -900,6 +916,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_140000) do
     t.datetime "updated_at", null: false
     t.text "user_agent"
     t.bigint "user_id", null: false
+    t.index ["admin_mfa_credential_id"], name: "index_sessions_on_admin_mfa_credential_id"
     t.index ["brand_id", "user_id", "revoked_at"], name: "index_sessions_on_brand_id_and_user_id_and_revoked_at"
     t.index ["brand_id"], name: "index_sessions_on_brand_id"
     t.index ["credential_id"], name: "index_sessions_on_credential_id"
@@ -932,6 +949,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_140000) do
   add_foreign_key "admin_assignments", "admin_roles"
   add_foreign_key "admin_assignments", "admin_users"
   add_foreign_key "admin_assignments", "brands"
+  add_foreign_key "admin_mfa_credentials", "admin_users"
   add_foreign_key "admin_users", "users"
   add_foreign_key "auth_attempts", "brands"
   add_foreign_key "auth_attempts", "credentials"
@@ -1052,6 +1070,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_140000) do
   add_foreign_key "reports", "profiles", column: ["reporter_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_reports_reporter_tenant"
   add_foreign_key "security_events", "brands"
   add_foreign_key "security_events", "users"
+  add_foreign_key "sessions", "admin_mfa_credentials"
   add_foreign_key "sessions", "brands"
   add_foreign_key "sessions", "credentials"
   add_foreign_key "sessions", "users"

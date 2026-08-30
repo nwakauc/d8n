@@ -12,6 +12,17 @@ module ActiveSupport
     # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
     fixtures :all
 
+    def issue_mfa_verified_admin_session!(user:, brand:, admin_user:)
+      credential = admin_user.admin_mfa_credentials.kept.active.first_or_create!(
+        secret: Admin::Mfa::Totp.generate_secret,
+        confirmed_at: Time.current,
+        recovery_code_digests: []
+      )
+      raw_token, session = Session.issue!(brand:, user:)
+      session.update!(admin_mfa_credential: credential, admin_mfa_verified_at: Time.current)
+      raw_token
+    end
+
     # Temporarily replace a singleton (class) method with `replacement` for the
     # duration of the block, then restore the original. A dependency-free stand-in
     # for mock libraries, used to swap outbound HTTP transports in gateway specs.

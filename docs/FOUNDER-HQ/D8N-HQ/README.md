@@ -6,7 +6,8 @@ every brand and every domain (growth, product, trust & safety,
 engineering, platform/admin).
 
 **Status as of 2026-08-29: ACTIVE DELIVERY. Phase 1 and Phase 2 backend
-slices are built; their frontend work and slice acceptance remain outstanding.**
+slices plus the current foundation/security backend are built. Frontend,
+staging/production operational gates, and slice acceptance remain outstanding.**
 This folder is the canonical, reviewable plan for D8N HQ
 specifically — not for the D8N platform/product as a whole. Nothing here
 should be read as "already built" unless a document explicitly says so
@@ -31,10 +32,11 @@ ticket list — not before.
 | [CURRENT-STATE.md](CURRENT-STATE.md) | The full repository capability audit — every HQ-relevant domain, classified READY/PARTIAL/MISSING/EXTERNAL/FUTURE/DO NOT REBUILD, with file-path evidence | When you need to verify a specific claim about what exists today, or find the exact file/route/model backing it |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | The detailed target HQ architecture — layers, event system, observability integration, universal search, Member 360, marketplace health, deployment intelligence, performance/safety boundaries | When implementing a specific HQ subsystem and you need the full design reasoning, not just the summary |
 | [METRICS.md](METRICS.md) | The metric semantic layer — registry pattern, canonical metric definitions, versioning policy | When defining or consuming any number HQ displays |
-| [SECURITY-AND-RBAC.md](SECURITY-AND-RBAC.md) | Current D8N admin authorization reality, the eventual HQ permission model (not decided), audit requirements, PII/privacy boundaries | Before building anything that reads sensitive data or performs a privileged action from HQ |
+| [SECURITY-AND-RBAC.md](SECURITY-AND-RBAC.md) | **IMPLEMENTED SECURITY MODEL:** brand-scoped capabilities, Founder/Super Admin semantics, MFA, operator-management boundaries, audit requirements, PII/privacy boundaries | Before building anything that reads sensitive data or performs a privileged action from HQ |
 | [ROADMAP.md](ROADMAP.md) | Dependency-ordered implementation phases, exact backend/frontend tickets for the first slice, deferred work, open founder decisions | When planning or picking up implementation work |
 | [PHASE-1-IMPLEMENTATION.md](PHASE-1-IMPLEMENTATION.md) | **BUILT**, not planned: what actually shipped for Phase 1 (Member 360, HQ-101–107), file-by-file, with the authorization/isolation/privacy/performance review and frontend integration notes. The JSON contract itself lives in `docs/api/openapi.yaml` (tag `Hq`). | When integrating against the HQ backend, or verifying a claim about what's live today |
 | [PHASE-2-IMPLEMENTATION.md](PHASE-2-IMPLEMENTATION.md) | **BACKEND BUILT; SLICE PARTIAL:** Trust & Safety overview, repeat-offender aggregation, brand-wide enforcement history, reuse of the existing report/evidence and moderation actions, plus the exact frontend handoff. | Before implementing or verifying the Phase 2 Trust & Safety frontend |
+| [FOUNDATION-SECURITY-IMPLEMENTATION.md](FOUNDATION-SECURITY-IMPLEMENTATION.md) | **BACKEND BUILT; OPERATIONS OUTSTANDING:** HQ-001 release identity, role/capability contract, operator management, TOTP MFA, frontend bootstrap/error behavior, and exact staging/production upgrade procedure | Before integrating HQ authentication/RBAC or performing the staging-first security rollout |
 
 ## Naming note
 
@@ -74,8 +76,8 @@ This folder does not replace or duplicate:
 
 ## Non-goals of this planning pass
 
-This plan does not build: HQ UI, dashboard endpoints, an observability
+This plan does not build: HQ UI, an observability
 vendor integration, OpenTelemetry instrumentation, the analytics event
 pipeline, Company Intelligence, anomaly detection, a redesign of D8N
-authentication, or platform-wide founder authorization. See
+authentication universe, or platform-wide founder authorization. See
 [ROADMAP.md](ROADMAP.md) for what phase each of these belongs to.

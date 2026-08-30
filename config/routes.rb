@@ -6,6 +6,7 @@ Rails.application.routes.draw do
 
     namespace :v1 do
       get "health" => "health#show"
+      get "version" => "version#show"
       get "openapi.json" => "openapi#show"
       get "me" => "me#show"
       delete "me" => "me#destroy"
@@ -63,6 +64,14 @@ Rails.application.routes.draw do
       # profile public_id, so it needs an explicit constraint to avoid Rails'
       # default dot-as-format-separator route parsing.
       namespace :hq do
+        get "operator" => "operator#show"
+        get "operators" => "operators#index"
+        post "operators" => "operators#create"
+        patch "operators/:id" => "operators#update"
+        post "mfa/enrollment" => "mfa#create"
+        patch "mfa/enrollment" => "mfa#confirm"
+        post "mfa/challenge" => "mfa#challenge"
+        delete "mfa/enrollment" => "mfa#destroy"
         get "trust_safety/overview" => "trust_safety#overview"
         get "trust_safety/repeat_offenders" => "trust_safety#repeat_offenders"
         get "trust_safety/enforcements" => "trust_safety#enforcements"

@@ -5,6 +5,8 @@ module Api
       # writes remain under /api/v1/admin and continue to use their established
       # domain services and audit behavior.
       class TrustSafetyController < BaseController
+        requires_admin_capability ::Admin::Capabilities::TRUST_SAFETY_READ
+
         CODE_STATUS = {
           invalid_filter: :unprocessable_entity,
           invalid_limit: :unprocessable_entity
@@ -85,6 +87,7 @@ module Api
             admin_user: Current.admin_user,
             brand: Current.brand,
             event_type:,
+            session: Current.session,
             extra: extra.compact
           )
         end

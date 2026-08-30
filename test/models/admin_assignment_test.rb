@@ -25,4 +25,17 @@ class AdminAssignmentTest < ActiveSupport::TestCase
     assert_not duplicate.valid?
     assert_includes duplicate.errors[:admin_user_id], "has already been taken"
   end
+
+  test "enforces one active role per admin and brand" do
+    brand = Brand.create!(slug: "one-role", name: "One Role")
+    admin_user = AdminUser.create!
+    moderator = AdminRole.create!(name: "moderator-one-role")
+    support = AdminRole.create!(name: "support-one-role")
+    AdminAssignment.create!(admin_user:, brand:, admin_role: moderator)
+
+    second = AdminAssignment.new(admin_user:, brand:, admin_role: support)
+
+    assert_not second.valid?
+    assert_includes second.errors[:admin_user_id], "already has an active role for this brand"
+  end
 end

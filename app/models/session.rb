@@ -5,6 +5,7 @@ class Session < ApplicationRecord
   belongs_to :user
   belongs_to :brand
   belongs_to :credential, optional: true
+  belongs_to :admin_mfa_credential, optional: true
 
   scope :active, -> { where(revoked_at: nil).where("expires_at > ?", Time.current) }
 
@@ -39,6 +40,13 @@ class Session < ApplicationRecord
 
   def expired?
     expires_at <= Time.current
+  end
+
+  def admin_mfa_verified_for?(admin_user)
+    admin_mfa_verified_at.present? &&
+      admin_mfa_credential&.admin_user_id == admin_user.id &&
+      admin_mfa_credential.deleted_at.nil? &&
+      admin_mfa_credential.confirmed?
   end
 
   private

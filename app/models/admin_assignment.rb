@@ -11,4 +11,9 @@ class AdminAssignment < ApplicationRecord
     scope: [ :brand_id, :admin_role_id ],
     conditions: -> { kept }
   }
+  validates :admin_user_id, uniqueness: {
+    scope: :brand_id,
+    conditions: -> { kept.active },
+    message: "already has an active role for this brand"
+  }, if: :active?
 end

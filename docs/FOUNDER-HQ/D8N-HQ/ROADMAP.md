@@ -35,26 +35,46 @@ need neither.
 
 ## Phase 0 — Decisions & prerequisites (no product code)
 
+**Reconciled status (2026-08-29): PARTIAL.**
+
+- **Option A authorization boundary: DONE** — ADR 0020 confirms explicit
+  per-brand assignments/fan-out only; Founder and Super Admin do not
+  bypass tenant isolation.
+- **HQ-001 release identity: DONE (code), OPERATIONAL VERIFICATION
+  OUTSTANDING** — the image bakes git SHA/build time and
+  `GET /api/v1/version` exposes release/environment identity. Staging must
+  still prove the deployed 40-character SHA.
+- **Admin MFA launch gate: DONE (backend), OPERATIONAL VERIFICATION
+  OUTSTANDING** — ADR 0021 implements encrypted TOTP, recovery codes,
+  session step-up, throttled/audited failures, and reset. Founder staging/
+  production enrollment remains a human gate.
+- **Differentiated RBAC foundation: DONE** — ADR 0020 implements the role/
+  capability trigger anticipated by ADR 0013 and the original Phase 10
+  plan, plus brand-scoped operator management.
+- **Observability vendor decision: OUTSTANDING** — still required only
+  before Phase 3/HQ-010, which has not started.
+
 **Objective:** resolve the handful of things that block everything else,
 before writing HQ application code.
 
-- Founder decision: SECURITY-AND-RBAC.md §2 — confirm Option A (fan-out,
-  no new cross-brand grant) for V1. This is the one decision this whole
-  plan is not authorized to make unilaterally.
+- Founder/security decision: SECURITY-AND-RBAC.md §2 — Option A (fan-out,
+  no new cross-brand grant) is now recorded in ADR 0020 for V1.
 - Founder decision: observability vendor (ARCHITECTURE.md §4) — needed
   before Phase 3 (Observability), not before Phase 1/2, but the earlier
   it's picked the cheaper it is to instrument new code with it from day
   one rather than retrofitting.
-- Engineering: add version/release stamping (ARCHITECTURE.md §9) — small,
+- Engineering: add version/release stamping (ARCHITECTURE.md §9) — built,
   standalone, unblocks Phase 4 (Deployment Intelligence) and every
   release-correlated metric later. Backend ticket: **HQ-001**.
-- Engineering: admin MFA — restated pre-launch gate (SECURITY-AND-RBAC.md §3),
+- Engineering: admin MFA — backend built; staging/production enrollment
+  and acceptance remain the restated pre-launch gate (SECURITY-AND-RBAC.md),
   not HQ-specific work, but its priority is raised by this plan and it
   should land before Phase 2 ships anything beyond read-only views.
 
-**Acceptance criteria:** Option A confirmed in writing; `/api/v1/version`
-returns a real git SHA in staging; admin MFA scoped as its own ticket
-with an owner.
+**Acceptance criteria:** Option A is confirmed in ADR 0020; still
+outstanding operationally, `/api/v1/version` must return the real deployed
+git SHA in staging and the Founder/operator session must complete MFA and
+role/isolation acceptance.
 
 **What becomes usable:** nothing user-facing yet. This phase de-risks
 everything after it.
@@ -66,11 +86,11 @@ everything after it.
 - **Backend: DONE** — HQ-101 through HQ-107 and the discovery diagnostic
   are implemented and documented in `PHASE-1-IMPLEMENTATION.md` and
   `docs/api/openapi.yaml`.
-- **Frontend: NOT STARTED** — HQ-F01 through HQ-F04 remain.
-- **Security gates: OUTSTANDING** — admin MFA remains the existing launch
-  gate before exposing Member 360's sensitive identity/activity data to
-  real operators; the V1 Option A authorization decision still requires
-  explicit written confirmation.
+- **Frontend: IN PROGRESS** — HQ-F01 through HQ-F04 are being implemented
+  from the documented contract.
+- **Security gates: BACKEND PASSED / OPERATIONAL ACCEPTANCE OUTSTANDING** —
+  capability RBAC and mandatory admin MFA are implemented. Founder upgrade/
+  enrollment and staging role/tenant verification remain.
 - **Operational verification: OUTSTANDING** — the backend is test-proven,
   but the agreed end-to-end operator acceptance criterion is not complete.
 
@@ -131,12 +151,11 @@ share of today's Rails-console-driven support/moderation work.
   implemented. The existing admin report queue/detail/transition and
   suspension/reinstatement APIs remain the canonical moderation paths.
   See `PHASE-2-IMPLEMENTATION.md` and `docs/api/openapi.yaml`.
-- **Frontend: NOT STARTED** — the Trust & Safety page described below
-  remains outstanding; the canonical roadmap did not assign it an HQ-Fxx
-  ticket ID.
-- **Security gates: OUTSTANDING** — no new RBAC was introduced; the same
-  admin-MFA launch gate and current brand-scoped moderator authorization
-  apply.
+- **Frontend: IN PROGRESS** — the Trust & Safety page described below is
+  being implemented; the canonical roadmap did not assign it an HQ-Fxx ID.
+- **Security gates: BACKEND PASSED / OPERATIONAL ACCEPTANCE OUTSTANDING** —
+  the same capability/MFA foundation now protects this slice. Founder
+  enrollment and staging role/tenant verification remain.
 - **Operational verification: OUTSTANDING** — backend tests pass, but an
   operator has not yet satisfied the phase acceptance criterion through a
   verified frontend workflow.

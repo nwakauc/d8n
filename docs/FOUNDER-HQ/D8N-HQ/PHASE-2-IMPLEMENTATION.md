@@ -52,12 +52,14 @@ routes.
 - Accepts the existing opaque bearer session or host-only browser session.
 - Request host resolves `Current.brand`; no endpoint accepts `brand_id`.
 - Caller must be an authenticated `User` linked to a kept, active
-  `AdminUser` with a kept, active `AdminAssignment` for that exact brand.
+  `AdminUser` with exactly one kept, active `AdminAssignment` for that
+  brand, `hq.trust_safety.read`, and verified admin MFA.
 - Missing/invalid/wrong-brand session: `401`.
-- Authenticated ordinary user or admin assigned elsewhere: `403`.
-- Current authorization remains role-name-blind and uses the existing
-  `moderator` assignment. Frontend must not infer capabilities from a
-  role label.
+- Authenticated ordinary user, revoked/wrong-brand operator, or missing
+  capability: `403 forbidden`; an otherwise-authorized ordinary session
+  awaiting step-up: `403 admin_mfa_required`.
+- Frontend reads `GET /api/v1/hq/operator` and uses effective capabilities,
+  never role labels. See `FOUNDATION-SECURITY-IMPLEMENTATION.md`.
 - There is no platform-wide or "All D8N" member-data query.
 
 ## Trust & Safety overview contract
@@ -179,7 +181,8 @@ Invalid state, limit, or cursor returns `422` with `invalid_filter`,
 | --- | --- | --- |
 | No data | `200` with zero maps/empty arrays/null oldest timestamp | Render an explicit empty state |
 | Missing/invalid session | `401` | Re-authenticate; do not retry indefinitely |
-| Not an assigned moderator | `403 forbidden` | Render forbidden; do not infer another role |
+| No assignment/capability or revoked operator | `403 forbidden` | Render forbidden; do not infer another role |
+| Valid operator without session step-up | `403 admin_mfa_required` | Route through backend MFA challenge, then retry once |
 | Unknown/cross-brand report | `404 report_unavailable` | Render unavailable without existence claims |
 | Invalid filter/limit/cursor | `422` stable error code | Reset offending filter/cursor and show recoverable validation state |
 | Unexpected server/database failure | `5xx` standard API failure | Preserve current UI state and offer manual retry; never substitute zeros |

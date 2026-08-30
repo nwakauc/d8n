@@ -307,14 +307,13 @@ are the most mature domain, the additions needed are small and additive
 
 ## 9. Deployment/release intelligence
 
-**Blocked entirely on a real gap: there is no version/release stamping
-anywhere in this codebase today** (CURRENT-STATE.md #9.7). Before any
-"did this deploy hurt the product" question can be answered, D8N needs:
+**HQ-001 foundation is implemented:** Docker bakes the source git SHA and
+build timestamp, Kamal supplies its image version, and
+`GET /api/v1/version` exposes these with deployment environment. Staging
+proof of the deployed SHA remains an operational gate. Before any "did
+this deploy hurt the product" comparison can be answered, D8N still needs:
 
-1. A `/api/v1/version` (or extend `/api/v1/health`) endpoint returning the
-   deployed git SHA and deploy timestamp — trivially added via Kamal's
-   `KAMAL_VERSION`/build-arg mechanism baked into the image at build time.
-2. That SHA propagated as the `release` field on `AnalyticsEvent` (§3) and
+1. That SHA propagated as the `release` field on `AnalyticsEvent` (§3) and
    any adopted APM vendor's deploy-marker API (§4).
 
 Once both exist, "error rate/latency/product-KPI before vs. after a

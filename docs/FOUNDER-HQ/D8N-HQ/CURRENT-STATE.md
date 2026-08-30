@@ -27,13 +27,13 @@ SYSTEM (doesn't exist yet) · PROVIDER API · DEPLOYMENT SYSTEM · OTHER.
 | # | Item | Status | Data | Source | Evidence |
 |---|---|---|---|---|---|
 | 1.1 | User/IdentityIdentifier/Credential models | READY | LIVE | D8N DB | `app/models/{user,identity_identifier,credential}.rb` |
-| 1.2 | Admin-facing member lookup API (by id/email/phone) | **MISSING** | NOT AVAILABLE | — | No controller under `app/controllers/api/v1/admin/` does this; `config/routes.rb` admin namespace has only `reports`, `profile_photos`, `suspensions` |
+| 1.2 | Admin-facing member lookup API (by id/email/phone) | **READY (HQ Member 360)** | LIVE | D8N DB | `GET /api/v1/hq/members/:lookup` via `app/controllers/api/v1/hq/members_controller.rb`; brand-scoped lookup by public id/email/phone with neutral not-found behavior |
 | 1.3 | Session/device tracking | READY | LIVE+HISTORICAL | D8N DB | `app/models/session.rb` — token-hashed, 30-day TTL, revocable |
-| 1.4 | Auth attempt / throttle audit | READY (write-only) | HISTORICAL | D8N DB | `app/models/auth_attempt.rb`; recorded by `domains/identity/password_audit.rb`; **no read API** |
+| 1.4 | Auth attempt / throttle audit | READY (write + member-scoped read) | HISTORICAL | D8N DB | `app/models/auth_attempt.rb`; recorded by `domains/identity/password_audit.rb`; Phase 1 exposes paginated member-scoped history through `GET /api/v1/hq/members/:lookup/auth_attempts` |
 
-**Gap for HQ:** Member 360 and Universal Search both need #1.2 — a basic
-"find this person" admin read path does not exist at all today, for any
-brand, for any field. This is the single highest-leverage missing piece.
+**HQ status:** Phase 1 closes the Member 360 portion of #1.2. Universal
+Search remains a separate future concern; the current lookup is deliberately
+brand-scoped and does not provide a cross-brand index.
 
 ## 2. BrandMembership / Brands / Provisioning
 
@@ -49,12 +49,13 @@ brand, for any field. This is the single highest-leverage missing piece.
 | # | Item | Status | Data | Source | Evidence |
 |---|---|---|---|---|---|
 | 3.1 | `AdminUser`/`AdminRole`/`AdminAssignment` models | READY | LIVE | D8N DB | `app/models/admin_{user,role,assignment}.rb` |
-| 3.2 | Authorization check (`Admin::ModeratorContext`) | READY, but **role-name-blind** | LIVE | D8N DB | `domains/admin/moderator_context.rb` — any active assignment of any role grants full moderator power (ADR 0013, explicit, intentional deferral) |
-| 3.3 | Founder/initial-admin bootstrap | READY | — | — | `domains/admin/founder_bootstrap.rb`, `bin/rails d8n:bootstrap_founder` (this repo's Phase 2 work) |
-| 3.4 | Admin CRUD API (list/create/modify AdminUsers, Roles, Assignments) | **MISSING** | — | — | No routes exist beyond the 3 domain-specific admin controllers below |
+| 3.2 | Authorization check | READY (capability-based, brand-scoped) | LIVE | D8N DB + code policy | `Admin::AuthorizationContext`, `Admin::Capabilities`, ADR 0020; exactly one active current-brand role, explicit action capabilities, unknown roles fail closed; `ModeratorContext` is compatibility-only |
+| 3.3 | Founder/initial-admin bootstrap | READY (safe legacy upgrade) | — | — | `Admin::FounderBootstrap`, `bin/rails d8n:bootstrap_founder`; idempotently replaces legacy Moderator with explicit Founder on each active brand, never a platform grant |
+| 3.4 | Admin/operator management | READY (current-brand scope) | LIVE | D8N DB | `GET/POST/PATCH /api/v1/hq/operators`; list/assign/role/status/revoke/effective capabilities, self/privilege escalation guards, audited; global AdminUser disable and credential invitation deliberately unavailable |
 | 3.5 | `SecurityEvent` audit trail | READY (write + member-scoped HQ read) | HISTORICAL | D8N DB | `app/models/security_event.rb`, `domains/hq/security_event_history.rb`; Phase 1 added a paginated, brand-scoped member read, but no general audit browser |
 | 3.6 | Dedicated `AuditLog` model | **PARTIAL / deliberately not duplicated** — see reconciliation below | HISTORICAL | D8N DB | `SecurityEvent` + `AuthAttempt` remain separate; Phase 1 added member-scoped reads over both, not a third table or unified general browser |
-| 3.7 | Authorization framework | READY (hand-rolled) | — | — | No Pundit/CanCanCan in `Gemfile`; authorization is inline per-domain (`Admin::ModeratorContext`, `Trust::ReportTargets::*`) |
+| 3.7 | Authorization framework | READY (central capability policy) | — | — | No Pundit/CanCanCan dependency; `Admin::Capabilities`, `AuthorizationContext`, `RolePolicy`, and declarative controller capability requirements |
+| 3.8 | Mandatory admin MFA | READY (backend); operational enrollment outstanding | HISTORICAL | D8N DB | Encrypted TOTP, hashed one-time recovery codes, per-session step-up, throttled/audited failures/reset, break-glass task; ADR 0021 |
 
 ## 4. Trust & Safety
 
@@ -81,8 +82,8 @@ brand, for any field. This is the single highest-leverage missing piece.
 | 5.1 | Profile, ProfilePreference, ProfilePhoto, ProfileOption*, ProfilePrompt*, ProfileLocation | READY | LIVE | D8N DB | Full CRUD member API; well-tested; no admin read surface |
 | 5.2 | Onboarding status | READY, but **computed only, not stored/auditable historically** | LIVE (point-in-time), not HISTORICAL | D8N DB (derived) | `domains/profiles/onboarding_status.rb`; member-facing only (`GET /api/v1/profile/configuration`); nothing snapshots "what was this member's onboarding state on date X" |
 | 5.3 | Discovery / eligibility engine | READY | LIVE | D8N DB | `domains/matching/discovery.rb`; ranked, cursor-paginated, brand-strategy-pluggable |
-| 5.4 | Discovery exposure audit trail | READY (data exists), **no query surface** | HISTORICAL | D8N DB | `DiscoveryAllocation`/`DiscoveryAllocationCandidate` persist per-candidate ranking payloads per viewer per day — this is exactly the data Member 360's "why is discovery empty" needs; it is being written today and simply isn't exposed |
-| 5.5 | "Why is discovery empty for this member" diagnostic | **MISSING (API), data present** | DERIVABLE from #5.4 | D8N DB | No endpoint synthesizes the funnel view described in D8N-HQ-PLAN.md §7 |
+| 5.4 | Discovery exposure audit trail | READY (data + HQ query) | HISTORICAL | D8N DB | `DiscoveryAllocation`/`DiscoveryAllocationCandidate` persist per-candidate ranking payloads; Phase 1 exposes the brand-scoped diagnostic read used by Member 360 |
+| 5.5 | "Why is discovery empty for this member" diagnostic | **READY (HQ read)** | DERIVABLE from #5.4 | D8N DB | `GET /api/v1/hq/members/:lookup/discovery_diagnostic`, `Hq::Member360::DiscoveryDiagnostic`; returns explicit eligibility/empty-state reasons without inventing metrics |
 | 5.6 | Like / Pass / Match | READY | LIVE+HISTORICAL | D8N DB | No admin read API for any of the three |
 | 5.7 | Openers / Hooks / Hook Tonight (ADR 0015/0016) | READY | LIVE+HISTORICAL | D8N DB | Full member API; no admin surface |
 | 5.8 | Conversations / Messages | READY (member); **no admin surface (see 4.12)** | LIVE+HISTORICAL | D8N DB | Plaintext `body`, attachment processing pipeline all working |
@@ -128,7 +129,7 @@ brand, for any field. This is the single highest-leverage missing piece.
 | 9.4 | Backup/restore | READY (script), **no automated verification surface for HQ** | — | — | `script/operations/postgres_backup`; `docs/operations/postgres-backup-restore.md` |
 | 9.5 | Deploy infra (Kamal) | READY | — | DEPLOYMENT SYSTEM | `config/deploy*.yml` — dual host prod, single accessory-DB staging |
 | 9.6 | Healthcheck endpoint | READY | LIVE | D8N DB | `GET /api/v1/health` — checks primary + queue DB connectivity only, not a full readiness/dependency check |
-| 9.7 | Release/version stamping (git SHA, deployed-at) | **MISSING** | NOT AVAILABLE | — | No `/version` endpoint, no `REVISION` file, no `Rails.application.config.x` version constant anywhere. This blocks all "did this deploy hurt the product" work in ARCHITECTURE.md § Deployment Intelligence. |
+| 9.7 | Release/version stamping (git SHA, build/release identity) | READY (code); staging proof outstanding | LIVE after deploy | IMAGE/KAMAL | `GET /api/v1/version`; Docker-baked `D8N_GIT_SHA`/build timestamp plus runtime `KAMAL_VERSION` and deployment environment (HQ-001) |
 
 ## 10. Observability / APM / Errors / Logs / Traces
 
@@ -214,23 +215,24 @@ What actually shipped, and how it compares:
 | Planned (Phase 10) | What exists today | Verdict |
 | --- | --- | --- |
 | `AdminUser`, `AdminRole` | Built exactly as planned | **Still correct** — reuse as-is |
-| `AdminAssignment` (brand-scoped access) | Built, and is *the* authorization mechanism | **Still correct**, but simpler than planned: no `AdminPermission` model was ever built. Authorization today is binary (has an active assignment on this brand, or doesn't) — not the granular role-based permission matrix Phase 10 envisioned. |
-| `AdminPermission` (granular RBAC) | **Never built** | This is a real, acknowledged gap, and ADR 0013 says so explicitly: "differentiated admin RBAC is deliberately deferred until more roles genuinely exist." HQ's eventual permission model (SECURITY-AND-RBAC.md) picks up exactly here — it should not reinvent the decision, just implement it now that HQ creates the "more roles" trigger. |
-| `AuditLog` (dedicated audit model) | **Never built as a single model.** Its job is split between `SecurityEvent` (audit-flavored, has severity) and `AuthAttempt` (auth-flavored) — both real, both write-only, neither has a read API. | **Partially superseded, not replaced.** HQ needs a read API over the union of these two, not a third table, unless a real modeling gap is found once building it (see ARCHITECTURE.md § Audit). |
+| `AdminAssignment` (brand-scoped access) | Built and retained as the authorization grant | **Implemented as intended:** one active role per admin/brand; role resolves through the centralized capability catalog. No platform-scope sentinel or tenant bypass. |
+| `AdminPermission` (granular RBAC) | Implemented as immutable `Admin::Capabilities` policy rather than mutable permission rows | **Intent satisfied without a speculative CRUD table:** explicit capabilities, effective-capability API, centralized role map, and declarative endpoint requirements are built under ADR 0020. |
+| `AuditLog` (dedicated audit model) | **Never built as a single model.** Its job is split between `SecurityEvent` (audit-flavored, has severity) and `AuthAttempt` (auth-flavored). Phase 1 now provides a member-scoped read over both; there is still no general audit browser. | **Partially superseded, not replaced.** HQ needs a broader read API over the union of these two only if a later Security Centre phase requires it, not a third table by default (see ARCHITECTURE.md § Audit). |
 | Reports queue, moderation | Built (`Report`, admin reports API) — went further than Phase 10 sketched, with typed reasons and polymorphic targets (ADR 0018) | **Exceeded plan** |
 | Verification review | Verification itself was never built (see §4.11) | **Blocked on a real product gap**, not an admin-surface gap |
 | Billing support view | Billing itself was never built (see §12) | **Blocked on a real product gap** |
 | Network dashboard / brand dashboard / user search | **Never built** | This is what D8N HQ *is* — this plan is the direct continuation of that unfinished Phase 10 item, informed by two more years... rather, several more weeks of actual product surface having been built since (Reports, Enforcement, Hooks, notifications, etc.) that Phase 10 could not have anticipated in detail |
-| Mandatory admin MFA (Phase 10's security baseline, restated in ADR 0013) | **Still not built.** Explicitly flagged as a pre-launch gate in `D8N_NOW_NEXT_LATER.md`. | Still open — HQ concentrates admin power further, which raises the cost of this gap rather than lowering it. See SECURITY-AND-RBAC.md. |
+| Mandatory admin MFA (Phase 10's security baseline, restated in ADR 0013) | Built under ADR 0021 and enforced across current HQ/admin surfaces | Backend gate complete; staging/production Founder enrollment and operational verification remain open. |
 
 **Bottom line:** the original plan's instincts (separate brand membership
 from admin assignment, brand-scoped moderators, network-level access only
 for trusted/eventually-differentiated roles, mandatory audit trails,
 mandatory admin MFA before broad admin surfaces) are all still correct and
 are carried forward unchanged into SECURITY-AND-RBAC.md. What changed is scope and
-sequencing: the granular `AdminPermission`/`AuditLog` machinery was
-deliberately deferred rather than built speculatively, and HQ is the
-forcing function that finally justifies building it for real.
+sequencing: a mutable `AdminPermission` table and third `AuditLog` model
+were not built speculatively. HQ supplied the real-role trigger, so ADR
+0020 now implements immutable capabilities over the existing assignments,
+while `SecurityEvent`/`AuthAttempt` remain the audit sources of truth.
 
 ---
 
@@ -245,11 +247,11 @@ them directly, not duplicate them:
   for HQ's "Provisioning/Readiness" page (§ ARCHITECTURE.md § Brand
   Control Centre) — a future `brands:doctor` read-only check should be
   built as a sibling to `Provisioner`, not a rewrite of it.
-- **Phase 2 (founder bootstrap):** `Admin::FounderBootstrap`,
+- **Founder bootstrap foundation:** `Admin::FounderBootstrap`,
   `bin/rails d8n:bootstrap_founder`. Promotes one existing D8N identity to
-  `moderator` on every active brand, using the *current* (brand-scoped,
-  role-name-blind) authorization model — deliberately does not invent
-  platform-wide authorization. **Known, carried-forward open question:**
+  real `founder` on every active brand, one explicit assignment at a time,
+  and safely tombstones legacy Moderator assignments. **Known,
+  carried-forward architectural coupling:**
   normal brand login requires an active `BrandMembership`, so founder
   bootstrap creates/uses memberships on brands the founder didn't
   originally join. This is treated as a known architectural concern in

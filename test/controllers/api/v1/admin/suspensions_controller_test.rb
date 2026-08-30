@@ -285,7 +285,7 @@ class Api::V1::Admin::SuspensionsControllerTest < ActionDispatch::IntegrationTes
     admin_user = AdminUser.create!(user:, status: :active)
     role = AdminRole.find_or_create_by!(name: role_name)
     AdminAssignment.create!(admin_user:, brand: assign_brand || brand, admin_role: role, status: :active)
-    token, = Session.issue!(brand:, user:)
+    token = issue_mfa_verified_admin_session!(user:, brand:, admin_user:)
     [ admin_user, token ]
   end
 end

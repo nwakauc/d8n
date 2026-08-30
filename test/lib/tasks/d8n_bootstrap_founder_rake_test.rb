@@ -6,7 +6,7 @@ class D8nBootstrapFounderRakeTest < ActiveSupport::TestCase
     Rails.application.load_tasks unless Rake::Task.task_defined?("d8n:bootstrap_founder")
     Rake::Task["d8n:bootstrap_founder"].reenable
 
-    AdminRole.kept.find_or_create_by!(name: "moderator")
+    AdminRole.kept.find_or_create_by!(name: "founder")
     @brand = Brand.create!(slug: "hookus", name: "HookUs", status: :active)
     @user = User.create!
     @user.identity_identifiers.create!(

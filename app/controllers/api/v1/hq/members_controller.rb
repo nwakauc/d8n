@@ -6,6 +6,12 @@ module Api
       # here is a sensitive read and is individually audited (HQ-106) -- see
       # SECURITY-AND-RBAC.md #4.
       class MembersController < BaseController
+        requires_admin_capability ::Admin::Capabilities::MEMBER_SENSITIVE_READ, only: :show
+        requires_admin_capability ::Admin::Capabilities::MEMBER_SECURITY_READ,
+          only: %i[security_events auth_attempts enforcements]
+        requires_admin_capability ::Admin::Capabilities::DISCOVERY_DIAGNOSTICS_READ,
+          only: :discovery_diagnostic
+
         CODE_STATUS = {
           member_unavailable: :not_found,
           profile_unavailable: :not_found,
@@ -99,7 +105,13 @@ module Api
         end
 
         def audit!(event_type)
-          ::Hq::SensitiveReadAudit.record(admin_user: Current.admin_user, brand: Current.brand, user: @user, event_type:)
+          ::Hq::SensitiveReadAudit.record(
+            admin_user: Current.admin_user,
+            brand: Current.brand,
+            user: @user,
+            session: Current.session,
+            event_type:
+          )
         end
 
         def render_hq_error(error)

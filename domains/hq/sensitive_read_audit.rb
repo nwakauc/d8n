@@ -8,15 +8,18 @@ module Hq
     # `user` is the optional target member. Aggregate reads have no single
     # target and therefore record only the actor, brand, event type, and a
     # deliberately small set of non-sensitive filter metadata.
-    def self.record(admin_user:, brand:, event_type:, user: nil, extra: {})
+    def self.record(admin_user:, brand:, event_type:, user: nil, session: nil, extra: {})
       metadata = { admin_user_id: admin_user.id }
       metadata[:target_user_id] = user.id if user.present?
+      metadata[:session_id] = session.id if session.present?
 
       SecurityEvent.create!(
         brand:,
         user: admin_user.user,
         event_type:,
         severity: :info,
+        ip_address: session&.ip_address,
+        user_agent: session&.user_agent,
         metadata: metadata.merge(extra)
       )
     end

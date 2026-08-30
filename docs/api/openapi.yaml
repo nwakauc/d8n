@@ -42,9 +42,10 @@ info:
       is pending/approved; rejected media is independently excluded. Signed URLs
       are short-lived. The endpoints require private R2 storage, so they return
       `404` when R2 is disabled.
-    - **Preview (limited scope):** Admin exposes brand-scoped report review and
-      suspension APIs; stronger admin authentication/RBAC and the complete admin
-      product remain gated.
+    - **Available foundation:** Admin/HQ uses brand-scoped capability RBAC and
+      mandatory TOTP session step-up. Founder, Super Admin, Operations, Trust &
+      Safety, Support, Engineering, Marketing, Analyst, and legacy Moderator have
+      server-owned capability sets. No role bypasses brand assignment.
     - **Available foundation:** Product Notifications exposes a brand-scoped,
       polling-friendly in-app inbox and read state. DateZA registration produces
       `dateza.welcome`; product email is asynchronous. Device/push storage and a
@@ -92,8 +93,9 @@ tags:
     description: |
       D8N HQ — internal company command centre backend (see
       docs/FOUNDER-HQ/D8N-HQ/). Never a consumer-facing API: every operation
-      here requires an authorized moderator (identical authorization to the
-      Admin tag) and is scoped to the request's brand. See
+      here requires an explicitly capable operator (identical authorization to
+      the Admin tag), a verified admin-MFA session unless stated otherwise, and
+      is scoped to the request's brand. See
       docs/FOUNDER-HQ/D8N-HQ/SECURITY-AND-RBAC.md for the authorization model
       and audit requirements.
   - name: Hook Tonight
@@ -131,6 +133,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
+  /api/v1/version:
+    get:
+      operationId: getVersion
+      tags: [System]
+      summary: Identify the exact deployed build and release
+      description: |
+        Public, non-secret release identity. `git_sha` is baked into the image;
+        `image_version` is Kamal's runtime image version. A null field means the
+        corresponding build input was unavailable and must not be inferred.
+      security: []
+      responses:
+        "200":
+          description: Deployed application identity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionResponse"
   /api/v1/openapi.json:
     get:
       operationId: getOpenapiContract
@@ -2969,7 +2988,8 @@ paths:
       tags: [Trust]
       summary: List the profile photo moderation review queue for the current brand
       description: |
-        Authorized-moderator only. Returns every kept, still-undecided
+        Requires verified admin MFA and `admin.profile_photos.moderate`.
+        Returns every kept, still-undecided
         (pending_review) profile photo for the request's brand, oldest-first
         by (created_at, id), bounded to 100 entries. This is the discovery
         path a moderator needs to find photos awaiting a decision before
@@ -2994,7 +3014,8 @@ paths:
       tags: [Trust]
       summary: Apply a terminal moderation decision to a pending profile photo
       description: |
-        Requires an authenticated active admin assigned to the request brand.
+        Requires verified admin MFA and `admin.profile_photos.moderate` on the
+        request brand.
         The opaque photo UUID is resolved only inside that brand. Approval makes
         the placement visible; rejection makes it hidden and independently
         non-deliverable. Repeating the same terminal decision is idempotent;
@@ -3051,7 +3072,7 @@ paths:
       tags: [Admin]
       summary: List the moderation queue for the current brand
       description: |
-        Authorized-moderator only. Returns reports for the request's brand
+        Requires verified admin MFA and `admin.reports.read`. Returns reports for the request's brand
         (resolved from the host — a brand id is never accepted from the client),
         oldest-first by (created_at, id) so the longest-waiting reports surface
         first, cursor-paginated and bounded. Access requires an active AdminUser
@@ -3081,7 +3102,7 @@ paths:
       tags: [Admin]
       summary: Inspect one report
       description: |
-        Authorized-moderator only. The read is audited (a sensitive-read
+        Requires verified admin MFA and `admin.reports.read`. The read is audited (a sensitive-read
         SecurityEvent is recorded). Unknown and cross-brand ids share the neutral
         `report_unavailable` (404). Only moderator-relevant fields are returned;
         no credentials, sessions, email/phone, private location, or media.
@@ -3109,7 +3130,7 @@ paths:
       tags: [Admin]
       summary: Apply a moderation lifecycle transition
       description: |
-        Authorized-moderator only. Applies one lifecycle transition and records the
+        Requires verified admin MFA and `admin.reports.moderate`. Applies one lifecycle transition and records the
         decision (audited; `reviewed_by`/`reviewed_at`/`resolution_note` set). Only
         `status` and an optional short `note` are accepted; report internals
         (reporter, target, brand, reason, timestamps) can never be mass-assigned.
@@ -3163,7 +3184,7 @@ paths:
       tags: [Admin]
       summary: Apply a brand-level suspension to a profile's owner
       description: |
-        Authorized-moderator only. Brand-level enforcement: suspends the target's
+        Requires verified admin MFA and `admin.enforcements.manage`. Brand-level enforcement: suspends the target's
         membership in this brand, revokes all of their sessions for this brand, and
         records an audited, reversible `AccountEnforcement`. Everything happens in
         one transaction. The target's network identity and any other-brand access
@@ -3215,7 +3236,7 @@ paths:
       tags: [Admin]
       summary: Lift a brand-level suspension
       description: |
-        Authorized-moderator only. Reactivates the membership and marks the
+        Requires verified admin MFA and `admin.enforcements.manage`. Reactivates the membership and marks the
         enforcement reverted, audited, in one transaction. Restores ONLY what
         suspension changed — it does not revive revoked sessions (the user logs in
         again), ended matches, blocks, or deleted data. Reinstating a profile that
@@ -3245,13 +3266,211 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hq/operator:
+    get:
+      operationId: getCurrentHqOperator
+      tags: [Hq]
+      summary: Resolve the current operator, capabilities, assignments, and MFA state
+      description: |
+        Available after ordinary authentication and a current-brand admin
+        assignment; MFA step-up is not required for this bootstrap response.
+        `effective_capabilities`, never the role label, is authoritative for UI
+        affordances. Other brand assignments are informational switcher targets;
+        each brand still requires its own brand-bound session and authorization.
+      responses:
+        "200":
+          description: Current administrative identity and session security state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqCurrentOperatorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+  /api/v1/hq/operators:
+    get:
+      operationId: listHqOperators
+      tags: [Hq]
+      summary: List at most 100 operator assignments for the current brand
+      responses:
+        "200":
+          description: Brand-scoped operator assignments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqOperatorListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+    post:
+      operationId: createHqOperatorAssignment
+      tags: [Hq]
+      summary: Assign an existing current-brand member as an operator
+      description: |
+        Requires `admin.operators.manage` and verified MFA. The target must
+        already have an active membership on this brand. Founder is
+        bootstrap-only; only Founder may grant Super Admin. Self-assignment and
+        grants outside the actor's authority are rejected and audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqCreateOperatorRequest"
+      responses:
+        "201":
+          description: Operator assignment created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqOperatorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+  /api/v1/hq/operators/{id}:
+    patch:
+      operationId: updateHqOperatorAssignment
+      tags: [Hq]
+      summary: Change or revoke a current-brand operator assignment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqUpdateOperatorRequest"
+      responses:
+        "200":
+          description: Updated current-brand assignment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqOperatorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+  /api/v1/hq/mfa/enrollment:
+    post:
+      operationId: startHqMfaEnrollment
+      tags: [Hq]
+      summary: Start TOTP enrollment for the current admin identity
+      description: |
+        Ordinary authenticated admin session required; prior MFA is not. The
+        returned secret/provisioning URI is enrollment-only sensitive data and
+        must never be logged or persisted by the frontend.
+      responses:
+        "201":
+          description: Pending TOTP enrollment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqMfaEnrollmentResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+    patch:
+      operationId: confirmHqMfaEnrollment
+      tags: [Hq]
+      summary: Confirm enrollment and return one-time recovery codes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqMfaCodeRequest"
+      responses:
+        "200":
+          description: MFA active; recovery codes are returned once only.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqMfaConfirmationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+        "429":
+          $ref: "#/components/responses/AdminMfaRateLimited"
+    delete:
+      operationId: resetHqMfaEnrollment
+      tags: [Hq]
+      summary: Reset MFA after verified-session and fresh-factor proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqMfaCodeRequest"
+      responses:
+        "200":
+          description: MFA disabled; every session requires enrollment again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqMfaStateResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+        "429":
+          $ref: "#/components/responses/AdminMfaRateLimited"
+  /api/v1/hq/mfa/challenge:
+    post:
+      operationId: challengeHqMfa
+      tags: [Hq]
+      summary: Step up the current session with TOTP or one-time recovery code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqMfaCodeRequest"
+      responses:
+        "200":
+          description: Current session is MFA verified.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqMfaChallengeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+        "429":
+          $ref: "#/components/responses/AdminMfaRateLimited"
   /api/v1/hq/trust_safety/overview:
     get:
       operationId: getHqTrustSafetyOverview
       tags: [Hq]
       summary: Current-brand Trust & Safety queue and enforcement overview
       description: |
-        Authorized-moderator only, brand-scoped, and read-only. Returns current
+        Requires verified admin MFA and `hq.trust_safety.read`; brand-scoped and read-only. Returns current
         report counts by status, reason, and target type; open-queue aging; and
         enforcement totals. `overdue` is deliberately null and `sla_status` is
         `not_configured` because D8N has not defined an SLA threshold. The read
@@ -3274,7 +3493,7 @@ paths:
       tags: [Hq]
       summary: List repeatedly reported profiles for the current brand
       description: |
-        Authorized-moderator only, brand-scoped, and read-only. "Repeat" means
+        Requires verified admin MFA and `hq.trust_safety.read`; brand-scoped and read-only. "Repeat" means
         at least two retained reports received by one profile. Results are
         ordered by report count descending, then latest report descending, and
         bounded rather than cursor-paginated. This is an investigation signal,
@@ -3307,7 +3526,7 @@ paths:
       tags: [Hq]
       summary: Paginated brand-wide account-enforcement history
       description: |
-        Authorized-moderator only, brand-scoped, read-only, and newest-first.
+        Requires verified admin MFA and `hq.trust_safety.read`; brand-scoped, read-only, and newest-first.
         Optional `state` selects active or reverted enforcement. The opaque
         cursor is signed and bound to both the host-resolved brand and the state
         filter. The response reuses the established AdminEnforcement shape, so
@@ -3341,8 +3560,8 @@ paths:
       tags: [Hq]
       summary: Look up a member and return their Member 360 operational summary
       description: |
-        Authorized-moderator only (identical authorization to the Admin tag —
-        no new permission model). `lookup` may be an email, a phone number (in
+        Requires verified admin MFA and `hq.member.sensitive_read`. `lookup`
+        may be an email, a phone number (in
         whatever form `POST /api/v1/auth/password/login` would accept), or a
         profile `public_id` UUID. Resolution is always scoped to the request's
         brand: an identifier that exists only on another brand, or does not
@@ -3377,7 +3596,7 @@ paths:
       tags: [Hq]
       summary: Paginated SecurityEvent history for one member
       description: |
-        Authorized-moderator only, brand-scoped. Newest-first, cursor-paginated
+        Requires verified admin MFA and `hq.member.security_read`; brand-scoped. Newest-first, cursor-paginated
         (the cursor is bound to this brand, this member, and this resource
         type — it cannot be replayed elsewhere). The read is audited
         (`hq.member_security_events_viewed`). This is the same `SecurityEvent`
@@ -3416,7 +3635,7 @@ paths:
       tags: [Hq]
       summary: Paginated AuthAttempt history for one member
       description: |
-        Authorized-moderator only, brand-scoped. Newest-first, cursor-paginated,
+        Requires verified admin MFA and `hq.member.security_read`; brand-scoped. Newest-first, cursor-paginated,
         identical pagination semantics to `security_events`. The read is
         audited (`hq.member_auth_attempts_viewed`). Closes the previously
         console-only read gap over `AuthAttempt` (login/OTP/recovery attempts,
@@ -3455,7 +3674,7 @@ paths:
       tags: [Hq]
       summary: Paginated AccountEnforcement history for one member
       description: |
-        Authorized-moderator only, brand-scoped. Newest-first, cursor-paginated,
+        Requires verified admin MFA and `hq.member.security_read`; brand-scoped. Newest-first, cursor-paginated,
         identical pagination semantics to `security_events`. The read is
         audited (`hq.member_enforcements_viewed`). Returns the same
         `AdminEnforcement` shape as `POST /api/v1/admin/profiles/{profile_id}/suspension`
@@ -3493,7 +3712,8 @@ paths:
       tags: [Hq]
       summary: "\"Why is Discover empty for this member?\" read-only funnel diagnostic"
       description: |
-        Authorized-moderator only, brand-scoped. Requires the member to have a
+        Requires verified admin MFA and `hq.discovery_diagnostics.read`;
+        brand-scoped. Requires the member to have a
         profile (`profile_unavailable` 404 otherwise). Re-runs the live
         discovery engine's own eligibility stages (Matching::VisibilityScope,
         Matching::EligibilityScope, Matching::ExclusionsScope) read-only,
@@ -3837,7 +4057,22 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
     AdminForbidden:
-      description: Authenticated, but not an authorized moderator for this brand (`forbidden`).
+      description: |
+        Administrative access denied. `forbidden` means there is no active
+        current-brand assignment or required effective capability (including
+        revoked access). `admin_mfa_required` means the assignment/capability is
+        valid but this ordinary session has not completed backend MFA step-up.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    AdminMfaRateLimited:
+      description: Too many recent admin MFA failures (`admin_mfa_rate_limited`).
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds before another MFA proof may be attempted.
       content:
         application/json:
           schema:
@@ -3933,6 +4168,255 @@ components:
             queue_database:
               type: string
               enum: [ok, unavailable]
+    VersionResponse:
+      type: object
+      required:
+        [app, git_sha, release, image_version, environment,
+         rails_environment, build_timestamp, booted_at]
+      properties:
+        app:
+          const: d8n
+        git_sha:
+          type: [string, "null"]
+          pattern: "^[0-9a-fA-F]{40}$"
+        release:
+          type: [string, "null"]
+          description: Kamal image version when present, otherwise the immutable git SHA.
+        image_version:
+          type: [string, "null"]
+          description: Runtime `KAMAL_VERSION`; may be a deployment alias, so use `git_sha` for source identity.
+        environment:
+          type: string
+          description: D8N deployment environment such as staging or production.
+        rails_environment:
+          type: string
+        build_timestamp:
+          type: [string, "null"]
+          format: date-time
+        booted_at:
+          type: string
+          format: date-time
+    HqOperatorRole:
+      type: string
+      enum:
+        [founder, super_admin, operations, trust_safety, support,
+         engineering, marketing, analyst, moderator]
+    HqCapability:
+      type: string
+      enum:
+        - hq.member.sensitive_read
+        - hq.member.security_read
+        - hq.discovery_diagnostics.read
+        - hq.trust_safety.read
+        - admin.reports.read
+        - admin.reports.moderate
+        - admin.enforcements.manage
+        - admin.profile_photos.moderate
+        - admin.operators.read
+        - admin.operators.manage
+        - admin.brand_operations.manage
+        - hq.system.read
+        - hq.analytics.read
+    HqOperatorAssignment:
+      type: object
+      required: [brand, role, effective_capabilities]
+      properties:
+        brand:
+          type: string
+        role:
+          $ref: "#/components/schemas/HqOperatorRole"
+        effective_capabilities:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/HqCapability"
+    HqMfaState:
+      type: object
+      required: [state, required, verified, recovery_codes_remaining]
+      properties:
+        state:
+          type: string
+          enum: [not_enrolled, pending, active]
+        required:
+          const: true
+        verified:
+          type: boolean
+          description: True only when this exact session completed step-up against the current active credential.
+        recovery_codes_remaining:
+          type: [integer, "null"]
+          minimum: 0
+    HqCurrentOperatorResponse:
+      type: object
+      required: [operator]
+      properties:
+        operator:
+          type: object
+          required:
+            [admin_user_id, user_id, status, current_brand, role,
+             effective_capabilities, grantable_roles, brand_assignments, mfa]
+          properties:
+            admin_user_id:
+              type: integer
+            user_id:
+              type: integer
+            status:
+              type: string
+              enum: [active, suspended, disabled]
+            current_brand:
+              type: string
+            role:
+              $ref: "#/components/schemas/HqOperatorRole"
+            effective_capabilities:
+              type: array
+              uniqueItems: true
+              items:
+                $ref: "#/components/schemas/HqCapability"
+            grantable_roles:
+              type: array
+              uniqueItems: true
+              description: Server-authoritative roles this actor may grant; Founder itself is never returned.
+              items:
+                $ref: "#/components/schemas/HqOperatorRole"
+            brand_assignments:
+              type: array
+              items:
+                $ref: "#/components/schemas/HqOperatorAssignment"
+            mfa:
+              $ref: "#/components/schemas/HqMfaState"
+    HqOperator:
+      type: object
+      required:
+        [admin_user_id, user_id, admin_status, assignment_status, role,
+         effective_capabilities, mfa_enrolled]
+      properties:
+        admin_user_id:
+          type: integer
+        user_id:
+          type: integer
+        admin_status:
+          type: string
+          enum: [active, suspended, disabled]
+        assignment_status:
+          type: string
+          enum: [active, suspended, revoked]
+        role:
+          $ref: "#/components/schemas/HqOperatorRole"
+        effective_capabilities:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/HqCapability"
+        mfa_enrolled:
+          type: boolean
+    HqOperatorResponse:
+      type: object
+      required: [operator]
+      properties:
+        operator:
+          $ref: "#/components/schemas/HqOperator"
+    HqOperatorListResponse:
+      type: object
+      required: [operators]
+      properties:
+        operators:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/HqOperator"
+    HqCreateOperatorRequest:
+      type: object
+      required: [email, role]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          description: Existing verified D8N identity with an active membership on the current brand.
+        role:
+          $ref: "#/components/schemas/HqOperatorRole"
+    HqUpdateOperatorRequest:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        role:
+          $ref: "#/components/schemas/HqOperatorRole"
+        status:
+          type: string
+          enum: [active, suspended, revoked]
+    HqMfaCodeRequest:
+      type: object
+      required: [code]
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          description: Six-digit TOTP or one-time recovery code. Never logged or audited.
+    HqMfaEnrollmentResponse:
+      type: object
+      required: [mfa]
+      properties:
+        mfa:
+          type: object
+          required: [state, secret, provisioning_uri]
+          properties:
+            state:
+              const: pending
+            secret:
+              type: string
+              description: Enrollment-only Base32 secret; display once and never persist in frontend storage/logs.
+            provisioning_uri:
+              type: string
+              format: uri
+    HqMfaConfirmationResponse:
+      type: object
+      required: [mfa, recovery_codes]
+      properties:
+        mfa:
+          type: object
+          required: [state, verified]
+          properties:
+            state:
+              const: active
+            verified:
+              const: true
+        recovery_codes:
+          type: array
+          minItems: 8
+          maxItems: 8
+          description: Returned once; prompt the operator to store these offline.
+          items:
+            type: string
+    HqMfaChallengeResponse:
+      type: object
+      required: [mfa]
+      properties:
+        mfa:
+          type: object
+          required: [state, verified, method, recovery_codes_remaining]
+          properties:
+            state:
+              const: active
+            verified:
+              const: true
+            method:
+              type: string
+              enum: [totp, recovery_code]
+            recovery_codes_remaining:
+              type: integer
+              minimum: 0
+    HqMfaStateResponse:
+      type: object
+      required: [mfa]
+      properties:
+        mfa:
+          type: object
+          required: [state, verified]
+          properties:
+            state:
+              const: not_enrolled
+            verified:
+              const: false
     ErrorResponse:
       type: object
       required: [error]

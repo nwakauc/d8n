@@ -5,6 +5,8 @@ module Api
       # profile's participation in the moderator's brand. Explicit domain actions,
       # not arbitrary status mutation. Authorization + brand come from BaseController.
       class SuspensionsController < BaseController
+        requires_admin_capability ::Admin::Capabilities::ENFORCEMENTS_MANAGE
+
         CODE_STATUS = {
           profile_unavailable: :not_found,
           invalid_report: :unprocessable_entity,

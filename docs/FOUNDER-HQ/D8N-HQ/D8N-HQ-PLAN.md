@@ -1,9 +1,10 @@
 # D8N HQ — Unified Company Command Centre
 
-**Status: PLANNING. Nothing described here as "target" or "future" is
-built.** Sections are explicitly labeled CURRENT REALITY, TARGET
-ARCHITECTURE, or FUTURE/DEFERRED throughout — never assume a capability
-exists because it's described in detail. This is the canonical,
+**Status: ACTIVE DELIVERY. Phase 1/2 backend and their foundation/security
+backend are built; frontend and operational acceptance remain.** Sections
+remain labeled CURRENT REALITY, TARGET ARCHITECTURE, or FUTURE/DEFERRED;
+implementation evidence lives in the Phase/Foundation handoffs and
+ROADMAP.md. This is the canonical,
 self-contained D8N HQ plan; deeper engineering detail for each area lives
 in the sibling documents linked throughout ([README.md](README.md) has
 the full index).
@@ -158,7 +159,7 @@ reimplement it).
 | --- | --- | --- |
 | Identity/Users (models, sessions) | READY | No admin lookup API exists at all — the single highest-leverage gap found (§12) |
 | Brands / provisioning | READY | `Brands::Provisioner`, `bin/rails brands:provision[slug]` (this repo's Phase 1 work) — no `brands:doctor` readiness check yet |
-| Admin / RBAC | PARTIAL | `AdminUser`/`AdminRole`/`AdminAssignment` exist and work; authorization is brand-scoped and role-name-blind (§8); no admin CRUD API; no dedicated audit read API |
+| Admin / RBAC | READY foundation | Brand-scoped centralized capabilities, real role semantics, current-brand operator management, mandatory TOTP MFA, and sensitive-read auditing are built; operational rollout remains (§8) |
 | Trust & Safety (reports, enforcement, photo moderation) | READY (most mature domain) | Full `Report` model (ADR 0018), admin queue/detail/transition API, `AccountEnforcement` suspend/reinstate API. Missing: SLA/aging, repeat-offender aggregation, enforcement-history query — all *derivable*, no new tables needed |
 | Identity/selfie/ID verification | **MISSING — a real product gap, not an HQ gap** | Only email/phone OTP possession checks exist; no `Verification`/`UserVerification` model anywhere |
 | Dating loop (profiles, discovery, likes, matches, hooks, conversations, blocks) | READY (member-facing) | Zero admin read surface for any of it. Discovery's per-candidate ranking data is already persisted (`DiscoveryAllocationCandidate`) — the "why is discovery empty" diagnostic (§12) needs an API, not new data |
@@ -179,38 +180,23 @@ reimplement it).
 is the single most consequential fact in this entire plan and must not be
 glossed over.**
 
-Audited directly from `domains/admin/moderator_context.rb`,
-`app/models/admin_{user,role,assignment}.rb`, and ADR 0013:
+ADR 0020/0021 now complete the trigger ADR 0013 deliberately deferred:
 
-- **Authorization is currently brand-scoped only.** There is no concept
-  of a platform-wide/cross-brand admin anywhere in the codebase.
-- **Role names currently do not provide differentiated authorization.**
-  `Admin::ModeratorContext.resolve` checks only: is there a kept, active
-  `AdminUser`, with a kept, active `AdminAssignment` for *this specific
-  brand* — full stop. The `AdminRole.name` on that assignment
-  (`"moderator"`, the only role that exists today) is never read by any
-  authorization check. **Any admin role currently grants full moderation
-  and enforcement power for its brand.** This is explicit and intentional
-  per ADR 0013: "differentiated admin RBAC is deliberately deferred until
-  more roles genuinely exist."
-- **There is no genuine platform-wide founder role today.** Admins sign
-  in as an ordinary `User` through the ordinary brand-scoped session and
-  need an active `BrandMembership` on a brand to administer it at all —
-  same code path as any member. This repo's own Phase 2 work
-  (`Admin::FounderBootstrap`, `bin/rails d8n:bootstrap_founder`)
-  deliberately does not invent a platform-wide role; it promotes one
-  identity to the existing per-brand `moderator` role on every active
-  brand, one assignment at a time.
-- **Admin MFA does not exist**, and is an explicit, still-open pre-launch
-  gate (`D8N_NOW_NEXT_LATER.md`).
-- **Cross-brand HQ authorization remains an open architectural
-  decision**, not resolved by this plan (§9, §32).
+- Authorization remains **brand-scoped only**, with one explicit active
+  role assignment per admin/brand and no platform grant.
+- `Admin::Capabilities` and `Admin::AuthorizationContext` provide the
+  centralized server-owned role/capability model. Controllers declare
+  capabilities; frontend consumes effective capabilities.
+- Founder and Super Admin have real delegation semantics but remain
+  per-brand. Founder bootstrap safely upgrades legacy Moderator rows.
+- TOTP MFA is backend-enforced per session across the current HQ/admin
+  surface, with one-time recovery codes and audited recovery/reset.
+- V1 "All D8N" is resolved as Option A fan-out only. Reopening a true
+  platform grant still requires a new ADR.
 
-HQ makes every one of these facts more consequential, not less — a tool
-whose purpose is "see and act on everything, across every brand, in one
-place" is exactly the tool that turns "any admin role grants full power
-for its brand" and "no MFA" from acceptable beta-scale risks into the
-central risk of the whole product.
+Operational rollout—not architecture—now remains: deploy/migrate/seed,
+upgrade and enroll Founder, prove the role/tenant matrix in staging, and
+complete frontend acceptance.
 
 ## 9. Target HQ Architecture
 
@@ -425,22 +411,18 @@ HQ; not scoped as its own phase — it ships as part of §17's adoption, see
 
 ## 19. Deployments / Release Correlation
 
-**Blocked entirely on a real, standalone gap: there is no
-version/release stamping anywhere in this codebase today** — no
-`/version` endpoint, no `REVISION` file, no deployed-git-SHA mechanism of
-any kind. Before "did this deploy hurt the product" can be answered, two
-prerequisites, both small:
+**HQ-001 is now built:** `/api/v1/version` exposes the Docker-baked git
+SHA/build timestamp, Kamal image version, and deployment environment.
+Staging must still prove the deployed 40-character SHA. Before "did this
+deploy hurt the product" can be answered, the remaining prerequisite is:
 
-1. A version endpoint returning the deployed git SHA + deploy timestamp
-   (trivial via Kamal's build-arg mechanism).
-2. That SHA propagated as a `release` tag on captured errors (§17) and,
+1. That SHA propagated as a `release` tag on captured errors (§17) and,
    once it exists, on analytics events (§26).
 
-Once both exist, before/after comparisons on a release are a
+Once propagation exists, before/after comparisons on a release are a
 straightforward `WHERE release = ?` query — no further architecture
-needed. This plan does not implement either; they are Phase 0 of
-[ROADMAP.md](ROADMAP.md), the literal first prerequisite for this whole
-section.
+needed. Propagation remains in its existing later phases; HQ-001 remains
+Phase 0 in [ROADMAP.md](ROADMAP.md).
 
 ## 20. Incident Centre
 
@@ -736,15 +718,13 @@ today's Rails-console-driven support/moderation work.
 Collected from throughout this plan; each requires a founder/architecture
 decision before the relevant phase can start:
 
-1. **Cross-brand authorization** (§8, [SECURITY-AND-RBAC.md §2](SECURITY-AND-RBAC.md)):
-   confirm the V1 approach — per-brand fan-out only, no new cross-brand
-   grant — or commission the platform-level-grant ADR now instead of
-   deferring it.
+1. **Cross-brand authorization** (§8): **resolved for V1 by ADR 0020** —
+   per-brand fan-out only, no platform grant. Reopening it requires a new ADR.
 2. **Observability vendor** (§17): which one, and budget.
 3. **HQ frontend placement:** new standalone app, or a section of
    whatever admin frontend gets built first.
-4. **Admin MFA timeline:** before or in parallel with Phase 1 — Member
-   360 itself is sensitive enough to want this resolved first, not after.
+4. **Admin MFA timeline:** **backend resolved by ADR 0021**; Founder
+   enrollment and staging/production acceptance remain launch operations.
 5. **Score weights/targets** (§25): the six top-level scores' actual
    formulas are a founder/product call, needed before Phase 6, not
    before.

@@ -52,23 +52,19 @@ suffix, which would otherwise mis-parse an email address.
 
 ## Authorization model used
 
-**No new authorization mechanism.** Every HQ route requires the same thing
-`/api/v1/admin/*` already requires: an authenticated `Current.user` that
-resolves via `Admin::ModeratorContext.resolve(user:, brand:)` to a kept,
-active `AdminUser` with a kept, active `AdminAssignment` on the request's
-brand (`Api::V1::Hq::BaseController#authenticate_admin!`, byte-for-byte the
-same logic as `Api::V1::Admin::BaseController`). Unauthenticated → 401.
-Authenticated but not an admin, or an admin assigned to a *different*
-brand → 403. This confirms SECURITY-AND-RBAC.md §3 step 1 in practice: HQ
-ships under the existing `moderator` role, no new role, no new table.
+The original slice shipped on ADR 0013's temporary Moderator boundary.
+The current foundation now applies ADR 0020/0021 without changing Phase
+1's successful payloads: host-derived current-brand assignment, verified
+admin MFA, and explicit capabilities. Member 360 requires
+`hq.member.sensitive_read`; security/auth/enforcement histories require
+`hq.member.security_read`; discovery diagnostics require
+`hq.discovery_diagnostics.read`.
 
-Per SECURITY-AND-RBAC.md §1's still-open gaps (no differentiated admin RBAC,
-no admin MFA): HQ Phase 1 does not change or work around either. Any
-active admin assignment on a brand can see that brand's Member 360 today —
-identical blast radius to the existing reports queue, not a new one. Admin
-MFA remains the same pre-launch gate it already was; HQ raises its
-priority (per SECURITY-AND-RBAC.md §3) but does not gate on it, matching
-ROADMAP.md Phase 1's explicit scope.
+Use `GET /api/v1/hq/operator` for effective capabilities and MFA state.
+`401` means ordinary authentication is absent; `403 forbidden` means
+assignment/capability/revocation denial; `403 admin_mfa_required` means a
+valid operator session must complete MFA. Full frontend bootstrap details
+are in `FOUNDATION-SECURITY-IMPLEMENTATION.md`.
 
 ## Brand isolation
 
@@ -259,8 +255,8 @@ the endpoint returns `eligible: false` with a reason, not an error.
 
 - No "All D8N" cross-brand view (Option A only, per SECURITY-AND-RBAC.md
   §2 — this is the founder decision Phase 0 asked for, not resolved here).
-- No admin MFA gate on these endpoints (pre-existing, restated priority
-  per SECURITY-AND-RBAC.md §3 — not this slice's decision to make).
+- Admin MFA and differentiated capability gates are now implemented by
+  the shared foundation; staging/production enrollment remains operational.
 - Discovery diagnostic's middle stage is coarser than the product brief's
   ideal (see above).
 - No free-text/fuzzy member search — exact identifier lookup only, per
@@ -283,8 +279,8 @@ schema change, and explicitly meant to link into this Member 360 page
 - Generate/validate against `docs/api/openapi.yaml` (tag `Hq`) — don't
   reverse-engineer the controllers.
 - Auth: same brand-scoped session as the rest of the app (bearer token or
-  cookie) — no separate HQ login. A 403 with `{"error": "forbidden"}` means
-  "authenticated but not an admin for this brand," not "log in again."
+  cookie), followed by the operator/MFA bootstrap in
+  `FOUNDATION-SECURITY-IMPLEMENTATION.md`. Never infer access from role.
 - `lookup` in the URL must not be pre-encoded in a way that strips `+`/`.`
   from a phone/email — pass the raw string, let the client's URL encoder
   handle it normally (the route constraint already accounts for dots).

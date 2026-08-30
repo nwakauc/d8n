@@ -2,6 +2,8 @@ module Api
   module V1
     module Admin
       class ProfilePhotosController < BaseController
+        requires_admin_capability ::Admin::Capabilities::PROFILE_PHOTOS_MODERATE
+
         CODE_STATUS = {
           profile_photo_unavailable: :not_found,
           invalid_photo_moderation_status: :unprocessable_entity,
