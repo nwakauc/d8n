@@ -5,9 +5,11 @@ to understand company state, drill into why, and take action, across
 every brand and every domain (growth, product, trust & safety,
 engineering, platform/admin).
 
-**Status as of 2026-08-29: ACTIVE DELIVERY. Phase 1 and Phase 2 backend
-slices plus the current foundation/security backend are built. Frontend,
-staging/production operational gates, and slice acceptance remain outstanding.**
+**Status as of 2026-09-01: ACTIVE DELIVERY. Phase 1 and Phase 2 backend
+slices, the foundation/security backend, the bounded Member Directory
+extension, and the first Founder Metrics / Command Centre snapshot are built.
+The snapshot is an operational foundation only; frontend, staging/production
+operational gates, and slice acceptance remain outstanding.**
 This folder is the canonical, reviewable plan for D8N HQ
 specifically — not for the D8N platform/product as a whole. Nothing here
 should be read as "already built" unless a document explicitly says so

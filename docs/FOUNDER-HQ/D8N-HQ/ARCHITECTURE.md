@@ -256,8 +256,8 @@ Hq::Member360::Load.call(brand:, member: <id|email|phone>)
 ```
 
 Every section is a **thin read query against an existing table**, scoped
-by brand and authorized via the same `Admin::ModeratorContext` used
-today. No new product-side instrumentation is required to ship a
+by brand and authorized via the current `Admin::AuthorizationContext`
+and capability contract. No new product-side instrumentation is required to ship a
 first version of Member 360 — see ROADMAP.md, this is the recommended
 first vertical slice.
 

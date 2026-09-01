@@ -1,6 +1,6 @@
 # D8N HQ — Phase 1 Backend Implementation (Member 360)
 
-Status: **BUILT.** This document records what actually shipped for Phase 1
+Status: **BUILT; DIRECTORY EXTENDED 2026-09-01.** This document records what actually shipped for Phase 1
 (ROADMAP.md's first vertical slice — HQ-101 through HQ-107), as evidence
 against the plan, not as a new plan. If this document and ROADMAP.md/
 D8N-HQ-PLAN.md ever disagree about what's *planned*, those remain
@@ -31,8 +31,9 @@ against. This document is the narrative walkthrough.
   `domains/hq/member360/discovery_diagnostic.rb`, exposed as a fifth
   endpoint rather than embedded in the Member 360 payload (see below).
 - **Operations directory extension:** `Hq::MemberDirectory` provides a
-  brand-scoped, newest-first directory with signed cursor pagination and
-  safe operational summaries for the Operations console —
+  brand-scoped directory with bounded identifier/name search, operational
+  filters, three fixed sorts, signed query-bound cursor pagination, and safe
+  operational summaries for the Operations console —
   `domains/hq/member_directory*.rb`, `GET /api/v1/hq/members`.
 - **Operations analytics extension:** `Hq::Analytics::Overview` provides
   server-computed, brand-scoped signup, session-activity, demographic, and
@@ -41,6 +42,13 @@ against. This document is the narrative walkthrough.
   pipeline.
 
 ## Routes
+
+`GET /api/v1/hq/members` is the bounded Operations directory. It supports
+exact email/phone/public-id search, case-insensitive name-prefix search,
+membership/profile/publication/contact-verification/enforcement filters,
+ISO-8601 creation and last-active ranges, and only `newest`, `oldest`, or
+`recently_active` sorting. Its cursor is signed against the brand and the
+complete query. Results remain compact and never include contact values.
 
 The directory is `GET /api/v1/hq/members`; the remaining routes are under
 `GET /api/v1/hq/members/:lookup...`, namespaced separately from
@@ -78,10 +86,16 @@ valid operator session must complete MFA. Full frontend bootstrap details
 are in `FOUNDATION-SECURITY-IMPLEMENTATION.md`.
 
 The directory requires `hq.member.sensitive_read`. Its rows intentionally do
-not include email/phone identifiers or full Member 360 sections. The optional
-`status` filter accepts `active`, `suspended`, `left`, or `deactivated`; the
-default page size is 25 and the maximum is 100. Each read emits one
-`hq.member_directory_viewed` audit event with only the selected status filter.
+not include email/phone identifiers or full Member 360 sections. Search is
+exact for email, phone, and profile public UUID, otherwise a
+case-insensitive prefix over display/first/last name. Filters cover membership
+status, profile status/visibility, contact verification truth, current-brand
+enforcement, and inclusive membership-created/latest-brand-session ranges.
+Sorting is limited to `newest`, `oldest`, and `recently_active`; the default
+page size is 25 and the maximum is 100. Each read emits one
+`hq.member_directory_viewed` audit event containing only non-sensitive query
+metadata (search presence, status, and sort); the raw search term is never
+recorded.
 
 ## Brand isolation
 

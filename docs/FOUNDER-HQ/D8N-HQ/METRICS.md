@@ -1,8 +1,10 @@
 # D8N HQ — Metric Semantic Layer
 
-Status: **TARGET ARCHITECTURE**, with concrete CURRENT REALITY definitions
-where a metric is already computable from existing tables (marked ✅
-below). No metric registry code exists yet.
+Status as of 2026-09-01: **IMPLEMENTED FOUNDATION**. The first canonical
+metric layer is available at `Hq::Metrics::Catalog` and
+`Hq::Metrics::Compute`, and is exposed through the Founder HQ Command Centre
+snapshot endpoints. This is a bounded operational snapshot, not a warehouse,
+event pipeline, scorecard, or historical rollup system.
 
 ## 1. Why this document exists
 
@@ -15,31 +17,12 @@ is right.
 
 ## 2. Design: a metric registry, not ad-hoc queries
 
-```ruby
-module Hq
-  module Metrics
-    class RegisteredMember < Base
-      VERSION = 1
-      DEFINITION = "A User with at least one kept BrandMembership."
-      def self.compute(brand:, as_of: Time.current)
-        # ...
-      end
-    end
-  end
-end
-```
-
-Every metric is a class with: a fixed `id` (the class/file name), a
-`VERSION` integer (bump on any definition change — old dashboards/reports
-can pin a version), a human `DEFINITION` string (shown in the UI next to
-the number, per D8N-HQ-PLAN.md's "explanation" requirement), and a `compute`
-method. **Every dashboard card and every future Company Intelligence
-answer calls `Hq::Metrics::X.compute(...)` — never writes its own SQL for
-a metric that already has a registry entry.** This mirrors an existing,
-proven pattern in this codebase: `Identity::AuthPolicy`,
-`AbuseProtection::Policy`, and `Profiles::CapabilityCatalog` are all
-"one source of truth, brands compose from it" modules already; the metric
-registry is the same idea applied to numbers instead of capabilities.
+`Catalog::DEFINITIONS` is the single definition/version source and `Compute`
+owns the brand-scoped SQL. `MetricValue` distinguishes a real zero
+(`available` with `value: 0`) from `unavailable` and `insufficient_data`.
+Every snapshot metric carries its definition, unit, limitations, and version.
+The legacy `Hq::Analytics::Overview` endpoint remains backward compatible and
+is not yet migrated to the new response shape.
 
 **Testing requirement:** every metric class gets a unit test with a fixed
 fixture scenario and an expected value — exactly like every other domain
@@ -53,22 +36,32 @@ Each entry: name, one-sentence definition, data availability today
 
 | Metric | Definition | Availability | Source |
 | --- | --- | --- | --- |
-| `registered_member` | A `User` with ≥1 kept `BrandMembership` for the brand in question | ✅ DERIVABLE today | `User` + `BrandMembership` |
-| `activated_member` | A member whose `Profile` has `status: active` (i.e. completed the brand's required fields — see `Profile#profile_completion_requirements`) | ✅ DERIVABLE today | `Profile` |
-| `published_member` | A member with a `Profile` where `status: active` AND `visibility: visible` | ✅ DERIVABLE today | `Profile` |
+| `memberships.total` | Distinct users with ≥1 kept `BrandMembership` for the brand | ✅ IMPLEMENTED | `BrandMembership` |
+| `memberships.new` | Kept `BrandMembership` rows created in the named time window | ✅ IMPLEMENTED | `BrandMembership` |
+| `profiles.by_status` | Kept profiles grouped by current lifecycle status | ✅ IMPLEMENTED | `Profile` |
+| `profiles.visible_published` | Kept profiles with `status: active` and `visibility: visible` | ✅ IMPLEMENTED | `Profile` |
+| `profiles.activation_ratio` | Active profiles divided by kept brand memberships; insufficient when denominator is zero | ✅ IMPLEMENTED | `Profile` + `BrandMembership` |
 | `active_member` (a given day/window) | A member with a `Session` whose `last_used_at` falls within the window, OR (once §3 event pipeline exists) any `AnalyticsEvent` in the window | ✅ DERIVABLE today (session-based definition); event-based refinement is FUTURE | `Session` |
-| `DAU` / `WAU` / `MAU` | Distinct `active_member` count over a 1/7/30-day trailing window | ✅ DERIVABLE today, needs a rollup job (ARCHITECTURE.md §2) to avoid live full-table scans at scale | `Session` |
+| `users.active` | Distinct users with a session `last_used_at` in the named window | ✅ IMPLEMENTED | `Session` |
+| `marketplace.likes_created` / `matches_created` / `conversations_created` | Kept rows created in the named window | ✅ IMPLEMENTED | `Like` / `Match` / `Conversation` |
+| `marketplace.zero_discovery_allocations` | Allocations on completed local calendar dates with zero kept candidates | ✅ IMPLEMENTED | `DiscoveryAllocation` + candidates |
+| `marketplace.published_without_likes` / `_matches` | Published profiles with no lifetime kept interaction on either side | ✅ IMPLEMENTED | `Profile` + `Like` / `Match` |
+| `marketplace.time_to_first_*_median` | Intended duration metrics | 🟡 OPERATIONAL ACCEPTANCE REQUIRED | No bounded rollup exists; API returns `unavailable` |
+| `trust.open_reports` / `awaiting_decision` | Current open or open/reviewing report counts | ✅ IMPLEMENTED | `Report` |
+| `trust.active_enforcements` | Current non-reverted enforcement count | ✅ IMPLEMENTED | `AccountEnforcement` |
+| `trust.pending_photo_reviews` | Kept profile photos with `pending_review` status | ✅ IMPLEMENTED | `ProfilePhoto` |
+| `trust.oldest_open_report_age_seconds` | Age of the oldest open report, or insufficient data when none exists | ✅ IMPLEMENTED | `Report` |
 | `retained_member` (D1/D7/D30) | A member who registered on day 0 and has ≥1 `active_member` day at day N | ✅ DERIVABLE today, cohort rollup needed | `User.created_at` (via first `BrandMembership`) + `Session` |
-| `match_rate` | matches ÷ likes sent, over a window, segmentable by brand/cohort | ✅ DERIVABLE today | `Like` + `Match` |
+| `match_rate` | matches ÷ likes sent, over a window, segmentable by brand/cohort | 📝 DOCUMENTATION ONLY | Not exposed until matching attribution semantics are accepted |
 | `conversation_rate` | conversations started ÷ matches created | ✅ DERIVABLE today | `Match` + `Conversation` |
-| `zero_result_rate` | share of `DiscoveryAllocation` rows with zero `DiscoveryAllocationCandidate` rows | ✅ DERIVABLE today | `DiscoveryAllocation`/`DiscoveryAllocationCandidate` |
+| `zero_result_rate` | share of `DiscoveryAllocation` rows with zero candidates | 📝 DOCUMENTATION ONLY | The zero-allocation count is implemented; denominator/rate is not exposed |
 | `zero_like_rate` / `zero_match_rate` | share of published members with zero `Like`/`Match` rows in a trailing window | ✅ DERIVABLE today | `Profile` + `Like`/`Match` |
-| `report_rate` | reports filed per 1,000 published members, per brand, per window | ✅ DERIVABLE today | `Report` + `Profile` |
+| `report_rate` | reports filed per 1,000 published members, per brand, per window | ⚪ NOT STARTED | No accepted rate endpoint |
 | `delivery_rate` (notifications) | `NotificationDelivery.status: sent` ÷ total attempted, per channel/provider | ✅ DERIVABLE today | `NotificationDelivery` |
-| `time_to_first_match` / `_conversation` / `_like` | duration between `Profile.status → active` (or `created_at`) and first `Like`/`Match`/`Conversation` row | ✅ DERIVABLE today | `Profile`, `Like`, `Match`, `Conversation` |
+| `time_to_first_match` / `_conversation` / `_like` | duration between profile activation and first interaction | 🟡 OPERATIONAL ACCEPTANCE REQUIRED | Existing rows lack a bounded rollup for safe live median calculation |
 | `cost_per_registration` / `cost_per_valuable_member` | spend ÷ registrations (or ÷ members meeting a "valuable" definition — onboarded + published + ≥1 match) | ❌ NOT AVAILABLE — no campaign spend data and no acquisition attribution exist (CURRENT-STATE.md §14) | EXTERNAL (ad platform APIs) + new `utm_*` capture |
 | Anything keyed on acquisition channel/campaign | | ❌ NOT AVAILABLE, same reason | — |
-| Anything keyed on `release`/deployed version | | ❌ NOT AVAILABLE — no version stamping exists (CURRENT-STATE.md #9.7) | — |
+| Anything keyed on `release`/deployed version | | 🟡 PARTIAL — release identity exists at `/api/v1/version`, but no metric/event/error correlation exists yet | `D8n::ReleaseIdentity`; future event/observability integrations |
 
 ## 4. Versioning & change policy
 

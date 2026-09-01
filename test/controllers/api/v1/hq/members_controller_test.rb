@@ -114,6 +114,81 @@ class Api::V1::Hq::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes members.filter_map { |member| member["display_name"] }, "Hidden"
   end
 
+  test "member directory searches names, exact contacts, and public ids without cross-brand results" do
+    @ada.user.update!(first_name: "Ada", last_name: "Okafor")
+    IdentityIdentifier.find_by!(user: @ada.user, kind: :email).update!(verified_at: Time.current)
+    sam = create_profile(brand: @brand, display_name: "Samuel")
+    IdentityIdentifier.create!(user: sam.user, kind: :phone, normalized_value: "0821234567")
+
+    other_brand = Brand.create!(slug: "other", name: "Other")
+    cross = create_profile(brand: other_brand, display_name: "Ada Hidden")
+    IdentityIdentifier.create!(user: cross.user, kind: :email, normalized_value: "ada-hidden@example.com")
+
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { search: "ada" }
+    assert_response :success
+    assert_equal [ "Ada" ], JSON.parse(response.body).fetch("members").filter_map { |member| member["display_name"] }
+
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { search: "0821234567" }
+    assert_response :success
+    assert_equal [ sam.public_id ], JSON.parse(response.body).fetch("members").filter_map { |member| member["profile_id"] }
+
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { search: cross.public_id }
+    assert_response :success
+    assert_empty JSON.parse(response.body).fetch("members")
+  end
+
+  test "member directory exposes compact contact verification and operational filters" do
+    IdentityIdentifier.find_by!(user: @ada.user, kind: :email).update!(verified_at: Time.current)
+    @ada.update!(status: :active, visibility: :hidden)
+    old = create_profile(brand: @brand, display_name: "Old")
+    old.user.update!(status: :suspended)
+    old.brand_membership.update!(status: :suspended)
+    IdentityIdentifier.create!(user: old.user, kind: :email, normalized_value: "old@example.com")
+    Session.issue!(user: @ada.user, brand: @brand).last.update!(last_used_at: 1.hour.ago)
+
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: {
+      profile_status: "active", visibility: "hidden", contact_verification: "verified",
+      last_active_from: 2.hours.ago.iso8601, sort: "recently_active"
+    }
+    assert_response :success
+    member = JSON.parse(response.body).fetch("members").sole
+    assert_equal @ada.public_id, member.fetch("profile_id")
+    assert_equal({ "email" => true, "phone" => false }, member.fetch("contact_verification"))
+    assert member.fetch("last_active_at").present?
+    assert_equal false, member.fetch("active_enforcement")
+  end
+
+  test "member directory rejects malformed search, ranges, sort, and replayed query cursors" do
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { search: "x" * 101 }
+    assert_response :unprocessable_entity
+    assert_equal "invalid_search", JSON.parse(response.body).fetch("error")
+
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { sort: "random" }
+    assert_response :unprocessable_entity
+    assert_equal "invalid_filter", JSON.parse(response.body).fetch("error")
+
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: {
+      created_from: "2026-09-02T00:00:00Z", created_to: "2026-09-01T00:00:00Z"
+    }
+    assert_response :unprocessable_entity
+    assert_equal "invalid_filter", JSON.parse(response.body).fetch("error")
+
+    create_profile(brand: @brand, display_name: "Sam")
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { limit: 1 }
+    cursor = JSON.parse(response.body).fetch("next_cursor")
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { cursor:, sort: "oldest" }
+    assert_response :unprocessable_entity
+    assert_equal "invalid_cursor", JSON.parse(response.body).fetch("error")
+  end
+
+  test "member directory requires the sensitive member capability" do
+    _engineering, engineering_token = create_admin(brand: @brand, role_name: "engineering")
+
+    get "/api/v1/hq/members", headers: bearer_headers(engineering_token)
+    assert_response :forbidden
+    assert_equal "forbidden", JSON.parse(response.body).fetch("error")
+  end
+
   # --- member 360 payload + audit -------------------------------------------
 
   test "member 360 returns all six sections and audits the read without leaking credentials" do

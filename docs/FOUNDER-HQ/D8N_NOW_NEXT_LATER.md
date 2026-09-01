@@ -1,7 +1,7 @@
 # D8N — NOW / NEXT / LATER
 
 **One-screen source of truth for where D8N is and what to build next.**
-Updated: 2026-08-17. Owner: Founder. Reconciled against code, tests, routes, and git history (not from memory).
+Updated: 2026-09-01. Owner: Founder. Reconciled against code, tests, routes, and git history (not from memory). HQ implementation status is maintained in `D8N-HQ/CURRENT-STATE.md`.
 
 > Detailed accountable tasks live in [`TODO/`](../../TODO). Architecture rationale lives in [`docs/adr/`](../adr).
 > Operational/infra state lives in [`D8N_FOUNDER_STATE.md`](D8N_FOUNDER_STATE.md). This file exists so you never
@@ -52,7 +52,7 @@ Legend: **GONE** = does not exist · **PARTIAL** = some code, real gap · **QA**
 These are the only things that genuinely stop us inviting 10–50 controlled beta users.
 
 1. ~~**DL-03 — Persisted text messaging.**~~ **BUILT 2026-08-17 (IMPLEMENTED + TESTED, awaiting staging proof).** The core loop now closes end-to-end. Remaining: DL-04 staging two-user proof.
-2. ~~**TS-03 — Minimal admin moderation review queue.**~~ **BUILT 2026-08-17 (IMPLEMENTED + TESTED, awaiting staging proof).** Moderators can list/inspect/decide reports with audit. **Admin MFA remains a pre-launch gate** (not built; not a TS-03 code gap).
+2. ~~**TS-03 — Minimal admin moderation review queue.**~~ **BUILT 2026-08-17 (IMPLEMENTED + TESTED, awaiting staging proof).** Moderators can list/inspect/decide reports with audit. **Admin MFA is implemented; founder enrollment and staging/production acceptance remain pre-launch gates.**
 3. ~~**TS-04 — Suspend/ban enforcement.**~~ **BUILT 2026-08-17 (IMPLEMENTED + TESTED, awaiting staging proof).** Brand-level suspend/reinstate with session revocation + audit; enforced across all surfaces. Platform-wide ban deferred (needs a global admin authority).
 4. ~~**TS-06 — Account closure & deletion.**~~ **BUILT 2026-08-17 (IMPLEMENTED + TESTED, awaiting staging proof).** Brand-level `DELETE /me` with async R2 media purge; identity + shared/safety records retained. Platform-wide identity deletion deferred (policy decision).
 5. ~~**ID-04 — Password recovery.**~~ **BUILT 2026-08-17 (IMPLEMENTED + TESTED, awaiting staging proof).** Signed-out three-step verified-identifier recovery; enumeration-resistant; cross-brand session revocation; never reactivates a left/closed membership. Production delivery gated on the SMS/email provider (shared with ID-03). **ID-02 — registration throttling** is now the top open P0 code: unthrottled distinct-identifier signup is an abuse hole.
@@ -69,8 +69,8 @@ These are the only things that genuinely stop us inviting 10–50 controlled bet
 - **DL-01/02/04** the staging QA proofs that move the many **QA** rows above to **READY**.
 - **DL-05** finish beta-shape load/failure testing on *dedicated* infra (not shared with Date9ja).
 - **Message send rate-limiting** — lightweight per-sender throttle on `POST …/messages` (DL-03 shipped without one; document-and-defer decision).
-- **Admin MFA** — TS-03 pre-launch gate: admins can read reporter/reported identities + report content, so MFA must be enabled before real user data is exposed in a live beta. Not built.
-- **Admin provisioning** — admin accounts are provisioned manually (User + brand membership + AdminUser + assignment). The admin-auth + enforcement architecture is now recorded in **ADR 0013**.
+- **Admin MFA** — pre-launch operational gate: encrypted TOTP, recovery codes, per-session step-up, throttling, audit, and reset are implemented in the HQ backend. Founder enrollment and staging/production verification remain outstanding.
+- **Admin provisioning** — Founder bootstrap and current-brand operator assignment APIs now exist. The API still requires an existing verified D8N identity and active brand membership; it does not create credentials or a Founder identity.
 - **Platform-wide ban + global admin authority** — TS-04 ships brand-level suspension only; a cross-brand ban needs a deliberately-introduced global admin role. Add when a severe cross-brand safety case requires it.
 
 ## LATER — improve while users arrive / after beta

@@ -1,7 +1,7 @@
 # D8N HQ — Implementation Roadmap
 
-Status: **ACTIVE DELIVERY / CANONICAL ROADMAP.** Phase 1 and Phase 2
-backend work is built, but neither product slice is accepted until its
+Status as of 2026-09-01: **ACTIVE DELIVERY / CANONICAL ROADMAP.** Phase 1 and Phase 2
+backend work, plus the bounded Member Directory extension, are built, but neither product slice is accepted until its
 frontend, security gates, and operational verification are complete.
 Sequencing is derived from the dependency chains actually found in
 CURRENT-STATE.md and ARCHITECTURE.md, not from the phase numbering in the
@@ -35,7 +35,7 @@ need neither.
 
 ## Phase 0 — Decisions & prerequisites (no product code)
 
-**Reconciled status (2026-08-29): PARTIAL.**
+**Reconciled status (2026-09-01): PARTIAL.**
 
 - **Option A authorization boundary: DONE** — ADR 0020 confirms explicit
   per-brand assignments/fan-out only; Founder and Super Admin do not
@@ -83,7 +83,8 @@ everything after it.
 
 **Reconciled status (2026-08-29): PARTIAL.**
 
-- **Backend: DONE** — HQ-101 through HQ-107 and the discovery diagnostic
+- **Backend: DONE** — HQ-101 through HQ-107, the discovery diagnostic, and
+  the bounded Member Directory extension
   are implemented and documented in `PHASE-1-IMPLEMENTATION.md` and
   `docs/api/openapi.yaml`.
 - **Operations directory extension: DONE** — the explicitly requested
@@ -120,7 +121,7 @@ without a Rails console.
 - Read API over `AccountEnforcement` history for one member (closes
   #4.8).
 - New `api/v1/hq/` namespace, authorized via existing
-  `Admin::ModeratorContext` (no new auth mechanism — SECURITY-AND-RBAC.md §3 step 1).
+  `Admin::AuthorizationContext` with explicit capabilities (no new auth mechanism).
 - Every new read logs a `SecurityEvent` per SECURITY-AND-RBAC.md §4 (sensitive-read
   auditing).
 
@@ -251,6 +252,19 @@ Kamal/GitHub, read via their APIs) with error-rate delta per release.
 **What becomes usable:** genuine deploy-risk visibility, still without
 Company Intelligence or anomaly detection.
 
+## Phase 5A — Bounded Founder Metrics & Command Centre foundation (implemented)
+
+**Objective:** provide a trustworthy current health snapshot from existing
+brand-scoped tables before introducing analytics instrumentation. The backend
+layer is `Hq::Metrics::Catalog` + `Hq::Metrics::Compute`, with deterministic
+attention signals and authorized multi-brand comparison at the two Command
+Centre endpoints documented in `docs/api/openapi.yaml`.
+
+**Current status:** DONE for the bounded backend foundation. Frontend and
+staging/production operational acceptance remain outstanding. Time-to-first
+interaction medians remain explicitly unavailable until a bounded rollup is
+accepted; no scores are calculated.
+
 ## Phase 5 — Event pipeline + marketplace health + funnel
 
 **Objective:** the canonical `AnalyticsEvent` system (ARCHITECTURE.md §3)
@@ -286,9 +300,10 @@ Growth (no attribution exists) — those stay `NOT CONFIGURED`.
 
 ## Phase 6 — Command Centre + top-level scores
 
-**Objective:** the actual north-star homepage, now that Trust & Safety
-(Phase 2), System (Phase 3), and Product/Growth-lite (Phase 5) all have
-real, non-fabricated inputs.
+**Objective:** the actual north-star homepage and explicit score registry,
+now that Trust & Safety (Phase 2), System (Phase 3), bounded health (Phase
+5A), and eventually Product/Growth-lite (Phase 5) have real,
+non-fabricated inputs.
 
 **Backend work:** score registry (METRICS.md §4) combining Phase
 1–5 metrics per score; explicit `NOT CONFIGURED` handling for Revenue
@@ -341,14 +356,14 @@ before any Command Centre work.**
    correctly populated by the live product (CURRENT-STATE.md, repeatedly).
    Command Centre's scores, by contrast, would either need to fabricate
    numbers (explicitly forbidden by the brief) or wait for Phases 3/5.
-2. It closes the single gap that showed up most consistently across the
-   entire audit: **there is no admin-facing way to look up a member at
-   all**, for anything. Every other domain (Trust & Safety, Notifications,
-   Media) already has *some* admin surface; identity lookup has none.
+2. It closes the highest-leverage gap found in the original audit: there
+   was no admin-facing way to look up a member at all. The backend Member
+   Directory and Member 360 now exist; this milestone completes bounded
+   directory search/filtering and the operational contract.
 3. It's real, immediate operational value for the live HookUs beta today
    (support, moderation investigation) — not a demo, not a placeholder.
 4. It establishes the `api/v1/hq/` namespace, the
-   `Admin::ModeratorContext`-based authorization pattern for HQ, and the
+   `Admin::AuthorizationContext`-based authorization pattern for HQ, and the
    sensitive-read-auditing convention (SECURITY-AND-RBAC.md §4) that every later
    phase reuses — i.e., it's simultaneously the most useful and the
    lowest-risk phase to get the foundational patterns right in.
@@ -362,7 +377,7 @@ before any Command Centre work.**
 
 - **HQ-101** `Hq::Identity::Lookup` — resolve a member within one brand
   by email, phone, or `public_id`; returns `nil` cleanly (no
-  enumeration), authorized via `Admin::ModeratorContext`.
+  enumeration), authorized via `Admin::AuthorizationContext`.
 - **HQ-102** `Hq::Member360::Load` — six-section aggregator per
   ARCHITECTURE.md §6, one read query per section, brand-scoped.
 - **HQ-103** Read endpoint: `SecurityEvent` + `AuthAttempt` history for

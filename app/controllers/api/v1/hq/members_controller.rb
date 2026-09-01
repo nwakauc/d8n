@@ -15,11 +15,16 @@ module Api
         CODE_STATUS = {
           member_unavailable: :not_found,
           profile_unavailable: :not_found,
-          invalid_limit: :unprocessable_entity
+          invalid_limit: :unprocessable_entity,
+          invalid_filter: :unprocessable_entity,
+          invalid_search: :unprocessable_entity
         }.freeze
 
         rescue_from ::Hq::HqError, with: :render_hq_error
         rescue_from ::Hq::Cursor::Invalid do
+          render json: { error: "invalid_cursor" }, status: :unprocessable_entity
+        end
+        rescue_from ::Hq::MemberDirectoryCursor::Invalid do
           render json: { error: "invalid_cursor" }, status: :unprocessable_entity
         end
 
@@ -30,7 +35,17 @@ module Api
             brand: Current.brand,
             cursor: params[:cursor],
             limit: params[:limit],
-            status: params[:status]
+            search: params[:search],
+            status: params[:status],
+            profile_status: params[:profile_status],
+            visibility: params[:visibility],
+            contact_verification: params[:contact_verification],
+            enforcement: params[:enforcement],
+            created_from: params[:created_from],
+            created_to: params[:created_to],
+            last_active_from: params[:last_active_from],
+            last_active_to: params[:last_active_to],
+            sort: params[:sort]
           )
           memberships = result.members
           profile_ids = memberships.filter_map { |membership| membership.profile&.id }
@@ -38,12 +53,24 @@ module Api
           report_counts = Report.where(brand: Current.brand, reported_profile_id: profile_ids).group(:reported_profile_id).count
           pending_photo_counts = ProfilePhoto.where(profile_id: profile_ids, status: :pending_review).group(:profile_id).count
           active_enforcements = AccountEnforcement.active.where(brand: Current.brand, user_id: user_ids).pluck(:user_id).index_with(true)
-          audit!("hq.member_directory_viewed", extra: { status: params[:status].presence || "all" })
+          contact_verification = ::IdentityIdentifier.kept.contact.where(user_id: user_ids)
+            .pluck(:user_id, :kind, :verified_at)
+            .group_by(&:first)
+            .transform_values do |identifiers|
+              identifiers.each_with_object({ email: false, phone: false }) do |(_user_id, kind, verified_at), result|
+                result[::IdentityIdentifier.kinds.key(kind.to_i).to_sym] ||= verified_at.present?
+              end
+            end
+          audit!("hq.member_directory_viewed", extra: {
+            search_present: params[:search].present?,
+            status: params[:status].presence || "all",
+            sort: params[:sort].presence || "newest"
+          })
 
           render json: {
             members: memberships.map do |membership|
               ::Hq::MemberDirectorySerializer.call(
-                membership:, report_counts:, pending_photo_counts:, active_enforcements:
+                membership:, report_counts:, pending_photo_counts:, active_enforcements:, contact_verification:
               )
             end,
             next_cursor: result.next_cursor

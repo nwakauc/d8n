@@ -61,7 +61,7 @@ Rails.application.routes.draw do
       end
       # HQ: unified company command centre backend (docs/FOUNDER-HQ/D8N-HQ/).
       # Never a normal consumer API -- authorized identically to the admin
-      # namespace above (Admin::ModeratorContext), never exposed to product
+      # namespace above (Admin::AuthorizationContext), never exposed to product
       # clients. `lookup` may be an email/phone (containing "." or "+") or a
       # profile public_id, so it needs an explicit constraint to avoid Rails'
       # default dot-as-format-separator route parsing.
@@ -79,6 +79,8 @@ Rails.application.routes.draw do
         get "trust_safety/enforcements" => "trust_safety#enforcements"
         get "members" => "members#index"
         get "analytics/overview" => "analytics#overview"
+        get "command_centre/health" => "command_centre#health"
+        get "command_centre/brands" => "command_centre#brands"
         get "security_alerts" => "security_alerts#index"
         get "members/:lookup" => "members#show", constraints: { lookup: /[^\/]+/ }
         get "members/:lookup/security_events" => "members#security_events", constraints: { lookup: /[^\/]+/ }

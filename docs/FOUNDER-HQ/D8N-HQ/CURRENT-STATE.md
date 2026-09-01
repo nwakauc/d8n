@@ -1,7 +1,7 @@
 # D8N HQ — Current-State Capability Matrix
 
 Status: **CURRENT REALITY.** Audited directly against the repository at
-`/Users/uchechinwaka/pro/d8n` on 2026-08-29 (code, schema, routes, tests,
+`/Users/uchechinwaka/pro/d8n` on 2026-09-01 (code, schema, routes, tests,
 Gemfile, CI, Kamal config — not inferred from model/file names alone).
 Every row below can be traced to a file path. Where a claim could not be
 verified against actual behavior (not just a model existing), it is
@@ -27,7 +27,7 @@ SYSTEM (doesn't exist yet) · PROVIDER API · DEPLOYMENT SYSTEM · OTHER.
 | # | Item | Status | Data | Source | Evidence |
 |---|---|---|---|---|---|
 | 1.1 | User/IdentityIdentifier/Credential models | READY | LIVE | D8N DB | `app/models/{user,identity_identifier,credential}.rb` |
-| 1.2 | Admin-facing member lookup and directory API (by id/email/phone) | **READY (HQ Member 360 + Operations directory)** | LIVE | D8N DB | `GET /api/v1/hq/members` and `GET /api/v1/hq/members/:lookup` via `app/controllers/api/v1/hq/members_controller.rb`; brand-scoped, cursor-paginated directory plus exact lookup with neutral not-found behavior |
+| 1.2 | Admin-facing member lookup and directory API | **READY (bounded HQ Member 360 + Operations directory)** | LIVE | D8N DB | `GET /api/v1/hq/members` and `GET /api/v1/hq/members/:lookup`; exact email/phone/public-id lookup, name-prefix search, status/profile/contact/enforcement/date filters, three fixed sorts, signed query-bound cursors, compact summaries, and neutral cross-brand behavior |
 | 1.3 | Session/device tracking | READY | LIVE+HISTORICAL | D8N DB | `app/models/session.rb` — token-hashed, 30-day TTL, revocable |
 | 1.4 | Auth attempt / throttle audit | READY (write + member-scoped read) | HISTORICAL | D8N DB | `app/models/auth_attempt.rb`; recorded by `domains/identity/password_audit.rb`; Phase 1 exposes paginated member-scoped history through `GET /api/v1/hq/members/:lookup/auth_attempts` |
 
@@ -49,7 +49,7 @@ brand-scoped and does not provide a cross-brand index.
 | # | Item | Status | Data | Source | Evidence |
 |---|---|---|---|---|---|
 | 3.1 | `AdminUser`/`AdminRole`/`AdminAssignment` models | READY | LIVE | D8N DB | `app/models/admin_{user,role,assignment}.rb` |
-| 3.2 | Authorization check | READY (capability-based, brand-scoped) | LIVE | D8N DB + code policy | `Admin::AuthorizationContext`, `Admin::Capabilities`, ADR 0020; exactly one active current-brand role, explicit action capabilities, unknown roles fail closed; `ModeratorContext` is compatibility-only |
+| 3.2 | Authorization check | READY (capability-based, brand-scoped) | LIVE | D8N DB + code policy | `Admin::AuthorizationContext`, `Admin::Capabilities`, ADR 0020; exactly one active current-brand role, explicit action capabilities, unknown roles fail closed; `ModeratorContext` is compatibility-only and not the HQ authorization path |
 | 3.3 | Founder/initial-admin bootstrap | READY (safe legacy upgrade) | — | — | `Admin::FounderBootstrap`, `bin/rails d8n:bootstrap_founder`; idempotently replaces legacy Moderator with explicit Founder on each active brand, never a platform grant |
 | 3.4 | Admin/operator management | READY (current-brand scope) | LIVE | D8N DB | `GET/POST/PATCH /api/v1/hq/operators`; list/assign/role/status/revoke/effective capabilities, self/privilege escalation guards, audited; global AdminUser disable and credential invitation deliberately unavailable |
 | 3.5 | `SecurityEvent` audit trail | READY (write + member-scoped HQ read) | HISTORICAL | D8N DB | `app/models/security_event.rb`, `domains/hq/security_event_history.rb`; Phase 1 added a paginated, brand-scoped member read, but no general audit browser |

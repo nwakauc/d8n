@@ -1,6 +1,6 @@
 # D8N HQ — Foundation and Security Implementation Handoff
 
-Status: **BACKEND BUILT; OPERATIONAL ACCEPTANCE OUTSTANDING.** This is the
+Status as of 2026-09-01: **BACKEND BUILT; OPERATIONAL ACCEPTANCE OUTSTANDING.** This is the
 stable frontend and rollout handoff for Phase 0 HQ-001, differentiated
 brand-scoped RBAC, operator management, and the admin-MFA launch gate. It
 does not start Phase 3/HQ-010.
@@ -17,9 +17,9 @@ is authoritative in `SECURITY-AND-RBAC.md`, ADR 0020, and ADR 0021.
 | GET | `/api/v1/hq/operators` | Required | `admin.operators.read` |
 | POST | `/api/v1/hq/operators` | Required | `admin.operators.manage` plus role-grant policy |
 | PATCH | `/api/v1/hq/operators/{id}` | Required | `admin.operators.manage` plus role-grant policy |
-| POST | `/api/v1/hq/mfa/enrollment` | Not yet | Start/replace pending TOTP enrollment |
-| PATCH | `/api/v1/hq/mfa/enrollment` | Not yet | Confirm TOTP; returns recovery codes once |
-| POST | `/api/v1/hq/mfa/challenge` | Not yet | Verify TOTP or consume recovery code for this session |
+| POST | `/api/v1/hq/mfa/enrollment` | No | Start/replace pending TOTP enrollment |
+| PATCH | `/api/v1/hq/mfa/enrollment` | No | Confirm TOTP; returns recovery codes once |
+| POST | `/api/v1/hq/mfa/challenge` | No | Verify TOTP or consume recovery code for this session |
 | DELETE | `/api/v1/hq/mfa/enrollment` | Verified + fresh code | Reset/rotate MFA |
 
 All previously documented Phase 1/2 and `/api/v1/admin` endpoints now

@@ -447,7 +447,7 @@ paths:
       responses:
         "202": { description: OTP dispatched }
         "401": { $ref: "#/components/responses/Unauthorized" }
-        "422": { $ref: "#/components/responses/ValidationError" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
     patch:
       operationId: confirmPhoneChange
       tags: [Authentication]
@@ -466,7 +466,7 @@ paths:
         "200": { description: Phone replaced and verified }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "410": { description: OTP expired }
-        "422": { $ref: "#/components/responses/ValidationError" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
   /api/v1/auth/email/change:
     post:
       operationId: requestEmailChange
@@ -3304,6 +3304,84 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/admin/profiles/{profile_id}/ban:
+    post:
+      operationId: banProfile
+      tags: [Admin]
+      summary: Apply a brand-level ban to a profile's owner
+      description: |
+        Requires verified admin MFA and the enforcement creation capability.
+        This is a brand-level `AccountEnforcement` with `kind: ban`; it does
+        not create a platform-wide ban or affect the member's other brands.
+        A reason is required. The action suspends the current brand membership,
+        revokes current-brand sessions, and is audited.
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuspendProfileRequest"
+      responses:
+        "201":
+          description: The brand-level ban was applied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEnforcementResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: Target is unknown or belongs to another brand (`profile_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The target already has an active enforcement (`already_suspended`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The reason, note, or optional report reference is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: unbanProfile
+      tags: [Admin]
+      summary: Revert the active brand-level ban for a profile's owner
+      description: Requires verified admin MFA. Reactivates only the current brand membership and records the reversal; it does not restore revoked sessions.
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      responses:
+        "200":
+          description: The brand-level enforcement was reverted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEnforcementResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: Target is unknown or belongs to another brand (`profile_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The target has no active enforcement (`not_suspended`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/hq/operator:
     get:
       operationId: getCurrentHqOperator
@@ -3550,6 +3628,52 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/AdminForbidden"
+  /api/v1/hq/command_centre/health:
+    get:
+      operationId: getHqCommandCentreHealth
+      tags: [Hq]
+      summary: Get the current-brand Founder HQ health snapshot
+      description: |
+        Requires verified admin MFA and `hq.analytics.read`. Returns one
+        brand-scoped snapshot using bounded definitions backed by existing D8N
+        tables. Every metric includes its definition, unit, limitations, and a
+        status of `available`, `unavailable`, or `insufficient_data`; a real zero
+        is returned as `available` with `value: 0`. Window timestamps are UTC
+        ISO-8601 values and the metric timezone is `Africa/Johannesburg`.
+        The read is audited as `hq.command_centre_health_viewed`.
+      responses:
+        "200":
+          description: Current-brand company-health snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqCommandCentreHealthResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+  /api/v1/hq/command_centre/brands:
+    get:
+      operationId: listHqCommandCentreBrands
+      tags: [Hq]
+      summary: Compare Founder HQ health across authorized brands
+      description: |
+        Requires verified admin MFA and `hq.analytics.read`. Returns snapshots
+        only for active brands where the operator has an active assignment whose
+        role grants `hq.analytics.read`; inaccessible assigned brands are omitted
+        to avoid leaking tenant existence. No global bypass is introduced. The
+        read is audited as `hq.command_centre_brands_viewed`.
+      responses:
+        "200":
+          description: Authorized brand health snapshots.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqCommandCentreBrandsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
   /api/v1/hq/trust_safety/overview:
     get:
       operationId: getHqTrustSafetyOverview
@@ -3647,13 +3771,26 @@ paths:
       summary: List members for the current brand
       description: |
         Requires verified admin MFA and `hq.member.sensitive_read`. Results
-        are limited to kept memberships on the host-resolved brand and are
-        ordered newest-first by membership creation time. The response is a
-        safe operational summary; contact identifiers and Member 360 detail
-        remain behind the member lookup endpoint. Reads are audited as
-        `hq.member_directory_viewed`.
+        are limited to kept memberships on the host-resolved brand. `search`
+        accepts an exact email, phone number, or profile public UUID, or a
+        case-insensitive prefix of display name, first name, or last name.
+        Contact values are never returned. Filters are limited to the listed
+        enums and ISO-8601 timestamp ranges. `sort` is one of `newest`,
+        `oldest`, or `recently_active`; cursors are signed to the complete
+        query. The response is a compact operational summary, not Member 360.
+        Reads are audited as `hq.member_directory_viewed`.
       parameters:
+        - $ref: "#/components/parameters/HqMemberDirectorySearch"
         - $ref: "#/components/parameters/HqMemberDirectoryStatus"
+        - $ref: "#/components/parameters/HqMemberDirectoryProfileStatus"
+        - $ref: "#/components/parameters/HqMemberDirectoryVisibility"
+        - $ref: "#/components/parameters/HqMemberDirectoryContactVerification"
+        - $ref: "#/components/parameters/HqMemberDirectoryEnforcement"
+        - $ref: "#/components/parameters/HqMemberDirectoryCreatedFrom"
+        - $ref: "#/components/parameters/HqMemberDirectoryCreatedTo"
+        - $ref: "#/components/parameters/HqMemberDirectoryLastActiveFrom"
+        - $ref: "#/components/parameters/HqMemberDirectoryLastActiveTo"
+        - $ref: "#/components/parameters/HqMemberDirectorySort"
         - $ref: "#/components/parameters/HqMemberDirectoryLimit"
         - $ref: "#/components/parameters/HqMemberDirectoryCursor"
       responses:
@@ -3668,7 +3805,7 @@ paths:
         "403":
           $ref: "#/components/responses/AdminForbidden"
         "422":
-          description: Invalid status, limit, or cursor.
+          description: Invalid search, filter, date range, limit, sort, or cursor.
           content:
             application/json:
               schema:
@@ -4105,6 +4242,89 @@ components:
       schema:
         type: string
         enum: [active, suspended, left, deactivated]
+    HqMemberDirectorySearch:
+      name: search
+      in: query
+      required: false
+      description: "Exact email, phone, or profile UUID; otherwise a case-insensitive name prefix. Maximum 100 characters."
+      schema:
+        type: string
+        maxLength: 100
+    HqMemberDirectoryProfileStatus:
+      name: profile_status
+      in: query
+      required: false
+      description: Restrict members to one profile lifecycle status. Members without a profile are excluded.
+      schema:
+        type: string
+        enum: [draft, active, suspended]
+    HqMemberDirectoryVisibility:
+      name: visibility
+      in: query
+      required: false
+      description: Restrict members to profiles with this publication visibility. Members without a profile are excluded.
+      schema:
+        type: string
+        enum: [hidden, visible]
+    HqMemberDirectoryContactVerification:
+      name: contact_verification
+      in: query
+      required: false
+      description: Filter by whether the member has at least one verified email or phone identifier. This is not identity/selfie/ID verification.
+      schema:
+        type: string
+        enum: [any, verified, unverified]
+        default: any
+    HqMemberDirectoryEnforcement:
+      name: enforcement
+      in: query
+      required: false
+      description: Filter by current brand-level active enforcement.
+      schema:
+        type: string
+        enum: [any, active, none]
+        default: any
+    HqMemberDirectoryCreatedFrom:
+      name: created_from
+      in: query
+      required: false
+      description: Inclusive ISO-8601 lower bound for membership creation time.
+      schema:
+        type: string
+        format: date-time
+    HqMemberDirectoryCreatedTo:
+      name: created_to
+      in: query
+      required: false
+      description: Inclusive ISO-8601 upper bound for membership creation time.
+      schema:
+        type: string
+        format: date-time
+    HqMemberDirectoryLastActiveFrom:
+      name: last_active_from
+      in: query
+      required: false
+      description: Inclusive ISO-8601 lower bound for the member's latest brand session activity.
+      schema:
+        type: string
+        format: date-time
+    HqMemberDirectoryLastActiveTo:
+      name: last_active_to
+      in: query
+      required: false
+      description: Inclusive ISO-8601 upper bound for the member's latest brand session activity.
+      schema:
+        type: string
+        format: date-time
+    HqMemberDirectorySort:
+      name: sort
+      in: query
+      required: false
+      description: Deterministic directory ordering.
+      schema:
+        type: string
+        enum: [newest, oldest, recently_active]
+        default: newest
     HqMemberDirectoryLimit:
       name: limit
       in: query
@@ -6976,6 +7196,119 @@ components:
       properties:
         enforcement:
           $ref: "#/components/schemas/AdminEnforcement"
+    HqMetricValue:
+      type: object
+      required: [metric_id, version, definition, status, unit, limitations]
+      properties:
+        metric_id:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+        definition:
+          type: string
+        status:
+          type: string
+          enum: [available, unavailable, insufficient_data]
+        value:
+          description: Present only when status is available; zero is a real value.
+        unit:
+          type: [string, "null"]
+          enum: [count, ratio, seconds, metrics, null]
+        limitations:
+          type: array
+          items:
+            type: string
+        numerator:
+          type: integer
+          minimum: 0
+        denominator:
+          type: integer
+          minimum: 0
+    HqCommandCentreHealthResponse:
+      type: object
+      required: [brand_health]
+      properties:
+        brand_health:
+          $ref: "#/components/schemas/HqCommandCentreHealth"
+    HqCommandCentreHealth:
+      type: object
+      required: [brand, generated_at, time_zone, windows, audience, activity, profile_health, marketplace, trust_safety, attention_signals]
+      properties:
+        brand:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+        time_zone:
+          type: string
+          const: Africa/Johannesburg
+        windows:
+          type: object
+          additionalProperties:
+            type: object
+            required: [label, start_at, end_at]
+            properties:
+              label: { type: string }
+              start_at: { type: string, format: date-time }
+              end_at: { type: string, format: date-time }
+        audience:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/HqMetricValue"
+        activity:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/HqMetricValue"
+        profile_health:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/HqMetricValue"
+        marketplace:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/HqMetricValue"
+        trust_safety:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/HqMetricValue"
+        attention_signals:
+          type: array
+          items:
+            $ref: "#/components/schemas/HqAttentionSignal"
+    HqAttentionSignal:
+      type: object
+      required: [signal, severity, title, reason, value, unit]
+      properties:
+        signal: { type: string }
+        severity:
+          type: string
+          enum: [info, warning]
+        title: { type: string }
+        reason: { type: string }
+        value: { type: integer, minimum: 0 }
+        unit: { type: string }
+    HqCommandCentreBrandsResponse:
+      type: object
+      required: [generated_at, time_zone, brands]
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        time_zone:
+          type: string
+          const: Africa/Johannesburg
+        brands:
+          type: array
+          items:
+            type: object
+            required: [brand, accessible, role, brand_health]
+            properties:
+              brand: { type: string }
+              accessible: { type: boolean, const: true }
+              role: { type: string }
+              brand_health:
+                $ref: "#/components/schemas/HqCommandCentreHealth"
     HqAnalyticsOverviewResponse:
       type: object
       required: [overview]
@@ -7460,7 +7793,8 @@ components:
       required:
         [user_id, profile_id, display_name, user_status, membership_status,
          profile_status, profile_visibility, joined_at, user_created_at,
-         reports_received_count, pending_photo_count, active_enforcement]
+         last_active_at, contact_verification, reports_received_count,
+         pending_photo_count, active_enforcement]
       properties:
         user_id:
           type: integer
@@ -7487,6 +7821,17 @@ components:
         user_created_at:
           type: string
           format: date-time
+        last_active_at:
+          type: [string, "null"]
+          format: date-time
+        contact_verification:
+          type: object
+          required: [email, phone]
+          properties:
+            email:
+              type: boolean
+            phone:
+              type: boolean
         reports_received_count:
           type: integer
           minimum: 0

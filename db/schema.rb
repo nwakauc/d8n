@@ -10,14 +10,13 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_29_160100) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_01_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
   create_table "account_closures", force: :cascade do |t|
     t.bigint "brand_id", null: false
     t.bigint "brand_membership_id", null: false
-    t.integer "kind", default: 0, null: false
     t.datetime "created_at", null: false
     t.integer "media_purge_state", default: 0, null: false
     t.datetime "media_purged_at"
@@ -35,9 +34,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_160100) do
     t.bigint "brand_id", null: false
     t.bigint "brand_membership_id", null: false
     t.datetime "created_at", null: false
+    t.integer "kind", default: 0, null: false
+    t.text "note"
     t.bigint "profile_id"
     t.text "reason"
-    t.text "note"
     t.bigint "report_id"
     t.datetime "reverted_at"
     t.bigint "reverted_by_admin_user_id"
@@ -47,11 +47,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_160100) do
     t.index ["brand_id", "user_id"], name: "idx_account_enforcements_active_unique", unique: true, where: "(reverted_at IS NULL)"
     t.index ["brand_id"], name: "index_account_enforcements_on_brand_id"
     t.index ["brand_membership_id"], name: "index_account_enforcements_on_brand_membership_id"
+    t.index ["kind"], name: "index_account_enforcements_on_kind"
     t.index ["profile_id"], name: "index_account_enforcements_on_profile_id"
     t.index ["report_id"], name: "index_account_enforcements_on_report_id"
     t.index ["reverted_by_admin_user_id"], name: "index_account_enforcements_on_reverted_by_admin_user_id"
     t.index ["user_id"], name: "index_account_enforcements_on_user_id"
-    t.index ["kind"], name: "index_account_enforcements_on_kind"
   end
 
   create_table "active_storage_attachments", force: :cascade do |t|
@@ -167,6 +167,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_160100) do
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.index ["brand_id", "created_at", "id"], name: "index_brand_memberships_on_brand_created_id"
     t.index ["brand_id"], name: "index_brand_memberships_on_brand_id"
     t.index ["id", "user_id", "brand_id"], name: "idx_memberships_on_id_user_brand", unique: true
     t.index ["user_id", "brand_id"], name: "index_brand_memberships_on_user_id_and_brand_id", unique: true, where: "(deleted_at IS NULL)"
@@ -835,6 +836,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_160100) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.integer "visibility", default: 0, null: false
+    t.index "lower((display_name)::text)", name: "index_profiles_on_lower_display_name"
     t.index ["brand_id", "country_code", "city"], name: "index_profiles_on_brand_id_and_country_code_and_city"
     t.index ["brand_id", "status", "visibility", "created_at"], name: "idx_on_brand_id_status_visibility_created_at_3574045134"
     t.index ["brand_id"], name: "index_profiles_on_brand_id"
@@ -920,6 +922,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_160100) do
     t.text "user_agent"
     t.bigint "user_id", null: false
     t.index ["admin_mfa_credential_id"], name: "index_sessions_on_admin_mfa_credential_id"
+    t.index ["brand_id", "user_id", "last_used_at"], name: "index_sessions_on_brand_user_last_used"
     t.index ["brand_id", "user_id", "revoked_at"], name: "index_sessions_on_brand_id_and_user_id_and_revoked_at"
     t.index ["brand_id"], name: "index_sessions_on_brand_id"
     t.index ["credential_id"], name: "index_sessions_on_credential_id"
@@ -934,6 +937,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_160100) do
     t.string "last_name", limit: 100
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.index "lower((first_name)::text)", name: "index_users_on_lower_first_name"
+    t.index "lower((last_name)::text)", name: "index_users_on_lower_last_name"
   end
 
   add_foreign_key "account_closures", "brand_memberships"

@@ -18,7 +18,7 @@ module Hq
       )
     end
 
-    def self.apply(scope:, purpose:, value:, brand:, user:, table:)
+    def self.apply(scope:, purpose:, value:, brand:, user:)
       return scope if value.blank?
 
       payload = verifier.verify(value, purpose: purpose).with_indifferent_access
@@ -27,9 +27,11 @@ module Hq
       created_at = Time.iso8601(payload.fetch(:created_at))
       id = Integer(payload.fetch(:id))
 
+      record_table = scope.arel_table
       scope.where(
-        "#{table}.created_at < ? OR (#{table}.created_at = ? AND #{table}.id < ?)",
-        created_at, created_at, id
+        record_table[:created_at].lt(created_at).or(
+          record_table[:created_at].eq(created_at).and(record_table[:id].lt(id))
+        )
       )
     rescue ActiveSupport::MessageVerifier::InvalidSignature, ArgumentError, KeyError, TypeError
       raise Invalid, "cursor is invalid"

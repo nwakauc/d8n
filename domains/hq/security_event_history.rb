@@ -22,7 +22,7 @@ module Hq
 
     def call
       scope = SecurityEvent.where(brand:, user:).order(created_at: :desc, id: :desc)
-      scope = Cursor.apply(scope:, purpose: PURPOSE, value: cursor, brand:, user:, table: "security_events")
+      scope = Cursor.apply(scope:, purpose: PURPOSE, value: cursor, brand:, user:)
       rows = scope.limit(limit + 1).to_a
       has_more = rows.length > limit
       rows = rows.first(limit)

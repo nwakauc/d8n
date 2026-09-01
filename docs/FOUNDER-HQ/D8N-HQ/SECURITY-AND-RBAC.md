@@ -1,6 +1,6 @@
 # D8N HQ — Security, RBAC, Audit & Privacy
 
-Status as of 2026-08-29: **IMPLEMENTED FOUNDATION; OPERATIONAL GATES
+Status as of 2026-09-01: **IMPLEMENTED FOUNDATION; OPERATIONAL GATES
 OUTSTANDING.** ADR 0020 and ADR 0021 are authoritative for the current
 authorization and MFA design. Staging verification, founder upgrade/MFA
 enrollment, and frontend acceptance must still occur before real HQ use.
@@ -179,6 +179,22 @@ and report evidence only through the existing bounded audited report
 detail. Role separation now further limits which operators can reach those
 responses. Brand isolation and neutral not-found behavior remain
 structural.
+
+The Member Directory uses the existing `hq.member.sensitive_read`
+capability and returns a deliberately smaller presentation than Member 360:
+public/profile identifiers, display name, account and membership state,
+profile/publication state, signup time, latest brand-session activity,
+boolean email/phone verification state, report/photo queue counts, and an
+active-enforcement boolean. It never returns email addresses, phone numbers,
+session details, credentials, message content, or verification payloads.
+
+All roles currently granted `hq.member.sensitive_read` receive this same
+compact directory shape: Founder, Super Admin, Operations, Trust & Safety,
+Support, and the compatibility Moderator role. Engineering, Analyst, and
+Marketing do not receive directory access because they do not hold that
+capability. This keeps the policy small and capability-based while applying
+minimum necessary data to the directory itself; Member 360 remains the more
+sensitive, separately authorized read.
 
 ## 10. Operational launch gates
 

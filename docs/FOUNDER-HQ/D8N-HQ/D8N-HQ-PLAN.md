@@ -1,7 +1,8 @@
 # D8N HQ — Unified Company Command Centre
 
-**Status: ACTIVE DELIVERY. Phase 1/2 backend and their foundation/security
-backend are built; frontend and operational acceptance remain.** Sections
+**Status as of 2026-09-01: ACTIVE DELIVERY. Phase 1/2 backend, their
+foundation/security backend, and the bounded Member Directory extension are
+built; frontend and operational acceptance remain.** Sections
 remain labeled CURRENT REALITY, TARGET ARCHITECTURE, or FUTURE/DEFERRED;
 implementation evidence lives in the Phase/Foundation handoffs and
 ROADMAP.md. This is the canonical,
@@ -19,11 +20,11 @@ of the current reality, where understanding D8N requires reading founder
 state files, running Rails console queries, and checking several
 provider dashboards separately.
 
-**Today, D8N HQ does not exist.** What exists is a real, working,
-multi-brand dating platform backend (HookUs and DateZA live, Date9ja
-planned) with a solid trust & safety domain, a solid notifications
-domain, and almost no admin-facing visibility into any of it beyond a
-narrow reports/photo-moderation/suspension API. There is no analytics
+**Today, the HQ command-centre product does not yet exist.** The backend
+already exposes a real, working, brand-scoped operational foundation:
+Member Directory, Member 360, security/auth/enforcement history, Trust &
+Safety aggregates, operator management, MFA, security alerts, and a limited
+analytics overview. There is no analytics
 pipeline, no observability/APM, no billing, and no real identity
 verification anywhere in the codebase. This plan is built directly on an
 audit of that reality (§7), not aspiration, and its roadmap (§30–31) is
@@ -89,8 +90,9 @@ the same command surface.
   This is not a retrofit; it's foundational.
 - **Backend authorization is authoritative.** HQ does not introduce a
   parallel authorization system. It calls the same
-  `Admin::ModeratorContext` (and its eventual successor, §8) the product
-  API already uses.
+  `Admin::AuthorizationContext` and `Admin::Capabilities` used by the
+  product API. `ModeratorContext` is retained only as a compatibility
+  layer where applicable, not as the HQ authorization path.
 - **Specialist tools may exist underneath HQ.** HQ is the
   aggregation/control layer, not a from-scratch APM, log store, or
   tracing system (§17).
@@ -157,16 +159,16 @@ reimplement it).
 
 | Domain | Status | Notes |
 | --- | --- | --- |
-| Identity/Users (models, sessions) | READY | No admin lookup API exists at all — the single highest-leverage gap found (§12) |
+| Identity/Users (models, sessions) | READY | HQ Member Directory and Member 360 lookup exist; universal cross-brand search remains future |
 | Brands / provisioning | READY | `Brands::Provisioner`, `bin/rails brands:provision[slug]` (this repo's Phase 1 work) — no `brands:doctor` readiness check yet |
 | Admin / RBAC | READY foundation | Brand-scoped centralized capabilities, real role semantics, current-brand operator management, mandatory TOTP MFA, and sensitive-read auditing are built; operational rollout remains (§8) |
-| Trust & Safety (reports, enforcement, photo moderation) | READY (most mature domain) | Full `Report` model (ADR 0018), admin queue/detail/transition API, `AccountEnforcement` suspend/reinstate API. Missing: SLA/aging, repeat-offender aggregation, enforcement-history query — all *derivable*, no new tables needed |
+| Trust & Safety (reports, enforcement, photo moderation) | READY (most mature domain) | Full `Report` model (ADR 0018), admin queue/detail/transition API, `AccountEnforcement` suspend/reinstate API, HQ overview/repeat-offender/enforcement-history reads. Missing: configured SLA, investigation cases, appeals |
 | Identity/selfie/ID verification | **MISSING — a real product gap, not an HQ gap** | Only email/phone OTP possession checks exist; no `Verification`/`UserVerification` model anywhere |
 | Dating loop (profiles, discovery, likes, matches, hooks, conversations, blocks) | READY (member-facing) | Zero admin read surface for any of it. Discovery's per-candidate ranking data is already persisted (`DiscoveryAllocationCandidate`) — the "why is discovery empty" diagnostic (§12) needs an API, not new data |
 | Notifications & delivery | READY | Full per-channel delivery state machine (email/SMS/push), Resend + Twilio integrated. No provider delivery/bounce webhook ingestion. Push is intentionally fail-closed (no APNs/FCM provider) |
 | Media/storage (R2) | READY | Upload/process/purge pipeline solid (EXIF strip, dimension guards). No storage cost/usage visibility (provider-API integration, EXTERNAL) |
 | Jobs/queues | READY (Solid Queue) | Zero operator visibility beyond raw SQL against Solid Queue's own tables |
-| Database/infra | READY (Postgres 17, Kamal) | **No release/version stamping anywhere** — blocks all deployment-intelligence work (§19) |
+| Database/infra | READY (Postgres 17, Kamal) | Release/version identity exists at `/api/v1/version`; release correlation remains future |
 | Observability/APM/Errors/Traces/Logs | **MISSING** | Zero error-tracking/APM/tracing gems installed anywhere. Logging is stdout-only, not aggregated. **This is the strongest "do not rebuild from scratch" case in the whole plan** — adopt a vendor (§17) |
 | Analytics/Events | **MISSING** | `domains/analytics/` is an empty placeholder. No canonical event system, no analytics gem, zero acquisition/UTM capture anywhere |
 | Revenue/Billing | **MISSING (deliberately, current priority)** | `domains/billing/` is an empty placeholder. No Subscription/Payment/Stripe code exists |
@@ -343,7 +345,8 @@ cohort changed, what correlates with retention, which acquisition
 sources produce retained members, which releases correlate with
 deterioration/improvement. DAU/WAU/MAU are buildable today from `Session`
 timestamps (a first-pass "active" definition — see [METRICS.md](METRICS.md));
-release correlation is blocked on §19 (no version stamping exists yet).
+release identity exists at `/api/v1/version`, but release correlation is
+blocked until observability/event integrations exist (§19).
 
 ## 16. Trust & Safety
 
@@ -513,17 +516,20 @@ metric that already has one. This prevents the failure mode where two HQ
 cards disagree about "active member" because one query used `status:
 active` and another used "logged in in the last 30 days."
 
-Design: a metric registry (`Hq::Metrics::X`), each entry a class with a
-fixed id, a `VERSION` integer (bumped, not silently redefined, on any
-definition change), a human `DEFINITION` string shown in the UI next to
-the number, and a `compute` method — with a unit test asserting a fixed
-value against a fixed fixture, exactly like every other domain service in
-this codebase. A metric without a test cannot back a Command Centre
-score. Canonical definitions already specified for `registered_member`,
+Current implementation: `Hq::Metrics::Catalog` is the definition/version
+registry, `Hq::Metrics::Compute` owns the bounded brand-scoped SQL, and
+`Hq::Metrics::MetricValue` carries status, units, limitations, and optional
+ratio operands. The health snapshot is exposed by
+`GET /api/v1/hq/command_centre/health` and the authorized fan-out by
+`GET /api/v1/hq/command_centre/brands`. A metric without a focused test is
+not accepted into this snapshot. The current layer deliberately does not
+build a warehouse, event pipeline, score, or historical rollup. Canonical
+future definitions already specified for `registered_member`,
 `activated_member`, `published_member`, `active_member`, `DAU/WAU/MAU`,
 `retained_member` (D1/D7/D30), `match_rate`, `conversation_rate`,
 `zero_result_rate`, `report_rate`, `delivery_rate`, and several
-time-to-first-X metrics — all `DERIVABLE` today from existing tables. Cost/
+time-to-first-X metrics remain future or operationally gated where a safe
+bounded query is not available. Cost/
 acquisition-channel metrics are explicitly `NOT AVAILABLE` pending §14's
 prerequisite.
 
@@ -665,13 +671,15 @@ Command Centre work.**
 1. It requires **zero new instrumentation and zero new architecture
    decisions** — every table it reads already exists and is already
    correctly populated by the live product.
-2. It closes the single gap that showed up most consistently across the
-   entire audit: there is currently **no admin-facing way to look up a
-   member at all**, for anything.
+2. It closes the highest-leverage operational gap found in the original
+   audit: there was no admin-facing way to look up a member at all. The
+   resulting Member Directory and Member 360 backend now exist; the
+   remaining work is to make directory search/filtering and frontend use
+   operationally complete.
 3. It's real, immediate operational value for the live HookUs beta today
    — not a demo.
 4. It establishes the `api/v1/hq/` namespace, the
-   `Admin::ModeratorContext`-based HQ authorization pattern, and the
+   `Admin::AuthorizationContext`-based HQ authorization pattern, and the
    sensitive-read-auditing convention that every later phase reuses.
 5. It directly builds the "why is Discover empty" diagnostic (§12, §6)
    the product brief singled out as an important operability goal — and
@@ -764,3 +772,4 @@ any observability vendor, implementing OpenTelemetry, implementing the
 analytics event pipeline, implementing Company Intelligence or anomaly
 detection, redesigning D8N authentication, or inventing platform-wide
 founder authorization.
+ go b

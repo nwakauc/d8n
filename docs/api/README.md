@@ -46,7 +46,7 @@ the API root (`GET /`) and the summary at the top of `openapi.yaml`.
 | Trust | Preview | Blocking, profile/content reporting, brand-scoped report review and suspension exist. DateZA public Trust standing is not implemented. |
 | Media | Available foundation | Brand-scoped direct upload, safe re-encoding, short-lived signed owner/public delivery, ordering/primary semantics, limits, deletion/purge, and audited approve/reject transitions are implemented. Provider automation, appeals, and an admin UI remain future work. |
 | Verification | Planned | RealMe identity/selfie verification has no endpoints yet. Identifier verification is an Identity capability, not RealMe. |
-| Admin | Preview | Brand-scoped report review and suspension endpoints exist; stronger admin auth/RBAC and a complete admin product remain gated. |
+| Admin | Preview | Brand-scoped report review, photo moderation, suspension/ban enforcement, capability RBAC, mandatory admin MFA, operator management, and HQ Member 360/Directory reads exist; the complete admin product and operational acceptance remain gated. |
 | Product Notifications | Available | Brand-scoped inbox/read API and DateZA registration welcome email. Device storage/push boundary exists; device enrollment API and production push provider are deferred. Identity challenge delivery remains separate. |
 | Billing / Analytics | Planned | No consumer product endpoints yet. |
 
