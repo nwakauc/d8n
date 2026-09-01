@@ -151,7 +151,7 @@ in-house APM. See ARCHITECTURE.md § Observability Integration.
 
 | # | Item | Status | Data | Source | Evidence |
 |---|---|---|---|---|---|
-| 11.1 | Canonical product-analytics event system | **MISSING** | NOT AVAILABLE | — | `domains/analytics/` contains only a `.keep` placeholder. No `AnalyticsEvent` model, no Segment/PostHog/Mixpanel/Amplitude gem, no `track_event` call anywhere in the codebase. |
+| 11.1 | Canonical product-analytics event system | **PARTIAL — Phase 4 foundation** | HISTORICAL for instrumented transitions | D8N DB | `AnalyticsEvent` is append-only, brand-scoped, idempotency-key deduplicated, and privacy-allowlisted. `member.registered` and `profile.published` are emitted from authoritative backend transitions; onboarding completion and other derivable transactional events are not yet captured. |
 | 11.2 | Operational "event" models that already exist (do not confuse with #11.1) | READY, but purpose-built, not general | HISTORICAL | D8N DB | `NotificationEvent` (durable outbox for notification fan-out only) and `SecurityEvent` (audit only) are real, working, event-sourced-ish patterns — reusable *as a pattern* for the canonical event system, not repurposable directly |
 
 This is the single largest gap for the BUSINESS section of D8N-HQ-PLAN.md

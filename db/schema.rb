@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_01_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -126,6 +126,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_090000) do
     t.datetime "updated_at", null: false
     t.bigint "user_id"
     t.index ["user_id"], name: "index_admin_users_on_user_id", unique: true
+  end
+
+  create_table "analytics_events", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.uuid "event_id", default: -> { "gen_random_uuid()" }, null: false
+    t.string "event_type", null: false
+    t.string "idempotency_key", null: false
+    t.datetime "occurred_at", null: false
+    t.bigint "profile_id"
+    t.jsonb "properties", default: {}, null: false
+    t.bigint "session_id"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["brand_id", "event_type", "occurred_at"], name: "idx_analytics_events_brand_type_occurred"
+    t.index ["brand_id", "user_id", "occurred_at"], name: "idx_analytics_events_brand_user_occurred"
+    t.index ["brand_id"], name: "index_analytics_events_on_brand_id"
+    t.index ["event_id"], name: "index_analytics_events_on_event_id", unique: true
+    t.index ["idempotency_key"], name: "index_analytics_events_on_idempotency_key", unique: true
+    t.index ["profile_id"], name: "index_analytics_events_on_profile_id"
+    t.index ["session_id"], name: "index_analytics_events_on_session_id"
+    t.index ["user_id"], name: "index_analytics_events_on_user_id"
   end
 
   create_table "auth_attempts", force: :cascade do |t|
@@ -638,7 +660,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_090000) do
     t.check_constraint "accuracy_meters >= 0 AND accuracy_meters <= 100000", name: "chk_profile_locations_accuracy"
     t.check_constraint "latitude >= '-90'::integer::numeric AND latitude <= 90::numeric", name: "chk_profile_locations_latitude"
     t.check_constraint "longitude >= '-180'::integer::numeric AND longitude <= 180::numeric", name: "chk_profile_locations_longitude"
-    t.check_constraint "source::text = ANY (ARRAY['device'::character varying, 'manual'::character varying, 'imported'::character varying, 'place'::character varying]::text[])", name: "chk_profile_locations_source"
+    t.check_constraint "source::text = ANY (ARRAY['device'::character varying::text, 'manual'::character varying::text, 'imported'::character varying::text, 'place'::character varying::text])", name: "chk_profile_locations_source"
   end
 
   create_table "profile_openers", force: :cascade do |t|
@@ -959,6 +981,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_090000) do
   add_foreign_key "admin_assignments", "brands"
   add_foreign_key "admin_mfa_credentials", "admin_users"
   add_foreign_key "admin_users", "users"
+  add_foreign_key "analytics_events", "brands"
+  add_foreign_key "analytics_events", "profiles"
+  add_foreign_key "analytics_events", "sessions"
+  add_foreign_key "analytics_events", "users"
   add_foreign_key "auth_attempts", "brands"
   add_foreign_key "auth_attempts", "credentials"
   add_foreign_key "auth_attempts", "identity_identifiers"

@@ -267,10 +267,15 @@ accepted; no scores are calculated.
 
 ## Phase 5 — Event pipeline + marketplace health + funnel
 
-**Objective:** the canonical `AnalyticsEvent` system (ARCHITECTURE.md §3)
-ships, instrumented at existing call sites, and the fully-derivable
-marketplace-health/funnel metrics (METRICS.md §3) get real dashboards
-backed by scheduled rollups (ARCHITECTURE.md §2/§10).
+**Status (2026-09-01): PARTIAL — Phase 4 foundation delivered.**
+`AnalyticsEvent`, the initial allowlisted event taxonomy, authoritative
+registration/publication producers, bounded funnel, and daily trend APIs are
+implemented. Onboarding completion, retention, full funnel backfill, and
+rollups remain future slices.
+
+**Remaining objective:** expand the canonical event system only where an
+authoritative product transition cannot be derived from transactional tables,
+then add scheduled rollups for mature historical cohorts.
 
 **Backend work:** `AnalyticsEvent` table + `Hq::Analytics::Emit`;
 instrument the ~15 highest-value existing call sites (registration,

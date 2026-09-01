@@ -81,6 +81,8 @@ Rails.application.routes.draw do
         get "analytics/overview" => "analytics#overview"
         get "command_centre/health" => "command_centre#health"
         get "command_centre/brands" => "command_centre#brands"
+        get "product_intelligence/funnel" => "product_intelligence#funnel"
+        get "product_intelligence/trends" => "product_intelligence#trends"
         get "security_alerts" => "security_alerts#index"
         get "members/:lookup" => "members#show", constraints: { lookup: /[^\/]+/ }
         get "members/:lookup/security_events" => "members#security_events", constraints: { lookup: /[^\/]+/ }

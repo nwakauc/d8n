@@ -85,3 +85,35 @@ engineering default (see ROADMAP.md § Open Questions). It does not define
 every metric in the product brief's long lists (growth, campaign
 economics, infra cost) — those are `NOT AVAILABLE` per CURRENT-STATE.md
 and get a registry entry only once their data source exists.
+
+## 6. Product Intelligence foundation
+
+Phase 4 adds `AnalyticsEvent` as a separate append-only event table. The
+initial allowlisted taxonomy is intentionally small:
+
+| Event | Authoritative producer | Backfill status |
+|---|---|---|
+| `member.registered` | `Identity::PasswordRegistration#create_account` after membership creation | Exactly backfillable from kept membership creation time, but no backfill is run automatically |
+| `profile.published` | `Profiles::Publication.activate!` after the publication transition | Not backfillable exactly; current `Profile.updated_at` is not treated as publication time |
+
+Likes, matches, and conversations are not duplicated as analytics events in
+this phase: their kept transaction rows and `created_at` values are the
+authoritative historical source. Onboarding completion is computed today but
+has no persisted completion timestamp and is therefore unavailable for
+historical funnel conversion.
+
+`GET /api/v1/hq/product_intelligence/funnel` uses a kept-membership
+registration cohort and a bounded window. It exposes the recorded publication
+stage and first-like stage, while explicitly returning onboarding as
+`unavailable` until a durable completion transition exists. The trends
+endpoint is similarly bounded and brand-scoped. Neither endpoint claims
+retention, attribution, or historical values that cannot be reconstructed.
+
+Events accept only the fixed context envelope and allowlisted properties for
+their event type. No message bodies, credentials, tokens, report evidence,
+precise location, email, or phone values are accepted. Event rows are
+immutable and idempotency-key deduplicated. Account closure policy for this
+new event class remains: retain only the minimum pseudonymous foreign-key
+context needed for aggregate integrity, subject to the final legal retention
+period and future platform-wide identity-erasure decision; no personal text is
+stored in event properties.

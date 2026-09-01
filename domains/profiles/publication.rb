@@ -21,7 +21,18 @@ module Profiles
         completion = Completion.call(profile:)
         raise Incomplete, completion unless completion.complete?
 
+        already_published = profile.active? && profile.visible?
         profile.update!(status: :active, visibility: :visible)
+        unless already_published
+          Analytics::Emit.call(
+            event_type: "profile.published",
+            brand:,
+            user:,
+            profile:,
+            occurred_at: profile.updated_at,
+            idempotency_key: "profile.published:#{profile.id}:#{profile.updated_at.to_f}"
+          )
+        end
       end
 
       profile

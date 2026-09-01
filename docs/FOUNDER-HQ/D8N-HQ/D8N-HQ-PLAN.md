@@ -528,8 +528,7 @@ future definitions already specified for `registered_member`,
 `activated_member`, `published_member`, `active_member`, `DAU/WAU/MAU`,
 `retained_member` (D1/D7/D30), `match_rate`, `conversation_rate`,
 `zero_result_rate`, `report_rate`, `delivery_rate`, and several
-time-to-first-X metrics remain future or operationally gated where a safe
-bounded query is not available. Cost/
+time-to-first-X metrics — all `DERIVABLE` today from existing tables. Cost/
 acquisition-channel metrics are explicitly `NOT AVAILABLE` pending §14's
 prerequisite.
 
@@ -537,24 +536,23 @@ prerequisite.
 
 **Full detail: [ARCHITECTURE.md §3](ARCHITECTURE.md).**
 
-**Current reality: no canonical product-analytics event system exists.**
-`NotificationEvent` is real and proven, but purpose-built for
-notification fan-out only — its shape and lifecycle are
-notification-specific, not a general contract. **Reuse its proven
-pattern** (a durable outbox row, idempotency-key-deduplicated, processed
-async, with a recovery job) rather than repurposing the model itself.
+**Phase 4 status: foundation implemented, historical coverage partial.**
+`AnalyticsEvent` is a separate append-only, brand-scoped table. Its
+allowlisted taxonomy currently records `member.registered` from successful
+membership registration and `profile.published` from the authoritative
+publication transition. `NotificationEvent` remains notification-specific
+and is not repurposed. Likes, matches, and conversations remain derived from
+their immutable transactional rows because their timestamps are already
+authoritative.
 
-**Proposed contract:** a single `AnalyticsEvent` table with a fixed
+**Implemented contract:** a single `AnalyticsEvent` table with a fixed
 context envelope (`event_id`, `event_type`, `occurred_at`, `brand_id`
 required, `user_id`/`profile_id`/`session_id` nullable, `platform`,
 `app_version`, `release`, `country`/`region`, `utm_*`, free-form
-`properties` jsonb). **Do not blindly implement the full example event
-list from the original product brief** — derive the initial event set
-from existing domain-service call sites (registration, onboarding,
-publish, discovery, like, match, conversation, message, report), adding
-one `AnalyticsEvents::Emit.call(...)` line at each already-tested call
-site, not new business logic. Do not double-instrument anything already
-fully derivable from existing tables (§25).
+`properties` jsonb). The first taxonomy deliberately excludes onboarding
+completion because no authoritative historical timestamp exists. It also
+does not double-instrument likes, matches, conversations, or discovery
+allocations, which remain derivable from existing tables.
 
 **Platform-wide contract, not per-brand dialects — the brief's most
 important instruction here:** event types, the context envelope, and
@@ -565,14 +563,16 @@ capability, defined once and composed from by brands — mirroring how
 vocabulary today (ADR 0008's pattern, reused). DateZA/HookUs/Date9ja
 never invent their own event language.
 
-**Correlation identifiers that already exist:** `request_id`, `brand_id`,
+**Correlation identifiers that already exist:** `brand_id`,
 `user_id`/`profile_id`, `session_id`, and (for notifications)
 `external_id` from the provider. **Do not exist yet:** `trace_id`
 (depends on §17's vendor choice), `release` (§19), consistent job-level
 correlation. **What NOT to build:** no Kafka/streaming platform, no
 separate event-store database — a Postgres table plus Solid Queue fan-out
 matches every existing pattern in this codebase and is sufficient at
-current scale.
+current scale. Product Intelligence APIs currently expose bounded funnel and
+trend reads; retention and historical onboarding completion remain unavailable
+until their authoritative activity/timestamp semantics are accepted.
 
 ## 27. Company Intelligence
 

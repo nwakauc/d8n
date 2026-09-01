@@ -1,8 +1,8 @@
 # D8N HQ — Target Architecture
 
-Status: **TARGET ARCHITECTURE.** Proposed, not built. Every section states
-what exists today (cross-referencing CURRENT-STATE.md) before proposing
-what to add, and is explicit about what NOT to build.
+Status: **TARGET ARCHITECTURE with Phase 4 event foundation implemented.**
+Every section states what exists today (cross-referencing CURRENT-STATE.md)
+before proposing what to add, and is explicit about what NOT to build.
 
 ## 1. Layered architecture (smallest version that can grow into the
 north-star)
@@ -14,7 +14,7 @@ D8N HQ API / QUERY LAYER  (new Rails engine or namespace inside d8n, see §1.1)
         │
         ├── Operational D8N data        — existing tables, read via scoped queries (READY today)
         ├── Metric/semantic layer       — new: versioned metric definitions (see METRICS.md)
-        ├── Event system                — new: canonical event pipeline (see §3)
+        ├── Event system                — PARTIAL: AnalyticsEvent foundation (see §3)
         ├── Observability adapter       — new: reads an external vendor's API (see §4)
         ├── Provider adapters           — new: Resend/Twilio/R2 status APIs (see §7)
         ├── Deployment/release data     — new: version stamping + Kamal/GitHub API (see §9)
@@ -80,8 +80,10 @@ not speculation, justifies it.
 
 ## 3. Event architecture
 
-**Current reality (CURRENT-STATE.md §11): there is no canonical
-product-analytics event system.** `NotificationEvent` is real,
+**Current reality (CURRENT-STATE.md §11): the canonical event system is
+partial.** `AnalyticsEvent` now provides the first append-only,
+brand-scoped, idempotent foundation for `member.registered` and
+`profile.published`. `NotificationEvent` is real,
 event-sourced, and battle-tested, but it exists only to drive notification
 fan-out (`Notifications::EventPublisher` → `NotificationEvent` →
 `Notifications::ProcessEventJob` → `Notification`/`NotificationDelivery`
@@ -92,9 +94,9 @@ row, `idempotency_key`-deduplicated, processed async, with a job that
 survives partial failure (`Notifications::RecoverPendingJob` already
 proves this pattern works at scale in this codebase).
 
-### Recommended canonical event contract
+### Implemented boundary and future canonical contract
 
-A single `AnalyticsEvent` table (new), with a fixed context envelope and
+A single `AnalyticsEvent` table, with a fixed context envelope and
 a free-form `properties` jsonb, following exactly this codebase's existing
 conventions (soft-delete not needed — events are immutable and append-only;
 brand-scoped like everything else per ADR 0002):

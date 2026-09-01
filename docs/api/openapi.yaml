@@ -3674,6 +3674,58 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/AdminForbidden"
+  /api/v1/hq/product_intelligence/funnel:
+    get:
+      operationId: getHqProductIntelligenceFunnel
+      tags: [Hq]
+      summary: Get a bounded registration cohort funnel
+      description: |
+        Requires verified admin MFA and `hq.analytics.read`. `window` accepts
+        `today`, `yesterday`, `last_7d`, `previous_7d`, `last_30d`, or
+        `previous_30d`. The cohort is kept memberships created in that window.
+        Onboarding completion is unavailable because no authoritative historical
+        completion timestamp is stored. The response is brand-scoped.
+      parameters:
+        - $ref: "#/components/parameters/HqWindow"
+      responses:
+        "200":
+          description: Brand-scoped product funnel.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqProductIntelligenceFunnelResponse"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+  /api/v1/hq/product_intelligence/trends:
+    get:
+      operationId: getHqProductIntelligenceTrends
+      tags: [Hq]
+      summary: Get bounded historical product trends
+      description: |
+        Requires verified admin MFA and `hq.analytics.read`. Returns bounded
+        brand-scoped counts for registrations, recorded profile publications,
+        likes, matches, and conversations. Publication counts begin when the
+        canonical event producer is deployed; no historical publication event
+        is manufactured.
+      parameters:
+        - $ref: "#/components/parameters/HqWindow"
+      responses:
+        "200":
+          description: Brand-scoped product trends.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqProductIntelligenceTrendsResponse"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
   /api/v1/hq/trust_safety/overview:
     get:
       operationId: getHqTrustSafetyOverview
@@ -4342,6 +4394,15 @@ components:
       description: Opaque signed cursor from the previous directory page.
       schema:
         type: string
+    HqWindow:
+      name: window
+      in: query
+      required: false
+      description: Bounded brand-local calendar window. Defaults to `last_7d`.
+      schema:
+        type: string
+        enum: [today, yesterday, last_7d, previous_7d, last_30d, previous_30d]
+        default: last_7d
     HqHistoryLimit:
       name: limit
       in: query
@@ -4511,6 +4572,66 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    HqProductIntelligenceStage:
+      type: object
+      required: [id, definition, status, unit, limitations]
+      properties:
+        id: { type: string }
+        definition: { type: string }
+        status: { type: string, enum: [available, unavailable, insufficient_data] }
+        value: { type: [integer, "null"], minimum: 0 }
+        unit: { type: string, const: members }
+        conversion_from_previous: { type: [number, "null"], minimum: 0, maximum: 1 }
+        conversion_from_registration: { type: [number, "null"], minimum: 0, maximum: 1 }
+        limitations:
+          type: array
+          items: { type: string }
+    HqProductIntelligenceFunnelResponse:
+      type: object
+      required: [funnel]
+      properties:
+        funnel:
+          type: object
+          required: [brand, window, generated_at, time_zone, stages]
+          properties:
+            brand: { type: string }
+            window: { type: string }
+            generated_at: { type: string, format: date-time }
+            time_zone: { type: string, const: Africa/Johannesburg }
+            stages:
+              type: array
+              items: { $ref: "#/components/schemas/HqProductIntelligenceStage" }
+    HqProductIntelligenceTrend:
+      type: object
+      required: [id, definition, status, unit, limitations, points]
+      properties:
+        id: { type: string }
+        definition: { type: string }
+        status: { type: string, enum: [available, unavailable, insufficient_data] }
+        unit: { type: string, const: count }
+        limitations:
+          type: array
+          items: { type: string }
+        points:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+    HqProductIntelligenceTrendsResponse:
+      type: object
+      required: [trends]
+      properties:
+        trends:
+          type: object
+          required: [brand, window, generated_at, time_zone, series]
+          properties:
+            brand: { type: string }
+            window: { type: string }
+            generated_at: { type: string, format: date-time }
+            time_zone: { type: string, const: Africa/Johannesburg }
+            series:
+              type: array
+              items: { $ref: "#/components/schemas/HqProductIntelligenceTrend" }
     HealthResponse:
       type: object
       required: [status, app, api_version, checks]

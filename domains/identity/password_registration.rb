@@ -146,6 +146,13 @@ module Identity
       )
       PasswordEngine.set!(credential:, password:)
       membership = BrandMembership.create!(user:, brand:, status: :active)
+      Analytics::Emit.call(
+        event_type: "member.registered",
+        brand:,
+        user:,
+        occurred_at: membership.created_at,
+        idempotency_key: "member.registered:#{membership.id}"
+      )
       Notifications::EventPublisher.membership_registered!(membership:)
       raw_token, session = Session.issue!(
         user:,
