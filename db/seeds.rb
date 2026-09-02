@@ -16,6 +16,10 @@ if (dateza = Brand.kept.find_by(slug: "dateza"))
   Profiles::DatezaProfileCatalog.install!(brand: dateza)
 end
 
+if (date9ja = Brand.kept.find_by(slug: "date9ja"))
+  Profiles::Date9jaProfileCatalog.install!(brand: date9ja)
+end
+
 # ADR 0020 gives every role a centralized, tested capability meaning. Seeds
 # create vocabulary only; capabilities remain immutable application policy.
 {

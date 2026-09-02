@@ -30,16 +30,23 @@ module Brands
       end
     end
 
+    test "dispatches date9ja to Brands::Date9jaInstaller" do
+      brand = Provisioner.call(slug: "date9ja", hosts: [ "date9ja.test" ])
+
+      assert_equal "date9ja", brand.slug
+      assert_equal brand, BrandDomain.kept.find_by!(host: "date9ja.test").brand
+    end
+
     test "fails safely for an unsupported brand slug without touching the database" do
       assert_no_difference [ -> { Brand.count }, -> { BrandDomain.count } ] do
         assert_raises(Provisioner::UnsupportedBrand) do
-          Provisioner.call(slug: "date9ja", hosts: [ "date9ja.test" ])
+          Provisioner.call(slug: "unregistered", hosts: [ "unregistered.test" ])
         end
       end
     end
 
     test "exposes the supported slugs" do
-      assert_equal %w[ dateza hookus ], Provisioner.slugs
+      assert_equal %w[ date9ja dateza hookus ], Provisioner.slugs
     end
   end
 end

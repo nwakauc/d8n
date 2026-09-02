@@ -1,6 +1,10 @@
 # Date9ja Capability Parity Matrix
 
-Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, notifications, Action Cable channels, and D8N routes/domains. The inventory contains **75 user-facing capability rows**. A capability is not expendable because D8N does not support it today. **Full retained Date9ja feature parity is a production cutover requirement.**
+Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, notifications, Action Cable channels, and D8N routes/domains. This document is the single source of truth for the normalized retained user-capability inventory and its status totals. A capability is not expendable because D8N does not support it today. **Full retained Date9ja feature parity is a production cutover requirement.**
+
+## Scope rule
+
+Every shipped/reachable Date9ja user-facing capability is inside the parity bar unless the product owner explicitly retires it. Community, Dating Hub, Aunty Phobie, Careers, and Feedback are included. Founder/admin operations are not consumer parity rows; they are tracked in the operational dependency register below and must map to D8N HQ before the legacy administration backend is retired.
 
 | Capability | Date9ja today | D8N today | Parity status | D8N target domain | Brand-specific policy? | Data migration required? | API compatibility required? | Cutover blocker? |
 |---|---|---|---|---|---:|---:|---:|---:|
@@ -18,9 +22,15 @@ Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, noti
 | Completion score/steps | Source completion score and client steps | D8N completion contract | PARTIAL | Profiles | Yes | State | Yes | Yes |
 | Public profile | User serializer and profile card | Explicit public profile serializer | PARTIAL | Profiles | Yes | Yes | Yes | Yes |
 | Private identity fields | Name/email/phone fields | Platform identity and owner serializer | PARITY | Identity/Profiles | Yes | Yes | Yes | Yes |
-| Gender/interested-in | Integer enums on user | Profile/preference fields | PARTIAL | Profiles/Match | Yes | Yes | Yes | Yes |
+| Gender | Integer enum on user | Profile field/catalogue | PARTIAL | Profiles | Yes | Yes | Yes | Yes |
+| Interested-in/orientation | Integer enum on user | Profile preference field | PARTIAL | Profiles/Match | Yes | Yes | Yes | Yes |
 | Relationship intent | Enum plus values/timeline | DateZA-style catalog only; Date9ja absent | MISSING | Profiles/Match | Yes | Yes | Yes | Yes |
-| Faith/ethnicity/tribe/genotype | Columns, arrays, onboarding JSON | Some typed/catalog capability, not complete Date9ja set | MISSING | Profiles/Verification | Yes | Yes | Yes | Yes |
+| Faith | Onboarding field and user value | No complete Date9ja contract | MISSING | Profiles | Yes | Yes | Yes | Yes |
+| Ethnicity | Onboarding field and user value | No complete Date9ja contract | MISSING | Profiles | Yes | Yes | Yes | Yes |
+| Tribe | Onboarding field and user value | No complete Date9ja contract | MISSING | Profiles | Yes | Yes | Yes | Yes |
+| Genotype | Sensitive onboarding field and user value | No equivalent; privacy/architecture decision required | NEEDS PRODUCT DECISION | Profiles/Trust & Safety | Yes | Yes | Yes | Yes |
+| Denomination | Onboarding field and user value | No complete Date9ja contract | MISSING | Profiles | Yes | Yes | Yes | Yes |
+| Preferred tribes | Matching preference array | No complete Date9ja contract | MISSING | Matching/Profiles | Yes | Yes | Yes | Yes |
 | Family/children preferences | Columns/enums and onboarding data | Partial typed options | PARTIAL | Profiles/Match | Yes | Yes | Yes | Yes |
 | Lifestyle fields | Smoking, drinking, fitness, education, height/body type | Partial profile fields/options | PARTIAL | Profiles/Match | Yes | Yes | Yes | Yes |
 | Languages/interests/values | Arrays on users | Catalog/options/prompts | PARTIAL | Profiles | Yes | Yes | Yes | Yes |
@@ -34,9 +44,11 @@ Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, noti
 | Discovery/daily picks | Daily picks, explore, impressions, limits | D8N discovery/find allocations | PARTIAL | Discovery | Yes | Maybe | Yes | Yes |
 | Online/recent activity | Online-now endpoint and last active | Session-derived status fields | PARTIAL | Engagement/Discovery | Yes | No | Yes | Yes |
 | Recommendations | Daily introductions and matching service | D8N discovery strategies | PARTIAL | Discovery/Match | Yes | Maybe | Yes | Yes |
-| Pass/unpass | Pass, unpass, rewind | Pass, no source-equivalent rewind contract | PARTIAL | Match | Yes | Yes | Yes | Yes |
+| Pass/unpass | Pass and undo pass | Pass, no source-equivalent undo contract | PARTIAL | Match | Yes | Yes | Yes | Yes |
+| Rewind | One-per-day rewind of the last discovery action | No source-equivalent rewind contract | MISSING | Match/Discovery | Yes | Yes | Yes | Yes |
 | Profile view | View profile and persist view | No persisted profile views | MISSING | Engagement | Yes | Yes | Yes | Yes |
-| Like/super-like/unlike | Direct user relationships | Profile-scoped likes | PARTIAL | Match | Yes | Yes | Yes | Yes |
+| Like/unlike | Direct user relationships | Profile-scoped likes | PARTIAL | Match | Yes | Yes | Yes | Yes |
+| Super-like | Enhanced like action and entitlement/limit behavior | No Date9ja-equivalent action contract | MISSING | Match/PAY | Yes | Yes | Yes | Yes |
 | Incoming/outgoing likes | Separate list surfaces | Incoming/outgoing D8N routes | PARTIAL | Match | Yes | Yes | Yes | Yes |
 | Match creation | Canonical user pair on mutual like | Canonical profile pair | DIFFERENT SEMANTICS | Match | Yes | Yes | Yes | Yes |
 | Unmatch | Existing match behavior | D8N unmatch | PARTIAL | Match | Yes | Yes | Yes | Yes |
@@ -52,7 +64,9 @@ Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, noti
 | Message reactions | Emoji create/delete | No reaction model | MISSING | Messaging | No | Yes | Yes | Yes |
 | Realtime messages | Action Cable match channel | D8N messaging/realtime not equivalent | PARTIAL | Messaging | Yes | No | Yes | Yes |
 | Typing/presence | Cable/client behavior where implemented | No equivalent documented contract | MISSING | Messaging/Engagement | Yes | No | Yes | Yes |
-| Email/push/in-app notifications | Notifications, delivery rows, preferences | Brand notification events/inbox/deliveries | PARTIAL | Notifications | Yes | Yes | Yes | Yes |
+| In-app notifications | Notification inbox, unread state, read actions | Brand notification events/inbox | PARTIAL | Notifications | Yes | Yes | Yes | Yes |
+| Email notifications | Notification email delivery and preferences | Brand delivery plans/state | PARTIAL | Notifications | Yes | Yes | Yes | Yes |
+| Push notifications | Device push delivery and preferences | Brand delivery plans/state | PARTIAL | Notifications | Yes | State | Yes | Yes |
 | Notification preferences | Product/email JSON preferences | Typed product email/push preferences | PARTIAL | Notifications | Yes | Yes | Yes | Yes |
 | Push registration | Token register/unregister | Encrypted brand device registration | PARTIAL | Notifications | Yes | State | Yes | Yes |
 | Notification realtime/toasts/sounds | Notification Cable, UI badges/sounds | D8N notification foundation; client work required | PARTIAL | Engagement/Notifications | Yes | No | Yes | Yes |
@@ -65,31 +79,68 @@ Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, noti
 | Verification events/history | Checks/events/evidence retention | No equivalent full history | MISSING | Verification | Yes | Yes | Yes | Yes |
 | Trust XP/score | Trust score endpoint, ledger, adjustments | No equivalent persisted trust capability | MISSING | Trust & Safety | Yes | Yes | Yes | Yes |
 | Moderation/publication | Admin flags, photo review, suspensions/bans | Profile/photo moderation and enforcements | PARTIAL | Trust & Safety | Yes | Yes | Yes | Yes |
-| Community questions/answers/votes | Browse/create/answer/vote/report | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
-| Community events/RSVP/attendees | Browse/create/remarks/RSVP | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
-| Community stories/remarks | Browse/create/remark/report | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
+| Community questions | Browse/create questions and report | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
+| Community answers | Browse/create answers and report | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
+| Community answer votes | Vote/unvote answers | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
+| Community events | Browse/create events and remarks | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
+| Community event RSVP/attendees | RSVP and attendee visibility | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
+| Community stories | Browse/create stories and report | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
+| Community story remarks | Browse/create remarks and report | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
 | Community moderation | Admin review/risk flags/reports | No D8N community moderation | MISSING | Community/Trust & Safety | Yes | Yes | Yes | Yes |
-| Dating Hub batches/contacts | CRUD and matched/external contacts | No D8N equivalent | MISSING | Engagement or Community | Yes | Yes | Yes | Yes |
-| Dating Hub notes/suggestions | Contact notes and suggestions | No D8N equivalent | MISSING | AI/Engagement | Yes | Yes | Yes | Yes |
-| Dating Hub coach/persona | Coach and persona CRUD | No D8N equivalent | MISSING | AI | Yes | Yes | Yes | Yes |
-| Dating Hub daily life | Daily life entry CRUD | No D8N equivalent | MISSING | Engagement | Yes | Yes | Yes | Yes |
-| Aunty Phobie chat | AI assistant messages/support | No D8N equivalent | MISSING | AI | Yes | Yes | Yes | Yes |
+| Dating Hub batches | CRUD dating-workflow batches | No D8N equivalent | MISSING | Engagement | Yes | Yes | Yes | Yes |
+| Dating Hub tracked contacts | Matched and external contact tracking | No D8N equivalent | MISSING | Engagement | Yes | Yes | Yes | Yes |
+| Dating Hub contact notes | Notes attached to tracked contacts | No D8N equivalent | MISSING | Engagement | Yes | Yes | Yes | Yes |
+| Dating Hub suggestions | Contact-specific suggestions | No D8N equivalent | MISSING | Engagement/AI | Yes | Yes | Yes | Yes |
+| Dating Hub coach | Coach content and guidance | No D8N equivalent | MISSING | AI | Yes | Yes | Yes | Yes |
+| Dating Hub persona | User-configured dating persona | No D8N equivalent | MISSING | AI/Profiles | Yes | Yes | Yes | Yes |
+| Dating Hub daily-life journal | Daily life entry CRUD | No D8N equivalent | MISSING | Engagement | Yes | Yes | Yes | Yes |
+| Aunty Phobie conversation | AI assistant messages/support | No D8N equivalent | MISSING | AI | Yes | Yes | Yes | Yes |
+| Aunty Phobie history/usage limits | Conversation history, usage events, limits | No D8N equivalent | MISSING | AI/PAY | Yes | Yes | Yes | Yes |
 | Aunty Phobie escalation | Safety escalation/admin resolution | No D8N equivalent | MISSING | AI/Trust & Safety | Yes | Yes | Yes | Yes |
 | Premium/founding access | Premium status, founding membership/limits | No Date9ja billing/entitlement target | MISSING | PAY/Entitlements | Yes | Yes | Yes | Yes |
-| Analytics/attribution | Signup attribution, admin metrics/events | D8N analytics event model differs | PARTIAL | Insights | Yes | Maybe | Yes | No |
-| Support chat | Dedicated support account via match/messages | No explicit D8N support-chat capability | NEEDS PRODUCT DECISION | Messaging/Support | Yes | Yes | Yes | Yes |
-| Feedback/careers/account UI | Feedback and career application flows | Not Date9ja dating core in D8N | LEGACY/UNUSED | Community/Operations | Yes | Decision | Yes | No |
+| Signup acquisition attribution | First-touch UTM/source captured at signup | D8N analytics event model differs | PARTIAL | Insights | Yes | Maybe | Yes | No |
+| Product analytics events | Signup/profile/verification/match/conversation metrics | D8N analytics event model differs | PARTIAL | Insights | Yes | Maybe | Yes | No |
+| Support chat | Dedicated support account via match/messages | No explicit D8N support-chat capability | MISSING | Messaging/Support | Yes | Yes | Yes | Yes |
+| Careers | Public jobs, applications, and application status | No Date9ja careers target | MISSING | Community/Operations | Yes | Yes | Yes | Yes |
+| Feedback | User feedback submission and status | No Date9ja feedback target | MISSING | Engagement/Support | Yes | Yes | Yes | Yes |
 
-## Counts
+## Counts — authoritative
 
 | Status | Count |
 |---|---:|
 | PARITY | 1 |
-| PARTIAL | 37 |
-| MISSING | 24 |
+| PARTIAL | 41 |
+| MISSING | 41 |
 | DIFFERENT SEMANTICS | 11 |
-| LEGACY/UNUSED | 1 |
+| LEGACY/UNUSED | 0 |
 | NEEDS PRODUCT DECISION | 1 |
-| **Total** | **75** |
+| **Total** | **95** |
 
-The detailed inventory contains 75 capability rows. The counts above are authoritative for this document.
+The detailed inventory and these counts are authoritative. Other migration documents must link here rather than copy totals. The normalization split independently migratable user capabilities and excludes founder/admin operations from the consumer scoreboard.
+
+## Normalization record
+
+- Split bundled rows for gender/orientation, sensitive profile fields, pass versus rewind, like versus super-like, notification channels, Community primitives, Dating Hub primitives, Aunty Phobie history/limits, and analytics versus acquisition attribution.
+- Reclassified Careers and Feedback from the former bundled `LEGACY/UNUSED` row into explicit retained capabilities because reachable web/mobile/API surfaces exist in the source repository.
+- Reclassified Support chat from `NEEDS PRODUCT DECISION` to an engineering-owned missing capability; only a material user-visible behavior change returns to the product queue.
+- Removed the former `account UI` implementation-detail bundle; account settings and lifecycle behaviors are represented by their distinct capability rows.
+
+## D8N AI ownership
+
+`D8N AI` is the shared platform capability: provider abstraction, assistant runtime, context, safety, privacy/egress, credentials, versioning, metering, limits, tools, and failure handling. `Aunty Phobie` is a Date9ja branded assistant experience consuming that runtime. They are intentionally not one matrix row and no `domains/date9ja/aunty_phobie` implementation is authorized. The AI architecture/specification gate and third-party data-egress decision must pass before implementation reaches `IMPLEMENTING`.
+
+## Operational dependency register (excluded from consumer counts)
+
+| Legacy operational surface | D8N destination | Retirement requirement |
+|---|---|---|
+| Moderation, reports, photo/video/selfie review | D8N HQ / Trust & Safety | HQ can perform equivalent brand-scoped review and audit |
+| User suspension, bans, deletion/recovery operations | D8N HQ / Identity lifecycle | HQ workflows preserve authorization, audit, and recovery controls |
+| Acquisition, metrics, error logs, backups | D8N HQ / Insights / Operations | Required operational reports and backup evidence exist |
+| Community/Dating Hub/Aunty escalation administration | D8N HQ with shared-domain admin policies | Operators retain safe workflows for active retained capabilities |
+| Careers and Feedback review | D8N HQ / Support operations | Review, notification, retention, and export responsibilities are assigned |
+
+These rows do not reduce the user parity bar and are not counted as Date9ja consumer capabilities.
+
+## Source evidence used for normalization
+
+The reachability review used Date9ja API controllers/models/jobs/channels plus the web and mobile clients, including `api/app/controllers/api/v1/careers_controller.rb`, `feedback_items_controller.rb`, `message_reactions_controller.rb`, `dating_hub/*`, `community/*`, `aunty_phobie_controller.rb`, `profile_views_controller.rb`, `profile_videos_controller.rb`, and `config/routes.rb`; web `src/pages/CareersPage.js`, `CommunityPage.js`, `DatingHubPage.js`, `AuntyPhobiePage.js`, `ProfileViewsPage.js`, `MessagesPage.js`, and `src/api/client.js`; and the mobile navigation/API surfaces. These are source-repository observations only; no production usage counts were accessed.

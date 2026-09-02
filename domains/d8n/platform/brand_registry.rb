@@ -12,7 +12,8 @@ module D8n
 
       CONTRACTS = {
         "hookus" => Brands::Hookus,
-        "dateza" => Brands::Dateza
+        "dateza" => Brands::Dateza,
+        "date9ja" => Brands::Date9ja
       }.freeze
 
       def self.fetch(brand:)

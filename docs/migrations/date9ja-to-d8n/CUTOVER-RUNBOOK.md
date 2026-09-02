@@ -6,7 +6,7 @@ Future procedure only; not executed during Phase 1. Data reconciliation and feat
 
 1. Announce a short maintenance/read-only period and freeze releases/config changes.
 2. Confirm an encrypted, restorable legacy database backup and media inventory; confirm D8N routing, queues, providers, monitoring, and owners.
-3. Restore/import the tested snapshot and confirm Phase 5 data reconciliation plus every journey in `FEATURE-PARITY-ACCEPTANCE.md` for web and mobile.
+3. Restore/import the tested snapshot and confirm Phase 7 staging-rehearsal data reconciliation plus every journey in `FEATURE-PARITY-ACCEPTANCE.md` for web and mobile. The authoritative phase model is `MASTER-PLAN.md`.
 4. Stop legacy writes and mutating jobs. Record the final source transaction/time boundary.
 5. Take the final backup and import the final delta using the external-ID map. Do not replay historical notifications or source sessions.
 6. Run counts, graph, media, duplicate, and password-hash checks. Abort on critical failure.

@@ -2,7 +2,7 @@
 
 The audited clients are Date9ja `web/` React and `mobile/` Expo/React Native. Both use bearer tokens, JSON `/api/v1`, and Action Cable; web stores tokens in local storage and mobile in Expo SecureStore.
 
-Legacy calls include `/auth/sign_up`, `/auth/sign_in`, `/auth/sign_out`, `/auth/confirmation`, `/auth/password`, `/me`, `/photos`, `/profile_video`, `/matches`, `/matches/:id/messages`, `/messages/:id`, `/notifications`, `/blocks`, `/profiles/:id`, `/likes`, `/search`, `/profile_views`, `/verification/*`, `/community/*`, `/dating_hub/*`, `/aunty_phobie`, and admin paths.
+Legacy calls include `/auth/sign_up`, `/auth/sign_in`, `/auth/sign_out`, `/auth/confirmation`, `/auth/password`, `/me`, `/photos`, `/profile_video`, `/matches`, `/matches/:id/messages`, `/messages/:id`, `/notifications`, `/blocks`, `/profiles/:id`, `/likes`, `/search`, `/profile_views`, `/verification/*`, `/community/*`, `/dating_hub/*`, `/aunty_phobie`, and admin paths. Any added or changed D8N `/api/v1` endpoint must update `docs/api/openapi.yaml` and the OpenAPI contract test in the same change, as required by `AGENTS.md`.
 
 D8N has equivalents for core identity, profile, photos, location, preferences, discovery, likes/passes, matches, conversations/messages, notifications, blocks, reports, deactivation, and recovery, but names and shapes differ. D8N uses host-resolved brand context, opaque profile public IDs, first-class conversations, `/profile/photos`, server-owned `/profile/configuration`, and `/auth/password/register|login` plus `/auth/session`.
 

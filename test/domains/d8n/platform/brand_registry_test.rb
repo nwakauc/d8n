@@ -86,10 +86,70 @@ module D8n
           contract.notifications.event_types.sort
       end
 
-      test "denies nil Date9ja and unknown brands" do
-        [ nil, Brand.new(slug: "date9ja", name: "Date9ja"), Brand.new(slug: "future", name: "Future") ].each do |brand|
+      test "denies nil and unknown brands" do
+        [ nil, Brand.new(slug: "future", name: "Future") ].each do |brand|
           error = assert_raises(BrandRegistry::UnsupportedBrand) { BrandRegistry.fetch(brand:) }
           assert_equal :brand_not_configured, error.code
+        end
+      end
+
+      test "resolves the Date9ja foundation contract without discovery or matching" do
+        brand = Brand.new(
+          slug: "date9ja", name: "Date9ja",
+          auth_methods: %w[email_password phone_password],
+          profile_requirements: Profiles::Date9jaProfileCatalog::REQUIREMENTS
+        )
+        contract = BrandRegistry.fetch(brand:)
+
+        assert_equal "date9ja", contract.slug
+        assert_equal %w[email_password phone_password], contract.auth_methods
+        assert_equal Profiles::Date9jaProfileCatalog, contract.profile.catalog
+        assert_equal "234", contract.phone_country_calling_code
+        assert_equal %w[NG], contract.place_country_codes
+        assert contract.capability_enabled?("profile.photos")
+        assert contract.capability_enabled?("profile.location.place_selection")
+        assert contract.capability_enabled?("id.session.browser_persistence")
+        assert contract.capability_enabled?("verify.contact.phone")
+        assert contract.capability_enabled?("trust.report_evidence")
+        assert_not contract.capability_enabled?("discovery.surface.feed")
+        assert_not contract.capability_enabled?("discovery.surface.browse")
+        assert_not contract.capability_enabled?("match.interaction.like")
+        assert_not contract.capability_enabled?("chat.conversation")
+        assert_not contract.capability_enabled?("match.opener")
+        assert_empty contract.discovery_surfaces
+        assert_nil contract.opener
+        assert_nil contract.interaction.verification_requirement
+        assert_equal :moderate_first, contract.media.initial_visibility
+        assert_equal Matching::EligibilityPolicy::PERSISTENT_LOCATION, contract.interaction.eligibility_policy
+      end
+
+      test "Date9ja capability access fails closed with stable configured errors" do
+        contract = BrandRegistry.fetch(
+          brand: Brand.new(
+            slug: "date9ja", name: "Date9ja", auth_methods: %w[email_password phone_password]
+          )
+        )
+
+        assert CapabilityAccess.authorize!(contract:, capability: "profile.photos")
+
+        feed_error = assert_raises(CapabilityAccess::NotConfigured) do
+          CapabilityAccess.authorize!(contract:, capability: "discovery.surface.feed")
+        end
+        assert_equal :matching_not_configured, feed_error.code
+
+        chat_error = assert_raises(CapabilityAccess::NotConfigured) do
+          CapabilityAccess.authorize!(contract:, capability: "chat.conversation")
+        end
+        assert_equal :messaging_not_configured, chat_error.code
+      end
+
+      test "Date9ja stays out of the production discovery strategy registry" do
+        brand = Brand.new(
+          slug: "date9ja", name: "Date9ja", auth_methods: %w[email_password phone_password]
+        )
+
+        assert_raises(Matching::StrategyRegistry::UnsupportedBrand) do
+          Matching::StrategyRegistry.fetch(brand:)
         end
       end
 

@@ -1,10 +1,16 @@
 # Parity Build Plan
 
-The program is dependency-ordered. No missing capability should be implemented as an isolated Date9ja fork.
+The program is dependency-ordered. `MASTER-PLAN.md` is the sole phase model and
+owns initiative gates; this document owns detailed capability ordering within
+those phases.
+No missing capability should be implemented as an isolated Date9ja fork.
+
+The current execution state is in `STATUS.md`. The capability matrix and
+acceptance journeys are mandatory inputs before a capability reaches `READY`.
 
 ## Wave A — shared platform foundations
 
-1. Provision `date9ja` as a first-class brand contract/catalog/policy.
+1. Provision `date9ja` as a first-class brand contract/catalog/policy: `Brands::Date9jaInstaller`, contract, provisioner/registry wiring, trusted host resolution, Nigerian location catalogue, and a non-sensitive profile catalogue skeleton. Test installer idempotency, host conflicts, brand resolution, tenant isolation, and capability gating. Sensitive fields remain excluded.
 2. Add a reusable external identity mapping mechanism and importer contract.
 3. Prove bcrypt hash compatibility; implement identifier/session transition and recovery.
 4. Complete Date9ja profile capabilities, controlled options, conditional completion, lifecycle, and privacy serialization.
@@ -39,7 +45,7 @@ Exit: extended dating signals and trust surfaces are available without legacy-on
 
 1. Shared Community domain: content, votes/RSVPs, media, reports, moderation, notifications.
 2. Shared Dating Hub/Engagement primitives: batches, contacts, notes, suggestions, persona, daily life.
-3. Shared AI assistant capability for Aunty Phobie with Date9ja personality, policy, provider isolation, usage accounting, and escalation.
+3. D8N AI shared runtime and assistant contract; Aunty Phobie is a Date9ja configuration/personality/policy consuming it. Provider egress, privacy, credentials, and safety must be specified first.
 4. Shared PAY/Entitlements plans, purchases, webhook idempotency, and limit enforcement.
 5. Any inventory capability discovered during implementation.
 

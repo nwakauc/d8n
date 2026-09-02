@@ -1,6 +1,6 @@
 # Date9ja → D8N Production Migration
 
-Phase 1 capability-parity audit and planning only. Audited 2026-09-02. No production database, application code, configuration, media objects, or migrations were changed.
+Phase 0 audit and Phase 1.0 control-plane documentation only. Audited/remediated 2026-09-02. No production database, application code, configuration, media objects, or migrations were changed.
 
 ## Executive decision
 
@@ -22,16 +22,33 @@ The source password hashes are expected to be directly reusable: Date9ja uses De
 - [CAPABILITY-PARITY.md](CAPABILITY-PARITY.md) — complete user-facing capability inventory and status matrix
 - [FEATURE-PARITY-ACCEPTANCE.md](FEATURE-PARITY-ACCEPTANCE.md) — user-journey cutover gates
 - [PARITY-BUILD-PLAN.md](PARITY-BUILD-PLAN.md) — shared-capability implementation waves
+- [MASTER-PLAN.md](MASTER-PLAN.md) — sole authoritative program phases and phase exit criteria
+- [STATUS.md](STATUS.md) — concise current execution truth
+- [DECISIONS.md](DECISIONS.md) — product owner, engineering, and mixed decision queue
+
+## Agent startup route
+
+1. Read repository `AGENTS.md` and `AGENT_RULES.md`.
+2. Read this README and [STATUS.md](STATUS.md).
+3. Read the relevant [MASTER-PLAN.md](MASTER-PLAN.md) phase.
+4. Read the relevant rows in [CAPABILITY-PARITY.md](CAPABILITY-PARITY.md), the matching acceptance journeys, and applicable architecture/ADR/domain documents.
+5. Check [DECISIONS.md](DECISIONS.md), then record capability ownership in `STATUS.md` before implementation.
+
+Shared workflow, lifecycle, handoff, quality, and documentation rules are in
+[`docs/engineering/AGENT-WORKFLOW.md`](../../engineering/AGENT-WORKFLOW.md),
+[`QUALITY-GATES.md`](../../engineering/QUALITY-GATES.md),
+[`HANDOFF-TEMPLATE.md`](../../engineering/HANDOFF-TEMPLATE.md), and
+[`DOCUMENTATION-POLICY.md`](../../engineering/DOCUMENTATION-POLICY.md).
 
 ## Non-negotiable gates
 
 1. Obtain an approved, access-controlled production snapshot and data dictionary; no importer should be designed from guessed live values.
-2. Approve mappings for sensitive fields (religion, ethnicity/tribe, genotype, precise location, verification evidence) and the retention policy for legacy-only product data.
+2. Approve mappings for sensitive fields (faith, ethnicity, tribe, genotype, denomination, preferred tribes, precise location, verification evidence) and retention treatment for any data not represented in the target.
 3. Add the `date9ja` brand installer/contract and every missing/partial shared capability required for retained Date9ja behavior before importer/cutover.
 4. Prove bcrypt compatibility and all relationship/media mappings in staging.
 5. Keep the legacy system intact and read-only-capable through the rollback period.
 
-The next implementation step requires review of the parity matrix and explicit decisions listed in the brand contract. No foundational application implementation was performed in this audit turn.
+The next implementation step is the exact Phase 1 slice named in `STATUS.md`; it must not begin until explicitly assigned. No parity capability implementation was performed in this control-plane remediation.
 
 ## Audit limitations
 

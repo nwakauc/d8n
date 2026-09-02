@@ -1651,6 +1651,11 @@ Acceptance criteria:
 
 ### Phase 11: Date9ja Migration And Second-Brand Proof
 
+The Date9ja-specific execution model is authoritative in
+`docs/migrations/date9ja-to-d8n/MASTER-PLAN.md` (Phases 0–10). This broader
+D8N roadmap item is context and acceptance intent only; it must not be used as
+a competing phase numbering scheme.
+
 Deliverables:
 
 - Date9ja legacy system inventory
