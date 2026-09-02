@@ -117,7 +117,7 @@ Every shipped/reachable Date9ja user-facing capability is inside the parity bar 
 | **Total** | **95** |
 
 Delta log: Profile video MISSING → PARTIAL (2026-09-02) — shared `media.profile_video.*` capability built (ADR 0023); owner CRUD + processing only; not PARITY until the importer, media reconciliation, and the acceptance journey pass.
-Delta log: Profile video public delivery wired (2026-09-02) — `Profiles::DetailSerializer` now exposes a `video` payload on `GET /api/v1/profiles/{id}` for brands that enable `profile.video` (Date9ja), re-authorized per read via `Profiles::VideoLibrary` + `Media::VideoPolicy` (ADR 0011). Still PARTIAL — legacy video importer, migrated-media reconciliation, sanitized snapshot, and the frontend/API + parity acceptance journeys remain.
+Delta log: Profile video public delivery wired (2026-09-02) — `Profiles::DetailSerializer` now exposes a `video` payload on `GET /api/v1/profiles/{id}` for brands that enable `profile.video` (Date9ja), re-authorized per read via `Profiles::VideoLibrary` + `Media::VideoPolicy` (ADR 0011). Codex-reviewed 2026-09-02 (VERIFIED) with a `ProfileVideo.brand_id == Profile.brand_id` defence-in-depth guard added. Still PARTIAL — legacy video importer, migrated-media reconciliation, sanitized snapshot, and the frontend/API + parity acceptance journeys remain (see `SNAPSHOT-RUNBOOK.md`).
 
 The detailed inventory and these counts are authoritative. Other migration documents must link here rather than copy totals. The normalization split independently migratable user capabilities and excludes founder/admin operations from the consumer scoreboard.
 

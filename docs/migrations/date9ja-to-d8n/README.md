@@ -18,6 +18,8 @@ The source password hashes are expected to be directly reusable: Date9ja uses De
 - [BRAND-CONTRACT.md](BRAND-CONTRACT.md) — proposed `date9ja` configuration and policy boundary
 - [API-COMPATIBILITY.md](API-COMPATIBILITY.md) — legacy frontend/API comparison and minimum client work
 - [RECONCILIATION.md](RECONCILIATION.md) — count, integrity, media, and idempotency checks
+- [SNAPSHOT-RUNBOOK.md](SNAPSHOT-RUNBOOK.md) — minimum sanitized snapshot / data dictionary needed to unblock the bcrypt proof and importer
+- [SANITIZATION-CONTRACT.md](SANITIZATION-CONTRACT.md) — per-column classification for `scripts/date9ja/sanitize_snapshot.sql` + `verify_sanitized_snapshot.sql`
 - [CUTOVER-RUNBOOK.md](CUTOVER-RUNBOOK.md) — staged cutover and rollback procedure
 - [CAPABILITY-PARITY.md](CAPABILITY-PARITY.md) — complete user-facing capability inventory and status matrix
 - [FEATURE-PARITY-ACCEPTANCE.md](FEATURE-PARITY-ACCEPTANCE.md) — user-journey cutover gates

@@ -33,7 +33,7 @@ Product owner resolved: retain profile video, verification, trust/reputation, an
 | # | Slice / unit | Kind | State |
 |---|---|---|---|
 | 5 | **Profile video as a shared D8N Media capability** — `ProfileVideo` + `profile_videos` table, `media.profile_video.*` + `profile.video` capabilities, `BrandContract::VideoConfiguration`, `Media::VideoPolicy`, `Profiles::VideoUpload`, `Media::ProcessProfileVideoJob` (reuses `Media::VideoProcessor`), `Profiles::VideoLibrary`, `Api::V1::ProfileVideosController` (+ 4 routes + OpenAPI). Date9ja enabled; HookUs/DateZA unaffected. | ADR 0023 + implementation | VERIFIED |
-| 6 | **Profile video public delivery** — `Profiles::DetailSerializer` exposes a re-authorized `video` payload on `GET /api/v1/profiles/{id}` for brands enabling `profile.video` (Date9ja only); `Profile#profile_video` (kept-scoped `has_one`), `PublicProfile` preloads the playback/poster blobs, OpenAPI `PublicProfileVideo` schema. Delivery eligibility rechecked per read (ADR 0011) via `VideoLibrary.public_payload` + `Media::VideoPolicy`. HookUs/DateZA responses carry no `video` key. | implementation | SELF_VERIFIED |
+| 6 | **Profile video public delivery** — `Profiles::DetailSerializer` exposes a re-authorized `video` payload on `GET /api/v1/profiles/{id}` for brands enabling `profile.video` (Date9ja only); `Profile#profile_video` (kept-scoped `has_one`), `PublicProfile` preloads the playback/poster blobs, OpenAPI `PublicProfileVideo` schema. Delivery eligibility rechecked per read (ADR 0011) via `VideoLibrary.public_payload` + `Media::VideoPolicy`. HookUs/DateZA responses carry no `video` key. | implementation | VERIFIED |
 | — | **ADR 0023** — profile video as shared Media capability | ADR | **Accepted** |
 | — | **ADR 0024** — shared verification-evidence architecture | ADR | **Accepted** (implementation gated) |
 | — | **ADR 0025** — Trust ledger / derived reputation | ADR | **Accepted** (implementation gated) |
@@ -45,6 +45,10 @@ Review amendments (batch 3), applied:
 - **Structural validation + duration enforcement moved to the async job** (whole object), matching `MessageAttachmentUpload`; attach does a cheap `ftyp` sniff + size bound only. A file that fails ends at `processing_state: failed`.
 - Small fix: `lib/load_testing/synthetic_dataset.rb#cleanup!` now deletes `AnalyticsEvent` rows before profiles/users (was producing FK-violation flakiness in broad test runs); regression test added.
 
+Slice 6 review (Codex, 2026-09-02): **ACCEPT WITH SMALL FIXES → VERIFIED.** Defence-in-depth fix applied: `Profiles::DetailSerializer#video_section` now requires the resolved `ProfileVideo.brand_id` to equal `Profile.brand_id` before serializing (`test/models/profiles_detail_serializer_video_test.rb` "a video with a mismatched brand is never delivered"). Profile video stays **PARTIAL**. Do not revisit slice 6 unless later integration requires it.
+
+Post-batch-3 infrastructure check (2026-09-02): the SyntheticDataset cleanup FK-ordering bug is **already fixed and covered** — `AnalyticsEvent` (added by commit `4d70392`, restricting FKs to `profiles`/`users`/`sessions`) is deleted first in `cleanup!`, sessions after it in `delete_identity_activity!`; `synthetic_dataset_test.rb` asserts `AnalyticsEvent.where(user_id:).count == 0` after cleanup and the test is green (3 runs, 41 assertions). No new restricting FK to `users`/`profiles`/`sessions` in the recent Product Intelligence work is left unhandled. Nothing to do here. The two broad-suite failures seen in the slice-6 run (DateZA welcome-email `href=` assertion; `LocationSearchControllerTest` rate-limit parallel flake, passes in isolation) are unrelated and pre-existing.
+
 ### Still gated (not started)
 
 - **Verification / Trust / Entitlements**: architecture accepted (ADRs 0024–0026); implementation waits on the ADR 0011 human gates and the `DECISIONS.md` "Mixed" rows (evidence retention + provider + portability; user-visible trust presentation).
@@ -54,7 +58,63 @@ Review amendments (batch 3), applied:
 
 Profile video remains **PARTIAL** — public delivery wiring done; full parity still needs the legacy video importer, migrated-media reconciliation, the sanitized snapshot, and the frontend/API + parity acceptance journeys. Not `PARITY_ACCEPTED`.
 
-Next action: consolidated Codex review of slice 6, then the legacy profile-photo/video importer once the sanitized snapshot lands; otherwise the Verification/Trust/Entitlement work stays gated on the `DECISIONS.md` "Mixed" rows.
+### Phase 1 unblocked-work assessment (2026-09-02)
+
+After slice 6 was verified, every remaining Phase 1 implementation path was
+re-checked against `MASTER-PLAN.md`, `PARITY-BUILD-PLAN.md`, `DECISIONS.md`, and
+`CAPABILITY-PARITY.md`:
+
+| Wave A slice | Status | Gated on |
+|---|---|---|
+| 1 brand provisioning | done | — |
+| 2 legacy reference mechanism | done | — |
+| 3 bcrypt / session transition | **blocked** | sanitized snapshot (see `SNAPSHOT-RUNBOOK.md`) |
+| 4 complete Date9ja profile capabilities / conditional completion / privacy serialization | **blocked** | sensitive-field product rows (tribe/ethnicity/denomination/genotype/preferred tribes) + which fields are required for completion — all "Awaiting Uchechi" in `DECISIONS.md` |
+| 5 shared media / profile-video — owner CRUD + public delivery | done | importer sub-slice blocked on snapshot |
+| 6 verification & trust records/status history | **blocked** | `DECISIONS.md` "Mixed" rows: evidence retention + provider + portability; user-visible trust presentation |
+| 7 PAY / Entitlements primitives | **blocked** | `DECISIONS.md` "Mixed" row: which founding/premium access is retained |
+
+No Phase 1 implementation slice is currently unblocked. Isolated-fork work on
+Date9ja discovery/profile catalog is not safe to start because it depends on
+Date9ja ranking/location semantics and sensitive-field decisions that are product
+calls, not engineering defaults.
+
+Next action: Uchechi produces the sanitized snapshot per
+[`SNAPSHOT-RUNBOOK.md`](SNAPSHOT-RUNBOOK.md) **and/or** resolves the `DECISIONS.md`
+rows in §9 of that runbook. Then the next batch is Wave A slice 3 (bcrypt proof) →
+photo/video importer (first `Migration::ReferenceMap` consumers) → reconciliation
+harness. Verification/Trust/Entitlement implementation stays gated regardless of
+the snapshot.
+
+### Snapshot sanitizer artifacts (2026-09-XX)
+
+| Unit | Kind | State |
+|---|---|---|
+| **Sanitized-snapshot sanitizer** — `scripts/date9ja/sanitize_snapshot.sql` (deterministic, guarded, fail-closed in-place transform), `scripts/date9ja/verify_sanitized_snapshot.sql` (fail-closed verifier), `SANITIZATION-CONTRACT.md` (all 51 tables / 574 columns classified). Schema-fingerprint guard (`a317e7…`), 51-table guard, idempotency guard, `date9ja_snapshot_tmp` refusal, ack-token gate. | migration infrastructure | VERIFIED (independent review 2026-09-XX) — **SAFE TO EXECUTE AFTER SMALL FIXES**, fixes applied in review |
+
+Independent review outcome: **B — SAFE TO EXECUTE AFTER SMALL FIXES**; the small
+fixes were applied during review and re-verified. Changes made in review:
+coordinates dropped to NULL (was 1-dp round, R6); sensitive religious/ethnic/tribal
+attributes (`tribe`, `denomination`, `state_of_origin`, `nationality`, `religion`,
+`ethnicity`, `intertribal_marriage_openness`, `polygamy_openness`, `is_nigerian`)
+dropped to NULL (was hashed-bucket / PRESERVE, R1); `notification_preferences` /
+`email_notification_preferences` reduced to boolean-valued entries only (was
+PRESERVE, R4); `career_jobs` long free-text redacted (R5);
+`daily_life_entries.mood`/`focus_tag` and `company_journal_entries.title`
+redacted; verifier redaction/pseudonymisation coverage widened to ~40 more
+columns + a non-boolean-preference assertion + coordinate-null assertion.
+R2 / R3 / R7 accepted as-is (stay destroyed/emptied — no current test justifies
+richer treatment; a later gated importer needs its own approved extract).
+
+Self- and adversarial verification: loaded the operator's safe schema-only
+artifact into throwaway local PG DBs (never the snapshot DBs — separate isolated
+PG17 instance, untouched), confirmed the embedded column fingerprint matches a
+real `information_schema` build, ran sanitizer + verifier against synthetic
+fixtures of realistic-looking PII (incl. array/scalar/mixed notification-pref
+JSON) — clean pass — and confirmed every guard and every added verifier assertion
+fires on tampered data. **Sanitizer NOT executed against any real snapshot. No
+production access.**
+Awaiting independent Codex review before the operator runs it.
 
 ## Slice 1 scope delivered
 
