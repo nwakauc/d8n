@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -410,6 +410,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.index ["user_id"], name: "index_identity_identifiers_on_user_id"
   end
 
+  create_table "legacy_references", force: :cascade do |t|
+    t.bigint "brand_id"
+    t.datetime "created_at", null: false
+    t.bigint "destination_id", null: false
+    t.string "destination_type", null: false
+    t.string "importer_version", null: false
+    t.string "source_entity", null: false
+    t.string "source_fingerprint"
+    t.string "source_id", null: false
+    t.string "source_system", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id"], name: "index_legacy_references_on_brand_id"
+    t.index ["source_system", "destination_type", "destination_id"], name: "idx_legacy_references_destination_key", unique: true
+    t.index ["source_system", "source_entity", "source_id"], name: "idx_legacy_references_source_key", unique: true
+    t.index ["source_system", "source_entity"], name: "idx_legacy_references_source_scan"
+  end
+
   create_table "likes", force: :cascade do |t|
     t.bigint "brand_id", null: false
     t.datetime "created_at", null: false
@@ -660,7 +677,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.check_constraint "accuracy_meters >= 0 AND accuracy_meters <= 100000", name: "chk_profile_locations_accuracy"
     t.check_constraint "latitude >= '-90'::integer::numeric AND latitude <= 90::numeric", name: "chk_profile_locations_latitude"
     t.check_constraint "longitude >= '-180'::integer::numeric AND longitude <= 180::numeric", name: "chk_profile_locations_longitude"
-    t.check_constraint "source::text = ANY (ARRAY['device'::character varying::text, 'manual'::character varying::text, 'imported'::character varying::text, 'place'::character varying::text])", name: "chk_profile_locations_source"
+    t.check_constraint "source::text = ANY (ARRAY['device'::character varying, 'manual'::character varying, 'imported'::character varying, 'place'::character varying]::text[])", name: "chk_profile_locations_source"
   end
 
   create_table "profile_openers", force: :cascade do |t|
@@ -825,6 +842,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.index ["brand_id"], name: "index_profile_prompts_on_brand_id"
     t.index ["id", "brand_id"], name: "idx_profile_prompts_on_id_brand", unique: true
     t.check_constraint "\"position\" >= 0", name: "chk_profile_prompts_position"
+  end
+
+  create_table "profile_videos", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.bigint "deleted_by_id"
+    t.string "deletion_reason"
+    t.integer "duration_seconds"
+    t.datetime "processed_at"
+    t.integer "processing_state", default: 0, null: false
+    t.bigint "profile_id", null: false
+    t.string "public_id", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.integer "visibility", default: 0, null: false
+    t.index ["brand_id"], name: "index_profile_videos_on_brand_id"
+    t.index ["profile_id"], name: "idx_profile_videos_one_per_profile", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["public_id"], name: "index_profile_videos_on_public_id", unique: true
+    t.index ["user_id"], name: "index_profile_videos_on_user_id"
   end
 
   create_table "profiles", force: :cascade do |t|
@@ -1025,6 +1063,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
   add_foreign_key "hooks", "profiles", column: ["recipient_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_recipient_tenant"
   add_foreign_key "hooks", "profiles", column: ["sender_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_sender_tenant"
   add_foreign_key "identity_identifiers", "users"
+  add_foreign_key "legacy_references", "brands"
   add_foreign_key "likes", "brands"
   add_foreign_key "likes", "profiles", column: ["liked_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_likes_liked_profile_tenant"
   add_foreign_key "likes", "profiles", column: ["liker_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_likes_liker_profile_tenant"
@@ -1094,6 +1133,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
   add_foreign_key "profile_prompt_answers", "profile_prompts", column: ["profile_prompt_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_prompt_answers_prompt_tenant"
   add_foreign_key "profile_prompt_answers", "profiles", column: ["profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_prompt_answers_profile_tenant"
   add_foreign_key "profile_prompts", "brands"
+  add_foreign_key "profile_videos", "brands"
+  add_foreign_key "profile_videos", "profiles"
+  add_foreign_key "profile_videos", "users"
   add_foreign_key "profiles", "brand_memberships"
   add_foreign_key "profiles", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_profiles_membership_tenant"
   add_foreign_key "profiles", "brands"

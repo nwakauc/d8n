@@ -38,7 +38,7 @@ Every shipped/reachable Date9ja user-facing capability is inside the parity bar 
 | Profile prompts/about | Persona/about/ideal partner and prompts | Generic prompts, no Date9ja catalog | PARTIAL | Profiles | Yes | Yes | Yes | Yes |
 | Profile visibility/publication | `profile_hidden`, moderation and confirmation rules | Profile publication/visibility policy | DIFFERENT SEMANTICS | Profiles/Trust | Yes | Yes | Yes | Yes |
 | Profile photos | Six photos, primary/order, moderation | Profile photos, processing, visibility | PARTIAL | Media | Yes | Yes | Yes | Yes |
-| Profile video | Upload/update/delete and moderation | No profile-video capability | MISSING | Media | Yes | Yes | Yes | Yes |
+| Profile video | Upload/update/delete and moderation | Shared `media.profile_video.*` capability; owner CRUD + processing + **public delivery on profile detail** (ADR 0023, ADR 0011 delivery recheck); legacy importer + media reconciliation pending | PARTIAL | Media | Yes | Yes | Yes | Yes |
 | Profile location | Stored coordinates/city and discovery distance | Private profile location/place model | DIFFERENT SEMANTICS | Profiles/Discovery | Yes | Yes | Yes | Yes |
 | Search | Filtered `/search` endpoint | DateZA/Find/discovery surfaces differ | DIFFERENT SEMANTICS | Discovery | Yes | No | Yes | Yes |
 | Discovery/daily picks | Daily picks, explore, impressions, limits | D8N discovery/find allocations | PARTIAL | Discovery | Yes | Maybe | Yes | Yes |
@@ -109,12 +109,15 @@ Every shipped/reachable Date9ja user-facing capability is inside the parity bar 
 | Status | Count |
 |---|---:|
 | PARITY | 1 |
-| PARTIAL | 41 |
-| MISSING | 41 |
+| PARTIAL | 42 |
+| MISSING | 40 |
 | DIFFERENT SEMANTICS | 11 |
 | LEGACY/UNUSED | 0 |
 | NEEDS PRODUCT DECISION | 1 |
 | **Total** | **95** |
+
+Delta log: Profile video MISSING → PARTIAL (2026-09-02) — shared `media.profile_video.*` capability built (ADR 0023); owner CRUD + processing only; not PARITY until the importer, media reconciliation, and the acceptance journey pass.
+Delta log: Profile video public delivery wired (2026-09-02) — `Profiles::DetailSerializer` now exposes a `video` payload on `GET /api/v1/profiles/{id}` for brands that enable `profile.video` (Date9ja), re-authorized per read via `Profiles::VideoLibrary` + `Media::VideoPolicy` (ADR 0011). Still PARTIAL — legacy video importer, migrated-media reconciliation, sanitized snapshot, and the frontend/API + parity acceptance journeys remain.
 
 The detailed inventory and these counts are authoritative. Other migration documents must link here rather than copy totals. The normalization split independently migratable user capabilities and excludes founder/admin operations from the consumer scoreboard.
 

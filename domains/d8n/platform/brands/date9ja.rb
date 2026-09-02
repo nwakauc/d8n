@@ -18,9 +18,10 @@ module D8n
       #   * verify.identity.* / trust.reputation — verification and Trust XP
       #     architecture decisions are open.
       #
-      # Fields blocked by DECISIONS.md are left conservative, not invented:
-      #   * photo publication policy is unresolved -> moderate-first (a new photo
-      #     stays hidden until moderation), matching Media::PhotoPolicy's default.
+      # Fields blocked by DECISIONS.md are left conservative, not invented. The
+      # legacy Date9ja API exposes pending photos and removes rejected photos;
+      # use D8N's immediate visibility state to preserve that behavior until a
+      # product decision explicitly changes it.
       #   * verification prerequisites are unresolved -> no interaction
       #     verification requirement.
       module Date9ja
@@ -49,6 +50,7 @@ module D8n
           profile.location
           profile.location.place_selection
           profile.photos
+          profile.video
           profile.completion
           profile.publication
           profile.visibility
@@ -63,6 +65,12 @@ module D8n
           media.profile_photo.deliver
           media.profile_photo.delete
           media.profile_photo.moderation
+          media.profile_video.upload
+          media.profile_video.attach
+          media.profile_video.process
+          media.profile_video.deliver
+          media.profile_video.delete
+          media.profile_video.moderation
           notify.event
           notify.inbox
           notify.email
@@ -93,10 +101,18 @@ module D8n
             ),
             media: BrandContract::MediaConfiguration.new(
               photo_policy: Media::PhotoPolicy,
-              # Blocked by the "Approved photo publication" decision in
-              # DECISIONS.md — stay moderate-first until product decides.
-              initial_visibility: :moderate_first,
-              max_profile_photos: 6
+              # Preserve Date9ja's current pending-visible/rejected-hidden
+              # behavior. This is not a new moderation policy.
+              initial_visibility: :immediate,
+              max_profile_photos: 6,
+              # ADR 0023 — profile introduction video. Legacy Date9ja limits:
+              # <= 60s, <= 50MB, pending-visible/rejected-excluded.
+              video: BrandContract::VideoConfiguration.new(
+                policy: Media::VideoPolicy,
+                initial_visibility: :immediate,
+                max_duration_seconds: 60,
+                max_byte_size: 50.megabytes
+              )
             ),
             notifications: BrandContract::NotificationConfiguration.new(
               event_plans: {

@@ -7,6 +7,10 @@ class Profile < ApplicationRecord
   belongs_to :brand_membership
 
   has_one :profile_preference, dependent: :restrict_with_exception
+  # The single live introduction video (ADR 0023). Scoped to kept rows so it
+  # mirrors the one-per-profile partial unique index; soft-deleted videos are
+  # invisible here and handled by Profiles::VideoLibrary.
+  has_one :profile_video, -> { where(deleted_at: nil) }, dependent: :restrict_with_exception
   has_many :profile_photos, dependent: :restrict_with_exception
   has_many :profile_option_selections, dependent: :restrict_with_exception
   has_many :selected_profile_options, through: :profile_option_selections, source: :profile_option

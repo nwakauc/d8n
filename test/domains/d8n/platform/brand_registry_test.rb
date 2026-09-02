@@ -119,8 +119,28 @@ module D8n
         assert_empty contract.discovery_surfaces
         assert_nil contract.opener
         assert_nil contract.interaction.verification_requirement
-        assert_equal :moderate_first, contract.media.initial_visibility
+        assert_equal :immediate, contract.media.initial_visibility
         assert_equal Matching::EligibilityPolicy::PERSISTENT_LOCATION, contract.interaction.eligibility_policy
+      end
+
+      test "Date9ja enables profile video with its legacy-compatible media policy" do
+        contract = BrandRegistry.fetch(brand: Brand.new(slug: "date9ja", name: "Date9ja"))
+
+        assert contract.capability_enabled?("profile.video")
+        assert contract.capability_enabled?("media.profile_video.upload")
+        assert contract.capability_enabled?("media.profile_video.deliver")
+        video = contract.media.video
+        assert_equal :immediate, video.initial_visibility
+        assert_equal 60, video.max_duration_seconds
+        assert_equal 50.megabytes, video.max_byte_size
+      end
+
+      test "HookUs and DateZA do not enable profile video" do
+        %w[hookus dateza].each do |slug|
+          contract = BrandRegistry.fetch(brand: Brand.new(slug:, name: slug))
+          assert_nil contract.media.video, "#{slug} must not carry a video configuration"
+          assert_not contract.capability_enabled?("profile.video"), "#{slug} must not enable profile.video"
+        end
       end
 
       test "Date9ja capability access fails closed with stable configured errors" do

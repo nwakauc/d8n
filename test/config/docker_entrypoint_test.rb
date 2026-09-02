@@ -5,21 +5,48 @@ require "tmpdir"
 
 class DockerEntrypointTest < ActiveSupport::TestCase
   test "boots the rails server with DATEZA_API_HOST invokes brands:install_dateza before serving" do
-    invocations = run_entrypoint(["./bin/rails", "server"], "DATEZA_API_HOST" => "dateza-api.d8n.tech")
+    invocations = run_entrypoint([ "./bin/rails", "server" ], "DATEZA_API_HOST" => "dateza-api.d8n.tech")
 
-    assert_equal ["db:prepare", "brands:install_dateza", "server"], invocations
+    assert_equal [ "db:prepare", "brands:install_dateza", "server" ], invocations
   end
 
   test "boots the rails server without DATEZA_API_HOST does not touch brand provisioning" do
-    invocations = run_entrypoint(["./bin/rails", "server"], "DATEZA_API_HOST" => nil)
+    invocations = run_entrypoint([ "./bin/rails", "server" ], "DATEZA_API_HOST" => nil)
 
-    assert_equal ["db:prepare", "server"], invocations
+    assert_equal [ "db:prepare", "server" ], invocations
   end
 
   test "boots the Solid Queue worker never invokes brands:install_dateza" do
-    invocations = run_entrypoint(["bin/jobs"], "DATEZA_API_HOST" => "dateza-api.d8n.tech")
+    invocations = run_entrypoint([ "bin/jobs" ], "DATEZA_API_HOST" => "dateza-api.d8n.tech")
 
-    assert_equal ["db:prepare"], invocations
+    assert_equal [ "db:prepare" ], invocations
+  end
+
+  test "boots the rails server with DATE9JA_API_HOST invokes brands:install_date9ja before serving" do
+    invocations = run_entrypoint([ "./bin/rails", "server" ], "DATE9JA_API_HOST" => "date9ja-api.d8n.tech")
+
+    assert_equal [ "db:prepare", "brands:install_date9ja", "server" ], invocations
+  end
+
+  test "boots the rails server with both brand hosts provisions both before serving" do
+    invocations = run_entrypoint(
+      [ "./bin/rails", "server" ],
+      "DATEZA_API_HOST" => "dateza-api.d8n.tech", "DATE9JA_API_HOST" => "date9ja-api.d8n.tech"
+    )
+
+    assert_equal [ "db:prepare", "brands:install_dateza", "brands:install_date9ja", "server" ], invocations
+  end
+
+  test "boots the rails server without DATE9JA_API_HOST does not touch Date9ja provisioning" do
+    invocations = run_entrypoint([ "./bin/rails", "server" ], "DATE9JA_API_HOST" => nil)
+
+    assert_equal [ "db:prepare", "server" ], invocations
+  end
+
+  test "boots the Solid Queue worker never invokes brands:install_date9ja" do
+    invocations = run_entrypoint([ "bin/jobs" ], "DATE9JA_API_HOST" => "date9ja-api.d8n.tech")
+
+    assert_equal [ "db:prepare" ], invocations
   end
 
   private

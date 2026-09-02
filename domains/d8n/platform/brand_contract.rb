@@ -9,7 +9,14 @@ module D8n
         end
       end
       InteractionConfiguration = Data.define(:eligibility_policy, :compatibility_strategy, :verification_requirement)
-      MediaConfiguration = Data.define(:photo_policy, :initial_visibility, :max_profile_photos)
+      # Optional profile-video policy (ADR 0023). Absent (`video: nil`) means the
+      # brand does not offer profile video.
+      VideoConfiguration = Data.define(:policy, :initial_visibility, :max_duration_seconds, :max_byte_size)
+      MediaConfiguration = Data.define(:photo_policy, :initial_visibility, :max_profile_photos, :video) do
+        def initialize(photo_policy:, initial_visibility:, max_profile_photos:, video: nil)
+          super
+        end
+      end
       # D8N Opener: a brand's one-shot-opener-then-reply-unlocks-chat policy
       # (implemented by Hooks::SendHook et al. — see Hook/ProfileOpener). Nil for
       # a brand that doesn't enable match.hook/match.opener at all.
@@ -139,6 +146,19 @@ module D8n
         unless media.photo_policy.respond_to?(:initial_state) && media.photo_policy.respond_to?(:max_count) &&
             media.max_profile_photos.is_a?(Integer) && media.max_profile_photos.positive?
           raise ArgumentError, "valid media photo policy and maximum are required"
+        end
+        if media.video
+          unless media.video.is_a?(VideoConfiguration) &&
+              media.video.policy.respond_to?(:initial_state) &&
+              media.video.max_duration_seconds.is_a?(Integer) && media.video.max_duration_seconds.positive? &&
+              media.video.max_byte_size.is_a?(Integer) && media.video.max_byte_size.positive?
+            raise ArgumentError, "valid media video configuration is required"
+          end
+          unless capability_enabled?("profile.video") && capability_enabled?("media.profile_video.upload")
+            raise ArgumentError, "profile video configuration requires the profile.video capability"
+          end
+        elsif capability_enabled?("profile.video")
+          raise ArgumentError, "profile.video capability requires a media video configuration"
         end
         unless notifications.is_a?(NotificationConfiguration)
           raise ArgumentError, "notification configuration is required"

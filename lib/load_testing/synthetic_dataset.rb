@@ -135,6 +135,12 @@ module LoadTesting
       ensure_no_synthetic_media!(profile_ids)
 
       ApplicationRecord.transaction do
+        # Analytics events reference profiles, users and sessions with restricting
+        # foreign keys, so they must go before any of those rows (create_activity!
+        # emits them via Matching/Messaging). delete_all, not destroy_all — the
+        # model is append-only and raises on #destroy.
+        AnalyticsEvent.where(user_id: user_ids)
+          .or(AnalyticsEvent.where(profile_id: profile_ids)).delete_all
         delete_relationships!(profile_ids)
         delete_identity_activity!(user_ids:, credential_ids:, identifier_ids:)
         ProfileOptionSelection.where(profile_id: profile_ids).delete_all

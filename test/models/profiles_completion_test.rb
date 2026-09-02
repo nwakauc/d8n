@@ -88,8 +88,10 @@ module Profiles
     end
 
     test "a hidden pending photo on a moderate-first brand satisfies onboarding completion but remains non-deliverable" do
+      # A brand with no registered contract fails closed to moderate-first
+      # (date9ja now uses an explicit immediate policy — see Media::PhotoPolicy).
       brand = Brand.create!(
-        slug: "date9ja", name: "Date9ja",
+        slug: "unregistered-brand", name: "Unregistered",
         profile_requirements: { profile_fields: [], preference_fields: [], collections: %w[ photos ] }
       )
       user = User.create!

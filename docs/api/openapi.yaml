@@ -975,7 +975,7 @@ paths:
         "403":
           $ref: "#/components/responses/ProfileOrMembershipRequired"
         "422":
-          $ref: "#/components/responses/ValidationFailed"
+          $ref: "#/components/responses/PreferenceValidationFailed"
   /api/v1/profile/options:
     patch:
       operationId: replaceProfileOptions
@@ -1525,6 +1525,142 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/profile/video:
+    get:
+      operationId: getProfileVideo
+      tags: [Profile]
+      summary: Get the current profile's introduction video
+      description: |
+        Returns the single profile introduction video for the current brand
+        profile, or `video: null` when none exists. Available only on brands
+        whose contract enables `profile.video` (otherwise `404`). The owner sees
+        moderation/processing state and short-lived signed URLs for the safe
+        poster and playback renditions — never the raw upload.
+      responses:
+        "200":
+          description: Owner profile video state (or null).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [video]
+                properties:
+                  video:
+                    oneOf:
+                      - $ref: "#/components/schemas/OwnerProfileVideo"
+                      - type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: attachProfileVideo
+      tags: [Profile]
+      summary: Attach an uploaded introduction video
+      description: |
+        Data-plane completion of the direct-to-R2 upload. Submit the `signed_id`
+        returned by `POST /api/v1/profile/video/uploads` after the bytes are
+        `PUT`. D8N confirms the real object is an ISO-BMFF (MP4/MOV) container
+        within the size limit and attaches it as the one profile video
+        (`pending_review`, `processing_state: pending`). Full structural
+        validation, codec check and the brand duration limit run
+        asynchronously — a file that fails any of them ends at
+        `processing_state: failed`; poll `GET /api/v1/profile/video`. A second
+        attach while a video already exists returns `video_already_exists`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signed_id]
+              properties:
+                signed_id:
+                  type: string
+      responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "201":
+          description: Attached owner profile video record.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [video]
+                properties:
+                  video:
+                    $ref: "#/components/schemas/OwnerProfileVideo"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+    delete:
+      operationId: deleteProfileVideo
+      tags: [Profile]
+      summary: Remove the current profile's introduction video
+      responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "204":
+          description: Video removed from every surface; storage purge runs async.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/profile/video/uploads:
+    post:
+      operationId: createProfileVideoUpload
+      tags: [Profile]
+      summary: Request a direct-to-R2 introduction-video upload authorization
+      description: |
+        Control-plane first step, mirroring `POST /api/v1/profile/photos/uploads`.
+        Declare `content_type`, `byte_size`, and base64 MD5 `checksum`. D8N
+        allocates the object key and returns a short-lived presigned `PUT`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content_type, byte_size, checksum]
+              properties:
+                content_type:
+                  type: string
+                  enum: [video/mp4, video/quicktime]
+                byte_size:
+                  type: integer
+                  minimum: 1
+                  description: Exact byte size of the file to upload (brand-configured max, 50 MB for Date9ja).
+                checksum:
+                  type: string
+                  description: Base64-encoded MD5 digest of the file bytes.
+                filename:
+                  type: string
+      responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "201":
+          description: Short-lived upload authorization.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [upload]
+                properties:
+                  upload:
+                    $ref: "#/components/schemas/ProfileVideoUpload"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ProfileOrMembershipRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
   /api/v1/discovery:
     get:
       operationId: getDiscovery
@@ -4559,6 +4695,17 @@ components:
             oneOf:
               - $ref: "#/components/schemas/ValidationError"
               - $ref: "#/components/schemas/InvalidProfileFields"
+    PreferenceValidationFailed:
+      description: >-
+        Preference values failed validation (`invalid_preferences`), or the
+        request submitted known D8N preference fields that the resolved brand
+        has not enabled (`invalid_preference_fields`).
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/ValidationError"
+              - $ref: "#/components/schemas/InvalidPreferenceFields"
     NotFound:
       description: Resource is unavailable, including cross-brand resources.
       content:
@@ -4928,6 +5075,22 @@ components:
           properties:
             error:
               const: invalid_profile_fields
+            details:
+              type: object
+              required: [fields]
+              properties:
+                fields:
+                  type: array
+                  items:
+                    type: string
+    InvalidPreferenceFields:
+      allOf:
+        - $ref: "#/components/schemas/ErrorResponse"
+        - type: object
+          required: [details]
+          properties:
+            error:
+              const: invalid_preference_fields
             details:
               type: object
               required: [fields]
@@ -6047,6 +6210,39 @@ components:
               $ref: "#/components/schemas/ContactVerification"
             compatibility:
               $ref: "#/components/schemas/DatezaCompatibility"
+            video:
+              description: >-
+                The member's introduction video (ADR 0023). Present only for
+                brands that enable the shared profile-video capability
+                (Date9ja); omitted entirely for brands that do not (DateZA,
+                HookUs). `null` when the member has no video or the video is not
+                currently deliverable — deleted, still/failed processing,
+                hidden, or no longer publication-eligible. Delivery eligibility
+                is re-evaluated on every read.
+              oneOf:
+                - type: "null"
+                - $ref: "#/components/schemas/PublicProfileVideo"
+    PublicProfileVideo:
+      type: object
+      description: >-
+        Safe, viewer-facing representation of a deliverable introduction video.
+        Only D8N-generated derivatives are exposed, via short-lived signed URLs
+        — never the raw upload, its object key, or a permanent URL. Moderation
+        and processing internals are not disclosed.
+      required: [id, playback_url]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Stable opaque video id (the reference a viewer uses to report it).
+        duration_seconds:
+          type: [integer, "null"]
+        poster_url:
+          type: [string, "null"]
+          description: Short-lived signed URL for the safe poster frame.
+        playback_url:
+          type: string
+          description: Short-lived signed URL for the safe playback rendition.
     ProfileDetailResponse:
       type: object
       required: [profile]
@@ -6055,6 +6251,12 @@ components:
           $ref: "#/components/schemas/ProfileDetail"
     ProfilePreferencesUpdate:
       type: object
+      description: >-
+        Only the preference fields the resolved brand enables are accepted and
+        returned; the same brand configuration `GET /api/v1/profile/config`
+        advertises via `GET /api/v1/profile/configuration`. Submitting a known
+        preference field the brand has not enabled returns
+        `invalid_preference_fields` (422).
       properties:
         min_age:
           type: [integer, "null"]
@@ -6276,6 +6478,52 @@ components:
           type: array
           items:
             type: string
+    ProfileVideoUpload:
+      type: object
+      required: [signed_id, url, headers, expires_in, byte_size_limit, max_duration_seconds, allowed_content_types]
+      properties:
+        signed_id:
+          type: string
+        url:
+          type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        expires_in:
+          type: integer
+        byte_size_limit:
+          type: integer
+        max_duration_seconds:
+          type: integer
+        allowed_content_types:
+          type: array
+          items:
+            type: string
+    OwnerProfileVideo:
+      type: object
+      required: [id, status, visibility, processing_state]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending_review, approved, rejected]
+        visibility:
+          type: string
+          enum: [hidden, visible]
+        processing_state:
+          type: string
+          enum: [pending, processing, ready, failed]
+        duration_seconds:
+          type: [integer, "null"]
+        poster_url:
+          type: [string, "null"]
+          description: Short-lived signed URL for the safe poster frame; null until processing completes.
+        playback_url:
+          type: [string, "null"]
+          description: Short-lived signed URL for the safe playback rendition; null until processing completes.
     ProfileConfigurationResponse:
       type: object
       required: [configuration, onboarding]

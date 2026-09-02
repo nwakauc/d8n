@@ -23,6 +23,8 @@ module D8n
             implementations: %w[Place Profiles::CurrentPlace]),
           CapabilityDefinition.new(key: "profile.photos", status: :available,
             implementations: %w[Profiles::PhotoLibrary Profiles::PhotoUpload]),
+          CapabilityDefinition.new(key: "profile.video", status: :available,
+            implementations: %w[Profiles::VideoLibrary Profiles::VideoUpload ProfileVideo]),
           CapabilityDefinition.new(key: "profile.completion", status: :available,
             implementations: %w[Profiles::Completion]),
           CapabilityDefinition.new(key: "profile.publication", status: :available,

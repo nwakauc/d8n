@@ -12,7 +12,7 @@ Required decisions: retention/option mapping for tribe, ethnicity, genotype, den
 
 This follows the architecture already used by HookUs and DateZA: one installer, one catalog/contract, shared D8N services, no scattered brand branches.
 
-## Implementation status (Phase 1, Wave A slice 1 — SELF_VERIFIED)
+## Implementation status (Phase 1, Wave A slice 1 — VERIFIED)
 
 Foundation implemented:
 
@@ -25,7 +25,7 @@ Age requirement: no brand-level primitive exists; the platform-wide `Profile::MI
 
 Deliberately deferred / left gated in the contract:
 
-- Photo publication: `initial_visibility: :moderate_first` (conservative default) pending the "Approved photo publication" decision.
+- Photo publication: `initial_visibility: :immediate` to preserve the legacy Date9ja behavior that pending photos are visible and rejected photos are excluded; any future policy change requires product approval.
 - Interaction `verification_requirement: nil` pending the verification-gates decision.
 - No discovery surface, matching strategy, messaging, or opener capability — these need the discovery/profile-write remediation slices and Date9ja product semantics.
 - Sensitive fields (faith/religion, ethnicity, tribe, denomination, preferred tribes, genotype) are not modelled anywhere.

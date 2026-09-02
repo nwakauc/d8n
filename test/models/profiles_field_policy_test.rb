@@ -31,6 +31,29 @@ module Profiles
 
       assert_equal Configuration::PROFILE_FIELD_LABELS.keys, policy.enabled_profile_fields
       assert_nothing_raised { policy.validate_profile_write!(%w[pronouns body_type unknown]) }
+      # HookUs has no explicit enabled_preference_fields -> broad contract retained.
+      assert_equal Configuration::PREFERENCE_FIELD_LABELS.keys, policy.enabled_preference_fields
+      assert_nothing_raised { policy.validate_preference_write!(%w[country relationship_intent unknown]) }
+    end
+
+    test "governs preference writes by the brand's explicit enabled_preference_fields" do
+      brand = Brand.new(
+        slug: "dateza", name: "DateZA",
+        profile_requirements: DatezaProfileCatalog::REQUIREMENTS
+      )
+      policy = FieldPolicy.new(brand:)
+
+      assert_equal DatezaProfileCatalog::REQUIRED_PREFERENCE_FIELDS.sort,
+        policy.writable_preference_fields.sort
+      assert policy.preference_enabled?("min_age")
+      assert_not policy.preference_enabled?("country")
+      assert_not policy.preference_enabled?("relationship_intent")
+      assert_nothing_raised { policy.validate_preference_write!(%w[min_age interested_in max_distance_km]) }
+
+      error = assert_raises(FieldPolicy::UnsupportedFields) do
+        policy.validate_preference_write!(%w[min_age country relationship_intent unknown_param])
+      end
+      assert_equal %w[country relationship_intent], error.fields
     end
   end
 end

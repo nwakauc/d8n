@@ -10,6 +10,7 @@ class Api::V1::ProfilePreferencesController < ApplicationController
   end
 
   def update
+    field_policy.validate_preference_write!(params.keys)
     preference = Profiles::CurrentPreferences.upsert!(
       user: Current.user,
       brand: Current.brand,
@@ -21,35 +22,40 @@ class Api::V1::ProfilePreferencesController < ApplicationController
     render json: { error: "invalid_preferences", details: e.record.errors.to_hash }, status: :unprocessable_entity
   rescue ActiveRecord::RecordNotFound
     render json: { error: "profile_required" }, status: :forbidden
+  rescue Profiles::FieldPolicy::UnsupportedFields => e
+    render json: { error: "invalid_preference_fields", details: { fields: e.fields } }, status: :unprocessable_entity
   end
 
   private
 
+  def field_policy
+    @field_policy ||= Profiles::FieldPolicy.new(brand: Current.brand)
+  end
+
+  # Only the preference scalars the resolved brand contract enables are
+  # accepted; the same source (brand.profile_completion_requirements) that
+  # Profiles::Configuration advertises to the client.
   def preference_params
-    params.permit(
-      :min_age,
-      :max_age,
-      :max_distance_km,
-      :country,
-      :relationship_intent,
-      interested_in: []
-    )
+    filters = field_policy.writable_preference_fields.map do |field|
+      field == "interested_in" ? { interested_in: [] } : field.to_sym
+    end
+    params.permit(*filters)
   end
 
   def preference_payload(preference)
-    {
+    envelope = {
       id: preference.id,
       profile_id: preference.profile.public_id,
       brand: {
         slug: preference.brand.slug,
         name: preference.brand.name
-      },
-      min_age: preference.min_age,
-      max_age: preference.max_age,
-      interested_in: preference.interested_in,
-      max_distance_km: preference.max_distance_km,
-      country: preference.country,
-      relationship_intent: preference.relationship_intent
+      }
     }
+
+    values = field_policy.writable_preference_fields.index_with do |field|
+      preference.public_send(field)
+    end.symbolize_keys
+
+    envelope.merge(values)
   end
 end

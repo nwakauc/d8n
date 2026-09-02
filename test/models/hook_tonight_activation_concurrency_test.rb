@@ -34,6 +34,7 @@ module HookTonight
         SecurityEvent.where(brand:).delete_all
         HookTonightState.where(brand:).delete_all
         ProfilePreference.where(brand:).delete_all
+        AnalyticsEvent.where(brand:).delete_all
         Profile.where(brand:).delete_all
         BrandMembership.where(brand:).delete_all
         brand.destroy!

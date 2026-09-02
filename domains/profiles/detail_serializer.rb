@@ -28,12 +28,35 @@ module Profiles
       base.merge(
         prompts: PromptPresenter.call(profile:),
         interests: grouped_interests
-      )
+      ).merge(video_section)
     end
 
     private
 
     attr_reader :profile, :viewer
+
+    # Intro video is a shared D8N Media capability (ADR 0023) surfaced on the
+    # full profile view only — discovery/match/conversation cards stay lean.
+    # The key is present solely for brands that enable the profile-video
+    # capability, so DateZA / HookUs responses are unchanged. The payload is
+    # (re)authorized at read time by Profiles::VideoLibrary + Media::VideoPolicy
+    # (ADR 0011 delivery-time recheck): a video that is deleted, unprocessed,
+    # failed, hidden, or no longer publication-eligible resolves to null and
+    # never leaks a raw object key or unsigned URL.
+    def video_section
+      return {} unless Media::VideoPolicy.enabled?(brand: profile.brand)
+
+      video = current_video
+      { video: video&.brand_id == profile.brand_id ? VideoLibrary.public_payload(video) : nil }
+    end
+
+    def current_video
+      if profile.association(:profile_video).loaded?
+        profile.profile_video
+      else
+        ProfileVideo.kept.find_by(profile:)
+      end
+    end
 
     # Selections in still-visible groups, kept, with their option + group loaded.
     def visible_selections

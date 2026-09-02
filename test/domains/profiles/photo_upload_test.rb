@@ -38,8 +38,11 @@ module Profiles
       assert_equal "pending_review", photo.status
     end
 
-    test "attach keeps a non-HookUs brand moderate-first (hidden)" do
-      brand, user = brand_with_profile("date9ja")
+    test "attach keeps a brand without an explicit photo policy moderate-first (hidden)" do
+      # date9ja, hookus and dateza all now use immediate visibility via their
+      # brand contracts; a brand with no registered contract fails closed to
+      # moderate-first (see Media::PhotoPolicy).
+      brand, user = brand_with_profile("unregistered-brand")
 
       photo = attach_png(brand:, user:)
 

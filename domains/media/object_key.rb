@@ -70,6 +70,32 @@ module Media
         )
       end
 
+      # Key for the untouched original of a profile introduction video.
+      def profile_video_original(brand:, user:, profile:, content_type:, object_uuid: SecureRandom.uuid)
+        join(
+          video_prefix(brand:, user:, profile:, object_uuid:),
+          "original.#{extension_for(content_type)}"
+        )
+      end
+
+      # Safe playback rendition (Media::VideoProcessor output) beside the original.
+      def profile_video_playback(original_key)
+        derived_key(original_key, PLAYBACK_BASENAME)
+      end
+
+      # Poster frame (Media::VideoProcessor + Media::ImageProcessor) beside the original.
+      def profile_video_poster(original_key)
+        derived_key(original_key, POSTER_BASENAME)
+      end
+
+      # Logical folder for one profile video object; renditions hang off this prefix.
+      def video_prefix(brand:, user:, profile:, object_uuid:)
+        join(
+          profile_prefix(brand:, user:, profile:),
+          "videos", object_uuid
+        )
+      end
+
       # Key for the untouched original of a chat message attachment (image or
       # video). Scoped under the sender's own user id and the conversation's
       # public id — never the recipient's identity, and never a message id

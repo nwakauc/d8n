@@ -38,6 +38,7 @@ module Profiles
         .includes(
           :brand,
           { profile_photos: { display_image_attachment: :blob } },
+          { profile_video: [ { playback_attachment: :blob }, { poster_attachment: :blob } ] },
           { profile_option_selections: [ :profile_option, :profile_option_group ] }
         )
         .first

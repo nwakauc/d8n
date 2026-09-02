@@ -448,7 +448,56 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_not profile.fetch("verification").key?("realme")
   end
 
+  test "Date9ja detail delivers a deliverable intro video as a safe signed payload" do
+    brand = Brand.create!(slug: "date9ja", name: "Date9ja")
+    Profiles::Date9jaProfileCatalog.install!(brand:)
+    BrandDomain.create!(brand:, host: "date9ja.test")
+    viewer = create_profile(brand:, gender: "woman", age: 30, interested_in: [ "man" ], min_age: 25, max_age: 40)
+    target = create_profile(brand:, gender: "man", age: 31, interested_in: [ "woman" ], min_age: 25, max_age: 40, display_name: "Ade")
+    video = attach_ready_video(target)
+    token, = Session.issue!(brand:, user: viewer.user)
+    host! "date9ja.test"
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(token)
+
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("profile").fetch("video")
+    assert_equal video.public_id, payload.fetch("id")
+    assert_equal 5, payload.fetch("duration_seconds")
+    assert payload.fetch("playback_url").present?
+    assert_not_includes response.body, video.playback.blob.key
+    assert_not_includes response.body, video.video.blob.key
+
+    # A soft delete takes effect on the very next read.
+    video.update!(deleted_at: Time.current)
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(token)
+    assert_response :success
+    assert_nil JSON.parse(response.body).fetch("profile").fetch("video")
+  end
+
+  test "HookUs detail carries no video key (capability disabled)" do
+    target = create_candidate(display_name: "Sam")
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert_not JSON.parse(response.body).fetch("profile").key?("video")
+  end
+
   private
+
+  def attach_ready_video(profile)
+    video = ProfileVideo.new(
+      profile:, user: profile.user, brand: profile.brand,
+      status: :pending_review, visibility: :visible,
+      processing_state: :ready, duration_seconds: 5, processed_at: Time.current
+    )
+    video.video.attach(io: StringIO.new("raw".b), filename: "v.mp4", content_type: "video/mp4")
+    video.playback.attach(io: StringIO.new("play".b), filename: "playback.mp4", content_type: "video/mp4")
+    video.poster.attach(io: StringIO.new("post".b), filename: "poster.jpg", content_type: "image/jpeg")
+    video.save!
+    video
+  end
 
   def bearer_headers(token)
     { "Authorization" => "Bearer #{token}" }

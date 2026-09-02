@@ -21,6 +21,7 @@ module Matching
       Like.where(brand: @brand).delete_all
       ProfilePass.where(brand: @brand).delete_all
       ProfilePreference.where(brand: @brand).delete_all
+      AnalyticsEvent.where(brand: @brand).delete_all
       Profile.where(brand: @brand).delete_all
       BrandMembership.where(brand: @brand).delete_all
       User.where(id: user_ids).delete_all

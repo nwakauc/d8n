@@ -21,4 +21,11 @@ if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ] && [ -n "${
   ./bin/rails brands:install_dateza
 fi
 
+# Same DB-backed BrandDomain mapping for Date9ja. Inert unless DATE9JA_API_HOST
+# is set for this environment, which will only happen when Date9ja is actually
+# being served here (production host mapping remains gated on cutover approval).
+if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ] && [ -n "${DATE9JA_API_HOST}" ]; then
+  ./bin/rails brands:install_date9ja
+fi
+
 exec "${@}"

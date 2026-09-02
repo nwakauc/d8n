@@ -133,4 +133,6 @@ Every capability uses the lifecycle and gates in `docs/engineering/AGENT-WORKFLO
 
 ## Architecture/specification gates
 
-The following must have an ADR or approved architecture specification before the capability reaches `IMPLEMENTING`: Engagement/profile-view boundaries; verification evidence and retention; Community boundary; Dating Hub decomposition/ownership; D8N AI assistant contract and egress policy; Trust ledger/derived reputation; and genotype/sensitive-profile privacy architecture. See `DECISIONS.md` for the active queue.
+The following must have an ADR or approved architecture specification before the capability reaches `IMPLEMENTING`: external legacy reference mapping; profile video / media boundary; Engagement/profile-view boundaries; verification evidence and retention; Community boundary; Dating Hub decomposition/ownership; D8N AI assistant contract and egress policy; Trust ledger/derived reputation; entitlement preservation; and genotype/sensitive-profile privacy architecture.
+
+Accepted: ADR 0022 (external legacy reference map). Proposed, pending review: ADR 0023 (profile video as a shared Media capability), ADR 0024 (shared verification-evidence architecture), ADR 0025 (Trust ledger / derived reputation), ADR 0026 (entitlement preservation). ADRs 0024–0026 define architecture and migration mapping only; their *implementation* still waits on the ADR 0011 human gates and the open `DECISIONS.md` product rows. See `DECISIONS.md` for the active queue.

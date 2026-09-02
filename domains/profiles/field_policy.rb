@@ -5,11 +5,14 @@ module Profiles
 
       def initialize(fields)
         @fields = fields.map(&:to_s).sort.freeze
-        super("profile fields are not enabled for this brand")
+        super("fields are not enabled for this brand")
       end
     end
 
     OPERATIONAL_WRITE_FIELDS = %w[visibility].freeze
+    # Every persisted preference scalar a client may set. Unlike profile fields
+    # there are no operational-only preference controls.
+    PREFERENCE_WRITE_FIELDS = Configuration::PREFERENCE_FIELD_LABELS.keys.freeze
     OWNER_ONLY_PROFILE_FIELDS = %w[birthdate company_name children_count].freeze
     PUBLIC_PROFILE_FIELDS = (
       Configuration::PROFILE_FIELD_LABELS.keys - OWNER_ONLY_PROFILE_FIELDS
@@ -40,8 +43,22 @@ module Profiles
       ).uniq.freeze
     end
 
+    def validate_preference_write!(submitted_fields)
+      known_submitted = Array(submitted_fields).map(&:to_s) & PREFERENCE_WRITE_FIELDS
+      disabled = known_submitted - writable_preference_fields
+      raise UnsupportedFields, disabled if disabled.any?
+    end
+
+    def writable_preference_fields
+      @writable_preference_fields ||= (enabled_preference_fields & PREFERENCE_WRITE_FIELDS).freeze
+    end
+
     def profile_enabled?(field)
       enabled_profile_fields.include?(field.to_s)
+    end
+
+    def preference_enabled?(field)
+      enabled_preference_fields.include?(field.to_s)
     end
 
     def public_profile_enabled?(field)

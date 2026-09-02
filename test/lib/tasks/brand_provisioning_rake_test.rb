@@ -33,6 +33,35 @@ class BrandProvisioningRakeTest < ActiveSupport::TestCase
     assert_equal brand, BrandDomain.kept.find_by!(host: "dateza.test").brand
   end
 
+  test "provisions date9ja via the generic command" do
+    ENV["HOSTS"] = "date9ja.test"
+
+    assert_difference -> { Brand.count }, 1 do
+      Rake::Task["brands:provision"].invoke("date9ja")
+    end
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+    assert_equal brand, BrandDomain.kept.find_by!(host: "date9ja.test").brand
+  end
+
+  test "install_date9ja maps DATE9JA_API_HOST idempotently" do
+    ENV["DATE9JA_API_HOST"] = "date9ja-api.test"
+    Rake::Task["brands:install_date9ja"].reenable
+
+    assert_difference -> { Brand.count }, 1 do
+      Rake::Task["brands:install_date9ja"].invoke
+    end
+    Rake::Task["brands:install_date9ja"].reenable
+
+    assert_no_difference [ -> { Brand.count }, -> { BrandDomain.count } ] do
+      Rake::Task["brands:install_date9ja"].invoke
+    end
+
+    assert_equal "date9ja", BrandDomain.kept.find_by!(host: "date9ja-api.test").brand.slug
+  ensure
+    ENV.delete("DATE9JA_API_HOST")
+  end
+
   test "rerunning the generic command is safe" do
     ENV["HOSTS"] = "hookus.test"
     Rake::Task["brands:provision"].invoke("hookus")

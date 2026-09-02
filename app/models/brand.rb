@@ -42,6 +42,8 @@ class Brand < ApplicationRecord
   has_many :conversations, dependent: :restrict_with_exception
   has_many :conversation_participants, dependent: :restrict_with_exception
   has_many :profile_blocks, dependent: :restrict_with_exception
+  # Migration bindings (ADR 0022) for brand-owned imported records.
+  has_many :legacy_references, dependent: :restrict_with_exception
 
   enum :status, { active: 0, disabled: 1, archived: 2 }
 
