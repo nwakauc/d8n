@@ -303,6 +303,36 @@ parallel with them if resourcing allows.
 still not Revenue (no billing exists) or true acquisition-channel
 Growth (no attribution exists) — those stay `NOT CONFIGURED`.
 
+## Phase 6A — Goals & Performance Scoreboard (future design)
+
+**Status (2026-09-01): DOCUMENTATION ONLY / NOT STARTED.** The design is
+captured in [GOALS-AND-PERFORMANCE-SCOREBOARD.md](GOALS-AND-PERFORMANCE-SCOREBOARD.md).
+No goal model, route, migration, or score evaluation code exists yet.
+
+**Objective:** let Founder HQ compare actual performance with explicitly
+configured, direction-aware targets without inventing metrics or business
+scores.
+
+**Backend work:** add a small brand-scoped goal model and immutable target
+change history; extend the canonical metric registry with direction, supported
+period, scope, and target-shape metadata; add MFA-protected goal CRUD and
+performance/history reads; evaluate bounded daily/weekly/monthly/yearly
+periods using deterministic, versioned status rules.
+
+**Dependencies:** Product Intelligence metric IDs and historical availability;
+founder approval of status thresholds and within-range pacing; explicit
+company-scope authorization; existing Admin authorization, MFA, and audit
+infrastructure.
+
+**Acceptance:** target changes are actor-attributed and auditable; brand
+isolation and company-scope denial are proven; higher/lower/range directions,
+period boundaries, unavailable data, immature periods, previous comparisons,
+and deterministic explanations are tested. No arbitrary frontend metric names
+or hardcoded business targets are accepted.
+
+**Frontend:** goal configuration and performance views depend on this backend
+contract; no UI should be built before the API and status policy are accepted.
+
 ## Phase 6 — Command Centre + top-level scores
 
 **Objective:** the actual north-star homepage and explicit score registry,
@@ -319,7 +349,8 @@ changed," "what needs attention," each expandable per D8N-HQ-PLAN.md's
 drill-down principle, backed by Phase 1's Member 360 and Phase 2's Trust
 page as the drill-down destinations.
 
-**Dependencies:** Phases 1, 2, 3, 5 (Phase 4 nice-to-have for one card).
+**Dependencies:** Phases 1, 2, 3, 5, and 6A for explicit target-backed
+performance; Phase 4 remains a nice-to-have for release correlation.
 
 **What becomes usable:** the actual product this whole effort is named
 after — but arriving *after* several individually useful tools shipped,
