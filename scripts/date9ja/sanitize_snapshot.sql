@@ -70,78 +70,19 @@ END
 $guard$;
 
 -- Audit rows live OUTSIDE public so the public schema stays exactly 51 tables
--- for both this script's and the verifier's fingerprint check. The operator
+-- for the shared v2 schema-signature check (schema_signature.sql). The operator
 -- drops this schema before packaging the snapshot (see SNAPSHOT-RUNBOOK.md).
 DROP SCHEMA IF EXISTS sanitize_audit CASCADE;
 CREATE SCHEMA sanitize_audit;
 
 -- -----------------------------------------------------------------------------
--- 1. Schema-drift guard
---    Exact 51 base tables AND exact column fingerprint, or abort.
---    Any added / dropped / renamed column changes the fingerprint and forces
---    SANITIZATION-CONTRACT.md to be revisited before this can run again.
+-- 1. Schema-drift guard — canonical Date9ja source-schema signature (v2).
+--    ONE definition, shared with verify_sanitized_snapshot.sql and
+--    source_census.sql. Exact base-table set AND full structural signature
+--    (type, nullability, ordinal, precision, default), or abort. Any drift
+--    forces SANITIZATION-CONTRACT.md §3 to be revisited before this can run.
 -- -----------------------------------------------------------------------------
-DO $schema$
-DECLARE
-  v_tables    int;
-  v_fp        text;
-  v_expect_fp text := 'a317e7fb66f0d304e6273a4ee2473172';
-  v_missing   text;
-  v_extra     text;
-  v_expected_tables text[] := ARRAY[
-    'active_storage_attachments','active_storage_blobs','active_storage_variant_records',
-    'ar_internal_metadata','audit_logs','aunty_phobie_conversations','aunty_phobie_messages',
-    'aunty_phobie_usage_events','blocks','career_applications','career_jobs',
-    'community_answer_votes','community_answers','community_event_rsvps','community_events',
-    'community_questions','community_remarks','community_reports','community_stories',
-    'company_goals','company_journal_entries','company_settings','daily_introductions',
-    'daily_life_entries','dating_hub_batches','error_logs','explore_impressions',
-    'feedback_items','likes','matches','message_reactions','messages','notification_deliveries',
-    'notifications','personas','phone_verifications','photos','profile_passes','profile_videos',
-    'profile_views','push_tokens','reports','schema_migrations','selfie_verifications',
-    'tracked_contact_notes','tracked_contacts','trust_adjustments','trust_events','users',
-    'verification_checks','verification_events'
-  ];
-BEGIN
-  SELECT count(*) INTO v_tables
-  FROM information_schema.tables
-  WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
-
-  IF v_tables <> 51 THEN
-    RAISE EXCEPTION 'SCHEMA DRIFT: expected 51 public base tables, found %', v_tables;
-  END IF;
-
-  SELECT string_agg(t, ', ' ORDER BY t) INTO v_missing
-  FROM unnest(v_expected_tables) t
-  WHERE t NOT IN (SELECT table_name FROM information_schema.tables
-                  WHERE table_schema = 'public' AND table_type = 'BASE TABLE');
-  IF v_missing IS NOT NULL THEN
-    RAISE EXCEPTION 'SCHEMA DRIFT: expected table(s) missing: %', v_missing;
-  END IF;
-
-  SELECT string_agg(table_name, ', ' ORDER BY table_name) INTO v_extra
-  FROM information_schema.tables
-  WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-    AND table_name <> ALL (v_expected_tables);
-  IF v_extra IS NOT NULL THEN
-    RAISE EXCEPTION 'SCHEMA DRIFT: unexpected table(s) present (classify them in SANITIZATION-CONTRACT.md first): %', v_extra;
-  END IF;
-
-  SELECT md5(string_agg(table_name || '.' || column_name, ','
-                        ORDER BY (table_name || '.' || column_name) COLLATE "C"))
-    INTO v_fp
-  FROM information_schema.columns
-  WHERE table_schema = 'public';
-
-  IF v_fp IS DISTINCT FROM v_expect_fp THEN
-    RAISE EXCEPTION
-      'SCHEMA DRIFT: column fingerprint % != expected %. Re-classify every changed column in SANITIZATION-CONTRACT.md before re-running.',
-      v_fp, v_expect_fp;
-  END IF;
-
-  RAISE NOTICE 'schema guard passed: 51 tables, fingerprint %', v_fp;
-END
-$schema$;
+\ir schema_signature.sql
 
 -- -----------------------------------------------------------------------------
 -- 2. Pre-count audit (durable table; the verifier reads it)

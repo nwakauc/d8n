@@ -1,10 +1,21 @@
 # Sanitized Date9ja Snapshot & Data-Dictionary Runbook
 
-Status: **DRAFT — awaiting Uchechi approval and execution.** No snapshot has been
-taken. No production access has occurred. This document specifies the *minimum*
-data required to unblock the next Phase 1 implementation batch and how to produce,
-move, protect, and destroy it. It does not authorize production access; taking the
-snapshot is an operator (Uchechi) action.
+Status: **REHEARSAL ARTIFACT PRODUCED AND VERIFIED FOR ENGINEERING USE
+(2026-09-02).** The operator restored a Date9ja production backup into an
+isolated PG17 instance, ran the sanitizer + verifier, and confirmed a full
+`pg_dump` / `pg_restore` round trip preserves every row count (see §10). No
+production access occurred from the builder. This document specifies the
+*minimum* data required to unblock Phase 1 work and how to produce, move,
+protect, and destroy it. Taking any future snapshot is an operator (Uchechi)
+action.
+
+> **The sanitized rehearsal snapshot does NOT prove bcrypt compatibility.** The
+> sanitizer replaces every normal user's `encrypted_password` with one fixed
+> inert digest, so no real hash is present. The bcrypt proof is the separate
+> operator procedure in §6 (operator-owned seed accounts, plaintext known out of
+> band). **The operator ran it on 2026-09-02 and reported `$2a$ 12 PASS` — the
+> bcrypt gate is VERIFIED (§10).** The identity importer's credential step is
+> now unblocked; every other gated migration stays gated.
 
 ## 1. Why this snapshot is needed
 
@@ -47,9 +58,22 @@ rows and is **out of scope for this snapshot** — see §9.
 > full backup into an isolated PostgreSQL 17 instance and sanitizes it **in
 > place** with a deterministic, guarded SQL transform:
 >
+> - `scripts/date9ja/schema_signature.sql` — the shared canonical schema-signature guard (v2)
 > - `scripts/date9ja/sanitize_snapshot.sql` — the sanitizer
 > - `scripts/date9ja/verify_sanitized_snapshot.sql` — the fail-closed verifier
-> - [`SANITIZATION-CONTRACT.md`](SANITIZATION-CONTRACT.md) — per-column classification of all 51 tables / 574 columns
+> - `scripts/date9ja/source_census.sql` — the read-only reconciliation source census
+> - [`SANITIZATION-CONTRACT.md`](SANITIZATION-CONTRACT.md) — per-column classification of all 51 tables / 574 columns, and §3 the schema-signature contract
+>
+> **First-run only — confirm the v2 signature on the PG17 snapshot (read-only,
+> self-contained):**
+> ```
+> psql -d date9ja_snapshot_sanitized -f scripts/date9ja/schema_signature.sql
+> # -> "Date9ja schema signature OK (v2 41a653a8d4c25621071fb76e6e59fbc0, ...)" = confirmed
+> # -> "SCHEMA DRIFT: ... signature <X> != expected" = <X> is the observed value
+> ```
+> If the only cause is PG17 rendering a non-sequence default differently, pin
+> `<X>` in `schema_signature.sql` (`v_expect_sig`) and note the one-line diff in
+> SANITIZATION-CONTRACT.md §3. Do not weaken the contract.
 >
 > Run order (operator only):
 > ```
@@ -58,10 +82,15 @@ rows and is **out of scope for this snapshot** — see §9.
 >      -d date9ja_snapshot_sanitized -f scripts/date9ja/sanitize_snapshot.sql
 > psql -v ON_ERROR_STOP=1 -d date9ja_snapshot_sanitized \
 >      -f scripts/date9ja/verify_sanitized_snapshot.sql
+> # reconciliation source baseline (read-only; safe to run any time after verify):
+> psql -v ON_ERROR_STOP=1 -d date9ja_snapshot_sanitized \
+>      -f scripts/date9ja/source_census.sql
 > psql -d date9ja_snapshot_sanitized -c 'DROP SCHEMA IF EXISTS sanitize_audit CASCADE;'
 > ```
-> The sanitizer refuses to run against `date9ja_snapshot_tmp`, refuses a second
-> run, and aborts (rolls back) on any schema drift or post-check violation. Then
+> Each script `\ir`-includes `schema_signature.sql`, so all three enforce the
+> identical v2 contract. The sanitizer refuses to run against
+> `date9ja_snapshot_tmp`, refuses a second run, and aborts (rolls back) on any
+> schema drift or post-check violation. Then
 > `pg_dump` the sanitized DB as the shareable artifact and follow §7–§8 for
 > transfer, storage, and deletion. The stratified-sample guidance below is
 > retained for a future larger snapshot.
@@ -207,24 +236,170 @@ Applied deterministically during extraction so referential integrity holds:
 | JSONB preference blobs | Keep keys, replace string values with `"[redacted]"`, keep booleans/enums |
 | Active Storage `key` | **Kept verbatim** (needed for object preflight); the bucket itself is access-controlled |
 
-## 6. How the bcrypt hashes are tested safely
+## 6. bcrypt compatibility proof — operator-only procedure
 
-1. The snapshot's `users.encrypted_password` column is loaded into a **local test
-   fixture** or an ignored `tmp/` file — never committed, never logged.
-2. A focused test (marked to run only when the fixture is present) asserts:
-   - every distinct bcrypt **cost** and **prefix** (`$2a$`, `$2b$`, `$2y$`) present
-     in the sample verifies against a known plaintext for a handful of
-     operator-created seed accounts whose plaintext Uchechi supplies out of band;
-   - `BCrypt::Password.new(hash).is_password?(wrong)` is false;
-   - `Identity::PasswordEngine` accepts the copied hash with no rehash/truncation;
-   - `$2y$` prefixes (if any) are normalized to a form `bcrypt` gem accepts.
-3. The test **never** prints a hash or plaintext; failures report only the cost and
-   prefix bucket that failed.
-4. After the proof, the hash file is shredded (§8).
+**Goal.** Prove that an existing Date9ja `users.encrypted_password` bcrypt digest
+authenticates through D8N's `Identity::PasswordEngine` **unchanged** — no rehash,
+no truncation, no reset — for **every bcrypt prefix/cost format that actually
+exists in Date9ja production**, without any bcrypt hash or plaintext password ever
+reaching an agent, a log, a fixture, a commit, or a PR.
 
-Only a **dozen or so** real hashes across the distinct cost/prefix buckets are
-strictly required. If Uchechi prefers, the snapshot can carry *only* those
-representative hashes plus the seed accounts, and null the rest.
+**Why the sanitized rehearsal artifact cannot do this.** `sanitize_snapshot.sql`
+overwrites every normal user's `encrypted_password` with one fixed inert digest
+(`AUTHENTICATION.md` acceptance "all observed hash formats verify" is structurally
+impossible against it). Real hashes are only ever touched by the operator, on a
+controlled restore, under this procedure.
+
+**Standing constraints.** No live-primary access (use a restore of an encrypted
+backup). Do not mutate any credential. Do not issue password resets. Do not write
+real hashes or plaintext to repository fixtures, `tmp/` that gets committed, logs,
+or PR text. Print no full hash, ever.
+
+### 6a. Safe aggregate hash-format discovery
+
+Run against a **restore** of a recent encrypted Date9ja backup (the same
+`date9ja_snapshot_tmp` pristine restore is fine — this reads `users` before
+sanitization; it does **not** need the raw production primary). Output is
+structural only: the 4-char algorithm prefix and the 2-digit cost. The bcrypt
+salt begins at character 8 and the digest after that — neither is selected.
+
+```sql
+-- date9ja bcrypt format census — aggregate only, no hash material leaves this query
+SELECT substring(encrypted_password FROM 1 FOR 4)  AS prefix_family,  -- $2a$ / $2b$ / $2y$
+       substring(encrypted_password FROM 5 FOR 2)  AS cost,           -- e.g. 10, 11, 12
+       count(*)                                     AS n
+FROM   users
+WHERE  encrypted_password IS NOT NULL AND encrypted_password <> ''
+GROUP  BY 1, 2
+ORDER  BY 1, 2;
+
+-- sanity: any row whose hash is NOT a well-formed 60-char bcrypt string
+SELECT count(*) AS malformed
+FROM   users
+WHERE  encrypted_password IS NOT NULL AND encrypted_password <> ''
+  AND  encrypted_password !~ '^\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}$';
+```
+
+One-liner:
+
+```
+psql -v ON_ERROR_STOP=1 -d date9ja_snapshot_tmp \
+     -c "SELECT substring(encrypted_password FROM 1 FOR 4) AS prefix_family, substring(encrypted_password FROM 5 FOR 2) AS cost, count(*) AS n FROM users WHERE encrypted_password IS NOT NULL AND encrypted_password <> '' GROUP BY 1,2 ORDER BY 1,2;"
+```
+
+The operator records **only** the resulting `(prefix_family, cost, n)` table in
+§10 (it is non-sensitive). That table defines the **bucket set** the proof must
+cover. Also note whether Date9ja's Devise config sets a `pepper` — if it does, the
+proof plaintext must be combined with that pepper the same way Devise did, and
+D8N must be configured with the identical pepper before cutover (see Risks).
+
+**Operator result (2026-09-02, run against the pristine restore):**
+
+| prefix_family | cost | n |
+|---|---|---|
+| `$2a$` | 12 | 288 |
+
+Malformed bcrypt hashes: **0**. Exactly **one** bucket → the proof needs exactly
+one seed account. Devise `pepper`: **not configured** — the only `config.pepper`
+lines in `config/initializers/devise.rb` are the commented stock examples; a
+repo-wide non-comment scan confirmed no active pepper. (An early `rg` hit was the
+commented `# config.pepper = ...` template line only.)
+
+### 6b. One operator-owned seed account per bucket
+
+For each `(prefix_family, cost)` bucket from 6a, the operator provides **one**
+Date9ja account they control:
+
+- either an existing operator-owned Date9ja account whose current
+  `encrypted_password` is already in that bucket and whose plaintext the operator
+  knows, **or**
+- a freshly created Date9ja account (on the restore, or on a throwaway Devise
+  console using the same `BCrypt::Engine.cost`) registered with a known plaintext,
+  so its digest lands in that bucket.
+
+Plaintext passwords are held **out of band** by the operator (password manager /
+sealed note) — never typed into the repo, a shared channel, or a prompt. A
+minimal manifest lives only on the operator's encrypted disk (`§7` storage):
+
+The manifest is **tab-separated**, one line per bucket, with the header row the
+script tolerates. Values are placeholders here — real values live only on the
+operator's encrypted disk:
+
+```
+prefix_family<TAB>cost<TAB>email<TAB>password<TAB>bcrypt_digest
+$2a$<TAB>12<TAB><seed-email><TAB><known-plaintext><TAB><legacy $2a$12$… digest>
+```
+
+`scripts/date9ja/bcrypt_proof.rb` validates each row before touching the database:
+digest must be a well-formed 60-char bcrypt string; `prefix_family` and `cost`
+must agree with the digest; duplicate `(prefix_family, cost)` buckets are
+rejected; any missing field fails closed; a group/other-readable manifest emits a
+permission warning. For the single observed bucket the manifest is one data line.
+
+### 6c. Verification procedure
+
+On a machine with the D8N app checked out, against a **throwaway D8N test
+database** (`RAILS_ENV=test`), the operator runs a script that, per bucket:
+
+1. Creates a real D8N `User` + email `IdentityIdentifier` + **active** password
+   `Credential` + `CredentialPasswordHash` whose `password_hash` is the legacy
+   digest **copied verbatim** (no `PasswordEngine.set!`, which would rehash).
+2. Creates an **active** `BrandMembership` for the `date9ja` brand (so
+   `PasswordLogin` can reach the credential; `PasswordEngine.matches?` only needs
+   the eligible credential).
+3. Asserts:
+   - `Identity::PasswordEngine.matches?(credential:, password: <known plaintext>)` → **`true`**
+   - `Identity::PasswordEngine.matches?(credential:, password: <known plaintext + "x">)` → **`false`**
+   - `Identity::PasswordLogin.call(brand: date9ja, identifier: <seed email>, password: <known plaintext>)` → `success?` **`true`**, issues a session
+   - the row's `password_hash` is **byte-identical** to the input digest after the
+     round trip (no truncation/normalisation mutation)
+4. Rolls back / drops the throwaway database.
+
+This is implemented as `scripts/date9ja/bcrypt_proof.rb` (module
+`Date9ja::BcryptProof`). The file contains **no** hash, plaintext, email, or
+identifier literal — every sensitive value is read from the operator's
+uncommitted manifest via `BCRYPT_PROOF_MANIFEST`. Per bucket it provisions the
+records inside a transaction that is **rolled back** (nothing persists), copies
+the digest verbatim (never `PasswordEngine.set!`), then asserts `matches?` true /
+`matches?` false on a first-byte-flipped wrong password / `PasswordLogin.call`
+success with a session / stored hash byte-identical. Output is only
+`<prefix_family> <cost> PASS` or `… FAIL <verify|wrong-password|login|hash-mutated|setup …>`;
+plaintext, digests, and exception text carrying them are scrubbed. Exit status:
+`0` all PASS, `1` any FAIL, `2` manifest error, `3` not `RAILS_ENV=test`.
+Synthetic-value tests: `test/scripts/date9ja/bcrypt_proof_test.rb`.
+
+**Executed 2026-09-02 — result `$2a$ 12 PASS` (VERIFIED, §10).**
+
+Operator command:
+
+```
+# manifest path holds the real hash/plaintext; never committed
+BCRYPT_PROOF_MANIFEST=/abs/path/to/date9ja-bcrypt-manifest.tsv \
+  bin/rails runner -e test scripts/date9ja/bcrypt_proof.rb
+# -> prints:  $2a$ 12 PASS      (or e.g. "$2a$ 12 FAIL verify")
+```
+
+### 6d. Success / failure criteria
+
+**PASS (proof established)** — for **every** bucket in the 6a census:
+`PasswordEngine.matches?` true with the known plaintext, false with a wrong one,
+`PasswordLogin` issues a session, and the stored hash is byte-identical to the
+legacy digest. No hash/plaintext appeared in any output or artifact.
+
+**FAIL** — any bucket where `matches?` is false with the correct plaintext, or the
+hash is mutated on store, or `$2y$`/`$2x$` is rejected by the bcrypt gem. On FAIL,
+capture only the failing `(prefix_family, cost)` and the failure mode (verify /
+mutate / prefix-reject); do **not** capture the hash. FAIL means the direct-copy
+migration is not universally safe and `AUTHENTICATION.md`'s recovery path becomes
+the primary route for the affected bucket — a product/security decision, not an
+importer workaround.
+
+### 6e. Cleanup
+
+After the proof: drop the throwaway D8N test database; `shred` the manifest and
+any local hash file (§8); confirm `git status` shows nothing under
+`scripts/date9ja/` or `tmp/` containing hash material. Record the bucket census
+and PASS/FAIL summary in §10 — nothing else.
 
 ## 7. Transfer, storage, access control
 
@@ -267,19 +442,70 @@ Do **not** begin these after the snapshot lands — they need `DECISIONS.md` row
   tribes) — all "Awaiting Uchechi".
 - Historical profile-view visibility, support-chat behavior.
 
-## 10. Snapshot record (fill on execution)
+## 10. Snapshot record
+
+### Rehearsal artifact — 2026-09-02
 
 | Field | Value |
 |---|---|
-| Snapshot ID | _pending_ |
-| Produced by / date | _pending_ |
-| Source backup timestamp | _pending_ |
-| Sampled `users` count | _pending_ |
-| Per-table row counts | _pending_ |
-| Storage path | _pending_ |
-| Media dry-run approved? | _pending_ |
-| Deletion date / method | _pending_ |
-| Verification: no tokens/JTI/OTP/session data present | _pending_ |
+| Snapshot ID | `date9ja_sanitized_20260902` |
+| Kind | Engineering / migration rehearsal artifact — **not** a cutover snapshot |
+| Produced by / date | Operator (Uchechi), 2026-09-02 |
+| Source backup timestamp | Date9ja production backup, 2026-09-02 |
+| Method | Full restore into isolated PG17 (`date9ja_snapshot_tmp` pristine → `date9ja_snapshot_sanitized` working copy), in-place sanitize via `scripts/date9ja/sanitize_snapshot.sql`, then `pg_dump` |
+| Sanitizer / verifier result | `sanitize_snapshot.sql` committed; independent review verdict **B — safe to execute after small fixes (fixes applied)**; operator run: sanitize `COMMIT` + inline post-checks passed; `verify_sanitized_snapshot.sql` **PASSED (0 violations)** |
+| Schema guard at production time | **v1** (exact 51-table set + exact column-name list + name-only fingerprint `a317e7fb…`). The schema-only artifact and the sanitized DB derive from the **same** 2026-09-02 backup — no version skew — so v1 was sufficient *for this run*. See "Impact" note below. |
+| Schema guard in current tooling | **v2** (`schema_signature.sql`, signature `41a653a8…`) — adds type / nullability / ordinal / precision / default coverage. Applies to all *future* runs. |
+| v2 re-confirmation on the existing artifact | **Recommended, non-blocking:** operator runs the read-only v2 one-liner (§3) against `date9ja_snapshot_sanitized`; expect `41a653a8…`. A match retroactively strengthens confidence at zero cost. **A new raw-production sanitization run is NOT required.** |
+| Packaged dump | `~/date9ja-snapshot-work/output/date9ja_sanitized_20260902.dump` |
+| Round-trip check | Restored into `date9ja_snapshot_package_test`; post-restore reconciliation **exactly matched** source rehearsal baseline (below) |
+| `users` count | 288 |
+| Per-table row counts | users 288 · active_storage_blobs 443 · photos 279 · profile_videos 35 · likes 546 · matches 82 · messages 1025 · profile_views 1627 · blocks 3 · reports 3 (full breakdown: run `scripts/date9ja/source_census.sql`) |
+| Relationship fingerprint parity (pristine vs sanitized) | Matched exactly for users, likes, matches, messages (incl. `match_id`/`sender_id`/`reply_to_id`), profile_views, blocks |
+| Storage path | Isolated PG17 instance + local encrypted-at-rest `~/date9ja-snapshot-work/`, outside any git work tree |
+| Media dry-run approved? | Not for pass 1 — no blob bytes; structural metadata only (`SANITIZATION-CONTRACT.md` R3) |
+| Deletion date / method | Pending — `shred` local dir + dump within 14 days of the first importer batch being reviewed (§8) |
+| No tokens/JTI/OTP/session/IP present | Confirmed by `verify_sanitized_snapshot.sql` (auth-secret, IP, push-token, provider-reference, idempotency-key assertions all pass) |
+| Classification | **SANITIZED SNAPSHOT REHEARSAL ARTIFACT — VERIFIED FOR ENGINEERING USE** |
+
+### bcrypt compatibility proof — record — **VERIFIED (2026-09-02)**
+
+| Field | Value |
+|---|---|
+| Procedure | §6 (6a discovery → 6b seed accounts → 6c verification) |
+| Proof script | `scripts/date9ja/bcrypt_proof.rb` + `test/scripts/date9ja/bcrypt_proof_test.rb` (synthetic-value tests green; rubocop clean) |
+| Format census `(prefix_family, cost, n)` | **`$2a$` / 12 / 288** — one bucket only (operator, 2026-09-02, pristine restore) |
+| Devise `pepper` configured in Date9ja? | **No** — only commented stock `# config.pepper` examples; repo-wide non-comment scan confirmed none |
+| Malformed-hash count | **0** |
+| Seed accounts (one per bucket) | One operator-owned `$2a$12$` Date9ja account; manifest on the operator's encrypted disk only, **deleted after the run** |
+| Per-bucket result | **`$2a$ 12 PASS`** (operator, 2026-09-02) — legacy digest verified through `Identity::PasswordEngine.matches?`, wrong password rejected, `Identity::PasswordLogin` issued a D8N session, stored hash byte-identical to the source digest |
+| Hash/plaintext leak check | `git status` clean; the only output was `$2a$ 12 PASS`; no hash/plaintext/email in any artifact |
+| Outcome | **VERIFIED.** Wave A slice 3 credential step is **READY**. Preserving a supported legacy Date9ja bcrypt credential is safe for the identity importer. No other gated migration is unblocked. |
+
+### Identity importer rehearsal — record — **VERIFIED (2026-09-03)**
+
+| Field | Value |
+|---|---|
+| Importer | `Date9ja::Import::IdentityImport` (`domains/date9ja/`), `date9ja:import_identity` rake task |
+| Source | `date9ja_snapshot_sanitized` (inert bcrypt digests — auth not re-proven here) |
+| Schema preflight | **PASS** — v2 signature `41a653a8d4c25621071fb76e6e59fbc0`, 51 base tables, 574 columns |
+| First pass | 288 considered → **280 imported / 8 skipped (`source_soft_deleted`) / 0 failed**; 280 users·credentials·password_hashes·memberships·profiles, 460 identifiers, 1580 legacy_references; all anomaly counters 0 |
+| Second pass (idempotency) | 288 considered → **0 imported / 280 already_imported / 8 skipped / 0 failed**; nothing created; all anomaly counters 0 |
+| Source reconciliation | census 288 = 280 kept + 8 soft-deleted; both passes balance with no unexplained rows; distinct `lower(email)`/`public_id` = 288 (no collisions) |
+| Leak check | reconciliation output is counts + reason codes only — no email/phone/hash/free-text |
+| Outcome | Wave A Slice 3 **implementation reviewed + rehearsal VERIFIED**. **NOT `PARITY_ACCEPTED`, NOT production-ready, NOT cutover-ready.** Deferred mapping/product decisions remain open (see `STATUS.md`). |
+
+### Profile-photo MEDIA PREFLIGHT rehearsal (pass 1) — procedure
+
+`bin/rails date9ja:preflight_photos` (after `date9ja:import_identity`, same
+`DATE9JA_SNAPSHOT_DATABASE_URL`, throwaway D8N DB). Pass 1 reads the `photos`
+table + `record_type='Photo' AND name='image'` attachments and their blobs'
+`byte_size/checksum/content_type` **only** — it never reads
+`active_storage_blobs.key`, `filename`, `metadata` or `service_name`, copies no
+bytes, creates no `ProfilePhoto` or D8N Active Storage record, and enqueues no
+job. It records `Migration::MediaObjectRef` / `Migration::MediaAttachmentRef` and
+prints a PII-free reconciliation JSON (`RECONCILIATION.md` pass-1 contract). Full
+command in `RECONCILIATION.md`. Architecture: ADR 0027.
 
 ## 11. Verification that no unnecessary secrets are included
 

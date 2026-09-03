@@ -1,10 +1,12 @@
 # Date9ja Snapshot Sanitization Contract
 
-Status: **DRAFT — implemented, self-verified, awaiting independent Codex review.**
-The sanitizer has **NOT been executed**. No production access occurred.
+Status: **Sanitizer executed and verified 2026-09-02 under schema guard v1;
+schema-signature contract strengthened to v2 (2026-09-02) after independent
+review. Census tooling SELF_VERIFIED.** No production access occurred.
 
-This contract governs `scripts/date9ja/sanitize_snapshot.sql` and
-`scripts/date9ja/verify_sanitized_snapshot.sql`. It is the classification
+This contract governs `scripts/date9ja/sanitize_snapshot.sql`,
+`scripts/date9ja/verify_sanitized_snapshot.sql`, `scripts/date9ja/source_census.sql`,
+and the shared `scripts/date9ja/schema_signature.sql`. It is the classification
 authority for every column in the Date9ja production schema as restored locally
 by the operator on 2026-09-02 (`~/date9ja-snapshot-work/schema/`).
 
@@ -48,14 +50,58 @@ constant recorded in the script (§3), so a new/renamed/dropped column forces th
 contract to be revisited before the sanitizer can run again — nothing is silently
 ignored.
 
-## 3. Schema fingerprint guard
+## 3. Schema-signature guard — canonical contract (v2)
 
-- Expected public tables: **51** (exact set asserted).
-- Expected column fingerprint: `md5` of
-  `string_agg(table_name || '.' || column_name, ',' ORDER BY … COLLATE "C")`
-  over `information_schema.columns` for `table_schema = 'public'` =
-  **`a317e7fb66f0d304e6273a4ee2473172`** (574 columns).
-- Mismatch on either → `RAISE EXCEPTION`, transaction rolled back.
+**One** definition, `scripts/date9ja/schema_signature.sql`, included verbatim
+(`\ir`) by the sanitizer, the verifier and the census. Any structural drift
+`RAISE`s and (inside the sanitizer's transaction) rolls back.
+
+### v1 → v2
+
+v1 hashed only `table_name.column_name`, so a **type-only, nullability-only or
+ordinal-position-only** change to the classified schema could pass. v2 makes the
+guard a real structural-compatibility contract.
+
+### What v2 asserts
+
+1. Exactly **51** public base tables, **exact name set** (no missing, no extra).
+2. Exactly **574** public columns.
+3. `md5` of, per column, ordered by `table_name COLLATE "C", ordinal_position`,
+   `'\n'`-joined:
+   `table_schema | table_name | ordinal_position | column_name | data_type |
+   udt_name | is_nullable | character_maximum_length | numeric_precision |
+   numeric_scale | datetime_precision | column_default`
+   where sequence defaults (`nextval('…'::regclass)`) are normalised to `SEQ`
+   (a column either is or is not serial; the sequence name is table-derived and
+   its rendering varies by PG version / dump style).
+
+Deliberately **excluded** as unstable/irrelevant: `udt_catalog` (database name),
+`collation_name`, `dtd_identifier`, comments, storage/TOAST, index/constraint
+metadata (structural integrity is enforced by the DB and reconciled separately).
+
+### Expected v2 signature
+
+Computed from the schema-only artifact
+(`~/date9ja-snapshot-work/schema/date9ja-production-schema.sql`); **no raw
+production database accessed**:
+
+| | value |
+|---|---|
+| v2 signature | **`41a653a8d4c25621071fb76e6e59fbc0`** |
+| base tables | 51 (exact set) |
+| columns | 574 |
+| superseded v1 fingerprint | `a317e7fb66f0d304e6273a4ee2473172` (name-only; retained here only for provenance) |
+
+The v2 value was computed with `information_schema` on PostgreSQL 14; its inputs
+(`data_type`, `udt_name`, precisions) render identically on PG 14–17 and
+sequence defaults are normalised, so it is expected to hold on the operator's
+PG17 snapshot. On the **first v2 run** the operator confirms it read-only by running
+`schema_signature.sql` standalone against `date9ja_snapshot_sanitized`
+(`SNAPSHOT-RUNBOOK.md` §3): it prints `... signature OK (v2 41a653a8…)` on a
+match, or `SCHEMA DRIFT: … signature <X> != expected` showing the observed value.
+If PG17 legitimately renders a non-sequence default differently, pin `<X>` in
+`schema_signature.sql` (`v_expect_sig`) and record the one-line diff here —
+never weaken the contract to make it pass.
 
 ## 4. Column treatments
 

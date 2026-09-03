@@ -18,30 +18,10 @@
 \set ON_ERROR_STOP on
 
 -- ---------------------------------------------------------------------------
--- Schema guard (identical to the sanitizer)
+-- Schema guard — canonical Date9ja source-schema signature (v2), shared
+-- verbatim with sanitize_snapshot.sql and source_census.sql.
 -- ---------------------------------------------------------------------------
-DO $schema$
-DECLARE
-  v_tables int;
-  v_fp     text;
-BEGIN
-  SELECT count(*) INTO v_tables
-  FROM information_schema.tables
-  WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
-  IF v_tables <> 51 THEN
-    RAISE EXCEPTION 'SCHEMA DRIFT: expected 51 public base tables, found %', v_tables;
-  END IF;
-
-  SELECT md5(string_agg(table_name || '.' || column_name, ','
-                        ORDER BY (table_name || '.' || column_name) COLLATE "C"))
-    INTO v_fp
-  FROM information_schema.columns
-  WHERE table_schema = 'public';
-  IF v_fp IS DISTINCT FROM 'a317e7fb66f0d304e6273a4ee2473172' THEN
-    RAISE EXCEPTION 'SCHEMA DRIFT: column fingerprint % unexpected', v_fp;
-  END IF;
-END
-$schema$;
+\ir schema_signature.sql
 
 -- ---------------------------------------------------------------------------
 -- Pre-run count table must exist (proves the sanitizer ran)

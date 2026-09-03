@@ -14,6 +14,10 @@ module Migration
       # Platform identity (spans brands).
       "User" => :platform,
       "IdentityIdentifier" => :platform,
+      # Password credential — platform-owned like the identity it hangs off.
+      # Added with the Wave A identity importer slice. CredentialPasswordHash is
+      # 1:1 with Credential (its primary key) and needs no separate binding.
+      "Credential" => :platform,
       # Brand-owned dating presence and media.
       "BrandMembership" => :brand_owned,
       "Profile" => :brand_owned,

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_03_120200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -505,6 +505,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_130000) do
     t.index ["sender_profile_id"], name: "index_messages_on_sender_profile_id"
   end
 
+  create_table "migration_media_attachment_refs", force: :cascade do |t|
+    t.string "attachment_name", null: false
+    t.datetime "created_at", null: false
+    t.string "failure_code"
+    t.string "importer_version", null: false
+    t.bigint "media_object_ref_id", null: false
+    t.integer "preflight_state", default: 0, null: false
+    t.string "source_attachment_id", null: false
+    t.string "source_record_entity", null: false
+    t.string "source_record_id", null: false
+    t.string "source_system", null: false
+    t.datetime "updated_at", null: false
+    t.index ["media_object_ref_id"], name: "index_migration_media_attachment_refs_on_media_object_ref_id"
+    t.index ["source_system", "source_attachment_id"], name: "idx_migration_media_attachment_refs_source_key", unique: true
+    t.index ["source_system", "source_record_entity", "source_record_id"], name: "idx_migration_media_attachment_refs_record"
+    t.check_constraint "preflight_state >= 0 AND preflight_state <= 3", name: "chk_migration_media_attachment_refs_preflight_state"
+  end
+
+  create_table "migration_media_object_refs", force: :cascade do |t|
+    t.bigint "byte_size"
+    t.string "checksum"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.string "failure_code"
+    t.string "importer_version", null: false
+    t.integer "preflight_state", default: 0, null: false
+    t.string "source_blob_id", null: false
+    t.string "source_fingerprint", null: false
+    t.string "source_system", null: false
+    t.integer "transfer_state", default: 0, null: false
+    t.datetime "transferred_at"
+    t.datetime "updated_at", null: false
+    t.index ["source_system", "source_blob_id"], name: "idx_migration_media_object_refs_source_key", unique: true
+    t.check_constraint "byte_size IS NULL OR byte_size > 0", name: "chk_migration_media_object_refs_positive_size"
+    t.check_constraint "preflight_state >= 0 AND preflight_state <= 3", name: "chk_migration_media_object_refs_preflight_state"
+    t.check_constraint "transfer_state >= 0 AND transfer_state <= 3", name: "chk_migration_media_object_refs_transfer_state"
+  end
+
   create_table "notification_deliveries", force: :cascade do |t|
     t.integer "attempt_count", default: 0, null: false
     t.bigint "brand_id", null: false
@@ -677,7 +715,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_130000) do
     t.check_constraint "accuracy_meters >= 0 AND accuracy_meters <= 100000", name: "chk_profile_locations_accuracy"
     t.check_constraint "latitude >= '-90'::integer::numeric AND latitude <= 90::numeric", name: "chk_profile_locations_latitude"
     t.check_constraint "longitude >= '-180'::integer::numeric AND longitude <= 180::numeric", name: "chk_profile_locations_longitude"
-    t.check_constraint "source::text = ANY (ARRAY['device'::character varying, 'manual'::character varying, 'imported'::character varying, 'place'::character varying]::text[])", name: "chk_profile_locations_source"
+    t.check_constraint "source::text = ANY (ARRAY['device'::character varying::text, 'manual'::character varying::text, 'imported'::character varying::text, 'place'::character varying::text])", name: "chk_profile_locations_source"
   end
 
   create_table "profile_openers", force: :cascade do |t|
@@ -1076,6 +1114,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_130000) do
   add_foreign_key "messages", "conversations", column: ["conversation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_conversation_tenant"
   add_foreign_key "messages", "messages", column: ["reply_to_message_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_reply_to_message_tenant"
   add_foreign_key "messages", "profiles", column: ["sender_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_sender_tenant"
+  add_foreign_key "migration_media_attachment_refs", "migration_media_object_refs", column: "media_object_ref_id"
   add_foreign_key "notification_deliveries", "brands"
   add_foreign_key "notification_deliveries", "device_registrations"
   add_foreign_key "notification_deliveries", "notifications"
