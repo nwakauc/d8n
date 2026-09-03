@@ -1,7 +1,7 @@
 # Date9ja → D8N Status
 
 - Current phase: **Phase 1 — Shared Platform Foundations** (Wave A)
-- Current capability: Batches 2 & 3 reviewed; sanitized snapshot milestone VERIFIED; reconciliation census + schema-signature v2 VERIFIED (independent review); import execution model RESOLVED; **bcrypt compatibility proof VERIFIED (2026-09-02, operator ran `scripts/date9ja/bcrypt_proof.rb` against a real `$2a$12$` account → `$2a$ 12 PASS`)**; identity + membership + non-sensitive profile importer — implementation reviewed + **operator rehearsal VERIFIED (2026-09-03)** against `date9ja_snapshot_sanitized` (288 source rows → 280 imported / 8 skipped `source_soft_deleted` / 0 failed; second pass 280 already_imported / 0 created; source reconciliation balanced); **profile-photo pass 2 implementation VERIFIED + L2 synthetic-corpus rehearsal VERIFIED (Codex independent review 2026-09-03: FINAL VERDICT ACCEPT)**. **NOT PARITY_ACCEPTED, NOT production-ready, NOT cutover-ready. L3 NOT YET READY.**
+- Current capability: Batches 2 & 3 reviewed; sanitized snapshot milestone VERIFIED; reconciliation census + schema-signature v2 VERIFIED (independent review); import execution model RESOLVED; **bcrypt compatibility proof VERIFIED (2026-09-02, operator ran `scripts/date9ja/bcrypt_proof.rb` against a real `$2a$12$` account → `$2a$ 12 PASS`)**; identity + membership + non-sensitive profile importer — implementation reviewed + **operator rehearsal VERIFIED (2026-09-03)** against `date9ja_snapshot_sanitized` (288 source rows → 280 imported / 8 skipped `source_soft_deleted` / 0 failed; second pass 280 already_imported / 0 created; source reconciliation balanced); **profile-photo pass 2 implementation VERIFIED + L2 synthetic-corpus rehearsal VERIFIED (Codex independent review 2026-09-03: FINAL VERDICT ACCEPT)**; **profile-video pass 1 (media preflight) VERIFIED (Codex 2026-09-03: ACCEPT WITH SMALL FIX — documentation correction completed), sanitized rehearsal 35/35 preflighted + idempotent; legacy `duration_seconds` NULL for all 35 (no row known to exceed the limit; actual duration unproven — pass 2 must derive it from the container)**. **NOT PARITY_ACCEPTED, NOT production-ready, NOT cutover-ready. L3 NOT YET READY.**
 - Builder: Claude (senior engineer)
 - Reviewer: Independent reviewer — Codex (batches 1–3 + profile-photo pass 2 / L2 reviewed)
 - Review cadence: bounded batches (~3–5 slices), not per-slice. Significant work remains **SELF_VERIFIED** until independent review.
@@ -223,6 +223,95 @@ Stable measures: 279 photos · moderation 2 pending / 266 approved / 11 rejected
 | Date9ja profile-photo pass 1 sanitized rehearsal | **VERIFIED** |
 | Profile-photo capability overall | **PARTIAL** — not `PARITY_ACCEPTED`, not production-ready, not cutover-ready |
 | Profile-photo **pass 2** (byte transfer + `ProfilePhoto` creation) | **IMPLEMENTATION VERIFIED (Codex FINAL bounded re-review 2026-09-03: ACCEPT). L2 279-row synthetic-corpus rehearsal VERIFIED (Codex independent review 2026-09-03: manifest byte_size exact typing YES, NULL-safe complete blob drift YES, existing L2 evidence still valid YES; focused verification 34 runs / 140 assertions / 0 failures; `git diff --check` CLEAN; FINAL VERDICT: ACCEPT — this closes the L2 review) — `date9ja_snapshot_sanitized_media_v2` + `Date9ja::Snapshot::SyntheticMedia` + `Date9ja::Storage::LocalCorpusReader` + `Date9ja::Storage::SafeObjectKey`; identity 280, pass-1 276+3, pass-2 transferred 276 / owner_not_imported 3, idempotent + interrupt-safe, raw purge clean, no R2, no production. NOT PARITY_ACCEPTED / cutover-ready / L3-ready.** Implementation-review rounds 1 + 2 (Codex BLOCK) fixes applied. Round 2: single authoritative `Media::DisplayDerivative.valid?` (bounded remote + checksum) on every job ready/finalize/purge path, run outside all DB locks; Phase-B `finalize_binding` rejects same-user/wrong-profile existing bindings (`mapping_drift`). ADR 0028 ACCEPTED. Code + L1 automated tests landed and green (`Migration::MediaTransfer` + `CanonicalKey` + `AdoptOrUpload`, `Date9ja::Storage::SourceReader`, `Date9ja::Snapshot::MediaLocatorSource`, `Date9ja::Import::PhotoTransfer` / `PhotoOrderPlan` / `PhotoTransferReconciliation`, `Profiles::PhotoUpload.build_photo!` extraction, `ProfilePhoto` claim-token processing hardening + `Media::ProfilePhotoProcessingSweeper`). RuboCop / Zeitwerk / Brakeman clean. **NOT independently reviewed, NOT `VERIFIED`, NOT `PARITY_ACCEPTED`.** L1: covered by tests. L2 (`_media_v2` artifact): NOT built. L3 (real R2): NOT wired (transport only). No bytes moved. |
+
+### Date9ja profile-video pass 1 (media preflight only) — VERIFIED (Codex independent review, 2026-09-03: ACCEPT WITH SMALL FIX — documentation correction completed)
+
+The video analogue of profile-photo pass 1. **Reuses the same generic
+migration-media spine** (`Migration::MediaObjectRef` / `MediaAttachmentRef` /
+`ReferenceMap`) with no new framework and no change to their shared semantics.
+
+`Date9ja::Snapshot::VideoSource` — v2-schema-guarded (same
+`scripts/date9ja/schema_signature.sql` signature `41a653a8…`, which already
+classifies `profile_videos`), column-allowlisted, deterministic (`ORDER BY id`),
+same DB-safety fences as Slice 3. Reads `profile_videos`
+(`id/user_id/duration_seconds/moderation_status/created_at/reviewed_at`) and only
+`record_type='ProfileVideo' AND name='video'` attachments + their blobs'
+`id/byte_size/checksum/content_type` — never `key`/`filename`/`metadata`/
+`service_name`/`rejection_reason`.
+
+`Date9ja::Import::VideoPreflight` — per source `profile_videos` row: validate the
+moderation enum (authoritative `pending:0/approved:1/rejected:2`), resolve the
+single `video` attachment + blob, validate content type against the shared
+`ProfileVideo::ALLOWED_CONTENT_TYPES` constant, upsert `MediaObjectRef` +
+`MediaAttachmentRef` (`source_record_entity: "profile_video"`), resolve whether
+the owner profile was imported (existing `profile` `ReferenceMap`), and record
+one terminal disposition. **Creates no `ProfileVideo`, no D8N Active Storage
+record, no `playback`/`poster` derivative, enqueues no job, opens/reads no blob
+body, binds no `ReferenceMap`, sets no visibility.** Suspended owners are
+classified structurally, not excluded.
+
+Duration is **measured only** (`duration_present/missing/within_limit/
+over_limit/invalid` against `Media::VideoPolicy.max_duration_seconds`). Pass 1
+never rejects a structurally valid row for exceeding the current D8N limit — the
+grandfather / trim / quarantine decision is a pass-2 product decision
+(`DECISIONS.md`). The source table is 1:1 on `user_id` (UNIQUE), so
+"multiple kept videos per owner" is structurally impossible; the preflight still
+measures it and fails such an owner closed (`multiple_videos_per_owner`) rather
+than arbitrarily choosing.
+
+Dispositions (invariant `videos_considered == Σ dispositions`): `preflighted`,
+`already_preflighted`, `owner_not_imported`, `unavailable`, `malformed`,
+`failed`, `explicitly_skipped`.
+
+**Files:** `domains/date9ja/snapshot/{video_source,video_record}.rb`,
+`domains/date9ja/import/{video_moderation,video_preflight_reconciliation,video_preflight}.rb`,
+`lib/tasks/date9ja_import.rake` (+ `date9ja:preflight_videos`), tests
+`test/domains/date9ja/snapshot/video_source_test.rb` +
+`test/domains/date9ja/import/video_preflight_test.rb`.
+
+**Tests / checks:** focused 37 runs / 125 assertions / 0 failures; broader
+`test/domains/date9ja` + `test/domains/migration` + `test/models/migration`
+248 runs / 0 failures; profile-video model + upload tests green. RuboCop clean
+(8 files), Zeitwerk `All is good!`, Brakeman 0/0, `git diff --check` clean.
+
+**Pass-1 sanitized rehearsal — SELF_VERIFIED (2026-09-03).** Against
+`date9ja_snapshot_sanitized` (schema preflight PASS), throwaway D8N DB, after the
+identity rehearsal.
+
+| | first pass | second pass |
+|---|---:|---:|
+| `videos_considered` / `balanced` | 35 / true | 35 / true |
+| `preflighted` | 35 | 0 |
+| `already_preflighted` | 0 | 35 |
+| `owner_not_imported` / `unavailable` / `malformed` / `failed` | 0 each | 0 each |
+| `MediaObjectRef` / `MediaAttachmentRef` created | 35 / 35 | 0 / 0 |
+| `ProfileVideo` / Active Storage rows | 0 / 0 | 0 / 0 |
+
+Stable measures (balance against `source_census.sql` measures 63/64: 35 total,
+35 `moderation_status=0`): 35 videos · moderation 35 pending / 0 approved / 0
+rejected · `owners_total` 35 · `owners_with_one_video` 35 ·
+`owners_with_multiple_videos` 0 · `owners_suspended` 0 · every attachment/blob
+anomaly counter 0 · `unsupported_content_types` 0 (source: 26 `video/mp4` + 9
+`video/quicktime`, both accepted) · `blob_reuse_objects` 0 ·
+`max_duration_limit_seconds` 60 · **`duration_missing` 35** (every legacy row's
+`duration_seconds` is NULL — Date9ja never persisted it) · `duration_over_limit`
+**0**.
+
+**Duration finding.** No source row is known to exceed the current D8N duration
+limit. Duration remains **unknown for all 35 observed legacy videos** because
+Date9ja did not persist `duration_seconds` (`duration_missing` 35 / 35,
+`duration_present` 0, `duration_over_limit` 0). Pass 2 must derive and validate
+authoritative duration from the actual media/container before accepting a
+migrated video; if the derived duration exceeds the limit, stop and require the
+existing grandfather / trim-reencode / quarantine product decision
+(`DECISIONS.md`). Pass 1 measures only and never rejects a row for duration.
+
+| Unit | State |
+|---|---|
+| Date9ja profile-video pass 1 implementation | **VERIFIED** (Codex independent review 2026-09-03: ACCEPT WITH SMALL FIX — documentation correction completed) |
+| Date9ja profile-video pass 1 sanitized rehearsal | **VERIFIED** (2026-09-03) |
+| Profile-video capability overall | **PARTIAL** — unchanged; pass 1 does not move it. Not `PARITY_ACCEPTED`. |
+| Profile-video **pass 2** (byte transfer + `ProfileVideo` creation + L2) | **NOT STARTED** — may now be PLANNED; must derive authoritative duration from the media container |
 
 ## Pass 2 (profile-photo byte transfer) — IMPLEMENTATION VERIFIED (Codex FINAL, 2026-09-03); L2 rehearsal VERIFIED (Codex, 2026-09-03)
 
@@ -583,9 +672,9 @@ Post-batch-3 infrastructure check (2026-09-02): the SyntheticDataset cleanup FK-
 - **Verification / Trust / Entitlements**: architecture accepted (ADRs 0024–0026); implementation waits on the ADR 0011 human gates and the `DECISIONS.md` "Mixed" rows (evidence retention + provider + portability; user-visible trust presentation).
 - **bcrypt / session transition**: approved sanitized snapshot + data dictionary (ops action).
 - **Complete Date9ja profile / conditional onboarding**: sensitive-field product rows.
-- **Profile video: legacy importer + migrated-media reconciliation** — needs the sanitized snapshot / data mapping. Public delivery wiring is **done** (slice 6, VERIFIED).
+- **Profile video: legacy importer + migrated-media reconciliation** — **pass 1 (media preflight) VERIFIED (Codex 2026-09-03: ACCEPT WITH SMALL FIX)**; pass 2 (byte transfer + `ProfileVideo` creation + L2 synthetic-corpus rehearsal) NOT STARTED — may now be PLANNED. Public delivery wiring is **done** (slice 6, VERIFIED).
 
-Profile video remains **PARTIAL** — public delivery wiring done; full parity still needs the legacy video importer, migrated-media reconciliation, the sanitized snapshot, and the frontend/API + parity acceptance journeys. Not `PARITY_ACCEPTED`.
+Profile video remains **PARTIAL** — public delivery wiring done, pass-1 media preflight VERIFIED; full parity still needs pass-2 byte transfer + L2 (pass 2 must derive authoritative duration from the media container), migrated-media reconciliation, and the frontend/API + parity acceptance journeys. Not `PARITY_ACCEPTED`.
 
 ### Sanitized snapshot milestone — VERIFIED FOR ENGINEERING USE (2026-09-02)
 
@@ -662,7 +751,7 @@ Phase 1 implementation path was re-checked against `MASTER-PLAN.md`,
 | 2 legacy reference mechanism | done | — |
 | 3 bcrypt / session transition | **credential step VERIFIED + READY** | Format discovery done (operator, 2026-09-02): **one bucket — `$2a$` cost 12, 288 accounts, 0 malformed, no Devise pepper**. Proof `scripts/date9ja/bcrypt_proof.rb` **executed by the operator 2026-09-02 against a real `$2a$12$` account → `$2a$ 12 PASS`** (verified through `PasswordEngine.matches?` / `PasswordLogin` session / byte-identical stored hash). Manifest deleted after the run. Session/recovery design follows `AUTHENTICATION.md` (fresh D8N session on first login; one-time secure recovery only on a hash failure). Import execution model **RESOLVED** (restored scratch DB). |
 | 4 complete Date9ja profile capabilities / conditional completion / privacy serialization | **blocked** | sensitive-field product rows (tribe/ethnicity/denomination/genotype/preferred tribes) + which fields are required for completion — all "Awaiting Uchechi" in `DECISIONS.md` |
-| 5 shared media / profile-video — owner CRUD + public delivery | done | importer sub-slice blocked transitively on the identity importer (slice 3) |
+| 5 shared media / profile-video — owner CRUD + public delivery | done | photo importer pass 1 + pass 2 + L2 VERIFIED; **video importer pass 1 VERIFIED (Codex 2026-09-03: ACCEPT WITH SMALL FIX)**; video pass 2 + L2 not started (may be planned) |
 | — reconciliation **source census** | **done** | `scripts/date9ja/source_census.sql`, VERIFIED (independent re-review) |
 | 6 verification & trust records/status history | **blocked** | `DECISIONS.md` "Mixed" rows: evidence retention + provider + portability; user-visible trust presentation |
 | 7 PAY / Entitlements primitives | **blocked** | no PAY/Entitlements primitive or importer yet; follows the identity importer (product row RESOLVED, ADR 0026) |

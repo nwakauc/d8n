@@ -36,6 +36,24 @@ namespace :date9ja do
     Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
   end
 
+  desc "Rehearsal: Date9ja profile-video MEDIA PREFLIGHT (pass 1) against a restored scratch " \
+       "snapshot (set DATE9JA_SNAPSHOT_DATABASE_URL). No byte transfer, no ProfileVideo, no " \
+       "playback/poster derivatives. Prints a PII-free reconciliation JSON."
+  task preflight_videos: :environment do
+    require "json"
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+
+    connection = Date9ja::Snapshot::Connection.connect!
+    source = Date9ja::Snapshot::VideoSource.new(connection: connection)
+
+    result = Date9ja::Import::VideoPreflight.call(brand: brand, source: source)
+
+    puts JSON.pretty_generate(result.reconciliation.to_h)
+  ensure
+    Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
+  end
+
   desc "L2 rehearsal: build the deterministic synthetic media corpus for " \
        "date9ja_snapshot_sanitized_media_v2. Set DATE9JA_SNAPSHOT_DATABASE_URL (the media_v2 DB) " \
        "and DATE9JA_MEDIA_CORPUS_DIR (output). Renders 279 synthetic images, writes a PII-free " \

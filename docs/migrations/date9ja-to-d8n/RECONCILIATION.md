@@ -233,6 +233,85 @@ VERIFIED · pass-1 sanitized rehearsal VERIFIED · profile-photo capability
 overall **PARTIAL** (bytes/`ProfilePhoto`/processing/delivery/frontend/cutover
 outstanding — pass 2, see `MEDIA-TRANSFER.md`). NOT `PARITY_ACCEPTED`.
 
+## Profile-video MEDIA PREFLIGHT contract (Wave A, pass 1 — reuses ADR 0027)
+
+The video analogue of the profile-photo pass-1 contract above. Same generic
+`Migration::MediaObjectRef` / `MediaAttachmentRef` / `ReferenceMap` spine; no new
+framework. Source: `profile_videos` + `record_type='ProfileVideo' AND
+name='video'` attachments/blobs.
+
+**Invariant:** `videos_considered == preflighted + already_preflighted +
+owner_not_imported + unavailable + malformed + failed + explicitly_skipped`.
+
+| Disposition | Meaning |
+|---|---|
+| `preflighted` | blob + `video` attachment recorded; owner profile resolved; fresh this run |
+| `already_preflighted` | identical rerun — both refs unchanged |
+| `owner_not_imported` | valid media graph; owner profile not (yet) imported — evidence kept for a later pass |
+| `unavailable` | `missing_attachment` / `missing_blob` |
+| `malformed` | `moderation_unmapped` (moderation enum outside 0/1/2) |
+| `failed` | `duplicate_attachment` / `unsupported_content_type` / `checksum_size_inconsistent` / `multiple_videos_per_owner` / `blob_metadata_drift` / `attachment_drift` / `owner_binding_conflict` / `preflight_error` |
+| `explicitly_skipped` | reserved — source has no soft-delete column, so always 0 |
+
+**Duration is measured only.** `duration_present/missing/within_limit/over_limit/
+invalid` are recorded against `Media::VideoPolicy.max_duration_seconds`; a row is
+NEVER rejected for duration in pass 1. Pass 1 cannot prove a legacy video's
+actual length — `profile_videos.duration_seconds` was client-supplied and is not
+authoritative. **Pass 2 must derive and validate authoritative duration from the
+actual media/container** (`Media::VideoProcessor` / `VideoContainerValidator`)
+before accepting a migrated video; if the derived duration exceeds the limit,
+stop and require the grandfather / trim-reencode / quarantine product decision
+(`DECISIONS.md`).
+
+**One video per owner:** the legacy table is 1:1 on `user_id` (UNIQUE index), so
+`owners_with_multiple_videos` is structurally 0. The preflight still measures it
+and, if ever > 0, fails that owner's rows closed (`multiple_videos_per_owner`)
+rather than choosing one.
+
+### Pass-1 rehearsal result — VERIFIED (Codex independent review, 2026-09-03: ACCEPT WITH SMALL FIX — duration wording corrected)
+
+Source `date9ja_snapshot_sanitized`, schema preflight PASS, throwaway D8N DB, run
+after the identity rehearsal (`bin/rails date9ja:preflight_videos`). Two passes.
+
+| Reconciliation measure | first pass | second pass |
+|---|---:|---:|
+| `videos_considered` / `balanced` | 35 / true | 35 / true |
+| `preflighted` | 35 | 0 |
+| `already_preflighted` | 0 | 35 |
+| `owner_not_imported` / `unavailable` / `malformed` / `failed` / `explicitly_skipped` | 0 | 0 |
+| `MediaObjectRef` created | 35 | 0 |
+| `MediaAttachmentRef` created | 35 | 0 |
+| `ProfileVideo` / Active Storage rows created | 0 | 0 |
+
+Stable measures matched the census baseline (measure 63 `profile_videos total` =
+35; measure 64 `by moderation_status` = `0:35`): `total_source_videos` 35 ·
+moderation 35 pending / 0 approved / 0 rejected · `owners_total` 35 ·
+`owners_with_one_video` 35 · `owners_with_multiple_videos` 0 ·
+`owners_suspended` 0 · `missing_attachments` / `duplicate_attachments` /
+`missing_blobs` / `unsupported_content_types` / `checksum_size_inconsistencies` 0 ·
+`blob_reuse_objects` 0 · `max_duration_limit_seconds` 60 · **`duration_missing`
+35 / 35** · `duration_present` / `duration_within_limit` / `duration_over_limit`
+/ `duration_invalid` all **0**.
+
+Source content-type split (metadata census): 26 `video/mp4` + 9
+`video/quicktime` — both in `ProfileVideo::ALLOWED_CONTENT_TYPES`, 0 unsupported.
+
+Invariant closed both passes (`35 = 35 + 0` first; `35 = 0 + 35` second).
+Idempotency demonstrated: zero refs, zero destination rows on the second pass.
+
+**Duration finding.** All 35 source rows have a missing `duration_seconds`. No
+source row is **known** to exceed the current D8N duration limit; actual duration
+is **unproven** for every observed legacy video because Date9ja did not persist
+it. This is not a "decision is moot" result — **pass 2 must inspect / derive
+authoritative duration from the media bytes / container**, and if the actual
+duration exceeds the limit, stop and require the existing grandfather /
+trim-reencode / quarantine product decision (`DECISIONS.md`).
+
+**Lifecycle:** video pass-1 implementation VERIFIED (Codex 2026-09-03: ACCEPT
+WITH SMALL FIX — documentation correction completed) · sanitized rehearsal
+VERIFIED · profile-video capability overall **PARTIAL** (pass-2 byte transfer +
+L2 + reconciliation + frontend/cutover outstanding). NOT `PARITY_ACCEPTED`.
+
 ### Pass-2 `service_name` census — RUN 2026-09-03
 
 Metadata-only census (no bytes, no `key`) against `date9ja_snapshot_sanitized`

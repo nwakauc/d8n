@@ -512,6 +512,29 @@ command in `RECONCILIATION.md`. Architecture: ADR 0027.
 all anomaly counters 0. Measures matched the census baseline. Record:
 `RECONCILIATION.md` "Pass-1 rehearsal result".
 
+### Profile-video MEDIA PREFLIGHT rehearsal (pass 1) — procedure
+
+`bin/rails date9ja:preflight_videos` (after `date9ja:import_identity`, same
+`DATE9JA_SNAPSHOT_DATABASE_URL`, throwaway D8N DB). The video analogue of
+`preflight_photos`: reads `profile_videos` +
+`record_type='ProfileVideo' AND name='video'` attachments and their blobs'
+`byte_size/checksum/content_type` **only** — never `key` / `filename` /
+`metadata` / `service_name` / `rejection_reason`, no bytes, no `ProfileVideo`, no
+Active Storage record, no `playback`/`poster` derivative, no job. Records
+`Migration::MediaObjectRef` / `MediaAttachmentRef` and prints a PII-free
+reconciliation JSON (`RECONCILIATION.md` video pass-1 contract).
+
+**Executed 2026-09-03 — VERIFIED (Codex independent review: ACCEPT WITH SMALL FIX
+— duration wording corrected).** 35 considered / 35 preflighted / 0
+`owner_not_imported` / 0 failed; second pass 35 `already_preflighted`, 0 created,
+0 `ProfileVideo`/Active Storage rows; all anomaly counters 0; content types 26
+`video/mp4` + 9 `video/quicktime` (0 unsupported). **`duration_missing` 35 / 35:**
+Date9ja did not persist `duration_seconds`, so no source row is known to exceed
+the limit and actual duration is unproven for every legacy video — **pass 2 must
+derive authoritative duration from the media container**; if it exceeds the
+limit, stop for the grandfather / trim-reencode / quarantine product decision.
+Record: `RECONCILIATION.md` "Profile-video MEDIA PREFLIGHT contract".
+
 ### Profile-photo BYTE TRANSFER rehearsal (pass 2) — L2 VERIFIED (Codex independent review, 2026-09-03)
 
 The synthetic-corpus (L2) rehearsal is **built, green, and independently
