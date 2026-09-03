@@ -1,9 +1,9 @@
 # Date9ja → D8N Status
 
 - Current phase: **Phase 1 — Shared Platform Foundations** (Wave A)
-- Current capability: Batches 2 & 3 reviewed; sanitized snapshot milestone VERIFIED; reconciliation census + schema-signature v2 VERIFIED (independent review); import execution model RESOLVED; **bcrypt compatibility proof VERIFIED (2026-09-02, operator ran `scripts/date9ja/bcrypt_proof.rb` against a real `$2a$12$` account → `$2a$ 12 PASS`)**; identity + membership + non-sensitive profile importer — implementation reviewed + **operator rehearsal VERIFIED (2026-09-03)** against `date9ja_snapshot_sanitized` (288 source rows → 280 imported / 8 skipped `source_soft_deleted` / 0 failed; second pass 280 already_imported / 0 created; source reconciliation balanced). **NOT PARITY_ACCEPTED, NOT production-ready, NOT cutover-ready**
+- Current capability: Batches 2 & 3 reviewed; sanitized snapshot milestone VERIFIED; reconciliation census + schema-signature v2 VERIFIED (independent review); import execution model RESOLVED; **bcrypt compatibility proof VERIFIED (2026-09-02, operator ran `scripts/date9ja/bcrypt_proof.rb` against a real `$2a$12$` account → `$2a$ 12 PASS`)**; identity + membership + non-sensitive profile importer — implementation reviewed + **operator rehearsal VERIFIED (2026-09-03)** against `date9ja_snapshot_sanitized` (288 source rows → 280 imported / 8 skipped `source_soft_deleted` / 0 failed; second pass 280 already_imported / 0 created; source reconciliation balanced); **profile-photo pass 2 implementation VERIFIED + L2 synthetic-corpus rehearsal VERIFIED (Codex independent review 2026-09-03: FINAL VERDICT ACCEPT)**. **NOT PARITY_ACCEPTED, NOT production-ready, NOT cutover-ready. L3 NOT YET READY.**
 - Builder: Claude (senior engineer)
-- Reviewer: Independent reviewer — Codex (batches 1–3 reviewed)
+- Reviewer: Independent reviewer — Codex (batches 1–3 + profile-photo pass 2 / L2 reviewed)
 - Review cadence: bounded batches (~3–5 slices), not per-slice. Significant work remains **SELF_VERIFIED** until independent review.
 - Last verified: 2026-09-02
 - Cutover: **BLOCKED** until data parity and feature parity both pass.
@@ -222,9 +222,9 @@ Stable measures: 279 photos · moderation 2 pending / 266 approved / 11 rejected
 | Date9ja profile-photo pass 1 implementation | **VERIFIED** |
 | Date9ja profile-photo pass 1 sanitized rehearsal | **VERIFIED** |
 | Profile-photo capability overall | **PARTIAL** — not `PARITY_ACCEPTED`, not production-ready, not cutover-ready |
-| Profile-photo **pass 2** (byte transfer + `ProfilePhoto` creation) | **IMPLEMENTATION VERIFIED (Codex FINAL bounded re-review 2026-09-03: ACCEPT). L2 279-row synthetic-corpus rehearsal SELF_VERIFIED (2026-09-03) — `date9ja_snapshot_sanitized_media_v2` + `Date9ja::Snapshot::SyntheticMedia` + `Date9ja::Storage::LocalCorpusReader`; identity 280, pass-1 276+3, pass-2 transferred 276 / owner_not_imported 3, idempotent + interrupt-safe, raw purge clean, no R2, no production. NOT PARITY_ACCEPTED / cutover-ready / L3-ready.** Implementation-review rounds 1 + 2 (Codex BLOCK) fixes applied. Round 2: single authoritative `Media::DisplayDerivative.valid?` (bounded remote + checksum) on every job ready/finalize/purge path, run outside all DB locks; Phase-B `finalize_binding` rejects same-user/wrong-profile existing bindings (`mapping_drift`). ADR 0028 ACCEPTED. Code + L1 automated tests landed and green (`Migration::MediaTransfer` + `CanonicalKey` + `AdoptOrUpload`, `Date9ja::Storage::SourceReader`, `Date9ja::Snapshot::MediaLocatorSource`, `Date9ja::Import::PhotoTransfer` / `PhotoOrderPlan` / `PhotoTransferReconciliation`, `Profiles::PhotoUpload.build_photo!` extraction, `ProfilePhoto` claim-token processing hardening + `Media::ProfilePhotoProcessingSweeper`). RuboCop / Zeitwerk / Brakeman clean. **NOT independently reviewed, NOT `VERIFIED`, NOT `PARITY_ACCEPTED`.** L1: covered by tests. L2 (`_media_v2` artifact): NOT built. L3 (real R2): NOT wired (transport only). No bytes moved. |
+| Profile-photo **pass 2** (byte transfer + `ProfilePhoto` creation) | **IMPLEMENTATION VERIFIED (Codex FINAL bounded re-review 2026-09-03: ACCEPT). L2 279-row synthetic-corpus rehearsal VERIFIED (Codex independent review 2026-09-03: manifest byte_size exact typing YES, NULL-safe complete blob drift YES, existing L2 evidence still valid YES; focused verification 34 runs / 140 assertions / 0 failures; `git diff --check` CLEAN; FINAL VERDICT: ACCEPT — this closes the L2 review) — `date9ja_snapshot_sanitized_media_v2` + `Date9ja::Snapshot::SyntheticMedia` + `Date9ja::Storage::LocalCorpusReader` + `Date9ja::Storage::SafeObjectKey`; identity 280, pass-1 276+3, pass-2 transferred 276 / owner_not_imported 3, idempotent + interrupt-safe, raw purge clean, no R2, no production. NOT PARITY_ACCEPTED / cutover-ready / L3-ready.** Implementation-review rounds 1 + 2 (Codex BLOCK) fixes applied. Round 2: single authoritative `Media::DisplayDerivative.valid?` (bounded remote + checksum) on every job ready/finalize/purge path, run outside all DB locks; Phase-B `finalize_binding` rejects same-user/wrong-profile existing bindings (`mapping_drift`). ADR 0028 ACCEPTED. Code + L1 automated tests landed and green (`Migration::MediaTransfer` + `CanonicalKey` + `AdoptOrUpload`, `Date9ja::Storage::SourceReader`, `Date9ja::Snapshot::MediaLocatorSource`, `Date9ja::Import::PhotoTransfer` / `PhotoOrderPlan` / `PhotoTransferReconciliation`, `Profiles::PhotoUpload.build_photo!` extraction, `ProfilePhoto` claim-token processing hardening + `Media::ProfilePhotoProcessingSweeper`). RuboCop / Zeitwerk / Brakeman clean. **NOT independently reviewed, NOT `VERIFIED`, NOT `PARITY_ACCEPTED`.** L1: covered by tests. L2 (`_media_v2` artifact): NOT built. L3 (real R2): NOT wired (transport only). No bytes moved. |
 
-## Pass 2 (profile-photo byte transfer) — IMPLEMENTED / SELF_VERIFIED (2026-09-03)
+## Pass 2 (profile-photo byte transfer) — IMPLEMENTATION VERIFIED (Codex FINAL, 2026-09-03); L2 rehearsal VERIFIED (Codex, 2026-09-03)
 
 Code + automated L1 tests landed against ACCEPTED ADR 0028. Full media / profiles
 / migration / date9ja suites green (0 failures); one pre-existing unrelated
@@ -287,7 +287,7 @@ welcome-email template gained a CTA link the test was not updated for).
   YET READY.
 - **NOT** `PARITY_ACCEPTED` / production-ready / cutover-ready.
 
-### L2 rehearsal — SELF_VERIFIED / builder-attested (2026-09-03)
+### L2 rehearsal — VERIFIED (Codex independent review, 2026-09-03)
 
 Full 279-row synthetic-corpus rehearsal of the complete Pass 2 path. **No real
 Date9ja R2, no production, no live media, no L3.**
@@ -379,9 +379,44 @@ Date9ja R2, no production, no live media, no L3.**
   not stringified). Verifier-only: corpus bytes, manifest fingerprint
   (`ebcff28a…`), and media_v2 DB contents unchanged; existing L2 transfer
   evidence still valid; no L2 rerun required. All 17 checks green.
-- **NOT** independently reviewed. L2 is **SELF_VERIFIED**. **NOT**
-  `PARITY_ACCEPTED` / production-ready / cutover-ready / L3-ready. L3 (scoped
-  read-only R2 transport + operator logistics) remains **NOT YET READY**.
+- **L2 review loop CLOSED — Codex independent verification 2026-09-03: FINAL
+  VERDICT ACCEPT.** Manifest byte_size exact typing: YES. NULL-safe complete
+  blob-table drift: YES. Existing L2 transfer evidence still valid: YES. Focused
+  verification: 34 runs / 140 assertions / 0 failures / 0 errors / 0 skips;
+  `git diff --check` CLEAN. No further L2 review loop unless genuinely new
+  evidence later invalidates an accepted invariant.
+
+#### L2 closeout statement (durable)
+
+The L2 synthetic-media rehearsal has completed independent verification.
+Accepted evidence: 279 source Photo rows considered; 276 transferred; 3
+`owner_not_imported` expected exclusions; 276 `ProfilePhoto` destinations; 276
+`ready` processing state; authoritative display-derivative validation
+(`Media::DisplayDerivative.valid?`, bounded remote + `Blob.checksum` + JPEG
+decode, run outside all DB locks); raw-purge recovery/inference from
+`ProfilePhoto#metadata`; zero-growth idempotent reruns (raw present and raw
+purged); interruption / `SIGKILL` recovery with correct ABA claim-token
+protection and sweeper reclaim; deterministic synthetic corpus (fingerprint
+`ebcff28a…`, byte-identical across runs); strict generator path containment
+(`Date9ja::Storage::SafeObjectKey`, symlink-escape aware, fail-closed before any
+write); manifest ↔ media_v2 DB field-for-field binding (check 16, authorized set
+from the Photo attachment graph, strict integer `byte_size` typing); complete
+schema-driven blob-table drift authorization (check 17, NULL-safe, every row /
+every column). **This is L2 rehearsal verification only. It does NOT imply
+production readiness, cutover readiness, or L3 approval.**
+
+#### L3 boundary (unchanged — separate operational/security gate)
+
+L3 is **NOT YET READY** and is **not** the automatic next step. It is a separate
+gate because it introduces concerns L2 never exercised: real legacy media /
+storage access; scoped read-only production credentials; production-derived
+source media; network / egress controls; credential lifecycle and destruction;
+the final production-restored sanitized snapshot; and operational-runbook
+requirements. L2 verification must not be read as L3 approval. No L3 work is
+authorized here.
+
+- **NOT** `PARITY_ACCEPTED` / production-ready / cutover-ready. Profile Photo
+  capability remains **PARTIAL**.
 
 ### Design record (unchanged) — DESIGN ACCEPTED (2026-09-03)
 

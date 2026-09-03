@@ -512,10 +512,12 @@ command in `RECONCILIATION.md`. Architecture: ADR 0027.
 all anomaly counters 0. Measures matched the census baseline. Record:
 `RECONCILIATION.md` "Pass-1 rehearsal result".
 
-### Profile-photo BYTE TRANSFER rehearsal (pass 2) — L2 SELF_VERIFIED (2026-09-03)
+### Profile-photo BYTE TRANSFER rehearsal (pass 2) — L2 VERIFIED (Codex independent review, 2026-09-03)
 
-The synthetic-corpus (L2) rehearsal is **built and green**. No real R2, no
-production, no live media, no L3.
+The synthetic-corpus (L2) rehearsal is **built, green, and independently
+verified** (Codex 2026-09-03: FINAL VERDICT ACCEPT; L2 review loop closed). No
+real R2, no production, no live media, no L3. L2 verification does **not** imply
+production / cutover readiness or L3 approval.
 
 ```
 # 0. media_v2 artifact — a TEMPLATE copy of the verified sanitized snapshot,

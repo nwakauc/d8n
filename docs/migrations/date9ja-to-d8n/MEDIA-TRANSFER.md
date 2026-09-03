@@ -1090,7 +1090,9 @@ canonical string (§7) discriminates on `source_attachment_id`.
 
 ## 21. Synthetic / sanitized media rehearsal design — DISTINCT ARTIFACT
 
-> **STATUS 2026-09-03: L1 + L2 BUILT AND GREEN (L2 SELF_VERIFIED).** The
+> **STATUS 2026-09-03: L1 + L2 BUILT, GREEN, AND INDEPENDENTLY VERIFIED (Codex
+> 2026-09-03: FINAL VERDICT ACCEPT — L2 review loop closed; not production /
+> cutover ready; L3 not approved).** The
 > artifact is a `CREATE DATABASE … TEMPLATE date9ja_snapshot_sanitized` copy on
 > the isolated PG17 instance with only `active_storage_blobs.byte_size` /
 > `checksum` rewritten on the 279 Photo image blobs. Generator / verifier /

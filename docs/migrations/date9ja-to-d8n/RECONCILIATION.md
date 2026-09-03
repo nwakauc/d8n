@@ -247,7 +247,7 @@ No `local`, no `amazon`, no `NULL`, no mixed-service corpus. The Pass-1 gap
 re-asserts the single-service invariant against the final production snapshot at
 run time and treats any non-`cloudflare` value as a global blocker.
 
-### Pass-2 L2 synthetic-corpus rehearsal — SELF_VERIFIED (2026-09-03)
+### Pass-2 L2 synthetic-corpus rehearsal — VERIFIED (Codex independent review, 2026-09-03)
 
 Full 279-row rehearsal against `date9ja_snapshot_sanitized_media_v2` + the
 deterministic synthetic corpus (`Date9ja::Snapshot::SyntheticMedia`), read
@@ -281,8 +281,9 @@ stays `ready` + `Media::DisplayDerivative.valid?` afterwards. An interrupted run
 (two `SIGKILL`s) converged with zero duplicates; one claim-held photo was
 reclaimed by `Media::ProfilePhotoProcessingSweeper` after the stale window and
 completed on the next run (276/276). Output is PII-free (no storage key,
-checksum, email, or per-row id). **NOT independently reviewed; NOT
-`PARITY_ACCEPTED` / cutover-ready / L3-ready.**
+checksum, email, or per-row id). **Codex independent review 2026-09-03: FINAL
+VERDICT ACCEPT — L2 review loop closed. Still NOT `PARITY_ACCEPTED` /
+cutover-ready / L3-ready.**
 
 ### Pass-2 transfer reconciliation contract
 
