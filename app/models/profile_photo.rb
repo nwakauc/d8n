@@ -2,6 +2,10 @@ class ProfilePhoto < ApplicationRecord
   MAX_FILE_SIZE = 10.megabytes
   ALLOWED_CONTENT_TYPES = %w[ image/jpeg image/png image/webp ].freeze
 
+  # A `processing` claim older than this is considered abandoned (its worker
+  # crashed) and may be reclaimed by another job (MEDIA-TRANSFER.md §16b).
+  STALE_PROCESSING_AFTER = 15.minutes
+
   belongs_to :profile
   belongs_to :user
   belongs_to :brand
@@ -24,6 +28,33 @@ class ProfilePhoto < ApplicationRecord
   # policy AND with a completed safe derivative. Fails closed on anything else.
   scope :moderation_publicly_eligible, -> { where(status: %i[pending_review approved]) }
   scope :deliverable, -> { kept.visible.processing_ready.moderation_publicly_eligible }
+
+  # Rows the processing sweeper may (re-)enqueue: pending, retryable failed, and
+  # `processing` whose claim has gone stale. Never ready, never a terminal
+  # failure, never a recent/active `processing` claim.
+  scope :processing_sweepable, lambda {
+    kept.where(
+      "(profile_photos.processing_state = :pending) OR " \
+      "(profile_photos.processing_state = :failed AND COALESCE(profile_photos.metadata->>'processing_failure_kind','') <> 'terminal') OR " \
+      "(profile_photos.processing_state = :processing AND profile_photos.processing_started_at IS NOT NULL " \
+      "AND profile_photos.processing_started_at < :stale)",
+      pending: processing_states[:pending], failed: processing_states[:failed],
+      processing: processing_states[:processing], stale: STALE_PROCESSING_AFTER.ago
+    )
+  }
+
+  def processing_terminal_failure?
+    processing_failed? && metadata["processing_failure_kind"] == "terminal"
+  end
+
+  def processing_retryable?
+    processing_pending? || (processing_failed? && !processing_terminal_failure?)
+  end
+
+  def processing_claim_stale?
+    processing_processing? && processing_started_at.present? &&
+      processing_started_at < STALE_PROCESSING_AFTER.ago
+  end
 
   validates :public_id, presence: true, uniqueness: true, format: { with: Profile::PUBLIC_ID_FORMAT }
   validates :position, numericality: { only_integer: true, greater_than_or_equal_to: 0 }

@@ -233,16 +233,73 @@ VERIFIED · pass-1 sanitized rehearsal VERIFIED · profile-photo capability
 overall **PARTIAL** (bytes/`ProfilePhoto`/processing/delivery/frontend/cutover
 outstanding — pass 2, see `MEDIA-TRANSFER.md`). NOT `PARITY_ACCEPTED`.
 
+### Pass-2 `service_name` census — RUN 2026-09-03
+
+Metadata-only census (no bytes, no `key`) against `date9ja_snapshot_sanitized`
+(`postgresql://127.0.0.1:55432`):
+
+| `service_name` | photo blob count |
+|---|---:|
+| `cloudflare` | 279 |
+
+No `local`, no `amazon`, no `NULL`, no mixed-service corpus. The Pass-1 gap
+(`MediaObjectRef` did not record `service_name`) is closed for this slice. Pass 2
+re-asserts the single-service invariant against the final production snapshot at
+run time and treats any non-`cloudflare` value as a global blocker.
+
+### Pass-2 L2 synthetic-corpus rehearsal — SELF_VERIFIED (2026-09-03)
+
+Full 279-row rehearsal against `date9ja_snapshot_sanitized_media_v2` + the
+deterministic synthetic corpus (`Date9ja::Snapshot::SyntheticMedia`), read
+through `Date9ja::Storage::LocalCorpusReader`. No real R2, no production.
+
+| Measure | First run | Rerun (raw present) | Rerun (raw purged) |
+|---|--:|--:|--:|
+| `photos_considered` / `balanced` | 279 / true | 279 / true | 279 / true |
+| `transferred` | 276 | 0 | 0 |
+| `already_transferred` | 0 | 276 | 276 |
+| `owner_not_imported` | 3 | 3 | 3 |
+| all other dispositions | 0 | 0 | 0 |
+| `profile_photos_created` | 276 | 0 | 0 |
+| `reference_map_bindings_created` | 276 | 0 | 0 |
+| `destination_uploads_created` | 276 | 0 | 0 |
+| `processing_succeeded` | 276 | 0 | 0 |
+| `binding_conflicts` / `mapping_drift` | 0 / 0 | 0 / 0 | 0 / 0 |
+| `unexplained_failures` | 3 | 3 | 3 |
+| `cutover_ready` | false | false | false |
+
+Invariant `photos_considered == Σ dispositions` holds every run
+(`279 = 276 + 0 + 3` first; `279 = 0 + 276 + 3` reruns). `cutover_ready` is
+false only because the 3 known `owner_not_imported` (suspended source owners)
+count as `unexplained_failures` — there is no reviewed-exception workflow in this
+build. Destination state after the first run: 276 `ProfilePhoto` all
+`processing_ready` with a validated deterministic display derivative;
+moderation `pending_review`→visible 2 / `approved`→visible 263 /
+`rejected`→hidden 11; every owner exactly one `position 0`; per-owner 1–6, no
+truncation. 276 detached original blobs purge cleanly and every ProfilePhoto
+stays `ready` + `Media::DisplayDerivative.valid?` afterwards. An interrupted run
+(two `SIGKILL`s) converged with zero duplicates; one claim-held photo was
+reclaimed by `Media::ProfilePhotoProcessingSweeper` after the stale window and
+completed on the next run (276/276). Output is PII-free (no storage key,
+checksum, email, or per-row id). **NOT independently reviewed; NOT
+`PARITY_ACCEPTED` / cutover-ready / L3-ready.**
+
 ### Pass-2 transfer reconciliation contract
 
-Defined in [`MEDIA-TRANSFER.md`](MEDIA-TRANSFER.md) §15 (design checkpoint, not
-implemented). Terminal dispositions: `transferred`, `already_transferred`,
-`owner_not_imported`, `source_unavailable`, `source_changed`, `validation_failed`,
-`destination_failed`, `binding_conflict`, `processing_failed`, `quarantined`,
-`explicitly_skipped`. Invariant `photos_considered == Σ dispositions`. PII-free;
-no storage locator or checksum value in output. Baseline: 276 transfer-eligible,
-3 `owner_not_imported`, `profile_photos_created` 276 on a clean first run / 0 on
-rerun.
+Defined in [`MEDIA-TRANSFER.md`](MEDIA-TRANSFER.md) §15 (design checkpoint —
+Revision 4, not implemented; `binding_conflict` covers `remote_orphan`,
+`destination_collision`, and `mapping_drift` (destination `ReferenceMap(profile)`
+resolution changed after pre-copy — the storage object is never re-keyed), and
+every reused destination object is re-verified by a real streamed re-hash).
+Terminal dispositions: `transferred`,
+`already_transferred`, `owner_not_imported`, `source_unavailable`,
+`source_changed`, `validation_failed`, `destination_failed`, `binding_conflict`,
+`processing_failed`, `quarantined`, `explicitly_skipped`. Invariant
+`photos_considered == Σ dispositions`. Every non-success disposition is
+additionally `unexplained_failure` or `reviewed_exception`; cutover requires
+`unexplained_failure == 0`. PII-free; no storage locator or checksum value in
+output. Baseline: 276 transfer-eligible, 3 `owner_not_imported`,
+`profile_photos_created` 276 on a clean first run / 0 on rerun.
 
 ```text
 Snapshot <id> / run <id>

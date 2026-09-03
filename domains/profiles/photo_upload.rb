@@ -91,29 +91,44 @@ module Profiles
 
       verify_uploaded_object!(blob)
 
-      photo = profile.with_lock do
-        raise AlreadyAttached if blob.attachments.exists?
-        ensure_capacity!(profile:, brand:)
-
-        initial = Media::PhotoPolicy.initial_state(brand:)
-        record = ProfilePhoto.new(
-          profile:,
-          user:,
-          brand:,
-          position: PhotoOrder.prepare_insert!(profile:, position:),
-          status: initial.status,
-          visibility: initial.visibility
-        )
-        record.image.attach(blob)
-        record.save!
-        record
-      end
+      initial = Media::PhotoPolicy.initial_state(brand:)
+      photo = build_photo!(
+        profile:, user:, brand:, blob:, position:,
+        status: initial.status, visibility: initial.visibility
+      )
 
       # Kick off async safe-derivative generation. The photo stays
       # processing-pending (fail-closed for other-user delivery) until the
       # EXIF-stripped display image exists.
       Media::ProcessProfilePhotoJob.perform_later(photo.id)
       photo
+    end
+
+    # Minimal internal domain seam (ADR 0028 §9 / MEDIA-TRANSFER.md §23). Owns
+    # ProfilePhoto DOMAIN invariants only — validity, owner/profile/brand scope,
+    # capacity, attachment invariants — under the profile lock. It does NOT own
+    # request authentication/authorization: the HTTP `attach!` path stays solely
+    # responsible for that and for deriving policy state
+    # (Media::PhotoPolicy.initial_state). Date9ja::Import::PhotoTransfer calls
+    # this with explicit source-derived position/status/visibility after its own
+    # Migration::MediaTransfer verification and inside its Phase-B transaction.
+    def self.build_photo!(profile:, user:, brand:, blob:, status:, visibility:, position: nil)
+      profile.with_lock do
+        raise AlreadyAttached if blob.attachments.exists?
+        ensure_capacity!(profile:, brand:)
+
+        record = ProfilePhoto.new(
+          profile:,
+          user:,
+          brand:,
+          position: PhotoOrder.prepare_insert!(profile:, position:),
+          status:,
+          visibility:
+        )
+        record.image.attach(blob)
+        record.save!
+        record
+      end
     end
 
     # Trust the object, not the client's declared metadata: confirm the upload

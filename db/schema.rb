@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_03_120200) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_03_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -715,7 +715,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_120200) do
     t.check_constraint "accuracy_meters >= 0 AND accuracy_meters <= 100000", name: "chk_profile_locations_accuracy"
     t.check_constraint "latitude >= '-90'::integer::numeric AND latitude <= 90::numeric", name: "chk_profile_locations_latitude"
     t.check_constraint "longitude >= '-180'::integer::numeric AND longitude <= 180::numeric", name: "chk_profile_locations_longitude"
-    t.check_constraint "source::text = ANY (ARRAY['device'::character varying::text, 'manual'::character varying::text, 'imported'::character varying::text, 'place'::character varying::text])", name: "chk_profile_locations_source"
+    t.check_constraint "source::text = ANY (ARRAY['device'::character varying, 'manual'::character varying, 'imported'::character varying, 'place'::character varying]::text[])", name: "chk_profile_locations_source"
   end
 
   create_table "profile_openers", force: :cascade do |t|
@@ -810,6 +810,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_120200) do
     t.jsonb "metadata", default: {}, null: false
     t.integer "position", default: 0, null: false
     t.datetime "processed_at"
+    t.uuid "processing_claim_token"
+    t.datetime "processing_started_at"
     t.integer "processing_state", default: 0, null: false
     t.bigint "profile_id", null: false
     t.string "public_id", null: false
@@ -821,6 +823,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_120200) do
     t.index ["brand_id", "status", "created_at"], name: "index_profile_photos_on_brand_id_and_status_and_created_at"
     t.index ["brand_id", "user_id", "deleted_at"], name: "index_profile_photos_on_brand_id_and_user_id_and_deleted_at"
     t.index ["brand_id"], name: "index_profile_photos_on_brand_id"
+    t.index ["processing_state", "processing_started_at"], name: "index_profile_photos_on_processing_state_and_started_at"
     t.index ["profile_id", "position"], name: "index_profile_photos_on_profile_id_and_position", unique: true, where: "(deleted_at IS NULL)"
     t.index ["profile_id"], name: "index_profile_photos_on_profile_id"
     t.index ["public_id"], name: "index_profile_photos_on_public_id", unique: true

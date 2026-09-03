@@ -222,42 +222,285 @@ Stable measures: 279 photos · moderation 2 pending / 266 approved / 11 rejected
 | Date9ja profile-photo pass 1 implementation | **VERIFIED** |
 | Date9ja profile-photo pass 1 sanitized rehearsal | **VERIFIED** |
 | Profile-photo capability overall | **PARTIAL** — not `PARITY_ACCEPTED`, not production-ready, not cutover-ready |
-| Profile-photo **pass 2** (byte transfer + `ProfilePhoto` creation) | **DESIGN CHECKPOINT** — see [`MEDIA-TRANSFER.md`](MEDIA-TRANSFER.md) + ADR 0028 (Proposed). **BLOCKED** on 7 open product/operator/security decisions (`MEDIA-TRANSFER.md` §"Open"); architecture READY. Not started. |
+| Profile-photo **pass 2** (byte transfer + `ProfilePhoto` creation) | **IMPLEMENTATION VERIFIED (Codex FINAL bounded re-review 2026-09-03: ACCEPT). L2 279-row synthetic-corpus rehearsal SELF_VERIFIED (2026-09-03) — `date9ja_snapshot_sanitized_media_v2` + `Date9ja::Snapshot::SyntheticMedia` + `Date9ja::Storage::LocalCorpusReader`; identity 280, pass-1 276+3, pass-2 transferred 276 / owner_not_imported 3, idempotent + interrupt-safe, raw purge clean, no R2, no production. NOT PARITY_ACCEPTED / cutover-ready / L3-ready.** Implementation-review rounds 1 + 2 (Codex BLOCK) fixes applied. Round 2: single authoritative `Media::DisplayDerivative.valid?` (bounded remote + checksum) on every job ready/finalize/purge path, run outside all DB locks; Phase-B `finalize_binding` rejects same-user/wrong-profile existing bindings (`mapping_drift`). ADR 0028 ACCEPTED. Code + L1 automated tests landed and green (`Migration::MediaTransfer` + `CanonicalKey` + `AdoptOrUpload`, `Date9ja::Storage::SourceReader`, `Date9ja::Snapshot::MediaLocatorSource`, `Date9ja::Import::PhotoTransfer` / `PhotoOrderPlan` / `PhotoTransferReconciliation`, `Profiles::PhotoUpload.build_photo!` extraction, `ProfilePhoto` claim-token processing hardening + `Media::ProfilePhotoProcessingSweeper`). RuboCop / Zeitwerk / Brakeman clean. **NOT independently reviewed, NOT `VERIFIED`, NOT `PARITY_ACCEPTED`.** L1: covered by tests. L2 (`_media_v2` artifact): NOT built. L3 (real R2): NOT wired (transport only). No bytes moved. |
 
-## Pass 2 (profile-photo byte transfer) — DESIGN CHECKPOINT (2026-09-03)
+## Pass 2 (profile-photo byte transfer) — IMPLEMENTED / SELF_VERIFIED (2026-09-03)
 
-Full execution design: [`MEDIA-TRANSFER.md`](MEDIA-TRANSFER.md). Architecture
-decision: `docs/adr/0028-migration-media-byte-transfer.md` (**Proposed**).
+Code + automated L1 tests landed against ACCEPTED ADR 0028. Full media / profiles
+/ migration / date9ja suites green (0 failures); one pre-existing unrelated
+failure elsewhere (`Notifications::DeliverProductNotificationJobTest` — DateZA
+welcome-email template gained a CTA link the test was not updated for).
 
-- **Legacy storage:** Date9ja production uses Active Storage `S3` service against
-  Cloudflare R2 (single ENV-configured bucket, private objects, flat random blob
-  keys, `aws-sdk-s3` client). Checksum = MD5-base64 (`Content-MD5`), identical
-  Rails 8.1 semantics to D8N — the Pass-1 `MediaObjectRef.checksum` is directly
-  comparable.
-- **Shape:** `MediaObjectRef` → `Date9ja::Storage::SourceReader` (allowlisted,
-  read-only, run-env creds only) → `Migration::MediaTransfer` (shared: verify →
-  upload to D8N private R2 → mark) → `Media::PhotoImport` (new shared thin
-  service beside `Profiles::PhotoUpload.attach!`) → `Migration::ReferenceMap`
-  bind `date9ja/photo/<Photo.id> → ProfilePhoto` → existing
-  `Media::ProcessProfilePhotoJob`. `ProfilePhoto` and `Media::PhotoPolicy`
+- **Shared migration:** `Migration::MediaTransfer` (`.call` — verify + adopt-or-upload),
+  `Migration::MediaTransfer::CanonicalKey` (sole key producer),
+  `Migration::MediaTransfer::AdoptOrUpload` (AS cases 1–6).
+- **Date9ja adapter:** `Date9ja::Storage::SourceReader` (security contract,
+  injected transport — NO real R2), `Date9ja::Snapshot::MediaLocatorSource`,
+  `Date9ja::Import::PhotoTransfer` (Phase A/B/C), `PhotoOrderPlan`,
+  `PhotoTransferReconciliation`.
+- **Shared media (minimal extraction):** `Profiles::PhotoUpload.build_photo!` —
+  internal domain seam; `attach!` behaviour unchanged and regression-tested.
+- **Processing hardening:** `ProfilePhoto.processing_started_at` +
+  `processing_claim_token` (migration `20260903130000`); concurrency-safe
+  `Media::ProcessProfilePhotoJob` (claim / work-outside / finalize + ABA token);
+  `Media::ProfilePhotoProcessingSweeper`.
+- **Implementation-review round 1 (Codex BLOCK) fixes applied 2026-09-03:**
+  (1) pre-Phase-A prefix inference → complete authoritative deterministic-chain
+  validation (`resolve_existing_state`); owner mapping re-resolved in Phase B and
+  compared to the RESOLVE-phase owner (fail closed on drift). (2) NO storage /
+  network / libvips work under a DB lock — `Migration::MediaTransfer::LockGuard`
+  (thread-local) fails closed; `AdoptOrUpload` refactored to A/B/C (short DB
+  snapshot → external op outside lock → short authoritative re-check).
+  (3) async never reports premature success — `transferred` only after
+  `processing_ready` + `valid_accepted_display?`; bounded drain, timeout →
+  `processing_failed`. (4) `Migration::MediaTransfer.valid_accepted_display?` —
+  exact deterministic display key + service + bounded remote re-hash + decode.
+  Security: bounded destination reads (`DestinationTooLarge`), EXACT
+  canonical-content-type equality (row + remote), strict `SourceReader` key
+  grammar, retry-exhaustion → terminal failure (no sweeper loop),
+  post-commit-only raw purge gated on an owned finalization.
+- **Implementation-review round 2 (Codex BLOCK — 2 defects) fixes applied 2026-09-03:**
+  (1) ONE authoritative display-validation contract — new shared primitive
+  `Media::DisplayDerivative.valid?` (D8N media domain, no migration semantics):
+  proves display attachment ownership + EXACT deterministic key + expected
+  service + content type + `Blob.checksum` integrity of the streamed bytes +
+  JPEG decode, over a BOUNDED remote read. `Media::ProcessProfilePhotoJob` no
+  longer trusts any metadata-only shape check as a success / ready-no-op / purge
+  path: the strong check runs OUTSIDE every DB lock (CLAIM returns `:verify_ready`;
+  `reconcile_ready` confirms, or rebuilds from a still-present raw, or fails
+  closed `terminal` when the raw is already purged). The exact display key is
+  re-derived after raw purge from persisted `ProfilePhoto#metadata`
+  (`raw_object_key` / `display_object_key` / `display_service_name` — existing
+  jsonb, not a new table) and cross-checked against the deterministic relation.
+  `Migration::MediaTransfer.valid_accepted_display?` now delegates to the same
+  primitive (keeping its `LockGuard` assertion as defence in depth).
+  (2) Phase-B `finalize_binding` no longer accepts an existing
+  Photo→ProfilePhoto ReferenceMap that belongs to the same user but the WRONG
+  profile/brand: `existing_binding_outcome` requires
+  `destination_type == "ProfilePhoto"` AND `profile_id == current_resolved_profile.id`
+  AND `user_id == …` AND `brand_id == brand.id` (plus key/order/moderation);
+  same-user/wrong-profile → `binding_conflict` / `mapping_drift`, never
+  `already_transferred`, never a silent reparent.
+- **Codex FINAL bounded re-review (2026-09-03): both round-2 defects ACCEPT;
+  FINAL VERDICT: ACCEPT.** Pass 2 implementation is **VERIFIED**. Synthetic
+  `date9ja_snapshot_sanitized_media_v2` generation APPROVED; L2 APPROVED; L3 NOT
+  YET READY.
+- **NOT** `PARITY_ACCEPTED` / production-ready / cutover-ready.
+
+### L2 rehearsal — SELF_VERIFIED / builder-attested (2026-09-03)
+
+Full 279-row synthetic-corpus rehearsal of the complete Pass 2 path. **No real
+Date9ja R2, no production, no live media, no L3.**
+
+- **Artifact:** `date9ja_snapshot_sanitized_media_v2` — a `CREATE DATABASE …
+  TEMPLATE date9ja_snapshot_sanitized` copy on the isolated PG17 snapshot
+  instance (`127.0.0.1:55432`), with only `active_storage_blobs.byte_size` /
+  `checksum` rewritten on the 279 Photo image blobs to describe the synthetic
+  bytes. Structural identity (photo / attachment / blob / owner ids, moderation,
+  primary, order, storage key, `service_name`, `content_type`) preserved exactly.
+- **Generator / verifier / transport:** `Date9ja::Snapshot::SyntheticMedia`
+  (`.render` — deterministic AES-CTR keystream pixels → libvips-encoded
+  jpeg/png/webp), `…::SyntheticMedia::Generator` (corpus + PII-free
+  `manifest.json` + `manifest.fingerprint`), `…::SyntheticMedia::Verifier`
+  (15 checks), `Date9ja::Storage::LocalCorpusReader` (drop-in for
+  `SourceReader`; local files only, bounded, fail-closed). Rake:
+  `date9ja:build_media_v2`, `date9ja:verify_media_v2`, `date9ja:transfer_photos`
+  (now L2-wired via `DATE9JA_MEDIA_CORPUS_DIR`).
+- **Corpus:** 279 objects (252 jpeg / 21 png / 6 webp — matches the source
+  census), ~61 MB, manifest fingerprint `ebcff28a796a230807fbdbfeb19ff63a…`;
+  byte-for-byte identical across two independent generator runs.
+- **Verifier:** all 15 checks pass → `MEDIA_V2 ARTIFACT: VERIFIED FOR L2`.
+- **Rehearsal DB:** fresh throwaway `d8n_date9ja_rehearsal_l2_20260903`
+  (schema-loaded, `date9ja` brand seeded).
+- **Identity import:** 288 considered → 280 imported / 8 `source_soft_deleted` /
+  0 failed; 280 users/credentials/memberships/profiles, 460 identifiers, 1580
+  legacy references. Second run: 0 imported / 280 already_imported / 0 counters.
+- **Pass 1 preflight:** 279 considered, balanced; 276 preflighted /
+  3 `owner_not_imported` (`source_suspended_owner`); 279 `MediaObjectRef` +
+  279 `MediaAttachmentRef` created; every structural anomaly measure 0. Second
+  run: 0 / 276 already_preflighted / 3.
+- **Pass 2 first run:** balanced; `transferred` 276, `owner_not_imported` 3;
+  276 `ProfilePhoto` + 276 `ReferenceMap` bindings + 276 destination originals
+  created; 276 processing → `ready` with a validated deterministic display
+  derivative; 0 `binding_conflict` / 0 `mapping_drift` / 0 `processing_failed`.
+  `cutover_ready` false — the 3 `owner_not_imported` count as
+  `unexplained_failures` (no reviewed-exception workflow in this build).
+- **Moderation / ordering:** destination `pending_review`→visible (2),
+  `approved`→visible (263), `rejected`→hidden (11); every owner exactly one
+  `position 0`; per-owner counts 1–6, no truncation, no multiple-primary.
+- **Raw purge:** 276 detached original blobs (250 jpg / 20 png / 6 webp) purge
+  cleanly; all 276 ProfilePhotos stay `ready` and still pass
+  `Media::DisplayDerivative.valid?` afterwards (post-purge display-key inference
+  from `ProfilePhoto#metadata`).
+- **Idempotency:** rerun (raw present) and rerun (raw purged) both →
+  276 `already_transferred` / 3 `owner_not_imported`, zero new
+  ProfilePhoto / Blob / Attachment / ReferenceMap / MediaRef rows; the purged
+  raw is never required to re-exist.
+- **Interruption / resume:** two hard `SIGKILL`s mid-run then resume → converged
+  with no duplicate photos / blobs / bindings / false `already_transferred`; one
+  photo whose `ProcessProfilePhotoJob` was killed mid-work held its claim token
+  (correct ABA protection), was reclaimed by `Media::ProfilePhotoProcessingSweeper`
+  after the stale window, and completed on the next run → 276/276 `ready`.
+- **Security:** all work on disposable local / snapshot-instance resources; no
+  R2 endpoint or credential contacted; no live Date9ja DB; corpus proven to be a
+  byte-exact re-render of the checked-in generator (contains no production
+  bytes); reports PII-free; corpus + rehearsal DBs safely droppable.
+- **Artifact-tooling review round (Codex L2 BLOCK — 2 tooling issues) fixes
+  applied 2026-09-03:** (1) new shared `Date9ja::Storage::SafeObjectKey` — the
+  single accepted safe-key grammar + path-containment + symlink-escape contract;
+  both `LocalCorpusReader` (read) and `SyntheticMedia::Generator` (write) now
+  depend on it, so the generator fails closed on the whole run before writing
+  any object if a source key is not the exact contract the reader enforces, and
+  every write path is proven strictly under the corpus root (expanded-path
+  containment, not string prefix). (2) `SyntheticMedia::Verifier` gained
+  `16_manifest_rows_match_media_v2_blobs` (every manifest `source_blob_id` /
+  `source_key` / `service_name` / `canonical_content_type` / `byte_size` /
+  `checksum` bound field-for-field to the authoritative media_v2 blob row — the
+  Photo attachment graph defines the authorized set, not the manifest; fail
+  closed on any missing / duplicate / unexpected / mismatch) and
+  `17_complete_blob_table_drift_is_authorized` (schema-driven full
+  `active_storage_blobs` comparison parent vs media_v2: same row count, same ids,
+  no insert/delete; the 279 authorized Photo blobs may differ ONLY in
+  `byte_size`/`checksum`; every other row and every other column byte-identical).
+  **Case A:** generator/verifier-only — corpus bytes byte-identical, manifest
+  fingerprint unchanged (`ebcff28a…`), media_v2 DB contents unchanged; the
+  accepted L2 transfer evidence still corresponds to the artifact. Re-verified
+  end-to-end on a fresh rehearsal DB (`d8n_date9ja_rehearsal_l2b_20260903`):
+  identical Pass-2 result (transferred 276 / owner_not_imported 3, rerun 276
+  already_transferred).
+- **Verifier equality-precision round (Codex L2 BLOCK — 2 verifier defects)
+  fixes applied 2026-09-03:** (1) check 16 now types manifest `byte_size`
+  strictly via `canonical_byte_size` — only a non-negative JSON integer is
+  accepted; `"123junk"`, `" 123"`, `"123.0"`, floats, booleans, nil and
+  negatives are rejected (no permissive `.to_i`), and the DB side is compared
+  as `Integer(blob.byte_size)`. (2) check 17 replaced universal `.to_s`
+  comparison with `db_value_equal?` — NULL vs `''`, `0` vs `false`, `0` vs
+  `'0'` are now distinct drift; native types preserved (`exec_query` values are
+  not stringified). Verifier-only: corpus bytes, manifest fingerprint
+  (`ebcff28a…`), and media_v2 DB contents unchanged; existing L2 transfer
+  evidence still valid; no L2 rerun required. All 17 checks green.
+- **NOT** independently reviewed. L2 is **SELF_VERIFIED**. **NOT**
+  `PARITY_ACCEPTED` / production-ready / cutover-ready / L3-ready. L3 (scoped
+  read-only R2 transport + operator logistics) remains **NOT YET READY**.
+
+### Design record (unchanged) — DESIGN ACCEPTED (2026-09-03)
+
+Full execution design: [`MEDIA-TRANSFER.md`](MEDIA-TRANSFER.md) (Revision 4 +
+FINAL canonical-identity correction). Architecture decision:
+`docs/adr/0028-migration-media-byte-transfer.md` (**ACCEPTED 2026-09-03**). ADR
+0027 remains Accepted.
+
+**FINAL canonical-identity correction (Codex FINAL acceptance check — sole
+remaining defect):** `canonical_content_type` (the verified detected media type)
+is now a **declared** canonical-identity field and appears in the canonical
+string before the UUIDv5 — because it drives `original.<ext>`. The migration
+storage key is now a **total deterministic function of the complete declared
+identity**:
+`version v3 | source_system | source_blob_id | source_attachment_id |
+destination_purpose | destination_brand | canonical_content_type` → `UUIDv5` →
+`migrations/media/v3/date9ja/profile_photo_original/<uuidv5>/original.<ext>`.
+Verified source content-type drift → `source_changed` (never a silent re-key).
+Everything else in Revision 4 is unchanged.
+
+**Revision 4 — three Codex FINAL-review blockers closed in-design:**
+1. **Destination key stability.** Rev 3 fed `Brand#slug` + `Profile#public_id`
+   into the key; not guaranteed immutable. The migration storage key now depends
+   **only on immutable migration/storage identity**: `version` v3 +
+   `source_system` + `source_blob_id` + `source_attachment_id` +
+   `destination_purpose` + `destination_brand` (stable token). A dedicated
+   `Migration::MediaTransfer::CanonicalKey.final_key` produces
+   `migrations/media/v3/date9ja/profile_photo_original/<uuidv5>/original.<ext>` —
+   **not** via `Media::ObjectKey.profile_photo_original`. No user id, no profile
+   public id, no mutable slug. Destination `Profile`/`User` remap → `mapping_drift`
+   / `binding_conflict`, reconcile explicitly, **no re-key**.
+2. **Short attachment lock.** No R2 streaming / hashing / upload / libvips under
+   the `MediaAttachmentRef` `FOR UPDATE`. **Phase A** (prepare/verify, no lock) →
+   **Phase B** (short finalization txn: lock, recheck, create/reuse Blob,
+   `build_photo!`, bind) → **Phase C** (after commit: enqueue). Two Phase-A
+   workers are safe because deterministic key + cases 1–5 prevent unsafe
+   overwrite; Phase B serializes domain creation/binding. The tiny blob-row
+   coordination txn is distinct from the finalization lock.
+3. **Abandoned processing claim.** `ProfilePhoto` gains nullable
+   `processing_started_at` + `processing_claim_token` (`ProfilePhoto`
+   processing-lifecycle hardening — **not** a migration table). Claim /
+   stale-reclaim / finalize / failure gate on
+   `processing_state == processing AND processing_claim_token == my_token` — the
+   token is **required** (a bare timestamp cannot defeat the ABA race). Sweeper
+   reclaims stale `processing`; recent `processing` / `ready` / non-retryable
+   `failed` are left alone.
+
+**Shared seam is FINAL:** `Profiles::PhotoUpload.build_photo!` extraction (Codex
+selected it). The standalone-duplication fallback is withdrawn.
+
+- **Legacy storage:** Active Storage `S3` service → Cloudflare R2, single ENV
+  bucket, private, flat random blob keys. Checksum = MD5-base64, identical Rails
+  8.1 semantics to D8N.
+- **`service_name` census — RUN 2026-09-03** against `date9ja_snapshot_sanitized`
+  (`127.0.0.1:55432`): **`cloudflare` = 279** photo blobs; no `local`, no
+  `amazon`, no `NULL`, no mixed-service corpus. **Blocker closed.** Pass 2 still
+  re-asserts this against the final production snapshot at run time.
+- **Shape:** `MediaObjectRef` → `Date9ja::Snapshot::MediaLocatorSource` +
+  `Date9ja::Storage::SourceReader` (host-allowlisted, HTTPS-only, no-redirect,
+  read-only, run-env creds) → `Migration::MediaTransfer` (shared: verify →
+  adopt-or-upload → return object-backed blob) → `Profiles::PhotoUpload.build_photo!`
+  (minimal extraction, explicit position/status/visibility — **no new `Media::`
+  class**) → `Migration::ReferenceMap` bind `date9ja/photo/<Photo.id> →
+  ProfilePhoto` (same txn) → **after commit** `Media::ProcessProfilePhotoJob`.
+  `ProfilePhoto`, `Media::PhotoPolicy`, `MediaObjectRef`, `MediaAttachmentRef`
   unchanged.
-- **Recovery** (upload is non-transactional): deterministic destination key
-  (`UUIDv5(source_blob_id)`) + staged `transfer_state` + validated idempotent
-  upsert + orphan detector. No transaction framework.
-- **Moderation/visibility:** representable with **no** shared-model change —
+- **Recovery** (Rev 4): **no destination state on `MediaObjectRef`, no new
+  migration table** (§13 verdict — inference-based recovery still sufficient).
+  Migration storage key `migrations/media/v3/date9ja/profile_photo_original/<UUIDv5>/original.<ext>`
+  where `UUIDv5` hashes `version v3 | source_system | source_blob_id |
+  source_attachment_id | destination_purpose | destination_brand |
+  canonical_content_type` — a **total function of the declared identity**, no
+  user/profile/slug, no undeclared input, immutable forever. Active Storage
+  adopt-or-upload cases 1–6
+  (**no case-4 adoption**; every reuse re-verifies the real remote object).
+  Crash/concurrency interleavings **A–U** resolved. Short per-attachment
+  serialization (Phase A/B/C — no network under the lock). Orphan model = four
+  concepts, ownership-proof gated, never auto-delete.
+- **Reused source blob** → one destination object **per use** (copy per use);
+  dedup only the source download+verify. D8N purges raw blobs post-processing so
+  sharing is unsafe. (Date9ja `blob_reuse_objects = 0`.)
+- **Processing:** `Media::ProcessProfilePhotoJob` gains claim / work-outside /
+  finalize + **`ProfilePhoto.processing_started_at` + `processing_claim_token`**
+  (nullable; processing-lifecycle hardening, not a migration table). No libvips
+  inside a transaction; ABA-safe via the claim token; sweeper reclaims stale
+  `processing`. Regression tests required.
+- **Moderation/visibility:** no shared-model change —
   `pending→pending_review/visible`, `approved→approved/visible`,
   `rejected→rejected/hidden`.
-- **Rehearsal:** synthetic media corpus keyed by `source_blob_id` (generated to
-  match recorded size/MD5/type), local source; 3 staged levels (L1 unit, L2 full
-  279 synthetic, L3 controlled real pre-cutover). Production bytes never enter
-  the sanitized artifact.
-- **Cutover:** hybrid — bulk pre-copy + idempotent delta at a short freeze.
+- **Rehearsal:** distinct `date9ja_snapshot_sanitized_media_v2` artifact
+  (own manifest / fingerprints / Pass-1 rerun / reconciliation baseline);
+  synthetic bytes carry their own self-consistent metadata; `v1`
+  (`date9ja_snapshot_sanitized`) is **not** rewritten. Production transfer path
+  unchanged — no test-only branch. L1 unit / L2 full 279 synthetic / L3
+  controlled real pre-cutover. `v2` not created this turn.
+- **Cutover:** hybrid — bulk pre-copy + final authoritative snapshot + explicit
+  delta algorithm (new / removed / blob_id / checksum / size / type / moderation /
+  position / primary / owner-status / owner-mapping changes) + reconciliation.
+  Zero **unexplained** failures; reviewed exceptions tracked separately. No
+  automatic destructive cleanup; `source_removed` → auto-flag, never auto-delete.
 
-**Open decisions blocking implementation** (`MEDIA-TRANSFER.md` §"Open"):
-source-access model (scoped read-only token vs. pre-exported bundle);
-`service_name` census; publication-vs-quarantined-photo product call; cutover
-gate strictness; bulk-copy destination + freeze length; suspended-owner media
-stance confirmation; `source_removed`-at-delta handling.
+**RESOLVED this round:** `service_name` census; source access (dedicated
+read-only bucket-scoped R2 token, run-env only; pre-exported bundle = fallback);
+quarantine/publication (bad non-primary does not block the profile; only/primary
+failure flags the profile for review; never auto-pick a new primary);
+cutover gate (zero unexplained failures); suspended owners (retain structurally,
+no photo-specific hiding); `source_removed`-at-delta (auto-flag, never
+auto-delete).
+
+**ADR 0028 ACCEPTED (2026-09-03).** The Codex FINAL acceptance check named the
+canonical-identity defect (now fixed — `canonical_content_type` is a declared
+identity field) as the sole remaining blocker and accepted every other reviewed
+contract. **No unresolved architecture or product decision.**
+
+**Readiness:** PASS 2 IMPLEMENTATION: READY · L1/L2: READY AFTER IMPLEMENTATION
+(build the `date9ja_snapshot_sanitized_media_v2` artifact first) · L3 real R2:
+NOT YET READY. **OPEN (L3 only, execution parameters not decisions):** R2 token
+custody, `STALE_THRESHOLD` / drain-timeout values, freeze-window length,
+bulk-copy destination confirmation.
 
 ## Batch 1 — VERIFIED
 

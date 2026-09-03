@@ -512,7 +512,58 @@ command in `RECONCILIATION.md`. Architecture: ADR 0027.
 all anomaly counters 0. Measures matched the census baseline. Record:
 `RECONCILIATION.md` "Pass-1 rehearsal result".
 
-### Profile-photo BYTE TRANSFER rehearsal (pass 2) — procedure (design only, not implemented)
+### Profile-photo BYTE TRANSFER rehearsal (pass 2) — L2 SELF_VERIFIED (2026-09-03)
+
+The synthetic-corpus (L2) rehearsal is **built and green**. No real R2, no
+production, no live media, no L3.
+
+```
+# 0. media_v2 artifact — a TEMPLATE copy of the verified sanitized snapshot,
+#    on the isolated PG17 instance (127.0.0.1:55432). Operator/one-time:
+psql -h 127.0.0.1 -p 55432 -d postgres \
+  -c "CREATE DATABASE date9ja_snapshot_sanitized_media_v2 TEMPLATE date9ja_snapshot_sanitized;"
+
+# 1. Build the deterministic synthetic corpus + manifest, and rewrite the
+#    media_v2 blob byte_size/checksum to match. Contains NO real Date9ja media.
+export RAILS_ENV=test
+export DATABASE_URL=postgresql://localhost/d8n_date9ja_rehearsal_l2_20260903  # throwaway
+export DATE9JA_SNAPSHOT_DATABASE_URL=postgresql://127.0.0.1:55432/date9ja_snapshot_sanitized_media_v2
+export DATE9JA_MEDIA_CORPUS_DIR=/path/to/scratch/media_v2_corpus
+bin/rails date9ja:build_media_v2
+
+# 2. Verify the corpus (15 checks). Optionally build a second corpus and set
+#    DATE9JA_MEDIA_CORPUS_DIR_2 for a byte-for-byte determinism cross-check.
+export DATE9JA_SANITIZED_DATABASE_URL=postgresql://127.0.0.1:55432/date9ja_snapshot_sanitized
+bin/rails date9ja:verify_media_v2      # -> "MEDIA_V2 ARTIFACT: VERIFIED FOR L2"
+
+# 3. Fresh throwaway D8N DB, then the established dependency order.
+createdb d8n_date9ja_rehearsal_l2_20260903
+bin/rails db:schema:load
+bin/rails runner 'Brand.find_or_create_by!(slug:"date9ja"){ _1.name="Date9ja"; _1.status=:active; _1.auth_methods=%w[email_password phone_password] }'
+bin/rails date9ja:import_identity        # 280 imported / 8 skipped / 0 failed
+bin/rails date9ja:preflight_photos       # 276 preflighted / 3 owner_not_imported
+bin/rails date9ja:transfer_photos        # transferred 276 / owner_not_imported 3
+bin/rails date9ja:transfer_photos        # rerun -> 276 already_transferred, zero growth
+```
+
+Code: `Date9ja::Snapshot::SyntheticMedia` (`render` / `Generator` / `Verifier` —
+`verify_media_v2` checks include `16_manifest_rows_match_media_v2_blobs` and
+`17_complete_blob_table_drift_is_authorized`), `Date9ja::Snapshot::SanitizedParentConnection`,
+`Date9ja::Storage::LocalCorpusReader`, `Date9ja::Storage::SafeObjectKey` (shared
+safe-key + path-containment contract for both the corpus reader and the generator).
+Corpus: 279 objects (252 jpeg / 21 png / 6 webp), manifest fingerprint
+`ebcff28a796a230807fbdbfeb19ff63a…`. Results and the full disposition breakdown:
+`STATUS.md` "L2 rehearsal" and `RECONCILIATION.md` "Pass-2 L2 synthetic-corpus
+rehearsal".
+
+**Cleanup:** `dropdb d8n_date9ja_rehearsal_l2_20260903` (and any `_intr_` DB);
+`rm -rf $DATE9JA_MEDIA_CORPUS_DIR`; optionally
+`DROP DATABASE date9ja_snapshot_sanitized_media_v2`. Nothing is committed; the
+corpus never enters the repo.
+
+L3 (scoped read-only R2 transport + operator logistics) remains **NOT YET READY**.
+
+### Profile-photo BYTE TRANSFER rehearsal (pass 2) — original design notes
 
 Full design: `MEDIA-TRANSFER.md`. Pass 2 will additionally require:
 
@@ -523,12 +574,33 @@ Full design: `MEDIA-TRANSFER.md`. Pass 2 will additionally require:
   (`*.r2.cloudflarestorage.com`); the reader is `HEAD`/`GET` only and fails
   closed.
 - **Synthetic media rehearsal corpus** — for L1/L2 rehearsal, a generated
-  image set keyed by `source_blob_id` whose bytes match the recorded
-  size/MD5/type; local source endpoint; **production bytes never enter the
-  sanitized artifact**.
+  image set keyed by `source_blob_id` whose bytes define the recorded
+  size/MD5/type; local source endpoint; **production bytes never enter any
+  artifact**.
 - A read-only `service_name` census over the 279 photo blobs (Pass-1 did not
   record `service_name`) confirming a single expected legacy service before any
-  transfer.
+  transfer. **Run 2026-09-03 against `date9ja_snapshot_sanitized`
+  (`127.0.0.1:55432`): `cloudflare` = 279, no other services. Blocker closed for
+  this slice; Pass 2 re-asserts it against the final production snapshot.** See
+  `RECONCILIATION.md` "Pass-2 `service_name` census".
+- The reader is **HTTPS-only**, **refuses redirects** (never follows a `3xx`),
+  **constructs the R2 endpoint from `DATE9JA_SOURCE_R2_ACCOUNT_ID` only**
+  (rejects any caller/DB-supplied endpoint), exposes **no write/delete/copy**
+  method, uses a bounded `0600` temp file cleaned in `ensure`, enforces the
+  `Media::ImageProcessor` dimension/pixel ceilings, has a bounded retry/backoff,
+  redacts provider exceptions, and logs no credential / locator / key / signed
+  URL / checksum (`MEDIA-TRANSFER.md` §5b).
+- **Synthetic rehearsal (L1/L2) — Revision 3:** a **distinct**
+  `date9ja_snapshot_sanitized_media_v2` artifact. It preserves the canonical
+  sanitized source graph from `date9ja_snapshot_sanitized` but rewrites the
+  synthetic photo corpus's `active_storage_blobs` `checksum`/`byte_size`/
+  `content_type` to the generated bytes' real values. `date9ja_snapshot_sanitized`
+  is **NOT** rewritten or relabelled — it stays the verified sanitized source
+  rehearsal artifact. `v2` carries its own generation procedure, manifest,
+  artifact + schema + corpus fingerprints, sanitizer/verifier result, Pass-1
+  rerun, and reconciliation baseline. The canonical **production** snapshot is
+  never touched. `v2` is not created in the design turn (`MEDIA-TRANSFER.md`
+  §21).
 
 ## 11. Verification that no unnecessary secrets are included
 
