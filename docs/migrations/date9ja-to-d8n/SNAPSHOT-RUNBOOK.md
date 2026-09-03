@@ -507,6 +507,29 @@ job. It records `Migration::MediaObjectRef` / `Migration::MediaAttachmentRef` an
 prints a PII-free reconciliation JSON (`RECONCILIATION.md` pass-1 contract). Full
 command in `RECONCILIATION.md`. Architecture: ADR 0027.
 
+**Executed 2026-09-03 — VERIFIED.** 279 considered / 276 preflighted / 3
+`owner_not_imported` / 0 failed; second pass 276 `already_preflighted`, 0 created;
+all anomaly counters 0. Measures matched the census baseline. Record:
+`RECONCILIATION.md` "Pass-1 rehearsal result".
+
+### Profile-photo BYTE TRANSFER rehearsal (pass 2) — procedure (design only, not implemented)
+
+Full design: `MEDIA-TRANSFER.md`. Pass 2 will additionally require:
+
+- **Source-storage access** — a scoped **read-only** legacy Cloudflare R2 token
+  in the migration run's environment only (`DATE9JA_SOURCE_R2_*`), never in
+  `config/` or Rails credentials; or a pre-exported controlled media bundle
+  (`DECISIONS.md`, awaiting decision). The host is allowlisted
+  (`*.r2.cloudflarestorage.com`); the reader is `HEAD`/`GET` only and fails
+  closed.
+- **Synthetic media rehearsal corpus** — for L1/L2 rehearsal, a generated
+  image set keyed by `source_blob_id` whose bytes match the recorded
+  size/MD5/type; local source endpoint; **production bytes never enter the
+  sanitized artifact**.
+- A read-only `service_name` census over the 279 photo blobs (Pass-1 did not
+  record `service_name`) confirming a single expected legacy service before any
+  transfer.
+
 ## 11. Verification that no unnecessary secrets are included
 
 Before the snapshot is accepted, the operator confirms (checklist in §10):

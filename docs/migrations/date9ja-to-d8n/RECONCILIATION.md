@@ -202,6 +202,48 @@ RAILS_ENV=test DATABASE_URL=postgresql:///d8n_date9ja_rehearsal_20260903 \
   bin/rails date9ja:preflight_photos
 ```
 
+### Pass-1 rehearsal result — VERIFIED (2026-09-03)
+
+Source `date9ja_snapshot_sanitized`, schema preflight PASS, throwaway D8N DB,
+run after the identity rehearsal. Two full passes.
+
+| Reconciliation measure | first pass | second pass |
+|---|---:|---:|
+| `photos_considered` / `balanced` | 279 / true | 279 / true |
+| `preflighted` | 276 | 0 |
+| `already_preflighted` | 0 | 276 |
+| `owner_not_imported` | 3 | 3 |
+| `unavailable` / `malformed` / `failed` / `explicitly_skipped` | 0 | 0 |
+| `MediaObjectRef` created | 279 | 0 |
+| `MediaAttachmentRef` created | 279 | 0 |
+
+Stable measures matched the census baseline: `total_source_photos` 279 ·
+moderation 2 / 266 / 11 · `total_primary_rows` 164 · `owners_total` 166 ·
+`owners_with_one_primary` 164 · `owners_with_zero_primary` 2 ·
+`owners_with_multiple_primary` 0 · `owners_over_six` 0 · `max_photos_per_owner` 6 ·
+`owners_suspended` 3 · every anomaly counter 0 · `blob_reuse_objects` 0.
+
+Invariant closed both passes (`279 = 276 + 0 + 3 + 0` first; `279 = 0 + 276 + 3 + 0`
+second). Idempotency demonstrated: zero refs created on the second pass. The 3
+`owner_not_imported` photos are **not** proven to be the 3 `owners_suspended` —
+aggregate output does not establish that.
+
+**Lifecycle:** media preflight foundation VERIFIED · pass-1 implementation
+VERIFIED · pass-1 sanitized rehearsal VERIFIED · profile-photo capability
+overall **PARTIAL** (bytes/`ProfilePhoto`/processing/delivery/frontend/cutover
+outstanding — pass 2, see `MEDIA-TRANSFER.md`). NOT `PARITY_ACCEPTED`.
+
+### Pass-2 transfer reconciliation contract
+
+Defined in [`MEDIA-TRANSFER.md`](MEDIA-TRANSFER.md) §15 (design checkpoint, not
+implemented). Terminal dispositions: `transferred`, `already_transferred`,
+`owner_not_imported`, `source_unavailable`, `source_changed`, `validation_failed`,
+`destination_failed`, `binding_conflict`, `processing_failed`, `quarantined`,
+`explicitly_skipped`. Invariant `photos_considered == Σ dispositions`. PII-free;
+no storage locator or checksum value in output. Baseline: 276 transfer-eligible,
+3 `owner_not_imported`, `profile_photos_created` 276 on a clean first run / 0 on
+rerun.
+
 ```text
 Snapshot <id> / run <id>
 Users <source> → <target> ✓

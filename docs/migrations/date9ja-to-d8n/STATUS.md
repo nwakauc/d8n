@@ -116,12 +116,14 @@ verification, trust, entitlements, Community, Dating Hub, Aunty Phobie).
 
 Next bounded slice: profile-photo importer — see below.
 
-## Wave A — media preflight foundation + Date9ja profile-photo pass 1 — **SELF_VERIFIED (2026-09-03)**
+## Wave A — media preflight foundation + Date9ja profile-photo pass 1 — **VERIFIED (2026-09-03)** · pass 2 design checkpoint
 
 Codex review of the earlier "blocked at design" proposal returned REQUEST
-CHANGES (correct). The corrected architecture is **ADR 0027** (Proposed) and is
-implemented here. Independent review still pending — **not `VERIFIED`, not
-`PARITY_ACCEPTED`**, no production/cutover claim.
+CHANGES (correct); the corrected architecture is **ADR 0027 (Accepted)**,
+implemented and independently reviewed. Profile-photo capability **overall
+remains PARTIAL** — bytes, `ProfilePhoto` creation, processing/delivery,
+frontend acceptance and cutover are not done. **NOT `PARITY_ACCEPTED`, NOT
+production-ready, NOT cutover-ready.**
 
 ### Generic migration-media primitives (platform, not Date9ja)
 
@@ -191,12 +193,71 @@ uniqueness, metadata + attachment drift fail-closed, rerun idempotency, no
 `ProfilePhoto` / no Active Storage / no job enqueue, cross-source isolation,
 reconciliation invariant, PII/locator-free output, wrong-brand refusal.
 
+### Pass-1 sanitized rehearsal — VERIFIED (2026-09-03)
+
+Against `date9ja_snapshot_sanitized` (schema preflight PASS), throwaway D8N DB,
+after the identity rehearsal.
+
+| | first pass | second pass |
+|---|---:|---:|
+| `photos_considered` / `balanced` | 279 / true | 279 / true |
+| `preflighted` | 276 | 0 |
+| `already_preflighted` | 0 | 276 |
+| `owner_not_imported` | 3 | 3 |
+| `unavailable` / `malformed` / `failed` / `explicitly_skipped` | 0 each | 0 each |
+| `MediaObjectRef` / `MediaAttachmentRef` created | 279 / 279 | 0 / 0 |
+
+Stable measures: 279 photos · moderation 2 pending / 266 approved / 11 rejected ·
+164 primary rows · `owners_total` 166 · `owners_with_one_primary` 164 ·
+`owners_with_zero_primary` 2 · `owners_with_multiple_primary` 0 · `owners_over_six`
+0 · `max_photos_per_owner` 6 · `owners_suspended` 3 · every anomaly counter 0 ·
+`blob_reuse_objects` 0. The 3 `owner_not_imported` and 3 `owners_suspended` are
+**not** proven to be the same accounts.
+
 ### Lifecycle
 
-Media preflight foundation + Date9ja photo pass 1: **IMPLEMENTED → SELF_VERIFIED.**
-Awaiting independent Codex review. **NOT `VERIFIED`, NOT `PARITY_ACCEPTED`**, no
-production/cutover readiness. Pass 2 (byte transfer + `ProfilePhoto` creation) is
-documented in ADR 0027 and **not started**.
+| Unit | State |
+|---|---|
+| Media preflight foundation (`Migration::MediaObjectRef` / `MediaAttachmentRef`, ADR 0027) | **VERIFIED** |
+| Date9ja profile-photo pass 1 implementation | **VERIFIED** |
+| Date9ja profile-photo pass 1 sanitized rehearsal | **VERIFIED** |
+| Profile-photo capability overall | **PARTIAL** — not `PARITY_ACCEPTED`, not production-ready, not cutover-ready |
+| Profile-photo **pass 2** (byte transfer + `ProfilePhoto` creation) | **DESIGN CHECKPOINT** — see [`MEDIA-TRANSFER.md`](MEDIA-TRANSFER.md) + ADR 0028 (Proposed). **BLOCKED** on 7 open product/operator/security decisions (`MEDIA-TRANSFER.md` §"Open"); architecture READY. Not started. |
+
+## Pass 2 (profile-photo byte transfer) — DESIGN CHECKPOINT (2026-09-03)
+
+Full execution design: [`MEDIA-TRANSFER.md`](MEDIA-TRANSFER.md). Architecture
+decision: `docs/adr/0028-migration-media-byte-transfer.md` (**Proposed**).
+
+- **Legacy storage:** Date9ja production uses Active Storage `S3` service against
+  Cloudflare R2 (single ENV-configured bucket, private objects, flat random blob
+  keys, `aws-sdk-s3` client). Checksum = MD5-base64 (`Content-MD5`), identical
+  Rails 8.1 semantics to D8N — the Pass-1 `MediaObjectRef.checksum` is directly
+  comparable.
+- **Shape:** `MediaObjectRef` → `Date9ja::Storage::SourceReader` (allowlisted,
+  read-only, run-env creds only) → `Migration::MediaTransfer` (shared: verify →
+  upload to D8N private R2 → mark) → `Media::PhotoImport` (new shared thin
+  service beside `Profiles::PhotoUpload.attach!`) → `Migration::ReferenceMap`
+  bind `date9ja/photo/<Photo.id> → ProfilePhoto` → existing
+  `Media::ProcessProfilePhotoJob`. `ProfilePhoto` and `Media::PhotoPolicy`
+  unchanged.
+- **Recovery** (upload is non-transactional): deterministic destination key
+  (`UUIDv5(source_blob_id)`) + staged `transfer_state` + validated idempotent
+  upsert + orphan detector. No transaction framework.
+- **Moderation/visibility:** representable with **no** shared-model change —
+  `pending→pending_review/visible`, `approved→approved/visible`,
+  `rejected→rejected/hidden`.
+- **Rehearsal:** synthetic media corpus keyed by `source_blob_id` (generated to
+  match recorded size/MD5/type), local source; 3 staged levels (L1 unit, L2 full
+  279 synthetic, L3 controlled real pre-cutover). Production bytes never enter
+  the sanitized artifact.
+- **Cutover:** hybrid — bulk pre-copy + idempotent delta at a short freeze.
+
+**Open decisions blocking implementation** (`MEDIA-TRANSFER.md` §"Open"):
+source-access model (scoped read-only token vs. pre-exported bundle);
+`service_name` census; publication-vs-quarantined-photo product call; cutover
+gate strictness; bulk-copy destination + freeze length; suspended-owner media
+stance confirmation; `source_removed`-at-delta handling.
 
 ## Batch 1 — VERIFIED
 
