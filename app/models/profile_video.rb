@@ -10,6 +10,10 @@ class ProfileVideo < ApplicationRecord
   # structural validation (ADR 0023).
   ALLOWED_CONTENT_TYPES = %w[ video/mp4 video/quicktime ].freeze
 
+  # A `processing` claim older than this is considered abandoned (its worker
+  # crashed) and may be reclaimed by another job (ADR 0028 §6 / ADR 0029 Pass 2B).
+  STALE_PROCESSING_AFTER = 15.minutes
+
   belongs_to :profile
   belongs_to :user
   belongs_to :brand
@@ -30,6 +34,34 @@ class ProfileVideo < ApplicationRecord
   scope :moderation_publicly_eligible, -> { where(status: %i[pending_review approved]) }
   scope :deliverable, -> { kept.visible.processing_ready.moderation_publicly_eligible }
 
+  # Rows the processing sweeper may (re-)enqueue: pending, retryable failed, and
+  # `processing` whose claim has gone stale. Never ready, never a terminal
+  # failure, never a recent/active `processing` claim. Mirrors
+  # ProfilePhoto.processing_sweepable.
+  scope :processing_sweepable, lambda {
+    kept.where(
+      "(profile_videos.processing_state = :pending) OR " \
+      "(profile_videos.processing_state = :failed AND COALESCE(profile_videos.metadata->>'processing_failure_kind','') <> 'terminal') OR " \
+      "(profile_videos.processing_state = :processing AND profile_videos.processing_started_at IS NOT NULL " \
+      "AND profile_videos.processing_started_at < :stale)",
+      pending: processing_states[:pending], failed: processing_states[:failed],
+      processing: processing_states[:processing], stale: STALE_PROCESSING_AFTER.ago
+    )
+  }
+
+  def processing_terminal_failure?
+    processing_failed? && metadata["processing_failure_kind"] == "terminal"
+  end
+
+  def processing_retryable?
+    processing_pending? || (processing_failed? && !processing_terminal_failure?)
+  end
+
+  def processing_claim_stale?
+    processing_processing? && processing_started_at.present? &&
+      processing_started_at < STALE_PROCESSING_AFTER.ago
+  end
+
   validates :public_id, presence: true, uniqueness: true, format: { with: Profile::PUBLIC_ID_FORMAT }
   validates :duration_seconds,
     numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
@@ -43,8 +75,15 @@ class ProfileVideo < ApplicationRecord
     safe_derivative_ready? && visible? && (pending_review? || approved?)
   end
 
+  # Both safe derivatives must be present. Media::ProcessProfileVideoJob only
+  # persists `ready` after BOTH playback and poster are independently validated
+  # (review Finding 1 / Finding 4), and every other-user delivery path
+  # (Profiles::VideoLibrary#public_payload) needs the poster too — so
+  # deliverability must never be weaker than that validated-ready invariant. This
+  # mirrors MessageAttachment#deliverable? ("ready with a rendition but no poster
+  # is still not deliverable").
   def safe_derivative_ready?
-    kept? && processing_ready? && playback.attached?
+    kept? && processing_ready? && playback.attached? && poster.attached?
   end
 
   def kept?

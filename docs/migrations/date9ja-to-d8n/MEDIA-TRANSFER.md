@@ -23,7 +23,67 @@ detailed execution design; it does not create new phase/decision authority.
 > (`quarantined` / `duration_unreadable` | `duration_over_limit`) with no
 > destination blob, `ProfileVideo`, binding or job. Video execution design
 > (Pass 2A / 2B / 2C, synthetic-corpus L2) is tracked in `STATUS.md`
-> "Profile-video pass 2 — architecture closeout"; not implemented.
+> "Profile-video pass 2 — architecture closeout".
+>
+> **Pass 2A IMPLEMENTED / SELF_VERIFIED (2026-09-04).** `MediaKind` strategy
+> (`domains/migration/media_transfer/media_kind.rb`), `Media::VideoProcessor.probe`
+> (ffprobe-only), `Date9ja::Snapshot::VideoLocatorSource`,
+> `Date9ja::Import::VideoTransfer` (Phase A only) + `VideoTransferReconciliation`,
+> `date9ja:transfer_videos_phase_a` rake task. The ONLY canonical-identity change
+> is two rows added to `CanonicalKey::EXTENSIONS` (`video/mp4 → mp4`,
+> `video/quicktime → mov`). Maximum success state = destination ACTIVE STORAGE
+> ORIGINAL BLOB (`SOURCE_ACCEPTED / DESTINATION_ADOPTED`); **never `transferred`**.
+> Creates 0 `ProfileVideo` / 0 `profile_video` `ReferenceMap` bindings / 0 jobs.
+> Full contract + dispositions: `RECONCILIATION.md` "Profile-video PASS 2A BYTE
+> TRANSFER contract".
+>
+> **Pass 2B IMPLEMENTED / SELF_VERIFIED (2026-09-04).** One orchestrator, two
+> stages: `Date9ja::Import::VideoTransfer.call(stage: :domain)` runs Pass 2A then
+> RESOLVE → Phase B (short `LockGuard`-held txn: re-lock `MediaAttachmentRef`,
+> re-resolve owner, re-prove deterministic blob, one-live-video invariant,
+> moderation map → `Profiles::VideoUpload.build_video!` → `ReferenceMap.bind!`
+> `source_entity: "profile_video"`) → Phase C (`Media::ProcessProfileVideoJob` →
+> `Media::PlaybackDerivative.valid?` playback + poster →
+> `Migration::MediaTransfer.valid_accepted_playback?` → `ready` → existing raw
+> purge). New shared runtime: `20260904120000_add_processing_claim_to_profile_videos`
+> (claim-token + metadata, mirrors the photo migration — scoped into Pass 2B by
+> ADR 0029), `ProfileVideo` claim/sweepable helpers, claim-token concurrency in
+> `Media::ProcessProfileVideoJob`, `Media::ProfileVideoProcessingSweeper`,
+> `Media::PlaybackDerivative`, `Profiles::VideoUpload.build_video!`. Reconciliation
+> gains `ready` / `already_ready` / `processing_failed` /
+> `derivative_validation_failed`; never emits `transferred`. Full contract:
+> `RECONCILIATION.md` "Profile-video PASS 2B DOMAIN MIGRATION contract".
+>
+> **Pass 2C IMPLEMENTED / SELF_VERIFIED (2026-09-04).** Deterministic synthetic
+> L2 video corpus (`Date9ja::Snapshot::SyntheticVideoMedia` + `Generator` +
+> `Verifier`, the video analogue of the Codex-verified photo `SyntheticMedia`) —
+> 35 ffmpeg-rendered bitexact H.264 MP4/MOV bodies mirroring the census metadata
+> (26 mp4 + 9 mov, all ≤ 60 s), only `byte_size`/`checksum` rewritten on the 35
+> authorized blob rows. Full isolated Pass 1 → 2A → 2B rehearsal (569 assertions:
+> 35 preflighted → 35 adopted / 0 ProfileVideo → 35 `ready` → destination
+> verifier → rerun 35 `already_ready`), interruption windows A/B-E/C/F-G,
+> bounded process-kill recovery, and an adversarial suite (over-limit,
+> unreadable, malformed, spoofed, drift, collision, orphan, tampered
+> derivatives) — all separate from the census. Rake:
+> `date9ja:build_video_media_v3` / `verify_video_media_v3`. **Evidence rule
+> preserved: the corpus proves the machinery, NOT anything about the real
+> videos.** PD-2 NOT chosen; real over-limit count UNKNOWN. Full write-up:
+> `VIDEO-L2.md`.
+>
+> **Feature-boundary review — Codex BLOCKED — fixes applied (2026-09-04).**
+> Finding 1 (BLOCKER): `Media::ProcessProfileVideoJob#finalize!` now
+> independently validates every candidate playback/poster blob's ACTUAL remote
+> bytes (new `Media::PlaybackDerivative.playback_blob_valid?` /
+> `poster_blob_valid?` — key/service/type/size + remote object exists + byte-size
+> + checksum/body identity + container walk / image decode) OUTSIDE all DB
+> locks, before attaching, with an ABA fingerprint recheck under the finalize
+> lock; a validation-failing candidate is never attached, never marks ready,
+> never purges the raw. Finding 4: `ProfileVideo#safe_derivative_ready?` now
+> requires both playback AND poster attached. Finding 2: verifier checks 27
+> (full `active_storage_attachments` byte-identical) + 28 (unrelated table row
+> counts). Finding 3: `Verifier#object_path` resolves manifest keys through
+> `Date9ja::Storage::SafeObjectKey` + check 24. Retest: 546 runs / 0 failures;
+> Profile Photo regression 125 / 0. NOT independently re-reviewed.
 
 Revision 4 closed the Codex FINAL narrow review's three blockers. The FINAL
 acceptance check then found one documentation defect — `canonical_content_type`

@@ -40,7 +40,10 @@ module Media
 
       video.playback.attach(io: StringIO.new("y"), filename: "playback.mp4", content_type: "video/mp4")
       video.update!(processing_state: :ready)
-      assert VideoPolicy.publication_eligible?(video:)
+      assert_not VideoPolicy.publication_eligible?(video:), "still needs the poster"
+
+      video.poster.attach(io: StringIO.new("p"), filename: "poster.jpg", content_type: "image/jpeg")
+      assert VideoPolicy.publication_eligible?(video: video.reload)
     end
   end
 end

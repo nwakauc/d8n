@@ -82,6 +82,39 @@ module Migration
         key = CanonicalKey.final_key(identity)
         assert_equal key.sub("original.jpg", "display.jpg"), CanonicalKey.display_key(key)
       end
+
+      # --- ADR 0029: video content types (the ONLY canonical-identity change) ---
+
+      test "video/mp4 and video/quicktime map to mp4 / mov extensions" do
+        assert_equal "mp4", CanonicalKey.extension_for("video/mp4")
+        assert_equal "mov", CanonicalKey.extension_for("video/quicktime")
+      end
+
+      test "a profile_video_original key has the same fixed migration shape" do
+        key = CanonicalKey.final_key(identity(
+          destination_purpose: "profile_video_original", canonical_content_type: "video/mp4"
+        ))
+        assert_match %r{\Amigrations/media/v3/date9ja/profile_video_original/[0-9a-f-]{36}/original\.mp4\z}, key
+      end
+
+      test "mp4 and mov content types participate in identity and differ" do
+        mp4 = CanonicalKey.final_key(identity(canonical_content_type: "video/mp4"))
+        mov = CanonicalKey.final_key(identity(canonical_content_type: "video/quicktime"))
+        refute_equal mp4, mov
+        assert mp4.end_with?("original.mp4")
+        assert mov.end_with?("original.mov")
+      end
+
+      test "VERSION and KEY_NAMESPACE are unchanged by the video generalization" do
+        assert_equal "migration-media-transfer:v3", CanonicalKey::VERSION
+        assert_equal "5e63dfc4-8f83-41d9-92d1-c88065b87cff", CanonicalKey::KEY_NAMESPACE
+      end
+
+      test "an unsupported content type still fails closed" do
+        assert_raises(CanonicalKey::InvalidIdentity) do
+          CanonicalKey.final_key(identity(canonical_content_type: "video/webm"))
+        end
+      end
     end
   end
 end

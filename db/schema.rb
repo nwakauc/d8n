@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_03_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_04_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -892,7 +892,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_130000) do
     t.bigint "deleted_by_id"
     t.string "deletion_reason"
     t.integer "duration_seconds"
+    t.jsonb "metadata", default: {}, null: false
     t.datetime "processed_at"
+    t.uuid "processing_claim_token"
+    t.datetime "processing_started_at"
     t.integer "processing_state", default: 0, null: false
     t.bigint "profile_id", null: false
     t.string "public_id", null: false
@@ -901,6 +904,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_130000) do
     t.bigint "user_id", null: false
     t.integer "visibility", default: 0, null: false
     t.index ["brand_id"], name: "index_profile_videos_on_brand_id"
+    t.index ["processing_state", "processing_started_at"], name: "index_profile_videos_on_processing_state_and_started_at"
     t.index ["profile_id"], name: "idx_profile_videos_one_per_profile", unique: true, where: "(deleted_at IS NULL)"
     t.index ["public_id"], name: "index_profile_videos_on_public_id", unique: true
     t.index ["user_id"], name: "index_profile_videos_on_user_id"

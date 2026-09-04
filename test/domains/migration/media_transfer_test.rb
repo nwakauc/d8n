@@ -305,6 +305,108 @@ module Migration
       )
     end
 
+    # --- ADR 0029: MediaKind::Video through the shared spine -----------------
+
+    Video = MediaTransfer::MediaKind::Video
+
+    def video_ref(bytes, source_blob_id:, content_type: "video/mp4")
+      ref, = Migration::MediaObjectRef.preflight!(
+        source_system: "date9ja", source_blob_id:,
+        checksum: Digest::MD5.base64digest(bytes), byte_size: bytes.bytesize, content_type:,
+        importer_version: "date9ja-video-preflight-v1"
+      )
+      ref
+    end
+
+    def video_identity(source_blob_id:, content_type: "video/mp4")
+      Ck::Identity.new(
+        source_system: "date9ja", source_blob_id:, source_attachment_id: "vatt-#{source_blob_id}",
+        destination_purpose: "profile_video_original", destination_brand: "date9ja",
+        canonical_content_type: nil
+      )
+    end
+
+    def run_video(bytes, gate: nil, content_type: "video/mp4", sid: SecureRandom.hex(6))
+      Migration::MediaTransfer.call(
+        object_ref: video_ref(bytes, source_blob_id: sid, content_type:),
+        source_reader: FakeReader.new(bytes:), source_key: "legacy-key",
+        identity: video_identity(source_blob_id: sid, content_type:),
+        dest_service_name: dest_service, media_kind: Video, media_gate: gate
+      )
+    end
+
+    test "video: clean transfer adopts a verified original blob at the video key" do
+      bytes = build_test_h264_mp4_bytes(duration: 2)
+      result = run_video(bytes)
+
+      assert result.ok?, result.inspect
+      assert_equal "video/mp4", result.canonical_content_type
+      assert_in_delta 2.0, result.media_facts.duration_seconds, 0.3
+      assert result.blob.key.start_with?("migrations/media/v3/date9ja/profile_video_original/")
+      assert result.blob.key.end_with?("original.mp4")
+      assert result.blob.service.exist?(result.blob.key)
+    end
+
+    test "video: the Phase-A media gate rejects before any destination adoption" do
+      bytes = build_test_h264_mp4_bytes(duration: 2)
+      gate = ->(facts) { Migration::MediaTransfer::Result.failed(:quarantined, "duration_over_limit", media_facts: facts) }
+      result = run_video(bytes, gate:)
+
+      assert_equal :quarantined, result.disposition
+      assert_equal "duration_over_limit", result.reason
+      key = Ck.final_key(Ck::Identity.new(
+        source_system: "date9ja", source_blob_id: "x", source_attachment_id: "x",
+        destination_purpose: "profile_video_original", destination_brand: "date9ja",
+        canonical_content_type: "video/mp4"
+      ))
+      # nothing adopted anywhere near the video namespace
+      assert_equal 0, ActiveStorage::Blob.where("key LIKE ?", "migrations/media/v3/date9ja/profile_video_original/%").count
+    end
+
+    test "video: unreadable duration fails closed quarantined" do
+      bytes = build_test_mp4_bytes # valid container, no parseable ffprobe duration
+      result = run_video(bytes)
+      assert_equal :quarantined, result.disposition
+      assert_equal "duration_unreadable", result.reason
+    end
+
+    test "video: image bytes declared video/mp4 fail closed validation_failed" do
+      result = run_video(valid_jpeg, content_type: "video/mp4")
+      assert_equal :validation_failed, result.disposition
+      assert_equal "not_a_video", result.reason
+    end
+
+    test "video: idempotent reuse converges on one blob (container re-validation, no ffprobe)" do
+      bytes = build_test_h264_mp4_bytes(duration: 1)
+      sid = SecureRandom.hex(6)
+      first = run_video(bytes, sid:)
+      second = run_video(bytes, sid:)
+      assert second.ok?
+      assert_equal first.blob.id, second.blob.id
+    end
+
+    test "video: bounded_download still fails closed under a migration lock" do
+      bytes = build_test_h264_mp4_bytes(duration: 1)
+      blob = run_video(bytes).blob
+      Migration::MediaTransfer::LockGuard.hold do
+        assert_raises(Migration::MediaTransfer::RemoteIOUnderLock) do
+          Migration::MediaTransfer.bounded_download(ActiveStorage::Blob.service, blob.key, 50.megabytes)
+        end
+      end
+    end
+
+    # --- MediaKind::Image regression fence (ADR 0029 §2) --------------------
+
+    test "MediaKind::Image path is byte-identical: reason codes, key shape, adoption" do
+      bytes = valid_jpeg
+      result = run_transfer(bytes)
+      assert result.ok?
+      assert result.blob.key.start_with?("migrations/media/v3/date9ja/profile_photo_original/")
+      assert_nil result.media_facts.duration_seconds
+
+      assert_equal "not_an_image", run_transfer("nope".b, source_blob_id: "img-x").reason
+    end
+
     test "a failed preflight row is never transferred" do
       ref, = Migration::MediaObjectRef.preflight!(
         source_system: "date9ja", source_blob_id: "blob-f", checksum: nil, byte_size: nil,

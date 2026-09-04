@@ -59,14 +59,17 @@ class ProfileVideoTest < ActiveSupport::TestCase
     assert_nothing_raised { new_video.save! }
   end
 
-  test "deliverable? requires a ready safe rendition, visible, not rejected" do
+  test "deliverable? requires a ready safe rendition + poster, visible, not rejected" do
     video = new_video
     video.save!
     assert_not video.deliverable?, "no rendition yet"
 
     video.playback.attach(io: StringIO.new("y"), filename: "playback.mp4", content_type: "video/mp4")
     video.update!(processing_state: :ready, visibility: :visible, status: :pending_review)
-    assert video.deliverable?
+    assert_not video.deliverable?, "ready with a rendition but no poster is still not deliverable"
+
+    video.poster.attach(io: StringIO.new("p"), filename: "poster.jpg", content_type: "image/jpeg")
+    assert video.reload.deliverable?
 
     video.update!(status: :rejected)
     assert_not video.deliverable?

@@ -68,22 +68,35 @@ module Profiles
 
         verify_uploaded_object!(blob, max_bytes:)
 
-        video = profile.with_lock do
+        initial = Media::VideoPolicy.initial_state(brand:)
+        video = build_video!(
+          profile:, user:, brand:, blob:,
+          status: initial.status, visibility: initial.visibility
+        )
+
+        Media::ProcessProfileVideoJob.perform_later(video.id)
+        video
+      end
+
+      # Minimal internal domain seam (mirrors Profiles::PhotoUpload.build_photo!;
+      # ADR 0029 Pass 2B). Owns ProfileVideo DOMAIN invariants only — validity,
+      # owner/profile/brand scope, blob-not-already-attached, one-live-video-per-
+      # profile — under the profile lock. It does NOT own request
+      # authentication/authorization (the HTTP `attach!` path keeps that) or
+      # policy-state derivation (Media::VideoPolicy.initial_state).
+      # Date9ja::Import::VideoTransfer calls this with explicit source-derived
+      # status/visibility, after its own Migration::MediaTransfer verification
+      # and inside its Phase-B transaction.
+      def build_video!(profile:, user:, brand:, blob:, status:, visibility:)
+        profile.with_lock do
           raise AlreadyAttached if blob.attachments.exists?
           raise AlreadyAttached if ProfileVideo.kept.exists?(profile:)
 
-          initial = Media::VideoPolicy.initial_state(brand:)
-          record = ProfileVideo.new(
-            profile:, user:, brand:,
-            status: initial.status, visibility: initial.visibility
-          )
+          record = ProfileVideo.new(profile:, user:, brand:, status:, visibility:)
           record.video.attach(blob)
           record.save!
           record
         end
-
-        Media::ProcessProfileVideoJob.perform_later(video.id)
-        video
       end
 
       def require_profile!(user:, brand:)

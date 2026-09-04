@@ -535,6 +535,103 @@ derive authoritative duration from the media container**; if it exceeds the
 limit, stop for the grandfather / trim-reencode / quarantine product decision.
 Record: `RECONCILIATION.md` "Profile-video MEDIA PREFLIGHT contract".
 
+### Profile-video BYTE TRANSFER rehearsal (pass 2A) — IMPLEMENTED / SELF_VERIFIED (2026-09-04)
+
+`bin/rails date9ja:transfer_videos_phase_a` (after `date9ja:preflight_videos`,
+same throwaway D8N DB, `DATE9JA_MEDIA_CORPUS_DIR` synthetic corpus). ADR 0029.
+Per source video: resolve owner `Profile`; `Migration::MediaTransfer.call`
+(`media_kind: MediaKind::Video`) — stream source bytes under the 50 MB video
+ceiling → exact byte-size + MD5 vs `MediaObjectRef` → `ftyp` type detect ==
+preflighted type → `Media::VideoContainerValidator` → `Media::VideoProcessor.probe`
+(ffprobe) authoritative duration → Date9ja `VideoPolicy` 60s gate → **only then**
+`CanonicalKey.final_key`
+(`migrations/media/v3/date9ja/profile_video_original/<uuidv5>/original.<ext>`) +
+`AdoptOrUpload`. **Creates NO `ProfileVideo`, NO `profile_video` `ReferenceMap`
+binding, NO `Media::ProcessProfileVideoJob`.** Unreadable duration →
+`quarantined`/`duration_unreadable`; over 60s → `quarantined`/`duration_over_limit`
+— neither adopts a blob. Prints a PII-free reconciliation JSON with
+`lifecycle: SOURCE_ACCEPTED / DESTINATION_ADOPTED (pass 2A; NOT transferred)`.
+
+**Full 35-video source-byte rehearsal: DEFERRED to Pass 2C synthetic L2** — the
+sanitized snapshot has no media bodies. L1 automated coverage only
+(`test/domains/date9ja/import/video_transfer_test.rb` + the MediaKind / probe /
+locator tests), against real ffmpeg-generated fixtures. Do NOT record a 35/35
+source-byte result. NOT independently reviewed; NOT `VERIFIED`.
+Record: `RECONCILIATION.md` "Profile-video PASS 2A BYTE TRANSFER contract".
+
+### Profile-video DOMAIN MIGRATION rehearsal (pass 2B) — IMPLEMENTED / SELF_VERIFIED (2026-09-04)
+
+`bin/rails date9ja:transfer_videos` (after `date9ja:preflight_videos`, same
+throwaway D8N DB, `DATE9JA_MEDIA_CORPUS_DIR` synthetic corpus). ADR 0029
+`stage: :domain`. Per adopted video: RESOLVE (idempotent existing-chain check) →
+Phase A (2A verify + adopt) → Phase B short `LockGuard`-held transaction (re-lock
+`MediaAttachmentRef`, re-resolve owner, re-prove the deterministic blob,
+one-live-video invariant, moderation map → `Profiles::VideoUpload.build_video!`
+→ `Migration::ReferenceMap.bind!` `source_entity: "profile_video"`) → Phase C
+(`Media::ProcessProfileVideoJob` inline → `Media::PlaybackDerivative` bounded
+remote validation of the exact playback + poster pair → `ready` → existing
+`video.purge_later`). Prints a PII-free reconciliation JSON with
+`stage: "domain"`, `lifecycle: PROFILE_VIDEO_DOMAIN_MIGRATED (pass 2B) — …`, and
+**never `transferred`**. A `processing_ready` video whose derivatives do not
+validate is `derivative_validation_failed`, never `ready`.
+
+New shared runtime: migration `20260904120000_add_processing_claim_to_profile_videos`
+(run `bin/rails db:migrate` + `RAILS_ENV=test bin/rails db:test:prepare`),
+`ProfileVideo` claim/sweepable helpers, `Media::ProcessProfileVideoJob`
+claim-token concurrency, `Media::ProfileVideoProcessingSweeper`,
+`Media::PlaybackDerivative`, `Profiles::VideoUpload.build_video!`.
+
+**Full 35-video synthetic-corpus L2 rehearsal: DEFERRED to Pass 2C.** L1
+automated coverage only (`test/domains/date9ja/import/video_domain_transfer_test.rb`
++ `playback_derivative_test` + `process_profile_video_job_claim_test`), against
+real ffmpeg-generated fixtures. Do NOT record a 35/35 result. NOT independently
+reviewed; NOT `VERIFIED`.
+Record: `RECONCILIATION.md` "Profile-video PASS 2B DOMAIN MIGRATION contract".
+
+### Profile-video SYNTHETIC L2 rehearsal (pass 2C) — IMPLEMENTED / SELF_VERIFIED (2026-09-04)
+
+The video analogue of the Profile Photo synthetic L2. Full write-up:
+**[`VIDEO-L2.md`](VIDEO-L2.md)**.
+
+**Builder side (done, automated):** `Date9ja::Snapshot::SyntheticVideoMedia`
+generator + verifier; `test/domains/date9ja/snapshot/synthetic_video_media_test.rb`
+(L1) + `test/domains/date9ja/import/video_l2_rehearsal_test.rb` (the full
+self-contained 35-record Pass 1 → 2A → 2B rehearsal + interruption + adversarial,
+569 assertions). Documentable corpus fingerprint (fixed seed):
+`5fbcc9dac1d7334859c5753b3c5b347589898af0ce3302e15cc117366433c378`.
+
+**Operator side (deferred):** against a `date9ja_snapshot_sanitized_media_v3`
+restore (a disposable copy of `date9ja_snapshot_sanitized`), same pattern as the
+photo `media_v2` operator run:
+
+```
+bin/rails date9ja:build_video_media_v3     # DATE9JA_SNAPSHOT_DATABASE_URL=media_v3, DATE9JA_MEDIA_CORPUS_DIR=out
+bin/rails date9ja:verify_video_media_v3    # + DATE9JA_SANITIZED_DATABASE_URL=parent [+ DATE9JA_MEDIA_CORPUS_DIR_2]
+bin/rails date9ja:preflight_videos
+bin/rails date9ja:transfer_videos_phase_a  # stage :adopt — 35 destination_adopted, 0 ProfileVideo
+bin/rails date9ja:transfer_videos          # stage :domain — 35 ready
+bin/rails date9ja:transfer_videos          # rerun -> 35 already_ready, zero growth
+```
+
+Plus the real forked-worker SIGKILL rehearsal (not safely automatable against
+the transactional test DB — see `VIDEO-L2.md` §6).
+
+**Evidence rule:** 35 legacy records exist; 35 synthetic bodies built for
+rehearsal; real duration/codec/container UNKNOWN. Never claim the synthetic
+files are the users' videos or that all 35 real videos are ≤ 60 s. **PD-2 stays
+OPEN — real over-limit count UNKNOWN.**
+
+**Feature-boundary review (Codex BLOCKED — fixes applied 2026-09-04):** Finding 1
+(BLOCKER) hardened `Media::ProcessProfileVideoJob#finalize!` to independently
+validate every candidate playback/poster blob's actual remote bytes before
+attaching (new `Media::PlaybackDerivative` blob-level validators, out of lock,
++ ABA recheck); Finding 4 tightened `ProfileVideo#safe_derivative_ready?`;
+Findings 2 & 3 added verifier checks 24 / 27 / 28 (manifest key containment,
+full `active_storage_attachments`, unrelated table counts). `verify_video_media_v3`
+now exits non-zero on any of the 28 checks. Retest: 546 runs / 0 failures.
+Record: `RECONCILIATION.md` "Profile-video PASS 2C — SYNTHETIC L2 REHEARSAL" and
+`VIDEO-L2.md` §10.
+
 ### Profile-photo BYTE TRANSFER rehearsal (pass 2) — L2 VERIFIED (Codex independent review, 2026-09-03)
 
 The synthetic-corpus (L2) rehearsal is **built, green, and independently

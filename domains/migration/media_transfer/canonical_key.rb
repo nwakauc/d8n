@@ -27,10 +27,16 @@ module Migration
 
       KEY_ROOT = "migrations/media/v3"
 
+      # ADR 0029: the ONLY canonical-identity change for video is these two
+      # added rows (values already present in Media::ObjectKey::EXTENSIONS).
+      # Everything else about the key — structure, VERSION, KEY_NAMESPACE,
+      # KEY_ROOT, canonical_string, object_uuid — is unchanged.
       EXTENSIONS = {
         "image/jpeg" => "jpg",
         "image/png" => "png",
-        "image/webp" => "webp"
+        "image/webp" => "webp",
+        "video/mp4" => "mp4",
+        "video/quicktime" => "mov"
       }.freeze
 
       # The complete declared canonical identity. `canonical_content_type` is the

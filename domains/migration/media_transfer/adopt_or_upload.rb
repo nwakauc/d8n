@@ -28,25 +28,26 @@ module Migration
       module_function
 
       # @return [ActiveStorage::Blob] on success, or a Migration::MediaTransfer::Result on a fail-closed case.
-      def call(key:, io:, expected:, image_processor:)
+      def call(key:, io:, expected:, media_kind: Migration::MediaTransfer::MediaKind::DEFAULT,
+        image_processor: Media::ImageProcessor)
         service = ActiveStorage::Blob.services.fetch(expected[:dest_service].to_sym)
         row = ActiveStorage::Blob.find_by(key:)                       # A: DB snapshot
         object = Migration::MediaTransfer.service_exist?(service, key) # B: external, no lock
 
         if row.nil? && !object
-          case_1_create_and_upload(key:, io:, expected:, service:, image_processor:)
+          case_1_create_and_upload(key:, io:, expected:, service:, media_kind:, image_processor:)
         elsif row.nil? && object
           remote_orphan
         elsif object
-          case_2_verify_and_reuse(row:, expected:, service:, image_processor:)
+          case_2_verify_and_reuse(row:, expected:, service:, media_kind:, image_processor:)
         else
-          case_3_recover(row:, io:, expected:, service:, image_processor:)
+          case_3_recover(row:, io:, expected:, service:, media_kind:, image_processor:)
         end
       end
 
       # --- case 1 -----------------------------------------------------------
 
-      def case_1_create_and_upload(key:, io:, expected:, service:, image_processor:)
+      def case_1_create_and_upload(key:, io:, expected:, service:, media_kind:, image_processor:)
         blob = ActiveStorage::Blob.create!(                           # A: DB-only, one INSERT, no lock
           key:,
           filename: "original.#{Migration::MediaTransfer::CanonicalKey.extension_for(expected[:content_type])}",
@@ -57,18 +58,18 @@ module Migration
         )
         io.rewind
         blob.upload_without_unfurling(io)                             # B: outside any lock/transaction
-        remote = verify_remote!(blob, expected, service, image_processor) # B
+        remote = verify_remote!(blob, expected, service, media_kind, image_processor) # B
         remote.is_a?(Migration::MediaTransfer::Result) ? remote : blob
       rescue ActiveRecord::RecordNotUnique
-        call(key:, io:, expected:, image_processor:) # concurrent creator won — re-dispatch
+        call(key:, io:, expected:, media_kind:, image_processor:) # concurrent creator won — re-dispatch
       end
 
       # --- case 2 -----------------------------------------------------------
 
-      def case_2_verify_and_reuse(row:, expected:, service:, image_processor:)
+      def case_2_verify_and_reuse(row:, expected:, service:, media_kind:, image_processor:)
         return collision unless row_identity_matches?(row, expected)
 
-        remote = verify_remote!(row, expected, service, image_processor) # B: bounded, NO lock
+        remote = verify_remote!(row, expected, service, media_kind, image_processor) # B: bounded, NO lock
         return remote if remote.is_a?(Migration::MediaTransfer::Result)
 
         recheck_identity(row.id, expected)                              # C: short lock
@@ -76,7 +77,7 @@ module Migration
 
       # --- case 3 -----------------------------------------------------------
 
-      def case_3_recover(row:, io:, expected:, service:, image_processor:)
+      def case_3_recover(row:, io:, expected:, service:, media_kind:, image_processor:)
         proven = short_lock(row.id) do |fresh|                          # A: prove + capture
           if fresh.nil? then :gone
           elsif !row_identity_matches?(fresh, expected) then :mismatch
@@ -89,7 +90,7 @@ module Migration
         blob = ActiveStorage::Blob.find(row.id)
         io.rewind
         blob.upload_without_unfurling(io)                               # B: outside lock
-        remote = verify_remote!(blob, expected, service, image_processor) # B
+        remote = verify_remote!(blob, expected, service, media_kind, image_processor) # B
         return remote if remote.is_a?(Migration::MediaTransfer::Result)
 
         recheck_snapshot(row.id, proven)                                # C: nothing swapped the row
@@ -141,18 +142,22 @@ module Migration
       end
 
       # Bounded remote re-read; returns nil on success or a fail-closed Result.
-      def verify_remote!(blob, expected, service, image_processor)
+      # The type-detection + structural re-verification body is media-kind aware
+      # (image decode vs. ISO-BMFF container re-validation); the bounded read,
+      # size/checksum re-check, exact-canonical-type match, LockGuard fences and
+      # fail-closed semantics are unchanged across kinds.
+      def verify_remote!(blob, expected, service, media_kind, image_processor)
         bytes = Migration::MediaTransfer.bounded_download(service, blob.key, expected[:byte_size])
         return collision unless bytes.bytesize == expected[:byte_size]
         return collision unless Digest::MD5.base64digest(bytes) == expected[:md5]
 
-        detected = Profiles::PhotoUpload.detect_image_type(bytes[0, 16])
+        detected = media_kind.detect_type(bytes)
         return collision unless detected == expected[:content_type] # EXACT canonical type
 
         begin
-          Migration::MediaTransfer::LockGuard.assert_free!("image_processor.call")
-          image_processor.call(bytes)
-        rescue Media::ImageProcessor::Error
+          Migration::MediaTransfer::LockGuard.assert_free!("media_kind.remote_reverify!")
+          media_kind.remote_reverify!(bytes, image_processor:)
+        rescue Migration::MediaTransfer::MediaKind::StructuralError
           return collision
         end
 

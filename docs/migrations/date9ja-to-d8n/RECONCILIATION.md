@@ -312,6 +312,144 @@ WITH SMALL FIX — documentation correction completed) · sanitized rehearsal
 VERIFIED · profile-video capability overall **PARTIAL** (pass-2 byte transfer +
 L2 + reconciliation + frontend/cutover outstanding). NOT `PARITY_ACCEPTED`.
 
+## Profile-video PASS 2A BYTE TRANSFER contract (Wave A, ADR 0029) — IMPLEMENTED / SELF_VERIFIED
+
+Pass 2A is an **intermediate** slice. Its maximum success for a video is a
+verified, duration-accepted destination ACTIVE STORAGE ORIGINAL BLOB —
+lifecycle `SOURCE_ACCEPTED / DESTINATION_ADOPTED`. **It never reports
+`transferred`**, which additionally requires Pass 2B (`ProfileVideo` + exact
+`ReferenceMap` binding + processing + playback/poster derivative validation).
+
+**Invariant:** `videos_considered == Σ (exactly one terminal disposition)`.
+
+| Disposition | Meaning |
+|---|---|
+| `destination_adopted` | source verified + authoritative duration ≤ brand limit + deterministic destination original blob uploaded + remote-re-verified, this run |
+| `already_destination_adopted` | rerun; the deterministic destination blob already exists and re-verifies — nothing uploaded |
+| `owner_not_imported` | no Date9ja `Profile` destination for the owner; bytes not moved |
+| `source_unavailable` | source object missing / unreadable / locator key off-grammar / transport refused |
+| `source_changed` | source byte-size / MD5 / detected type ≠ `MediaObjectRef` (fail closed) |
+| `validation_failed` | not a recognized video (`not_a_video`), unsupported type, or malformed ISO-BMFF container (`malformed_container`) |
+| `quarantined` | `duration_unreadable` (ffprobe gave no parseable duration — fail closed) or `duration_over_limit` (authoritative duration > brand limit); OR `moderation_unmapped` / `multiple_videos_per_owner`. **No destination blob, `ProfileVideo`, binding, or job.** |
+| `binding_conflict` | destination object/row mismatch — `destination_collision`, `remote_orphan` (never adopted/overwritten/deleted) |
+| `destination_failed` | transient D8N upload / infra failure (`missing_preflight`, `transfer_error`) — retryable |
+| `explicitly_skipped` | reserved; a documented policy exclusion only |
+
+Aggregate measures (counts only — no key, checksum value, source URL, or per-row
+id): `total_source_videos`, `owners_considered`, `owner_not_imported`,
+`moderation_{pending,approved,rejected}`, `content_type_{mp4,quicktime}`,
+`destination_uploads_created`, `destination_uploads_reused`, `duration_derived`,
+`duration_within_limit`, `duration_over_limit`, `duration_unreadable`,
+`container_invalid`, `source_changed`, `destination_failures`,
+`binding_conflicts`, `destination_remote_orphans`, `destination_collisions`,
+`unexplained_failures`, `reviewed_exceptions`.
+
+**Zero-side-effect proof (tests):** Pass 2A creates **0 `ProfileVideo`, 0
+`ProfileVideo` Active Storage attachments, 0 `profile_video` `ReferenceMap`
+bindings, 0 `Media::ProcessProfileVideoJob`**. A second identical run is a
+full classify-only no-op (same deterministic key, same blob, zero uploads).
+
+**Rehearsal status:** L1 automated only (real ffmpeg/ffprobe-generated fixtures,
+distinct from source-census evidence). The full 35-video **source-byte**
+rehearsal is **deferred to Pass 2C synthetic L2** — the current sanitized
+snapshot does not contain the media bodies. No 35/35 source-byte claim is made.
+
+**Lifecycle:** IMPLEMENTED / SELF_VERIFIED (2026-09-04). NOT `VERIFIED`, NOT
+`PARITY_ACCEPTED`. PD-2 (grandfather / trim-reencode / quarantine-remove) OPEN.
+
+## Profile-video PASS 2B DOMAIN MIGRATION contract (Wave A, ADR 0029) — IMPLEMENTED / SELF_VERIFIED
+
+Pass 2B completes the DOMAIN side of a successfully adopted Pass-2A video.
+`Date9ja::Import::VideoTransfer.call(stage: :domain)` — RESOLVE (idempotent
+existing-chain check) → Phase A (2A verify + adopt) → Phase B (short
+`LockGuard`-held txn: re-lock `MediaAttachmentRef`, re-resolve owner, re-prove
+the deterministic blob, one-live-video invariant, moderation map →
+`Profiles::VideoUpload.build_video!` → `Migration::ReferenceMap.bind!`) → Phase C
+(`Media::ProcessProfileVideoJob` → `Media::PlaybackDerivative.valid?` playback +
+poster → `ready` → existing raw purge). No remote I/O under any DB lock;
+`RemoteIOUnderLock` stays fatal.
+
+**Invariant:** `videos_considered == Σ (exactly one terminal disposition)`.
+`VideoTransferReconciliation.new(stage: :domain)` — `to_h` reports
+`stage: "domain"`, `lifecycle: PROFILE_VIDEO_DOMAIN_MIGRATED (pass 2B) — …`, and
+**never emits `transferred`**. Pass 2A remains `DESTINATION_ADOPTED`, not
+`transferred`; Pass 2B `ready` is the first point a single video is fully
+domain-migrated (ProfileVideo + exact owner + exact original attachment + exact
+`ReferenceMap` binding + processing + validated playback + validated poster +
+ready + existing raw-purge).
+
+| Disposition | Meaning |
+|---|---|
+| `ready` | ProfileVideo built + bound this run, processed, playback + poster validated (`Media::PlaybackDerivative`), `processing_ready`, raw purge scheduled |
+| `already_ready` | rerun; the full chain re-validated with bounded remote reads — nothing built/processed |
+| `owner_not_imported` | no Date9ja `Profile` destination for the owner |
+| `source_unavailable` / `source_changed` / `validation_failed` / `quarantined` | as Pass 2A (adoption failed before any domain object) — `quarantined` also covers `duration_over_limit` / `duration_unreadable` / `moderation_unmapped` / `multiple_videos_per_owner` |
+| `binding_conflict` | owner `mapping_drift`, `one_video_invariant` (a live ProfileVideo already exists for the profile), `conflicting_profile_video` / `conflicting_binding` / `binding_immutable`, `chain_mismatch`, `playback_invalid` on an existing corrupt ready video, `remote_orphan` / `destination_collision` (Pass-2A blob) — fail closed, never rewrite a binding |
+| `processing_failed` | ProfileVideo + binding exist, `Media::ProcessProfileVideoJob` ended `failed` (`processing_job_failed`) or the async drain timed out (`processing_drain_timeout`) |
+| `derivative_validation_failed` | job reported `processing_ready` but the actual playback/poster derivatives do not validate (`playback_invalid`) — **never `ready`** |
+| `destination_failed` | transient infra / `record_invalid` / `missing_preflight` — retryable |
+| `explicitly_skipped` | reserved |
+
+Measures: `profile_videos_created` / `_reused`, `reference_map_bindings_created`
+/ `_reused`, `processing_attempts` / `_succeeded` / `_failures`,
+`playback_validated`, `poster_validated`, `ready`, `already_ready`,
+`originals_purged`, `processing_stale_reclaims`, plus all Pass-2A measures,
+`unexplained_failures`, `reviewed_exceptions`.
+
+**Zero-duplicate proof (tests):** two complete runs → same ProfileVideo, same
+`ReferenceMap` binding, same playback/poster blobs, 0 duplicate
+ProfileVideo/attachment/binding, no reprocessing, no raw recreation after a
+correct purge. Interruption windows A–J (ADR 0029 §15) covered or proven
+structurally impossible (B, C are one Phase-B transaction).
+
+**Shared runtime hardening:** `20260904120000_add_processing_claim_to_profile_videos`
+(claim-token + `metadata` jsonb, mirrors the photo migration — already scoped
+into Pass 2B by ADR 0029), `ProfileVideo` claim/sweepable helpers,
+`Media::ProcessProfileVideoJob` claim-token concurrency,
+`Media::ProfileVideoProcessingSweeper`, `Media::PlaybackDerivative`.
+
+**Rehearsal status:** L1 automated only. Full 35-video synthetic-corpus L2
+rehearsal is **Pass 2C** — not done. No 35/35 claim.
+
+**Lifecycle:** IMPLEMENTED / SELF_VERIFIED (2026-09-04). NOT `VERIFIED`, NOT
+`PARITY_ACCEPTED`. PD-2 OPEN.
+
+## Profile-video PASS 2C — SYNTHETIC L2 REHEARSAL evidence (ADR 0029) — IMPLEMENTED / SELF_VERIFIED
+
+Full write-up: **[`VIDEO-L2.md`](VIDEO-L2.md)**. Key derived-from-execution results
+(35-record self-contained rehearsal, `video_l2_rehearsal_test.rb`):
+
+| Stage | Result |
+|---|---|
+| Corpus | 35 objects · 26 `video/mp4` + 9 `video/quicktime` · all ≤ 60 s · documentable fingerprint `5fbcc9dac1d7…6433c378` (fixed seed) · byte-identical across two clean generations |
+| Pass 1 | 35 considered / 35 preflighted / 35+35 refs / 0 D8N media |
+| Pass 2A (`:adopt`) | 35 `destination_adopted` · 35 duration derived + within-limit · 26 mp4 / 9 mov · **0 `ProfileVideo`** · 35 original blobs |
+| Pass 2B (`:domain`) | 35 `ready` · 35 PV + bindings + playback + poster validated + originals purged · never `transferred` |
+| Destination verifier | one PV + one binding per source · no cross-brand · moderation preserved · bounded remote playback+poster validation |
+| Rerun | 35 `already_ready` · zero growth · raw not recreated |
+| Interruption | windows A / B-E / C / F-G recovered; B & C structurally impossible; bounded process-kill → deterministic stale-reclaim recovery |
+| Adversarial (separate) | over-limit → `quarantined`/`duration_over_limit`; unreadable → `quarantined`/`duration_unreadable`; malformed → `malformed_container`; spoofed → `not_a_video`; drift → `source_changed`; collision/orphan → `binding_conflict` (orphan never adopted); invalid playback rendition / tampered existing derivative → fail closed, **never `ready`**, raw not purged |
+
+**Evidence rule:** 35 legacy `ProfileVideo` records exist (source census fact);
+35 synthetic bodies were built for engineering rehearsal (synthetic L2 fact);
+the real videos' duration/codec/container are **UNKNOWN** (real-media fact).
+Never merged. **PD-2 NOT chosen — real over-limit count UNKNOWN.**
+
+**Feature-boundary review (Codex BLOCKED — fixes applied 2026-09-04):**
+Finding 1 (BLOCKER) — `Media::ProcessProfileVideoJob#finalize!` now independently
+validates every candidate playback/poster blob's actual remote bytes (new
+`Media::PlaybackDerivative.playback_blob_valid?` / `poster_blob_valid?`) OUTSIDE
+all DB locks before attaching, with an ABA fingerprint recheck; deterministic
+key identity alone is never sufficient; a validation-failing candidate is never
+attached, never marks ready, never purges the raw. Finding 4 —
+`ProfileVideo#safe_derivative_ready?` requires both derivatives. Findings 2 & 3 —
+verifier checks 24 (manifest key path-containment), 27 (full
+`active_storage_attachments` byte-identical), 28 (unrelated table row counts).
+Retest: 546 runs / 0 failures; Profile Photo regression 125 / 0.
+
+**Lifecycle:** IMPLEMENTED / SELF_VERIFIED. NOT `VERIFIED`, NOT `PARITY_ACCEPTED`.
+Ready for narrow Codex re-review of the three findings.
+
 ### Pass-2 `service_name` census — RUN 2026-09-03
 
 Metadata-only census (no bytes, no `key`) against `date9ja_snapshot_sanitized`

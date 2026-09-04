@@ -45,8 +45,37 @@ module Media
 
     Result = Data.define(:rendition_bytes, :transcoded, :poster_bytes, :width, :height, :duration_seconds)
 
+    # Authoritative media facts derived from ffprobe ONLY — no transcode, no
+    # derivative, no upload, no ProfileVideo mutation (ADR 0029). Used by the
+    # migration Phase-A duration gate (Migration::MediaTransfer::MediaKind::Video).
+    Probe = Data.define(:duration_seconds, :video_codec, :audio_codec, :major_brand, :width, :height)
+
     def self.call(bytes)
       new(bytes).call
+    end
+
+    # ffprobe-only authoritative probe. Fails closed: a missing/unusable ffprobe
+    # or unparseable output raises Media::VideoProcessor::Error; a wall-clock
+    # ceiling breach raises TimedOut.
+    def self.probe(bytes)
+      new(bytes).probe
+    end
+
+    def probe
+      Tempfile.create([ "d8n-video-probe", ".bin" ], binmode: true) do |input|
+        input.write(@bytes)
+        input.flush
+
+        facts = probe!(input.path)
+        Probe.new(
+          duration_seconds: facts[:duration],
+          video_codec: facts.dig(:video, :codec),
+          audio_codec: facts.dig(:audio, :codec),
+          major_brand: facts[:major_brand],
+          width: facts.dig(:video, :width),
+          height: facts.dig(:video, :height)
+        )
+      end
     end
 
     def initialize(bytes)

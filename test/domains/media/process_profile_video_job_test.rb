@@ -13,13 +13,19 @@ module Media
       # A structurally valid 5s ISO-BMFF original — Media::VideoContainerValidator
       # runs for real in the job now.
       @raw = build_test_mp4_bytes(codec: "avc1", duration_units: 5000, timescale: 1000)
+      @service = ActiveStorage::Blob.service.name.to_s
       @video = attach_video(@raw)
     end
 
+    # Migration-style raw key so Media::ObjectKey.derived_key swaps `original.mp4`
+    # for `playback.mp4` / `poster.jpg` in the SAME folder (matching real Pass-2A).
     def attach_video(bytes, profile: @profile, user: @user)
+      key = "migrations/media/v3/date9ja/profile_video_original/#{SecureRandom.uuid}/original.mp4"
+      raw = ActiveStorage::Blob.create_and_upload!(io: StringIO.new(bytes), key:,
+        filename: "original.mp4", content_type: "video/mp4", service_name: @service)
       video = ProfileVideo.new(profile:, user:, brand: @brand,
         status: :pending_review, visibility: :visible)
-      video.video.attach(io: StringIO.new(bytes), filename: "v.mp4", content_type: "video/mp4")
+      video.video.attach(raw)
       video.save!
       video
     end
@@ -34,10 +40,17 @@ module Media
       attach_video(bytes, profile:, user:)
     end
 
-    def fake_result(poster: "poster-bytes", duration: 4.2)
+    # Real bytes: the job now independently validates its playback + poster
+    # output (Media::PlaybackDerivative) before persisting `ready` (Finding 1).
+    def real_playback_bytes = @real_playback_bytes ||= build_test_h264_mp4_bytes(duration: 1)
+    def real_poster_bytes = @real_poster_bytes ||= build_test_jpeg_bytes.b
+
+    def fake_result(poster: :real, duration: 4.2, rendition: :real)
       Media::VideoProcessor::Result.new(
-        rendition_bytes: "playback-bytes", transcoded: true,
-        poster_bytes: poster, width: 720, height: 1280, duration_seconds: duration
+        rendition_bytes: (rendition == :real ? real_playback_bytes : rendition),
+        transcoded: true,
+        poster_bytes: (poster == :real ? real_poster_bytes : poster),
+        width: 720, height: 1280, duration_seconds: duration
       )
     end
 
@@ -118,18 +131,29 @@ module Media
       assert_not @video.deliverable?
     end
 
-    test "a timeout is transient — the job retries then fails, never loops" do
+    test "a timeout is transient with retries remaining — non-terminal failed, stays sweepable" do
+      job = ProcessProfileVideoJob.new(@video.id)
+      job.executions = 1
       stub_method(Media::VideoProcessor, :call, ->(_bytes) { raise Media::VideoProcessor::TimedOut, "slow" }) do
-        perform_enqueued_jobs { ProcessProfileVideoJob.perform_later(@video.id) }
-        10.times do
-          break if enqueued_jobs.empty?
-
-          perform_enqueued_jobs
-        end
+        assert_raises(ProcessProfileVideoJob::TransientError) { job.perform(@video.id) }
       end
 
-      assert_empty enqueued_jobs
-      assert @video.reload.processing_failed?
+      @video.reload
+      assert @video.processing_failed?
+      assert_not @video.processing_terminal_failure?, "still retryable"
+      assert_includes ProfileVideo.processing_sweepable.to_a, @video
+    end
+
+    test "a timeout that exhausts retries fails terminally, never loops" do
+      job = ProcessProfileVideoJob.new(@video.id)
+      job.executions = ProcessProfileVideoJob::MAX_ATTEMPTS
+      stub_method(Media::VideoProcessor, :call, ->(_bytes) { raise Media::VideoProcessor::TimedOut, "slow" }) do
+        assert_raises(ProcessProfileVideoJob::TransientError) { job.perform(@video.id) }
+      end
+
+      @video.reload
+      assert @video.processing_terminal_failure?
+      assert_not_includes ProfileVideo.processing_sweepable.to_a, @video
     end
 
     test "tolerates the video being deleted mid-flight" do
