@@ -57,7 +57,7 @@ code, so `source_users_considered == sum(dispositions)` always holds.
 | Section | Keys |
 |---|---|
 | `dispositions` | `imported`, `already_imported`, `skipped`, `failed` |
-| `created` | `users_created`, `identifiers_created`, `credentials_created`, `password_hashes_created`, `memberships_created`, `profiles_created`, `legacy_references_created` |
+| `created` | `users_created`, `identifiers_created`, `credentials_created`, `password_hashes_created`, `credentials_recovery_required`, `memberships_created`, `profiles_created`, `legacy_references_created` |
 | `anomalies` | `normalization_collisions`, `missing_identifiers`, `malformed_rows`, `binding_conflicts` |
 | `reason_codes` | only codes with a positive count |
 
@@ -72,7 +72,9 @@ Reason codes:
 | `email_collision` | failed | the normalized email already exists on another D8N identity — **never merged**, row fails closed |
 | `phone_unparseable` | (row still imported) | `users.phone` present but fails E.164 normalization — phone identifier skipped |
 | `phone_collision` | (row still imported) | normalized phone already exists elsewhere — phone identifier skipped, never merged |
-| `credential_hash_unusable` | skipped (blank) / failed (malformed) | `encrypted_password` empty or not a 60-char bcrypt string |
+| `credential_hash_unusable` | failed | `encrypted_password` empty or not a 60-char bcrypt string **and** the row has no operable recovery channel (verified email; a verified phone alone does not count) — failed closed, no account created (never an unreachable account) |
+| `credential_recovery_required` | (row still imported) | `encrypted_password` unusable **but** the row has a **verified email** (`FieldMapping.operable_recovery_channel?` — the identifier the password credential is bound to and the one the shared runtime can complete recovery through) → migrated as a recovery-required credential (active password credential, no `CredentialPasswordHash`); `credentials_recovery_required` bumps, first access is the signed-out recovery flow (`AUTH-TRANSITION.md`) |
+| `credential_hash_corrupt` | failed | a resolvable prior import whose persisted `credential_password_hashes.password_hash` is present but not a supported bcrypt string (`BCRYPT_RE` + `BCrypt::Password.new`) — corrupt destination state, fail closed, `malformed_rows` anomaly. Never produced by the importer itself. |
 | `profile_invalid` | failed | shared `Profile` validation rejected the mapped row (e.g. birthdate < 18) |
 | `dangling_binding` | failed | a `user` reference exists but its destination row is gone — fail closed |
 | `incomplete_binding` | failed | a prior `user` reference resolves, but one or more required downstream bindings/records are missing or inconsistent — never reported as complete |
@@ -129,6 +131,55 @@ counts, collision handling and reconciliation. It does not re-prove bcrypt auth
 deferred decisions in `STATUS.md` (first/last-name mapping, country
 normalization, sensitive profile fields, publication/completion semantics,
 phone-collision policy, deleted/banned treatment, later migration domains).
+
+## Auth transition check contract (Wave A Step 3 closeout)
+
+`Date9ja::Import::AuthTransitionCheck#to_h` (`domains/date9ja/import/`) is a
+deterministic, **PII-free** tally for one auth-transition verification run — the
+broad companion to `scripts/date9ja/bcrypt_proof.rb`. It contains counts only: no
+email, phone, bcrypt digest, recovery code, reset token, or free text.
+
+| Section | Keys |
+|---|---|
+| `subjects_considered` | migrated accounts exercised |
+| `lifecycles` | `active`, `suspended`, `recovery_required` counts |
+| `checks` | per check (`lifecycle_supported`, `resolve`, `login_ok`, `wrong_password_rejected`, `legacy_hash_preserved`, `session_brand_scoped`, `cross_brand_rejected`, `logout_revokes_session`, `login_blocked`, `no_residual_session`, `recovery_unavailable_fails_closed`, `reactivation_roundtrip`, `recovery_roundtrip`, `recovery_revokes_sessions`, `old_password_rejected`, `recovered_password_logs_in`): `{pass, fail, skip}` |
+| `failure_reasons` | distinct `check:reason` → count (e.g. `recovery_roundtrip:verify_invalid_code`) |
+| `failures` / `all_passed` | total failed checks; boolean |
+
+Every migrated account drives the **real** shared D8N services
+(`Identity::PasswordLogin`, `Session`, `SessionAuthenticator`,
+`RecoveryRequester`/`RecoveryVerifier`/`PasswordReset`,
+`Accounts::DeactivateAccount`, `Identity::AccountReactivation`) — nothing
+Date9ja-specific. `recovery_unavailable_fails_closed` covers a migrated account
+with no verified channel (unverified email, no verified phone): signed-out reset
+must fail closed (no code delivered) while the password still works (ADR 0012).
+
+The operator tool `rake date9ja:verify_auth_transition` (manifest-driven,
+secret-scrubbed) has a **throwaway-DB fence** (`Connection.assert_runtime_safe!`
+— the accepted disposable-DB contract, refuses before any check) and **manifest
+validation** (`AuthTransitionCheck.parse_manifest` rejects an empty manifest and
+any lifecycle outside `AuthTransitionCheck::LIFECYCLES`, before any check, error
+names the line and bad token only). `AuthTransitionCheck` records
+`lifecycle_supported` per subject and a zero-subject run is not a pass.
+
+Evidence: L1 rehearsal (`auth_transition_rehearsal_test.rb`); a **scaled 19-row
+synthetic L2 rehearsal** (`auth_transition_l2_rehearsal_test.rb` — import →
+reconciliation balance → pre-sign-in idempotency → full journey / 0 failures →
+post-recovery re-run never clobbers a member-set password); the operator tool
+proven against a compliant throwaway DB incl. its empty-manifest /
+unknown-lifecycle / non-approved-DB refusals. The real-seed-account operator L2
+(real cost-12 + real plaintexts) stays an operator task, like `bcrypt_proof.rb`.
+It runs **after** `date9ja:import_identity` and mutates the accounts it
+exercises. Full reference: `AUTH-TRANSITION.md`.
+
+Note on `IdentityImport#credential_completeness` (rerun verdict): a
+valid-source-digest credential is complete only with a **supported** bcrypt hash
+(`BCRYPT_RE` + `BCrypt::Password.new`) — the verbatim legacy copy, or a valid
+replacement the member set via recovery (never a byte match, so a re-run never
+clobbers a member-set password). Missing hash → `incomplete_binding`;
+unsupported hash → `credential_hash_corrupt` (fail closed). Recovery-required
+rows are complete with no hash or with a supported one.
 
 ## Profile-photo MEDIA PREFLIGHT contract (Wave A, pass 1 — ADR 0027)
 

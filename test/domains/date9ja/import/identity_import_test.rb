@@ -162,6 +162,17 @@ module Date9ja
         assert_equal 0, result.reconciliation.count(:imported)
       end
 
+      test "a recovery-required imported row is complete on rerun and after the member sets a password" do
+        rows = [ row(id: 1, encrypted_password: "not-a-real-hash") ]
+        import(rows)
+
+        assert_equal 1, import(rows).reconciliation.count(:already_imported)
+
+        # member completes recovery and sets a real password
+        Identity::PasswordEngine.set!(credential: resolved("password_credential", 1), password: "brand-new-secret")
+        assert_equal 1, import(rows).reconciliation.count(:already_imported)
+      end
+
       test "a suspended imported row is also complete on rerun" do
         rows = [ row(id: 1, suspended_at: Time.utc(2024, 6, 1)) ]
         import(rows)
@@ -213,21 +224,87 @@ module Date9ja
         assert_equal 1, result.reconciliation.to_h.dig("anomalies", "missing_identifiers")
       end
 
-      test "a malformed bcrypt digest fails the row closed" do
+      test "an unusable legacy digest with a verified channel imports a recovery-required account" do
+        result = nil
+        assert_difference(-> { Credential.count } => 1, -> { CredentialPasswordHash.count } => 0) do
+          result = import([ row(id: 1, encrypted_password: "not-a-real-hash") ])
+        end
+
+        assert_equal 1, result.reconciliation.count(:imported)
+        assert_equal 1, result.reconciliation.reason_count("credential_recovery_required")
+        assert_equal 1, result.reconciliation.to_h.dig("created", "credentials_recovery_required")
+
+        credential = resolved("password_credential", 1)
+        assert credential.password?
+        assert credential.active?
+        assert_nil credential.credential_password_hash
+      end
+
+      test "an unusable legacy digest with no verified channel fails the row closed" do
         result = nil
         assert_no_difference(-> { User.count }) do
-          result = import([ row(id: 1, encrypted_password: "not-a-real-hash") ])
+          result = import([ row(id: 1, encrypted_password: "not-a-real-hash", confirmed_at: nil, phone_verified_at: nil) ])
         end
 
         assert_equal 1, result.reconciliation.count(:failed)
         assert_equal 1, result.reconciliation.reason_count("credential_hash_unusable")
       end
 
-      test "a blank bcrypt digest skips the row with a reason" do
-        result = import([ row(id: 1, encrypted_password: "") ])
+      test "a blank bcrypt digest with no verified channel fails the row closed" do
+        result = import([ row(id: 1, encrypted_password: "", confirmed_at: nil, phone_verified_at: nil) ])
 
-        assert_equal 1, result.reconciliation.count(:skipped)
+        assert_equal 1, result.reconciliation.count(:failed)
         assert_equal 1, result.reconciliation.reason_count("credential_hash_unusable")
+      end
+
+      # Shared Identity::RecoveryRequester / PasswordReset resolve the password
+      # credential THROUGH the requested identifier, and the credential is bound
+      # to the email identifier — so a verified phone alone is not an operable
+      # recovery channel. Fail closed, do not falsely mark it recovery-required.
+      test "an unusable legacy digest with a verified phone but unverified email fails closed" do
+        result = nil
+        assert_no_difference(-> { User.count }) do
+          result = import([ row(id: 1, encrypted_password: "not-a-real-hash",
+            confirmed_at: nil, phone: "+2348090000001", phone_verified_at: Time.utc(2024, 1, 2)) ])
+        end
+
+        assert_equal 1, result.reconciliation.count(:failed)
+        assert_equal 1, result.reconciliation.reason_count("credential_hash_unusable")
+        assert_equal 0, result.reconciliation.reason_count("credential_recovery_required")
+      end
+
+      # complete_import? credential states -------------------------------------
+
+      test "a resolvable import whose stored hash is corrupt fails closed on rerun" do
+        import([ row(id: 1) ])
+        credential = resolved("password_credential", 1)
+        # simulate destination corruption (never produced by the importer)
+        credential.credential_password_hash.update_columns(password_hash: "$2a$12$not-a-valid-bcrypt-body")
+
+        result = import([ row(id: 1) ])
+        assert_equal 1, result.reconciliation.count(:failed)
+        assert_equal 1, result.reconciliation.reason_count("credential_hash_corrupt")
+        assert_equal 0, result.reconciliation.count(:already_imported)
+      end
+
+      test "a resolvable import whose password hash row vanished is incomplete, not complete" do
+        import([ row(id: 1) ])
+        CredentialPasswordHash.find(resolved("password_credential", 1).id).delete
+
+        result = import([ row(id: 1) ])
+        assert_equal 1, result.reconciliation.count(:failed)
+        assert_equal 1, result.reconciliation.reason_count("incomplete_binding")
+      end
+
+      test "a valid member replacement bcrypt hash counts as complete on rerun" do
+        rows = [ row(id: 1) ]
+        import(rows)
+        Identity::PasswordEngine.set!(credential: resolved("password_credential", 1), password: "member-reset-secret")
+
+        result = import(rows)
+        assert_equal 1, result.reconciliation.count(:already_imported)
+        assert_equal 0, result.reconciliation.count(:failed)
+        assert_equal 0, result.reconciliation.count(:imported)
       end
 
       test "an underage / invalid profile fails the row and persists nothing" do
@@ -319,7 +396,7 @@ module Date9ja
           row(id: 1),
           row(id: 2, deleted_at: Time.utc(2024, 1, 1)),
           row(id: 3, email: "bad"),
-          row(id: 4, encrypted_password: "nope")
+          row(id: 4, encrypted_password: "nope", confirmed_at: nil, phone_verified_at: nil)
         ])
 
         h = result.reconciliation.to_h

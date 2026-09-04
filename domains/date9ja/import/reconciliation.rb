@@ -12,7 +12,8 @@ module Date9ja
 
       CREATION_COUNTERS = %i[
         users_created identifiers_created credentials_created
-        password_hashes_created memberships_created profiles_created
+        password_hashes_created credentials_recovery_required
+        memberships_created profiles_created
         legacy_references_created
       ].freeze
 
@@ -29,6 +30,8 @@ module Date9ja
         phone_unparseable
         phone_collision
         credential_hash_unusable
+        credential_recovery_required
+        credential_hash_corrupt
         profile_invalid
         dangling_binding
         incomplete_binding

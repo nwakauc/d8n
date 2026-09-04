@@ -1,7 +1,7 @@
 # Date9ja → D8N Status
 
 - Current phase: **Phase 1 — Shared Platform Foundations** (Wave A)
-- Current capability: Batches 2 & 3 reviewed; sanitized snapshot milestone VERIFIED; reconciliation census + schema-signature v2 VERIFIED (independent review); import execution model RESOLVED; **bcrypt compatibility proof VERIFIED (2026-09-02, operator ran `scripts/date9ja/bcrypt_proof.rb` against a real `$2a$12$` account → `$2a$ 12 PASS`)**; identity + membership + non-sensitive profile importer — implementation reviewed + **operator rehearsal VERIFIED (2026-09-03)** against `date9ja_snapshot_sanitized` (288 source rows → 280 imported / 8 skipped `source_soft_deleted` / 0 failed; second pass 280 already_imported / 0 created; source reconciliation balanced); **profile-photo pass 2 implementation VERIFIED + L2 synthetic-corpus rehearsal VERIFIED (Codex independent review 2026-09-03: FINAL VERDICT ACCEPT)**; **profile-video pass 1 (media preflight) VERIFIED (Codex 2026-09-03: ACCEPT WITH SMALL FIX — documentation correction completed), sanitized rehearsal 35/35 preflighted + idempotent; legacy `duration_seconds` NULL for all 35 (no row known to exceed the limit; actual duration unproven — pass 2 must derive it from the container)**. **NOT PARITY_ACCEPTED, NOT production-ready, NOT cutover-ready. L3 NOT YET READY.**
+- Current capability: **Migrated-account authentication transition + recovery/reactivation (Wave A Step 3 closeout) — IMPLEMENTED / SELF_VERIFIED 2026-09-04, READY FOR FEATURE-BOUNDARY CODEX REVIEW** (`AUTH-TRANSITION.md`). Earlier: Batches 2 & 3 reviewed; sanitized snapshot milestone VERIFIED; reconciliation census + schema-signature v2 VERIFIED (independent review); import execution model RESOLVED; **bcrypt compatibility proof VERIFIED (2026-09-02, operator ran `scripts/date9ja/bcrypt_proof.rb` against a real `$2a$12$` account → `$2a$ 12 PASS`)**; identity + membership + non-sensitive profile importer — implementation reviewed + **operator rehearsal VERIFIED (2026-09-03)** against `date9ja_snapshot_sanitized` (288 source rows → 280 imported / 8 skipped `source_soft_deleted` / 0 failed; second pass 280 already_imported / 0 created; source reconciliation balanced); **profile-photo pass 2 implementation VERIFIED + L2 synthetic-corpus rehearsal VERIFIED (Codex independent review 2026-09-03: FINAL VERDICT ACCEPT)**; **profile-video pass 1 (media preflight) VERIFIED (Codex 2026-09-03: ACCEPT WITH SMALL FIX — documentation correction completed), sanitized rehearsal 35/35 preflighted + idempotent; legacy `duration_seconds` NULL for all 35 (no row known to exceed the limit; actual duration unproven — pass 2 must derive it from the container)**. **NOT PARITY_ACCEPTED, NOT production-ready, NOT cutover-ready. L3 NOT YET READY.**
 - Builder: Claude (senior engineer)
 - Reviewer: Independent reviewer — Codex (batches 1–3 + profile-photo pass 2 / L2 reviewed)
 - Review cadence: bounded batches (~3–5 slices), not per-slice. Significant work remains **SELF_VERIFIED** until independent review.
@@ -115,6 +115,91 @@ accounts, and every later migration domain (media, relationship graph,
 verification, trust, entitlements, Community, Dating Hub, Aunty Phobie).
 
 Next bounded slice: profile-photo importer — see below.
+
+## Wave A Step 3 closeout — migrated-account authentication transition + recovery/reactivation — **IMPLEMENTED / SELF_VERIFIED (2026-09-04)**
+
+Completes Wave A Step 3. **No Date9ja-specific auth infrastructure** — the
+migrated account is an ordinary D8N identity driving the shared services
+(`Identity::PasswordLogin` / `Session` / `SessionAuthenticator` /
+`RecoveryRequester` → `RecoveryVerifier` → `PasswordReset` /
+`Accounts::DeactivateAccount` ↔ `Identity::AccountReactivation`). Date9ja
+behaviour lives only in the brand contract
+(`auth_methods`, `phone_country_calling_code`, email/SMS delivery config).
+Full reference: [`AUTH-TRANSITION.md`](AUTH-TRANSITION.md).
+
+**Code:**
+
+| Unit | Change |
+|---|---|
+| `Date9ja::Import::IdentityImport` / `FieldMapping` | Unusable legacy digest + an **operable recovery channel** (`FieldMapping.operable_recovery_channel?` = **verified email**; a verified phone alone does NOT count — the shared runtime resolves the password credential through the requested identifier and it is bound to email) → **recovery-required credential** (active password credential, **no `CredentialPasswordHash`**). Otherwise → **fail closed** (`credential_hash_unusable`, no unreachable account). |
+| `IdentityImport#credential_completeness` | Rerun verdict `:complete` / `:incomplete` / `:corrupt_credential`. A usable-legacy-digest credential is complete only with a **supported** bcrypt hash (`BCRYPT_RE` + `BCrypt::Password.new`) — verbatim legacy copy OR a valid member replacement (a re-run never clobbers a reset password). Missing hash → `:incomplete`; unsupported hash → `:corrupt_credential` (`credential_hash_corrupt`, fail closed). |
+| `Date9ja::Import::Reconciliation` | New `credentials_recovery_required` counter + `credential_recovery_required` / `credential_hash_corrupt` reason codes. `password_hashes_created` stays exact. |
+| `Date9ja::Import::AuthTransitionCheck` (new) | Drives a migrated account through the whole signed-out auth journey against the real shared services; deterministic PII-free `to_h` tally. `Subject.recovery_expected` models the no-operable-channel case. `parse_manifest` fails closed on empty / unknown-lifecycle. `lifecycle_supported` check + zero-subject run is not a pass. Broad companion to `scripts/date9ja/bcrypt_proof.rb`. |
+| `lib/tasks/date9ja_import.rake` | `date9ja:verify_auth_transition` — **DB fence** `Date9ja::Snapshot::Connection.assert_runtime_safe!` (accepted disposable-DB contract, refuses before any check), manifest validation via `parse_manifest`, secret-scrubbed output. |
+
+**Product decision closed by source analysis (no new blocker):** Date9ja
+self-deleted accounts have **no consumer undelete/reactivation route**
+(`active_for_authentication?` false; 30-day grace → `AccountHardDeleteJob`
+anonymisation). Date9ja "account recovery" = password reset only, which D8N
+preserves. The importer skipping `deleted_at` rows is parity-correct.
+`AccountReactivation` covers D8N-native self-deactivation only.
+
+**Evidence:**
+
+- **L1** — `auth_transition_rehearsal_test.rb`: import → full auth journey per
+  lifecycle (login / brand session / cross-brand rejection / logout / recovery→reset / reactivation) across active / suspended / recovery-required; fail-closed on unusable
+  digest + no channel; PII-free tally.
+- **L2 (scaled synthetic)** — `auth_transition_l2_rehearsal_test.rb`: 19-row
+  cohort spanning every lifecycle + credential edge → import, reconciliation
+  balance, pre-sign-in idempotency (0 rows changed), full `AuthTransitionCheck`
+  (0 failures), post-recovery re-run (member-set passwords never clobbered).
+- **Operator L2 tool** proven (2026-09-04) against a compliant throwaway DB with
+  3 synthetic imported accounts: all pass / exit 0 / PII-free; unknown lifecycle,
+  empty manifest, and a non-approved `DATABASE_URL` (even with `RAILS_ENV=test`)
+  each refused with a clear non-secret abort **before any check**.
+  **Real-seed-account operator L2 (real cost-12 + real plaintexts) NOT run —
+  operator task, like `bcrypt_proof.rb`.**
+- bcrypt cost-12 byte compatibility VERIFIED separately (`bcrypt_proof.rb`,
+  2026-09-02).
+
+**Semantic difference surfaced (Phase-5 parity-acceptance question, not a
+blocker):** an unverified email can authenticate by password post-migration but
+is not a signed-out reset channel (ADR 0012); Date9ja's Devise `:recoverable`
+allowed reset to an unconfirmed email. 79 / 288 census accounts are unconfirmed.
+
+**Tests / gates (2026-09-04):** `test/domains/date9ja` + `test/domains/migration`
++ `test/models/migration` + `test/controllers/api/v1/auth` green; identity +
+brands + profiles + auth controllers + account-deactivations regression green;
+identity-import + auth-transition (L1 + scaled L2) focused 28 / 172 / 0.
+RuboCop clean; `bin/rails zeitwerk:check` "All is good!"; Brakeman 0 warnings;
+`git diff --check` clean.
+
+**Feature-boundary Codex review (2026-09-04): CHANGES REQUESTED — overall
+architecture PASSED; 4 bounded findings fixed without redesign:**
+
+1. (HIGH) phone-only recovery was not operational — shared recovery resolves the
+   password credential through the requested identifier (bound to email). Fix:
+   `operable_recovery_channel?` = verified email only; verified-phone-only →
+   fail closed. No Date9ja-specific cross-identifier recovery invented.
+2. (MED) `credential_hash_consistent?` too weak (`present?`). Fix:
+   `credential_completeness` — supported bcrypt required (`BCRYPT_RE` +
+   `BCrypt::Password.new`); missing → `:incomplete`, unsupported →
+   `:corrupt_credential` (`credential_hash_corrupt`), member replacement →
+   `:complete`; re-run still never clobbers.
+3. (MED) operator DB fence — reuse `Connection.assert_runtime_safe!`
+   (accepted disposable-DB contract), refuses before any check.
+4. (MED) manifest validation — `parse_manifest` rejects empty / unknown
+   lifecycle before any check; zero-subject run is not a pass.
+
+Retest: identity-import + auth-transition focused 35 / 0; `test/domains/date9ja`
++ migration + identity + brands + auth controllers + bcrypt-proof 512 / 0; auth
+controllers + identity + account-deactivations + dateza-controls 132 / 0.
+RuboCop / Zeitwerk / Brakeman clean; `git diff --check` clean.
+
+**Lifecycle:** IMPLEMENTED / SELF_VERIFIED, Codex findings addressed — awaiting
+narrow fix confirmation. NOT `VERIFIED`, NOT `PARITY_ACCEPTED`. Frontend/mobile
+adapters, Devise error-envelope mapping, API contract surface, and the
+parity-acceptance journey are **Phase 5**.
 
 ## Wave A — media preflight foundation + Date9ja profile-photo pass 1 — **VERIFIED (2026-09-03)** · pass 2 design checkpoint
 

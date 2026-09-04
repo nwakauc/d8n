@@ -18,6 +18,51 @@ namespace :date9ja do
     Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
   end
 
+  desc "Wave A Step 3 operator check: drive ALREADY-MIGRATED Date9ja accounts through the shared " \
+       "D8N auth journey (login + brand session + cross-brand isolation + recovery→reset + " \
+       "deactivate↔reactivate). Broad companion to scripts/date9ja/bcrypt_proof.rb (which proves " \
+       "only the raw digest). Run LAST against a throwaway rehearsal DB after date9ja:import_identity " \
+       "— it mutates the accounts it exercises. Set DATE9JA_AUTH_MANIFEST to an absolute TSV path: " \
+       "identifier<TAB>password<TAB>lifecycle[<TAB>no_recovery] (lifecycle = active|suspended|" \
+       "recovery_required; password empty for recovery_required; 4th column 'no_recovery' when the " \
+       "account has no verified channel). Prints a PII-free JSON tally; exits non-zero on any failure."
+  task verify_auth_transition: :environment do
+    require "json"
+
+    # Same throwaway-database contract as the VERIFIED bcrypt proof / identity
+    # rehearsal (RAILS_ENV=test alone is not enough — the primary DB name must
+    # match the accepted disposable pattern). Fails closed, no secret in the msg.
+    begin
+      Date9ja::Snapshot::Connection.assert_runtime_safe!
+    rescue Date9ja::Snapshot::Connection::UnsafeConfiguration => e
+      abort "refusing to run: #{e.message}"
+    end
+
+    path = ENV.fetch("DATE9JA_AUTH_MANIFEST", nil).to_s
+    abort "DATE9JA_AUTH_MANIFEST must be set to an absolute path" unless File.absolute_path?(path) && File.file?(path)
+
+    subjects =
+      begin
+        Date9ja::Import::AuthTransitionCheck.parse_manifest(File.readlines(path))
+      rescue Date9ja::Import::AuthTransitionCheck::ManifestError => e
+        abort "manifest: #{e.message}"
+      end
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+    isolation_brand = Brand.kept.where.not(id: brand.id).where(status: :active).first
+
+    result = Date9ja::Import::AuthTransitionCheck.call(brand:, subjects:, isolation_brand:)
+
+    dump = JSON.pretty_generate(result.reconciliation.to_h)
+    subjects.each do |s|
+      dump = dump.gsub(s.identifier, "[redacted]")
+      dump = dump.gsub(s.password, "[redacted]") if s.password
+    end
+    puts dump
+    abort "AUTH TRANSITION: FAILURES PRESENT" unless result.all_passed?
+    puts "AUTH TRANSITION: ALL CHECKS PASSED"
+  end
+
   desc "Rehearsal: Date9ja profile-photo MEDIA PREFLIGHT (pass 1) against a restored scratch " \
        "snapshot (set DATE9JA_SNAPSHOT_DATABASE_URL). No byte transfer, no ProfilePhoto. " \
        "Prints a PII-free reconciliation JSON."

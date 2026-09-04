@@ -33,6 +33,17 @@ module Date9ja
 
       def phone_verified_at(record) = record.phone_verified_at.presence
 
+      # A Date9ja account whose legacy bcrypt digest is missing or malformed can
+      # still be migrated WITHOUT a usable password ONLY when it owns a recovery
+      # channel the shared D8N runtime can actually complete end to end — first
+      # access is then the one-time secure recovery flow (AUTHENTICATION.md §"If a
+      # hash fails verification"). The password `Credential` is bound to the email
+      # `IdentityIdentifier`, and `Identity::RecoveryRequester` / `PasswordReset`
+      # resolve the credential THROUGH the requested identifier — so today only a
+      # verified EMAIL is an operable recovery channel. A verified-phone-only
+      # account is failed closed, not falsely marked recoverable.
+      def operable_recovery_channel?(record) = record.confirmed_at.present?
+
       def password_changed_at(record) = record.created_at.presence || Time.current
 
       def membership_status(record) = record.suspended? ? :suspended : :active

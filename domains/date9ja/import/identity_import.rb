@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "bcrypt"
+
 module Date9ja
   module Import
     # First structural movement of Date9ja members into D8N.
@@ -78,47 +80,100 @@ module Date9ja
         end
 
         digest = record.encrypted_password.to_s
-        return reconciliation.skipped!("credential_hash_unusable") if digest.empty?
-
-        unless BCRYPT_RE.match?(digest)
-          reconciliation.anomaly!(:malformed_rows)
-          return reconciliation.failed!("credential_hash_unusable")
-        end
+        usable_digest = BCRYPT_RE.match?(digest) ? digest : nil
 
         phone = resolve_phone(record)
 
-        persist(record, email:, phone:, digest:)
+        if usable_digest.nil?
+          # No importable password. Migrate as a recovery-required account ONLY
+          # when the member owns a recovery channel the shared D8N runtime can
+          # actually complete end to end (a verified email — the identifier the
+          # password `Credential` is bound to). A verified-phone-only account is
+          # failed closed, not falsely marked recoverable (AUTHENTICATION.md
+          # §"If a hash fails verification").
+          unless FieldMapping.operable_recovery_channel?(record)
+            reconciliation.anomaly!(:malformed_rows) unless digest.empty?
+            return reconciliation.failed!("credential_hash_unusable")
+          end
+
+          reconciliation.note!("credential_recovery_required")
+        end
+
+        persist(record, email:, phone:, digest: usable_digest)
       end
 
       def already_imported_or_dangling(reference, record)
-        if !reference.resolvable?
-          reconciliation.anomaly!(:binding_conflicts)
-          reconciliation.failed!("dangling_binding")
-        elsif complete_import?(reference.destination, record)
+        return dangling!(reference) unless reference.resolvable?
+
+        case complete_import?(reference.destination, record)
+        when :complete
           reconciliation.already_imported!
+        when :corrupt_credential
+          reconciliation.anomaly!(:malformed_rows)
+          reconciliation.failed!("credential_hash_corrupt")
         else
           reconciliation.anomaly!(:binding_conflicts)
           reconciliation.failed!("incomplete_binding")
         end
       end
 
+      def dangling!(_reference)
+        reconciliation.anomaly!(:binding_conflicts)
+        reconciliation.failed!("dangling_binding")
+      end
+
+      # Returns :complete, :incomplete, or :corrupt_credential.
       def complete_import?(user, record)
         refs = %w[identity_email password_credential membership profile].map do |entity|
           reference(entity, record)
         end
-        return false unless refs.all? { |ref| ref&.resolvable? }
+        return :incomplete unless refs.all? { |ref| ref&.resolvable? }
 
         email_identifier, credential, membership, profile = refs.map(&:destination)
-        email_identifier.user_id == user.id && email_identifier.email? && email_identifier.deleted_at.nil? &&
+        structural =
+          email_identifier.user_id == user.id && email_identifier.email? && email_identifier.deleted_at.nil? &&
           credential.user_id == user.id && credential.password? && credential.active? && credential.deleted_at.nil? &&
           credential.identity_identifier_id == email_identifier.id &&
-          credential.credential_password_hash&.password_hash == record.encrypted_password &&
           membership.user_id == user.id && membership.brand_id == brand.id &&
           membership.status == FieldMapping.membership_status(record).to_s && membership.deleted_at.nil? &&
           profile.user_id == user.id && profile.brand_id == brand.id && profile.deleted_at.nil? &&
           profile.status == FieldMapping.profile_status(record).to_s &&
           profile.visibility == FieldMapping.profile_visibility(record).to_s &&
           profile.brand_membership_id == membership.id
+        return :incomplete unless structural
+
+        credential_completeness(credential, record)
+      end
+
+      # Completeness for the destination password credential (NOT drift
+      # detection):
+      #   * usable legacy source digest, no persisted hash        -> :incomplete
+      #   * any source, persisted hash is not a supported bcrypt  -> :corrupt_credential (fail closed)
+      #   * usable legacy source digest, supported bcrypt hash    -> :complete
+      #       (the verbatim legacy copy OR a valid replacement the member set
+      #        through recovery — a re-run must never restore the old digest)
+      #   * recovery-required source, no persisted hash           -> :complete
+      #   * recovery-required source, supported bcrypt hash       -> :complete (member recovered)
+      def credential_completeness(credential, record)
+        stored = credential.credential_password_hash&.password_hash
+        usable_source = BCRYPT_RE.match?(record.encrypted_password.to_s)
+
+        if stored.nil?
+          usable_source ? :incomplete : :complete
+        elsif supported_bcrypt_hash?(stored)
+          :complete
+        else
+          :corrupt_credential
+        end
+      end
+
+      def supported_bcrypt_hash?(hash)
+        return false unless BCRYPT_RE.match?(hash.to_s)
+
+        BCrypt::Password.new(hash)
+        true
+      rescue BCrypt::Errors::InvalidHash
+        false
       end
 
       # Returns the phone LoginIdentifier to import, or nil (absent / unparseable
@@ -170,14 +225,19 @@ module Date9ja
             status: :active,
             verified_at: FieldMapping.email_verified_at(record)
           )
-          # Legacy Devise digest copied byte-for-byte. NEVER PasswordEngine.set!
-          # (that would rehash). Compatibility is VERIFIED (SNAPSHOT-RUNBOOK §10).
-          CredentialPasswordHash.create!(
-            credential: credential,
-            credential_kind: Credential.kinds.fetch("password"),
-            password_hash: digest,
-            password_changed_at: FieldMapping.password_changed_at(record)
-          )
+          if digest
+            # Legacy Devise digest copied byte-for-byte. NEVER PasswordEngine.set!
+            # (that would rehash). Compatibility is VERIFIED (SNAPSHOT-RUNBOOK §10).
+            CredentialPasswordHash.create!(
+              credential: credential,
+              credential_kind: Credential.kinds.fetch("password"),
+              password_hash: digest,
+              password_changed_at: FieldMapping.password_changed_at(record)
+            )
+          end
+          # digest == nil: recovery-required credential — active so the signed-out
+          # recovery flow can find it, but with no hash so no password can match
+          # until the member sets one through recovery.
           bind!(credential, "password_credential", record)
 
           membership = BrandMembership.create!(
@@ -195,7 +255,8 @@ module Date9ja
             users_created: 1,
             identifiers_created: identifiers,
             credentials_created: 1,
-            password_hashes_created: 1,
+            password_hashes_created: digest ? 1 : 0,
+            credentials_recovery_required: digest ? 0 : 1,
             memberships_created: 1,
             profiles_created: 1,
             # user + email identifier + credential + membership + profile, plus
