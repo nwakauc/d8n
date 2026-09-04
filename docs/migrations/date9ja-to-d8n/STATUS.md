@@ -311,7 +311,66 @@ existing grandfather / trim-reencode / quarantine product decision
 | Date9ja profile-video pass 1 implementation | **VERIFIED** (Codex independent review 2026-09-03: ACCEPT WITH SMALL FIX — documentation correction completed) |
 | Date9ja profile-video pass 1 sanitized rehearsal | **VERIFIED** (2026-09-03) |
 | Profile-video capability overall | **PARTIAL** — unchanged; pass 1 does not move it. Not `PARITY_ACCEPTED`. |
-| Profile-video **pass 2** (byte transfer + `ProfileVideo` creation + L2) | **NOT STARTED** — may now be PLANNED; must derive authoritative duration from the media container |
+| Profile-video **pass 2** (byte transfer + `ProfileVideo` creation + L2) | **ARCHITECTURE ACCEPTED (ADR 0029, 2026-09-03) — NOT IMPLEMENTED.** Sliced 2A / 2B / 2C. |
+
+### Profile-video pass 2 — architecture closeout (2026-09-03, pre-2A)
+
+**ADR 0029 ACCEPTED.** The Codex-verified `Migration::MediaTransfer` spine is
+generalized across media kinds via a small injected `MediaKind` strategy — **not**
+a separate video framework. `MediaKind::Image` reproduces today's Profile Photo
+behaviour byte-for-byte; locking, canonical identity structure, `AdoptOrUpload`
+state machine, deterministic recovery, and `ReferenceMap` semantics are **not**
+parameterized. ADR 0028 remains the historical accepted image architecture.
+
+**Refined duration contract (ADR 0029).** Pass 2 **Phase A** derives authoritative
+duration BEFORE any destination adoption/upload, outside DB locks:
+source bytes → bounded local temp → checksum/byte-size verify → container verify
+(`Media::VideoContainerValidator`) → authoritative duration (ffprobe via a new
+thin `Media::VideoProcessor.probe`) → policy check → **only then** deterministic
+destination adoption. Duration unreadable → FAIL CLOSED `quarantined` /
+`duration_unreadable`. Duration > brand limit → FAIL CLOSED `quarantined` /
+`duration_over_limit`. Neither creates a destination blob, `ProfileVideo`,
+`ReferenceMap` binding, or processing job. `Media::ProcessProfileVideoJob`
+re-validates duration during processing as defence in depth. The
+grandfather / trim-reencode / quarantine-remove product decision stays
+evidence-gated (`DECISIONS.md`).
+
+**ffmpeg/ffprobe evidence (2026-09-03).** `ffmpeg`/`ffprobe` 9.0.1 on `PATH` in
+local dev; the production image installs them (`Dockerfile` line 23, explicit
+comment). `Media::VideoProcessor` already shells out to both and has no fallback
+(`Errno::ENOENT` → `VideoProcessor::Error` → terminal `processing_state: failed`);
+its tests stub `VideoProcessor.call`, so CI does not require the binaries.
+`Media::VideoContainerValidator`'s "not available in this deployment image"
+header comment is stale (contradicts the Dockerfile) — a one-line comment fix is
+folded into Pass 2B.
+
+**Synthetic L2 direction (Pass 2C).** Generate the deterministic synthetic video
+corpus with the already-required ffmpeg toolchain from fixed inputs/options
+(e.g. `lavfi testsrc` + a fixed CFR/GOP/`-c:v libx264 -preset ultrafast` recipe,
+patched deterministically), independently verified for determinism, valid
+container, valid codec, expected duration, manifest ↔ DB binding, complete
+blob-table drift, strict `byte_size` typing, NULL-safe equality and path
+containment — rather than a bespoke H.264 encoder / ISO-BMFF writer. If ffmpeg
+output cannot be made byte-identical across environments, fall back to a small
+set of checked-in reference clips patched deterministically.
+
+**Slices (design only, not implemented):**
+
+- **Pass 2A** — `MediaKind` (image path unchanged) + `MediaKind::Video` +
+  `Media::VideoProcessor.probe` + `Date9ja::Snapshot::VideoLocatorSource` +
+  `Date9ja::Import::VideoTransfer` Phase A + `VideoTransferReconciliation`.
+  source bytes → authoritative verification → authoritative duration → policy
+  acceptance → deterministic destination adoption. **No `ProfileVideo`.**
+- **Pass 2B** — `Profiles::VideoUpload.build_video!` + Phase B/C (`ProfileVideo`
+  create + exact `ReferenceMap` binding + processing + playback/poster +
+  `Media::PlaybackDerivative.valid?`) + video processing claim-token hardening +
+  `Media::ProfileVideoProcessingSweeper` + recovery/idempotency state machine.
+- **Pass 2C** — deterministic synthetic video artifact + verifier + full
+  isolated L2 rehearsal + interruption/adversarial evidence.
+
+**Recommended first slice: Pass 2A.** Not implemented. Repository state verified
+safe to begin (HEAD `25dbdb1` contains the VERIFIED Pass-1 implementation + its
+closeout doc corrections; working tree clean).
 
 ## Pass 2 (profile-photo byte transfer) — IMPLEMENTATION VERIFIED (Codex FINAL, 2026-09-03); L2 rehearsal VERIFIED (Codex, 2026-09-03)
 

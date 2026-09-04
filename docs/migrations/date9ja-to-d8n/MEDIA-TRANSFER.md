@@ -8,6 +8,23 @@ Architecture authority:
 transfer + recovery, **ACCEPTED**). Linked from `STATUS.md`. This file is
 detailed execution design; it does not create new phase/decision authority.
 
+> **Profile video (Wave A slice 5, 2026-09-03):**
+> [ADR 0029](../../adr/0029-migration-media-transfer-generalized-across-media-kinds.md)
+> **ACCEPTED** — the transfer architecture below is generalized across media
+> kinds via a small injected `Migration::MediaTransfer::MediaKind` strategy
+> (`MediaKind::Image` reproduces the behaviour in this document byte-for-byte;
+> `MediaKind::Video` parameterizes only content types / extension / byte ceiling
+> / magic-byte detector / container validation / remote re-verification body).
+> Locking, canonical identity structure, `AdoptOrUpload`, deterministic recovery
+> and `ReferenceMap` semantics are unchanged. For video, **Phase A derives
+> authoritative playable duration (ffprobe via `Media::VideoProcessor.probe`,
+> after `Media::VideoContainerValidator`) and enforces the brand limit BEFORE
+> destination adoption** — unreadable or over-limit fails closed
+> (`quarantined` / `duration_unreadable` | `duration_over_limit`) with no
+> destination blob, `ProfileVideo`, binding or job. Video execution design
+> (Pass 2A / 2B / 2C, synthetic-corpus L2) is tracked in `STATUS.md`
+> "Profile-video pass 2 — architecture closeout"; not implemented.
+
 Revision 4 closed the Codex FINAL narrow review's three blockers. The FINAL
 acceptance check then found one documentation defect — `canonical_content_type`
 influenced the final key (`original.<ext>`) without being in the declared
