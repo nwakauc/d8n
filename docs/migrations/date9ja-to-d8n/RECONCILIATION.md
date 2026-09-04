@@ -448,7 +448,35 @@ verifier checks 24 (manifest key path-containment), 27 (full
 Retest: 546 runs / 0 failures; Profile Photo regression 125 / 0.
 
 **Lifecycle:** IMPLEMENTED / SELF_VERIFIED. NOT `VERIFIED`, NOT `PARITY_ACCEPTED`.
-Ready for narrow Codex re-review of the three findings.
+Independent CODE review ACCEPTED (Codex, with doc fix).
+
+### Operator L2 run — 2026-09-04 (committed `47362bb`)
+
+Full evidence: **[`VIDEO-L2.md`](VIDEO-L2.md) §12**. Sanitized / synthetic L2
+only — no production, no real R2, no real video bytes, no L3. `media_v3`
+`TEMPLATE`-copied from `date9ja_snapshot_sanitized` (`127.0.0.1:55432`);
+throwaway D8N DB `d8n_date9ja_rehearsal_opl2_20260904`.
+
+| Stage | Actual |
+|---|---|
+| `build_video_media_v3` | 35 objects (26 mp4 / 9 mov) · 35 blob rows patched (`byte_size`/`checksum` only) · fingerprint `e134ed15b8327617929831569b633cc4b03dc0de3bb0b9b12f0101f1eb29e503` (real ids, `DEFAULT_SEED`) · byte-identical across two builds |
+| `verify_video_media_v3` | **all checks `ok: true`** (incl. 17 `authorized_changed=35 non_video_change=0`, 27 `changed=0`, 28 row-counts-only, 24 keys safe, 15 deterministic) → `VERIFIED FOR L2` |
+| `import_identity` | 280 imported / 8 skipped / 0 failed |
+| `preflight_videos` | 35 preflighted · 35+35 refs · moderation 35 pending · `duration_missing` 35/35 |
+| `transfer_videos_phase_a` | 35 `destination_adopted` · duration 35 derived + within-limit · 26/9 · 0 quarantined · **0 `ProfileVideo` / 0 binding / 0 processing** |
+| `transfer_videos` (`:domain`) | **35 `ready`** · 35 PV + 35 bindings · 35 processing_succeeded · 35 playback + 35 poster validated · 35 originals_purged · never `transferred` |
+| Destination verifier | 35 PV all `deliverable?` · exact owner · 0 cross-brand · 35 resolvable bindings · **35/35 playback + 35/35 poster independently re-validated** (bounded remote read + MD5 + container/decode) · 35 distinct playback + 35 distinct poster keys · moderation pending→visible |
+| Raw purge | attachment detached synchronously; blob/file GC is the standard async `ActiveStorage::PurgeJob` (drained explicitly here: 105 → 70 blobs, 0 orphans, originals not recreated). `originals_purged` = "scheduled + detached". Not a defect. |
+| Rerun | 35 `already_ready`, zero growth, originals not recreated. Minor wart: standalone `transfer_videos_phase_a` after domain+purge re-uploads 35 raw blobs (no domain-object dup). |
+| Step 9 — real forked-worker SIGKILL | worker CLAIMed (token `6893cf7a…`) → `kill -9` (shell `wait` rc 137) → durable `processing` + killed token + unchanged `started_at`, no FINALIZE → aged claim stale → operator restart: `processing_stale_reclaims 1`, `ready 1`, new token → validated READY, raw purged, killed token cannot own claim (ABA). Post-recovery rerun: 35 `already_ready`. |
+
+**Real-media boundary unchanged:** synthetic bodies, not user media; real
+duration/codec/container **UNKNOWN**; **PD-2 OPEN**.
+
+**Lifecycle after operator L2:** OPERATOR_L2_COMPLETE /
+READY_FOR_FINAL_INDEPENDENT_REVIEW. Still **PARTIAL**, still **NOT
+`PARITY_ACCEPTED`** — final `VERIFIED` needs independent review of this operator
+evidence.
 
 ### Pass-2 `service_name` census — RUN 2026-09-03
 

@@ -313,7 +313,7 @@ existing grandfather / trim-reencode / quarantine product decision
 | Profile-video capability overall | **PARTIAL** — unchanged; pass 1 does not move it. Not `PARITY_ACCEPTED`. |
 | Profile-video **pass 2A** (source bytes → authoritative verification + duration → deterministic destination adoption) | **IMPLEMENTED / SELF_VERIFIED (2026-09-04) — NOT independently reviewed, NOT `VERIFIED`.** See "Pass 2A" section below. |
 | Profile-video **pass 2B** (domain binding + processing + playback/poster validation) | **IMPLEMENTED / SELF_VERIFIED (2026-09-04) — NOT independently reviewed, NOT `VERIFIED`.** See "Pass 2B" section below. |
-| Profile-video **pass 2C** (deterministic synthetic 35-video L2 corpus + verifier + full isolated rehearsal + interruption/adversarial evidence) | **IMPLEMENTED / SELF_VERIFIED (2026-09-04) — NOT independently reviewed, NOT `VERIFIED`.** Full evidence: [`VIDEO-L2.md`](VIDEO-L2.md). |
+| Profile-video **pass 2C** (deterministic synthetic 35-video L2 corpus + verifier + full isolated rehearsal + interruption/adversarial evidence) | **IMPLEMENTED / SELF_VERIFIED + OPERATOR_L2_COMPLETE (2026-09-04).** Independent CODE review ACCEPTED (Codex). Operator L2 evidence (`VIDEO-L2.md` §12) NOT yet independently reviewed. NOT `VERIFIED`. |
 
 ### Profile-video pass 2 — architecture closeout (2026-09-03, pre-2A)
 
@@ -631,8 +631,12 @@ about the real videos' duration/codec/container — those stay **UNKNOWN**.
   **Process-kill:** a true forked-worker SIGKILL is not safely automatable
   against the transactional test DB — the bounded alternative reproduces the
   exact durable killed-worker state (`processing` + token, no FINALIZE/ensure)
-  and proves deterministic stale-reclaim recovery; the real forked SIGKILL is
-  deferred to the operator L2 run (same builder/operator split as Photo L2).
+  and proves deterministic stale-reclaim recovery. The **real forked-worker
+  SIGKILL was then run in the operator L2** (`VIDEO-L2.md` §12 step 9): worker
+  CLAIMed → `kill -9` (shell `wait` rc 137) → durable `processing` + killed
+  token, no FINALIZE → aged claim stale → operator restart reclaimed
+  (`processing_stale_reclaims 1`), video reached validated READY with the raw
+  purged, killed token could not own the claim (ABA).
 - **Adversarial suite (separate from the census):** > 60 s →
   `quarantined`/`duration_over_limit` (0 domain artifacts); unreadable duration →
   `quarantined`/`duration_unreadable`; truncated → `malformed_container`; spoofed
@@ -643,7 +647,24 @@ about the real videos' duration/codec/container — those stay **UNKNOWN**.
 - **PD-2:** NOT chosen. Real over-limit count = **UNKNOWN** (no real media
   inspected). The adversarial > 60 s fixture only proves fail-closed policy.
 - **Rake:** `date9ja:build_video_media_v3`, `date9ja:verify_video_media_v3`
-  (operator, against the real `media_v3` restore + parent), `date9ja:transfer_videos`.
+  (operator, against the `media_v3` restore + parent), `date9ja:transfer_videos`.
+- **Operator L2 — RUN 2026-09-04 (committed `47362bb`):** `media_v3`
+  `TEMPLATE`-copied from `date9ja_snapshot_sanitized`; throwaway D8N DB. Build 35
+  objects / 35 blob rows patched / fingerprint
+  `e134ed15b8327617929831569b633cc4b03dc0de3bb0b9b12f0101f1eb29e503` /
+  byte-identical across two builds. `verify_video_media_v3` **all checks
+  `ok: true`**. `import_identity` 280/8/0 → `preflight_videos` 35 (duration
+  missing 35/35) → `transfer_videos_phase_a` 35 adopted / 0 domain → `transfer_videos`
+  **35 ready** / 35 PV + bindings / 35+35 derivatives validated / 35 originals
+  purged / never `transferred`. Independent verifier: 35 `deliverable?`, 0
+  cross-brand, 35/35 playback + 35/35 poster independently re-validated. Rerun 35
+  `already_ready`, zero growth. Real forked-worker SIGKILL: recovered to
+  validated READY, ABA-safe. Raw blob/file GC is the standard async
+  `ActiveStorage::PurgeJob` (drained explicitly: 0 orphans, originals not
+  recreated) — not a defect. Full evidence: [`VIDEO-L2.md`](VIDEO-L2.md) §12.
+  **Lifecycle: OPERATOR_L2_COMPLETE / READY_FOR_FINAL_INDEPENDENT_REVIEW —
+  still PARTIAL, still NOT `PARITY_ACCEPTED`.** Real duration/codec/container
+  UNKNOWN; **PD-2 OPEN**.
 
 ### Feature-boundary review — Codex BLOCKED — fixes applied (2026-09-04)
 
@@ -699,10 +720,11 @@ lock). Profile Photo + photo-L2 regression **125 / 0**. RuboCop clean (32 touche
 Ruby files); `zeitwerk:check` "All is good!"; Brakeman 0; `git diff --check`
 clean. `DOC_FINGERPRINT` unchanged (generator/manifest untouched).
 
-**Lifecycle:** Pass 2A / 2B / 2C all **IMPLEMENTED / SELF_VERIFIED**. NOT
-`VERIFIED`. Profile Video capability **PARTIAL**; `PARITY_ACCEPTED` **NO**.
-Ready for **narrow Codex re-review** of the three findings; operator L2 run and
-full independent re-review still outstanding.
+**Lifecycle:** Pass 2A / 2B / 2C all **IMPLEMENTED / SELF_VERIFIED**; independent
+CODE review **ACCEPTED** (Codex, with the one doc fix); **OPERATOR_L2_COMPLETE
+(2026-09-04)** — see the operator-L2 bullet above and [`VIDEO-L2.md`](VIDEO-L2.md)
+§12. NOT `VERIFIED`. Profile Video capability **PARTIAL**; `PARITY_ACCEPTED`
+**NO**. Remaining: **final independent review of the operator L2 evidence**.
 
 ## Pass 2 (profile-photo byte transfer) — IMPLEMENTATION VERIFIED (Codex FINAL, 2026-09-03); L2 rehearsal VERIFIED (Codex, 2026-09-03)
 

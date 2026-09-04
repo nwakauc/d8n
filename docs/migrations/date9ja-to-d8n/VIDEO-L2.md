@@ -1,7 +1,9 @@
 # Date9ja → D8N — Profile Video L2 synthetic rehearsal evidence (ADR 0029 Pass 2C)
 
-**Status: IMPLEMENTED / SELF_VERIFIED (2026-09-04). NOT independently reviewed,
-NOT `VERIFIED`. Profile Video capability: PARTIAL. `PARITY_ACCEPTED`: NO.**
+**Status: IMPLEMENTED / SELF_VERIFIED + OPERATOR_L2_COMPLETE (2026-09-04).
+Independent CODE review ACCEPTED (Codex, with doc fix). Operator L2 evidence
+(§12) NOT yet independently reviewed. NOT `VERIFIED`. Profile Video capability:
+PARTIAL. `PARITY_ACCEPTED`: NO.**
 
 Architecture authority: [ADR 0029](../../adr/0029-migration-media-transfer-generalized-across-media-kinds.md)
 (+ ADR 0027 preflight, ADR 0028 photo byte transfer). Pass 2A / 2B evidence:
@@ -246,9 +248,13 @@ video reaches `ready` with validated playback + poster and the raw purged
 foreign token cannot finalize / mutate state) is proven separately in
 `Media::ProcessProfileVideoJobClaimTest`.
 
-**Deferred to the operator L2 run:** a real forked-worker `SIGKILL` against a
-committed `date9ja_snapshot_sanitized_media_v3` restore (not a transactional
-test DB) — same builder/operator split as the Profile Photo L2.
+**Done in the operator L2 run (§12, step 9):** a real forked-worker `SIGKILL`
+against a `date9ja_snapshot_sanitized_media_v3` restore (a non-transactional
+throwaway D8N DB) — worker CLAIMed, `kill -9` (shell `wait` rc 137), durable
+state left `processing` + killed token + unchanged `processing_started_at`, no
+FINALIZE/FAILURE; operator restart reclaimed the stale claim (new token) and the
+video reached validated READY with the raw purged; the killed token could not
+own the claim (ABA).
 
 ---
 
@@ -351,9 +357,160 @@ Zeitwerk / Brakeman clean; `git diff --check` clean. `DOC_FINGERPRINT` unchanged
 | Pass 2A | IMPLEMENTED / SELF_VERIFIED |
 | Pass 2B | IMPLEMENTED / SELF_VERIFIED |
 | Pass 2C (this) | IMPLEMENTED / SELF_VERIFIED |
+| Operator L2 rehearsal (§12) | **OPERATOR_L2_COMPLETE / READY_FOR_FINAL_INDEPENDENT_REVIEW** |
 | Profile Video capability overall | **PARTIAL** |
 | `PARITY_ACCEPTED` | **NO** |
 
-Ready for **narrow Codex re-review** of the three findings. Operator L2 run
-(real `media_v3` restore + real forked-worker SIGKILL) and full independent
-re-review still outstanding.
+Independent CODE review is ACCEPTED (Codex). The operator L2 evidence below is
+the builder/operator maximum; the final `VERIFIED` transition requires
+independent review of this operator evidence.
+
+---
+
+## 12. Operator L2 rehearsal — RUN 2026-09-04 (committed `47362bb`)
+
+Sanitized / synthetic L2. **No production, no real R2, no real user video
+bytes, no L3, no cutover.** Isolated PG17 snapshot cluster `127.0.0.1:55432`;
+throwaway D8N DB `d8n_date9ja_rehearsal_opl2_20260904` (`RAILS_ENV=test`,
+ActiveStorage Disk service). Working tree clean before and after (only this
+file + `RECONCILIATION.md` + `STATUS.md` changed).
+
+### Artifact + corpus
+
+| | |
+|---|---|
+| Commit tested | `47362bb` "feat: implement Date9ja profile video migration" |
+| Parent artifact | `date9ja_snapshot_sanitized` (never modified) |
+| media_v3 artifact | `date9ja_snapshot_sanitized_media_v3` (`CREATE DATABASE … TEMPLATE date9ja_snapshot_sanitized`) |
+| Corpus / manifest | scratch `opL2/corpus1/` — `manifest.json` + `manifest.fingerprint` + `objects/` |
+| Corpus count | **35** (26 `video/mp4` + 9 `video/quicktime`) — matches the source census |
+| Corpus bytes | 7,283,823 |
+| Patched source blob rows | **35** (`byte_size` + `checksum` only) |
+| Manifest fingerprint (real blob ids, `DEFAULT_SEED`) | `e134ed15b8327617929831569b633cc4b03dc0de3bb0b9b12f0101f1eb29e503` |
+| Determinism | second independent build into `corpus2/` → object bodies + fingerprint **byte-identical**; only `generated_at_utc` differs (excluded from the fingerprint by design) |
+
+### `date9ja:verify_video_media_v3` — all checks `ok: true`
+
+`object_count 35`; checks 01/02 (attachment↔manifest bijection), 24 (manifest
+keys safe — `bad_grammar=0 path_escapes=0`, before any read), 03/04/05/06
+(present / regular file / bounded / checksum / byte_size), 13 (byte-exact
+re-render — no production bytes), 18 (ISO-BMFF type), 19 (container + codec),
+20/21/22/23 (ffprobe succeeds / positive / ±0.75 s of expected / ≤ 60 s),
+09/10/11/12/09b (no identity / attachment-graph / ownership / moderation drift),
+16 (`authorized=35 manifest=35 field_mismatch={}`), 17
+(`rows_v3=443 rows_parent=443 inserted=0 deleted=0 authorized_changed=35
+wrong_column_change=0 non_video_change=0`), 27
+(`active_storage_attachments` `rows_v3=428 rows_parent=428 inserted=0 deleted=0
+changed=0`), 28 (`checked=11` unrelated tables, `mismatches=` none — **row
+counts only**, per §4), 14 (no endpoint/credential), 15 (`fingerprint_match=true
+bytes_match=true`). → `MEDIA_V3 VIDEO ARTIFACT: VERIFIED FOR L2`.
+
+### Fresh destination + Pass 1
+
+| Step | Result |
+|---|---|
+| `db:schema:load` + `date9ja` brand | baseline 0 users / 0 ProfileVideo / 0 blobs |
+| `date9ja:import_identity` | 288 considered → **280 imported / 8 skipped (`source_soft_deleted`) / 0 failed** |
+| `date9ja:preflight_videos` | 35 considered / `balanced` true / **35 preflighted** / 35 `MediaObjectRef` + 35 `MediaAttachmentRef` / moderation **35 pending, 0 approved, 0 rejected** (real sanitized shape) / **`duration_missing` 35 / 35** / `owner_not_imported` 0 |
+
+### Pass 2A — `date9ja:transfer_videos_phase_a` (`stage: :adopt`)
+
+35 `destination_adopted` · `duration_derived` 35 · `duration_within_limit` 35 ·
+`duration_over_limit` 0 · `duration_unreadable` 0 · `container_invalid` 0 ·
+`content_type_mp4` 26 / `content_type_quicktime` 9 · `quarantined` 0 ·
+`source_changed` 0.
+Independent check: `profile_videos` **0**, `ProfileVideo` `video`/playback/poster
+attachments **0**, `profile_video` `LegacyReference` **0**, 35 destination
+original blobs under
+`migrations/media/v3/date9ja/profile_video_original/<uuidv5>/original.{mp4,mov}`.
+**Phase A created no domain completion.**
+
+### Pass 2B — `date9ja:transfer_videos` (`stage: :domain`)
+
+`ready` **35** · `profile_videos_created` 35 · `reference_map_bindings_created`
+35 · `processing_attempts` 35 · `processing_succeeded` 35 · `playback_validated`
+35 · `poster_validated` 35 · `originals_purged` 35 · **no `transferred`
+disposition**.
+
+Independent destination verification (not the migration's own reconciliation):
+
+| Property | Result |
+|---|---|
+| `ProfileVideo` rows | 35, all `processing_ready`, all `deliverable?` |
+| Owner | exact imported `profile_id` / `user_id`; all `profiles.brand_id = date9ja`; **0 cross-brand** |
+| `LegacyReference` (`source_entity: "profile_video"`) | 35, all `resolvable?`, all `brand_id = date9ja` |
+| playback / poster attachments | 35 / 35; **raw `video` attachments 0**; 35 distinct playback keys, 35 distinct poster keys (no dup blob) |
+| Independent derivative re-read (`Media::PlaybackDerivative.playback_valid?` / `poster_valid?` — bounded remote download + byte-size + MD5 + container walk / JPEG decode) | **35 / 35 playback, 35 / 35 poster** |
+| Moderation | 35 `pending_review` → `visible` (pending maps to visible) |
+| Claim tokens after ready | all cleared |
+
+### Raw-original purge — behaviour note (NOT a defect)
+
+`Media::ProcessProfileVideoJob` marks READY then calls the standard async
+`video.video.purge_later`. The raw **attachment** row is removed synchronously
+(`ProfileVideo#video.attached?` → false, deliverability unaffected); the raw
+**blob row + Disk object** are deleted by the enqueued `ActiveStorage::PurgeJob`,
+which runs under a live queue worker. In this `RAILS_ENV=test` rehearsal the
+`TestAdapter` does not auto-run that job, so 35 detached raw blobs + files linger
+until drained. Draining `ActiveStorage::PurgeJob` explicitly (exactly what a
+production worker does): blobs 105 → **70** (35 playback + 35 poster), **0
+orphan blobs / 0 orphan files**, all 35 playback + 35 poster still independently
+valid, originals **not recreated**. The `originals_purged` reconciliation key
+therefore means "raw purge scheduled + attachment detached", not "blob GC'd
+in-process".
+
+### Rerun / idempotency
+
+- `date9ja:transfer_videos` rerun (before purge drain): `already_ready` 35,
+  `ready` 0, `profile_videos_created` 0, bindings 0, `processing_attempts` 0,
+  blob / attachment / `LegacyReference` counts unchanged.
+- `date9ja:transfer_videos` rerun (after full purge drain): `already_ready` 35,
+  blobs stay 70, **0 orphan blobs**, raw originals **not recreated**, 35
+  `deliverable?`.
+- **Idempotency wart (minor):** re-running `date9ja:transfer_videos_phase_a`
+  standalone *after* a completed domain migration + purge re-uploads the 35 raw
+  original blobs (they are gone, and Phase A's contract is "the adopted original
+  exists"). It creates **no** duplicate `ProfileVideo` / binding / attachment /
+  derivative. The documented operator sequence is `phase_a → domain → domain`;
+  the canonical rerun path (`transfer_videos`) is fully clean.
+
+### Step 9 — real forked-worker SIGKILL
+
+One `ProfileVideo` reset to durable pre-processing state (bound, raw attached,
+`processing_state: pending`, no claim). A **separate OS process**
+(`bin/rails runner`) ran `Media::ProcessProfileVideoJob.perform_now`; a
+test-only prepend widened the WORK window (no implementation code changed).
+
+| Step | Evidence |
+|---|---|
+| A. pre-kill | `processing_state=0` (pending), token `NULL`, `started_at NULL`, raw attached |
+| B/C. worker CLAIMed | after ~1.8 s: `processing_state=1`, `processing_claim_token = 6893cf7a-f6e7-46d6-b56d-6c7bc7d27fec` (the killed token) |
+| D. kill | `kill -9 <worker pid>` |
+| E. termination | shell `wait` rc **137** (128 + 9 = SIGKILL); process gone; `child.log` shows no "FINISHED" line |
+| F. durable state after kill | `processing_state=1` · token == killed token · `processing_started_at` unchanged · playback 0 · poster 0 · raw `video` 1 · **no FINALIZE / FAILURE / `ensure` ran** |
+| G. operator-safe reclaim | aged `processing_started_at` past `STALE_PROCESSING_AFTER` (15 min) → `processing_claim_stale? = true`, `ProfileVideo.processing_sweepable` includes it, killed token still present |
+| H/I/J. operator restart | `date9ja:transfer_videos` → `processing_stale_reclaims: 1` · `processing_succeeded: 1` · `ready: 1` · `already_ready: 34` · `originals_purged: 1` · 0 new `ProfileVideo` / binding |
+| K. old token cannot finalize | a job instance holding the killed token: `owns_claim? → false` (video is `ready`, token differs) — ABA safe |
+| L. exactly one derivative identity | 1 playback + 1 poster at the deterministic keys; both independently valid |
+| M. valid READY | `processing_ready?` + `deliverable?` true; `processing_claim_token` now `nil` (≠ killed token) |
+| N. raw purge after finalization only | raw `video` attachment gone *after* READY, never before |
+| O. post-recovery rerun | `date9ja:transfer_videos` → 35 `already_ready`, 0 reclaims, zero growth |
+
+Final terminal state (after purge drain): 35 `ProfileVideo` / 35
+`LegacyReference` / 35 `ready` / 35 `deliverable?` / 0 raw attached / 35 + 35
+derivative attachments / 35 + 35 independently valid / 70 blobs / 0 orphans / 0
+cross-brand.
+
+### Real-media boundary (unchanged by this run)
+
+35 legacy `ProfileVideo` records exist (census fact); 35 deterministic synthetic
+bodies were built for this rehearsal (synthetic L2 fact); the **real** videos'
+duration / codec / container remain **UNKNOWN** (real-media fact). This run does
+**not** show "all 35 real videos migrated" or "all real videos ≤ 60 s" or any
+real codec/container distribution. **PD-2 stays OPEN — real over-limit count
+UNKNOWN.**
+
+### `git diff --check`
+
+Clean. `git status --short`: only `docs/migrations/date9ja-to-d8n/VIDEO-L2.md`,
+`RECONCILIATION.md`, `STATUS.md` (evidence docs). No implementation code changed.
