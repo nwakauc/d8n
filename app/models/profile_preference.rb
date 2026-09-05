@@ -1,4 +1,8 @@
 class ProfilePreference < ApplicationRecord
+  # Shared domain constants (also used by Matching::Find::Filter and the
+  # geography catalogues). Their values agree with — and are pinned by test to —
+  # the canonical Profiles::FieldCatalog scalar constraints for the matching
+  # preference fields.
   MINIMUM_AGE = Profile::MINIMUM_AGE
   MAXIMUM_AGE = 120
   MAX_DISTANCE_KM = 500
@@ -11,17 +15,15 @@ class ProfilePreference < ApplicationRecord
 
   validates :profile_id, uniqueness: { conditions: -> { kept } }
   validates :user_id, uniqueness: { scope: :brand_id, conditions: -> { kept } }
-  validates :min_age,
-    numericality: { only_integer: true, greater_than_or_equal_to: MINIMUM_AGE, less_than_or_equal_to: MAXIMUM_AGE },
-    allow_nil: true
-  validates :max_age,
-    numericality: { only_integer: true, greater_than_or_equal_to: MINIMUM_AGE, less_than_or_equal_to: MAXIMUM_AGE },
-    allow_nil: true
-  validates :max_distance_km,
-    numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: MAX_DISTANCE_KM },
-    allow_nil: true
-  validates :relationship_intent, length: { maximum: 80 }, allow_blank: true
-  validates :country, length: { maximum: 2 }, allow_blank: true
+
+  # Canonical scalar constraints — values owned by Profiles::FieldCatalog; the
+  # rules stay explicit. Range ordering and interested_in shape stay hand-written.
+  catalog = Profiles::FieldCatalog
+  validates :min_age, numericality: catalog.numericality("min_age"), allow_nil: true
+  validates :max_age, numericality: catalog.numericality("max_age"), allow_nil: true
+  validates :max_distance_km, numericality: catalog.numericality("max_distance_km"), allow_nil: true
+  validates :relationship_intent, length: { maximum: catalog.max_length("relationship_intent") }, allow_blank: true
+  validates :country, length: { maximum: catalog.max_length("country") }, allow_blank: true
   validate :age_range_is_ordered
   validate :profile_matches_scope
   validate :interested_in_is_array
@@ -50,8 +52,13 @@ class ProfilePreference < ApplicationRecord
       return
     end
 
-    errors.add(:interested_in, "cannot have more than 10 entries") if interested_in.size > 10
-    errors.add(:interested_in, "contains an invalid value") if interested_in.any? { |value| !value.is_a?(String) || value.length > 40 }
+    limits = Profiles::FieldCatalog.list_limits("interested_in")
+    if interested_in.size > limits.fetch(:max_entries)
+      errors.add(:interested_in, "cannot have more than #{limits.fetch(:max_entries)} entries")
+    end
+    if interested_in.any? { |value| !value.is_a?(String) || value.length > limits.fetch(:item_max_length) }
+      errors.add(:interested_in, "contains an invalid value")
+    end
   end
 
   def normalize_preferences

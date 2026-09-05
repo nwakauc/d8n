@@ -91,20 +91,31 @@ class Brand < ApplicationRecord
 
     requirements = profile_completion_requirements
 
-    unsupported_identity_fields = requirements.fetch("identity_fields") - Profiles::Completion::SUPPORTED_IDENTITY_FIELDS
-    unsupported_profile_fields = requirements.fetch("profile_fields") - Profiles::Completion::SUPPORTED_PROFILE_FIELDS
-    unsupported_preference_fields = requirements.fetch("preference_fields") - Profiles::Completion::SUPPORTED_PREFERENCE_FIELDS
+    unsupported_identity_fields = requirements.fetch("identity_fields") -
+      Profiles::FieldCatalog.completion_requirable_keys(:identity)
+    unsupported_profile_fields = requirements.fetch("profile_fields") -
+      Profiles::FieldCatalog.completion_requirable_keys(:profile)
+    unsupported_preference_fields = requirements.fetch("preference_fields") -
+      Profiles::FieldCatalog.completion_requirable_keys(:preference)
     unsupported_collections = requirements.fetch("collections") - Profiles::Completion::SUPPORTED_COLLECTIONS
     unsupported_option_groups = requirements.fetch("option_groups") -
       profile_option_groups.kept.where(key: requirements.fetch("option_groups")).pluck(:key)
     enabled_identity_fields = requirements.fetch("enabled_identity_fields", [])
-    enabled_profile_fields = requirements.fetch("enabled_profile_fields", Profiles::Configuration::PROFILE_FIELD_LABELS.keys)
-    enabled_preference_fields = requirements.fetch(
-      "enabled_preference_fields", Profiles::Configuration::PREFERENCE_FIELD_LABELS.keys
+    enabled_profile_fields = requirements.fetch(
+      "enabled_profile_fields", Profiles::FieldCatalog.enableable_keys_for_group(:profile)
     )
-    unsupported_enabled_identity_fields = enabled_identity_fields - Profiles::Configuration::IDENTITY_FIELD_LABELS.keys
-    unsupported_enabled_profile_fields = enabled_profile_fields - Profiles::Configuration::PROFILE_FIELD_LABELS.keys
-    unsupported_enabled_preference_fields = enabled_preference_fields - Profiles::Configuration::PREFERENCE_FIELD_LABELS.keys
+    enabled_preference_fields = requirements.fetch(
+      "enabled_preference_fields", Profiles::FieldCatalog.enableable_keys_for_group(:preference)
+    )
+    # A brand may enable only real, non-sensitive, stored canonical fields — a
+    # sensitive-identity or `storage: :pending` capability cannot be enabled just
+    # by naming it here.
+    unsupported_enabled_identity_fields =
+      enabled_identity_fields - Profiles::FieldCatalog.enableable_keys_for_group(:identity)
+    unsupported_enabled_profile_fields =
+      enabled_profile_fields - Profiles::FieldCatalog.enableable_keys_for_group(:profile)
+    unsupported_enabled_preference_fields =
+      enabled_preference_fields - Profiles::FieldCatalog.enableable_keys_for_group(:preference)
     unsupported_rich_profile_sections = requirements.fetch("rich_profile_sections", []) -
       Profiles::RichCompletion::SECTION_WEIGHTS.keys
 

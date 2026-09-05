@@ -1,62 +1,12 @@
 module Profiles
+  # Builds the client-facing profile configuration payload
+  # (GET /api/v1/profile/configuration). Scalar-field semantics — labels, input
+  # type, cardinality, visibility, and value-source/options — are derived from
+  # the canonical Profiles::FieldCatalog; this class owns only the brand
+  # composition (which fields, which are required) and the non-scalar sections
+  # (collections, option groups, prompts, openers).
   class Configuration
-    IDENTITY_FIELD_LABELS = {
-      "first_name" => "First name",
-      "last_name" => "Last name"
-    }.freeze
-
-    PROFILE_FIELD_LABELS = {
-      "display_name" => "Display name",
-      "bio" => "About me",
-      "birthdate" => "Date of birth",
-      "gender" => "Gender",
-      "pronouns" => "Pronouns",
-      "country_code" => "Country",
-      "city" => "City",
-      "occupation" => "Occupation",
-      "job_title" => "Job title",
-      "company_name" => "Company",
-      "school_or_institution" => "School",
-      "looking_for_text" => "What you're looking for",
-      "children_count" => "Number of children",
-      "height_cm" => "Height",
-      "body_type" => "Body type",
-      "languages" => "Languages",
-      "languages_spoken" => "Languages (legacy)",
-      "smoking" => "Smoking",
-      "drinking" => "Drinking",
-      "fitness" => "Fitness"
-    }.freeze
-
-    PREFERENCE_FIELD_LABELS = {
-      "min_age" => "Minimum age",
-      "max_age" => "Maximum age",
-      "interested_in" => "Interested in",
-      "max_distance_km" => "Maximum distance",
-      "country" => "Preferred country",
-      "relationship_intent" => "Relationship intent"
-    }.freeze
-
     COLLECTION_LABELS = { "photos" => "Photos" }.freeze
-
-    FIELD_METADATA = {
-      "first_name" => { visibility: "owner_only" },
-      "last_name" => { visibility: "owner_only" },
-      "bio" => { input_type: "textarea" },
-      "birthdate" => { input_type: "date", visibility: "owner_only" },
-      "company_name" => { visibility: "owner_only" },
-      "children_count" => { input_type: "integer", visibility: "owner_only" },
-      "height_cm" => { input_type: "integer" },
-      "languages" => { input_type: "language_list", cardinality: "multiple" },
-      "languages_spoken" => { input_type: "string_list", cardinality: "multiple" },
-      "smoking" => { input_type: "select", options: %w[ never occasionally regularly ] },
-      "drinking" => { input_type: "select", options: %w[ never occasionally regularly ] },
-      "fitness" => { input_type: "select", options: %w[ never occasionally regularly ] },
-      "interested_in" => { input_type: "string_list", cardinality: "multiple" },
-      "min_age" => { input_type: "integer" },
-      "max_age" => { input_type: "integer" },
-      "max_distance_km" => { input_type: "integer" }
-    }.freeze
 
     def self.call(brand:)
       new(brand:).call
@@ -70,20 +20,14 @@ module Profiles
       requirements = brand.profile_completion_requirements
 
       {
-        identity_fields: fields(
-          IDENTITY_FIELD_LABELS.slice(*requirements.fetch("enabled_identity_fields", [])),
-          requirements.fetch("identity_fields"),
-          default_visibility: "owner_only"
-        ),
-        profile_fields: fields(
-          PROFILE_FIELD_LABELS.slice(*requirements.fetch("enabled_profile_fields", PROFILE_FIELD_LABELS.keys)),
-          requirements.fetch("profile_fields")
-        ),
-        preference_fields: fields(
-          PREFERENCE_FIELD_LABELS.slice(*requirements.fetch("enabled_preference_fields", PREFERENCE_FIELD_LABELS.keys)),
-          requirements.fetch("preference_fields"),
-          default_visibility: "owner_only"
-        ),
+        identity_fields: fields(:identity, requirements.fetch("enabled_identity_fields", []),
+          requirements.fetch("identity_fields")),
+        profile_fields: fields(:profile,
+          requirements.fetch("enabled_profile_fields", FieldCatalog.enableable_keys_for_group(:profile)),
+          requirements.fetch("profile_fields")),
+        preference_fields: fields(:preference,
+          requirements.fetch("enabled_preference_fields", FieldCatalog.enableable_keys_for_group(:preference)),
+          requirements.fetch("preference_fields")),
         collections: collections(requirements.fetch("collections")),
         option_groups: option_groups(requirements.fetch("option_groups")),
         prompts: prompts,
@@ -110,17 +54,23 @@ module Profiles
       end
     end
 
-    def fields(labels, required_keys, default_visibility: "public_profile")
-      labels.map do |key, label|
-        metadata = FIELD_METADATA.fetch(key, {})
+    # Enabled canonical fields in the group, in catalogue (presentation) order.
+    def fields(group, enabled_keys, required_keys)
+      enabled = Array(enabled_keys).map(&:to_s)
+
+      FieldCatalog.for_group(group).select do |field|
+        # A sensitive-identity or not-yet-stored capability is never advertised,
+        # even if brand configuration names it (fail closed).
+        enabled.include?(field.key) && !field.sensitive_identity? && !field.pending_storage?
+      end.map do |field|
         {
-          key:,
-          label:,
-          required: required_keys.include?(key),
-          cardinality: metadata.fetch(:cardinality, "single"),
-          input_type: metadata.fetch(:input_type, "text"),
-          visibility: metadata.fetch(:visibility, default_visibility),
-          options: field_options(key, metadata)
+          key: field.key,
+          label: field.label,
+          required: required_keys.include?(field.key),
+          cardinality: field.cardinality,
+          input_type: field.input_type,
+          visibility: field.owner_only_ceiling? ? "owner_only" : "public_profile",
+          options: field_options(field)
         }
       end
     end
@@ -137,10 +87,10 @@ module Profiles
       end
     end
 
-    def field_options(key, metadata)
-      return Profiles::Languages.catalog if key == "languages"
+    def field_options(field)
+      return Profiles::Languages.catalog if field.value_source == :languages_catalog
 
-      metadata.fetch(:options, []).map { |code| { code:, label: code.humanize } }
+      Array(field.validation[:enum]).map { |code| { code:, label: code.humanize } }
     end
 
     def option_groups(required_keys)

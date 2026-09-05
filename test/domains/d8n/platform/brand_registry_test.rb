@@ -16,7 +16,7 @@ module D8n
         assert_equal Profiles::HookusProfileCatalog, contract.profile.catalog
         assert_equal "27", contract.phone_country_calling_code
         assert contract.capability_enabled?("id.session.browser_persistence")
-        assert_equal Profiles::Configuration::PROFILE_FIELD_LABELS.keys, contract.enabled_profile_fields
+        assert_equal Profiles::FieldCatalog.enableable_keys_for_group(:profile), contract.enabled_profile_fields
         assert contract.capability_enabled?("discovery.surface.feed")
         assert contract.capability_enabled?("match.hook")
         assert contract.capability_enabled?("match.hook_tonight")

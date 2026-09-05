@@ -1,12 +1,75 @@
 # Date9ja → D8N Status
 
 - Current phase: **Phase 1 — Shared Platform Foundations** (Wave A)
-- Current capability: **Migrated-account authentication transition + recovery/reactivation (Wave A Step 3 closeout) — IMPLEMENTED / SELF_VERIFIED 2026-09-04, READY FOR FEATURE-BOUNDARY CODEX REVIEW** (`AUTH-TRANSITION.md`). Earlier: Batches 2 & 3 reviewed; sanitized snapshot milestone VERIFIED; reconciliation census + schema-signature v2 VERIFIED (independent review); import execution model RESOLVED; **bcrypt compatibility proof VERIFIED (2026-09-02, operator ran `scripts/date9ja/bcrypt_proof.rb` against a real `$2a$12$` account → `$2a$ 12 PASS`)**; identity + membership + non-sensitive profile importer — implementation reviewed + **operator rehearsal VERIFIED (2026-09-03)** against `date9ja_snapshot_sanitized` (288 source rows → 280 imported / 8 skipped `source_soft_deleted` / 0 failed; second pass 280 already_imported / 0 created; source reconciliation balanced); **profile-photo pass 2 implementation VERIFIED + L2 synthetic-corpus rehearsal VERIFIED (Codex independent review 2026-09-03: FINAL VERDICT ACCEPT)**; **profile-video pass 1 (media preflight) VERIFIED (Codex 2026-09-03: ACCEPT WITH SMALL FIX — documentation correction completed), sanitized rehearsal 35/35 preflighted + idempotent; legacy `duration_seconds` NULL for all 35 (no row known to exceed the limit; actual duration unproven — pass 2 must derive it from the container)**. **NOT PARITY_ACCEPTED, NOT production-ready, NOT cutover-ready. L3 NOT YET READY.**
+- Current capability: **D8N brand-aware profile field catalogue foundation — IMPLEMENTED / SELF_VERIFIED 2026-09-05, READY FOR FEATURE-BOUNDARY CODEX REVIEW** (ADR 0030, below). This is a shared-platform capability (not Date9ja-specific); it resolves the MASTER-PLAN "Before writable Date9ja profiles" blocker. Earlier: Migrated-account authentication transition + recovery/reactivation (Wave A Step 3 closeout) — IMPLEMENTED / SELF_VERIFIED 2026-09-04, READY FOR FEATURE-BOUNDARY CODEX REVIEW (`AUTH-TRANSITION.md`). Earlier still: Batches 2 & 3 reviewed; sanitized snapshot milestone VERIFIED; reconciliation census + schema-signature v2 VERIFIED (independent review); import execution model RESOLVED; **bcrypt compatibility proof VERIFIED (2026-09-02, operator ran `scripts/date9ja/bcrypt_proof.rb` against a real `$2a$12$` account → `$2a$ 12 PASS`)**; identity + membership + non-sensitive profile importer — implementation reviewed + **operator rehearsal VERIFIED (2026-09-03)** against `date9ja_snapshot_sanitized` (288 source rows → 280 imported / 8 skipped `source_soft_deleted` / 0 failed; second pass 280 already_imported / 0 created; source reconciliation balanced); **profile-photo pass 2 implementation VERIFIED + L2 synthetic-corpus rehearsal VERIFIED (Codex independent review 2026-09-03: FINAL VERDICT ACCEPT)**; **profile-video pass 1 (media preflight) VERIFIED (Codex 2026-09-03: ACCEPT WITH SMALL FIX — documentation correction completed), sanitized rehearsal 35/35 preflighted + idempotent; legacy `duration_seconds` NULL for all 35 (no row known to exceed the limit; actual duration unproven — pass 2 must derive it from the container)**. **NOT PARITY_ACCEPTED, NOT production-ready, NOT cutover-ready. L3 NOT YET READY.**
 - Builder: Claude (senior engineer)
 - Reviewer: Independent reviewer — Codex (batches 1–3 + profile-photo pass 2 / L2 reviewed)
 - Review cadence: bounded batches (~3–5 slices), not per-slice. Significant work remains **SELF_VERIFIED** until independent review.
 - Last verified: 2026-09-02
 - Cutover: **BLOCKED** until data parity and feature parity both pass.
+
+## D8N brand-aware profile field catalogue foundation — **IMPLEMENTED / SELF_VERIFIED (2026-09-05)**
+
+Shared-platform capability (not a Date9ja feature). Resolves MASTER-PLAN Phase 1
+item 2, "Before writable Date9ja profiles": brand-scoped profile field write
+enforcement, configuration-derived serialization, and non-sensitive catalogue
+composition. Full architectural record: [ADR 0030](../../adr/0030-canonical-profile-field-catalogue.md).
+
+**What was built:** `Profiles::FieldCatalog` — the single canonical
+definition layer for scalar/typed profile fields (identity, profile,
+preference groups), alongside the existing `Profiles::CapabilityCatalog`
+(ADR 0017) for controlled vocabularies. `Profiles::FieldPolicy`,
+`Profiles::Configuration`, `Brand#profile_requirements_are_supported`,
+`Profile`/`ProfilePreference` model validations, and the three profile
+serializers (`OwnerSerializer`/`PublicSerializer`/`DetailSerializer`) all now
+derive from this one catalogue instead of four previously-scattered,
+independently-maintained field registries. `FieldCatalog.keys_for_group`
+(known superset, drives deterministic write rejection) is kept distinct from
+`FieldCatalog.enableable_keys_for_group` (safe subset — excludes every
+`sensitive_identity` and `storage: :pending` field — drives every default/
+advertisement/validation ceiling).
+
+**Sensitive capability proof:** `tribe` and `ethnicity` are defined as the
+proving example of a canonical identity concept that D8N knows and no brand
+can enable, write, serialize, or require for completion
+(`sensitivity: :sensitive_identity`, `storage: :pending`). No product
+exposure decision was made for either field; both remain
+`DECISIONS.md` "Awaiting Uchechi." No database column was added, and no
+Date9ja value migration was performed for any field in this feature.
+`religion` was confirmed to already live in `CapabilityCatalog` and was
+**not** duplicated as a `FieldCatalog` scalar.
+
+**Date9ja proving ground:** `Profiles::Date9jaProfileCatalog::REQUIREMENTS`
+was audited and found **already** fully explicit (16 profile fields, 2
+identity fields, 4 preference fields — no reliance on the broad default).
+`test/integration/date9ja_profile_contract_test.rb` proves the full stack
+end-to-end over real HTTP (`PATCH /api/v1/profile`,
+`PATCH /api/v1/profile/preferences`, `GET /api/v1/profile/configuration`):
+enabled-field writes persist and serialize; a D8N-known but Date9ja-disabled
+field (`pronouns`) and both sensitive fields (`tribe`, `ethnicity`) are
+rejected with `422 invalid_profile_fields`/`invalid_preference_fields`; owner/
+public/detail serialization respect the contract; no Date9ja-specific
+branching exists in the shared profile stack; DateZA and HookUs contracts are
+unaffected. **This required zero new production code** — Date9ja was already
+a correct, explicit consumer once the shared foundation existed, which is the
+architecture's own validation.
+
+**Evidence:** 9 new integration tests (134 assertions) plus regression across
+`test/domains/profiles`, `test/domains/d8n`, `test/domains/date9ja`,
+`test/domains/brands`, `test/integration`, and OpenAPI (570 runs / 5398
+assertions / 0 failures). Full suite: 2001 runs / 11922 assertions / 1
+failure — the pre-existing, independently-reproduced
+`deliver_product_notification_job_test.rb:23` baseline failure, not
+introduced by this feature. RuboCop / Zeitwerk / Brakeman clean.
+**NOT independently reviewed. Not a Date9ja value-migration or product-decision
+resolution.**
+
+Remaining before this platform capability is fully closed: feature-boundary
+Codex review. Remaining before Date9ja profile parity is closed: the tribe/
+ethnicity/denomination/genotype/state_of_origin/preferred_tribes/
+preferred_religion product decisions, and any resulting Date9ja value
+migration (separate, later work — see `DECISIONS.md` and
+`CAPABILITY-PARITY.md`).
 
 ## Wave A slice 3 — Date9ja identity importer — **VERIFIED (2026-09-03)**
 

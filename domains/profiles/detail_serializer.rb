@@ -22,6 +22,9 @@ module Profiles
     end
 
     def call
+      # Scalar fields (and their fail-closed public audience resolution) come
+      # entirely from PublicSerializer / FieldPolicy — detail adds only the
+      # heavier non-scalar sections below.
       base = PublicSerializer.call(profile:)
       base[:options] = base[:options].merge(matches_only_options) if matched?
 

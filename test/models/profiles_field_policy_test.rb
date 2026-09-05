@@ -29,10 +29,10 @@ module Profiles
       )
       policy = FieldPolicy.new(brand:)
 
-      assert_equal Configuration::PROFILE_FIELD_LABELS.keys, policy.enabled_profile_fields
+      assert_equal FieldCatalog.enableable_keys_for_group(:profile), policy.enabled_profile_fields
       assert_nothing_raised { policy.validate_profile_write!(%w[pronouns body_type unknown]) }
       # HookUs has no explicit enabled_preference_fields -> broad contract retained.
-      assert_equal Configuration::PREFERENCE_FIELD_LABELS.keys, policy.enabled_preference_fields
+      assert_equal FieldCatalog.enableable_keys_for_group(:preference), policy.enabled_preference_fields
       assert_nothing_raised { policy.validate_preference_write!(%w[country relationship_intent unknown]) }
     end
 

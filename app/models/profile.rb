@@ -56,25 +56,31 @@ class Profile < ApplicationRecord
 
   validates :user_id, uniqueness: { scope: :brand_id, conditions: -> { kept } }
   validates :public_id, presence: true, uniqueness: true, format: { with: PUBLIC_ID_FORMAT }
-  validates :display_name, length: { maximum: 80 }, allow_blank: true
-  validates :bio, length: { maximum: 1_000 }, allow_blank: true
-  validates :gender, length: { maximum: 40 }, allow_blank: true
-  validates :country_code, format: { with: /\A[A-Z]{2}\z/ }, allow_blank: true
-  validates :city, :occupation, length: { maximum: 120 }, allow_blank: true
-  validates :height_cm,
-    numericality: { only_integer: true, greater_than_or_equal_to: 100, less_than_or_equal_to: 250 },
-    allow_nil: true
-  validates :body_type, length: { maximum: 80 }, allow_blank: true
+
+  # Canonical scalar constraints — the VALUES live in Profiles::FieldCatalog
+  # (one authoritative place to change a semantic limit); the rules stay
+  # explicit here so "why was this profile rejected?" is answerable from the
+  # model. Domain invariants below (age gate, tenant scope, languages) stay
+  # entirely hand-written.
+  catalog = Profiles::FieldCatalog
+  validates :display_name, length: { maximum: catalog.max_length("display_name") }, allow_blank: true
+  validates :bio, length: { maximum: catalog.max_length("bio") }, allow_blank: true
+  validates :gender, length: { maximum: catalog.max_length("gender") }, allow_blank: true
+  validates :pronouns, length: { maximum: catalog.max_length("pronouns") }, allow_blank: true
+  validates :city, length: { maximum: catalog.max_length("city") }, allow_blank: true
+  validates :occupation, length: { maximum: catalog.max_length("occupation") }, allow_blank: true
+  validates :job_title, length: { maximum: catalog.max_length("job_title") }, allow_blank: true
+  validates :company_name, length: { maximum: catalog.max_length("company_name") }, allow_blank: true
+  validates :school_or_institution, length: { maximum: catalog.max_length("school_or_institution") }, allow_blank: true
+  validates :looking_for_text, length: { maximum: catalog.max_length("looking_for_text") }, allow_blank: true
+  validates :body_type, length: { maximum: catalog.max_length("body_type") }, allow_blank: true
+  validates :country_code, format: { with: catalog.format_pattern("country_code") }, allow_blank: true
+  validates :height_cm, numericality: catalog.numericality("height_cm"), allow_nil: true
+  validates :children_count, numericality: catalog.numericality("children_count"), allow_nil: true
   validates :smoking, :drinking, :fitness,
-    inclusion: { in: %w[ never occasionally regularly ] },
+    inclusion: { in: catalog.allowed_values("smoking") },
     allow_blank: true
-  validates :pronouns, length: { maximum: 40 }, allow_blank: true
-  validates :job_title, :company_name, length: { maximum: 120 }, allow_blank: true
-  validates :school_or_institution, length: { maximum: 160 }, allow_blank: true
-  validates :looking_for_text, length: { maximum: 600 }, allow_blank: true
-  validates :children_count,
-    numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 30 },
-    allow_nil: true
+
   validate :birthdate_meets_minimum_age
   validate :brand_membership_matches_profile_scope
   validate :languages_spoken_are_valid
@@ -109,8 +115,13 @@ class Profile < ApplicationRecord
       return
     end
 
-    errors.add(:languages_spoken, "cannot have more than 15 entries") if languages_spoken.size > 15
-    errors.add(:languages_spoken, "contains an invalid value") if languages_spoken.any? { |value| !value.is_a?(String) || value.length > 40 }
+    limits = Profiles::FieldCatalog.list_limits("languages_spoken")
+    if languages_spoken.size > limits.fetch(:max_entries)
+      errors.add(:languages_spoken, "cannot have more than #{limits.fetch(:max_entries)} entries")
+    end
+    if languages_spoken.any? { |value| !value.is_a?(String) || value.length > limits.fetch(:item_max_length) }
+      errors.add(:languages_spoken, "contains an invalid value")
+    end
   end
 
   # Structured languages (canonical going forward — `languages_spoken` is the

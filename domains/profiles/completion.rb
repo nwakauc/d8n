@@ -6,12 +6,10 @@ module Profiles
     # areas a member has filled in.
     Result = Data.define(:complete?, :percent, :missing, :sections)
 
-    SUPPORTED_IDENTITY_FIELDS = %w[ first_name last_name ].freeze
-    SUPPORTED_PROFILE_FIELDS = %w[
-      display_name bio birthdate gender country_code city occupation height_cm body_type
-      languages_spoken smoking drinking fitness
-    ].freeze
-    SUPPORTED_PREFERENCE_FIELDS = %w[ min_age max_age interested_in max_distance_km country relationship_intent ].freeze
+    # Which canonical scalar fields a brand may declare as a completion
+    # requirement now lives on the canonical field:
+    # Profiles::FieldCatalog.completion_requirable_keys(group). Collections are
+    # not scalar fields, so their allowlist stays here.
     SUPPORTED_COLLECTIONS = %w[ photos location ].freeze
     COLLECTION_PRESENCE = {
       "photos" => ->(profile) { profile.profile_photos.kept.with_attached_display_image.any?(&:publication_eligible?) },

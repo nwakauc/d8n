@@ -6,7 +6,7 @@ module D8n
           CapabilityDefinition.new(key: "profile.onboarding", status: :available,
             implementations: %w[Profiles::OnboardingStatus Profiles::Completion]),
           CapabilityDefinition.new(key: "profile.scalar_fields", status: :available,
-            implementations: %w[Profiles::Configuration Profiles::FieldPolicy]),
+            implementations: %w[Profiles::FieldCatalog Profiles::Configuration Profiles::FieldPolicy]),
           CapabilityDefinition.new(key: "profile.options", status: :available,
             implementations: %w[Profiles::CapabilityCatalog Profiles::OptionSelections]),
           CapabilityDefinition.new(key: "profile.preferences", status: :available,

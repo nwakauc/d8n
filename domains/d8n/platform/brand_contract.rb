@@ -128,10 +128,10 @@ module D8n
         requirements = brand.profile_completion_requirements
         @enabled_identity_fields = requirements.fetch("enabled_identity_fields", []).dup.freeze
         @enabled_profile_fields = requirements.fetch(
-          "enabled_profile_fields", Profiles::Configuration::PROFILE_FIELD_LABELS.keys
+          "enabled_profile_fields", Profiles::FieldCatalog.enableable_keys_for_group(:profile)
         ).dup.freeze
         @enabled_preference_fields = requirements.fetch(
-          "enabled_preference_fields", Profiles::Configuration::PREFERENCE_FIELD_LABELS.keys
+          "enabled_preference_fields", Profiles::FieldCatalog.enableable_keys_for_group(:preference)
         ).dup.freeze
       end
 

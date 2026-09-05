@@ -21,13 +21,19 @@ module Profiles
 
     attr_reader :profile, :field_policy
 
+    # Public scalar values, resolved once through FieldPolicy: canonical ∧
+    # brand-enabled ∧ catalogue audience ceiling is :public ∧ not
+    # sensitive-identity ∧ storage available. A field never serializes publicly
+    # merely because D8N knows it.
     def public_profile_fields
-      FieldPolicy::PUBLIC_PROFILE_FIELDS.filter_map do |field|
-        next unless field_policy.public_profile_enabled?(field)
-
-        value = field == "languages" ? Profiles::Languages.serialize(profile.languages) : profile.public_send(field)
-        [ field.to_sym, value ]
-      end.to_h
+      field_policy.public_serialized_fields.to_h do |field|
+        value = if field.value_source == :languages_catalog
+          Profiles::Languages.serialize(profile.languages)
+        else
+          profile.public_send(field.key)
+        end
+        [ field.key.to_sym, value ]
+      end
     end
 
     def derived_public_fields
