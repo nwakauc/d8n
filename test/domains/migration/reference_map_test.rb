@@ -153,6 +153,146 @@ module Migration
     end
   end
 
+  # The lost-race recovery path, reproduced DETERMINISTICALLY.
+  #
+  # `bind!` opens a transaction, pre-checks with `locate`, and calls `claim`
+  # when the key looks free. `claim` inserts. If a concurrent claimer commits
+  # that key in between, the INSERT violates a unique index, and in PostgreSQL a
+  # failed statement aborts the enclosing transaction -- so `claim`'s documented
+  # recovery (re-run `locate`, let `assert_same_binding!` classify the outcome)
+  # can only run if the INSERT is scoped to its own savepoint.
+  #
+  # Reproducing this needs a real `ActiveRecord::RecordNotUnique` from the
+  # database. Staging the conflict *before* `bind!` does NOT reproduce it: the
+  # model's uniqueness validations (`legacy_reference.rb:20-23`) SELECT first and
+  # raise `RecordInvalid` without ever issuing the failing INSERT, leaving the
+  # transaction clean. That is also why the thread-racing test below only fails
+  # intermittently -- it needs two writers to clear validation together.
+  #
+  # So these tests insert the competing row from a SECOND CONNECTION inside a
+  # `before_create` hook: our validations have already passed, the competing row
+  # is committed, and our INSERT hits the index. The thread is joined before the
+  # hook returns, so there is no scheduling dependence and no sleep.
+  class ReferenceMapLostRaceTest < ActiveSupport::TestCase
+    # The competing row is committed by another connection, so it is not covered
+    # by a test transaction; this class cleans up explicitly.
+    self.use_transactional_tests = false
+
+    setup do
+      @brand = Brand.create!(slug: "date9ja-race-#{SecureRandom.hex(4)}", name: "Race")
+      @user = User.create!
+      @other_user = User.create!
+      @profile = profile_for(@brand, @user)
+      @other_profile = profile_for(@brand, @other_user)
+    end
+
+    teardown do
+      LegacyReference.where(source_system: "date9ja", source_id: [ KEY, OTHER_KEY ]).delete_all
+      LegacyReference.where(brand: @brand).delete_all
+      Profile.where(brand: @brand).delete_all
+      BrandMembership.where(brand: @brand).delete_all
+      @brand.destroy!
+      [ @user, @other_user ].each { |u| u&.destroy! }
+    end
+
+    KEY = "race-4021"
+    OTHER_KEY = "race-9999"
+
+    def bind(**overrides)
+      defaults = {
+        source_system: "date9ja", source_entity: "profile", source_id: KEY,
+        destination: @profile, brand: @brand, importer_version: "v1"
+      }
+      ReferenceMap.bind!(**defaults.merge(overrides))
+    end
+
+    # Commits `attrs` from another connection at the exact moment our own
+    # transaction has validated and is about to INSERT.
+    def with_concurrent_claimer(**attrs)
+      fired = false
+      # ActiveSupport instance_execs a proc callback on the RECORD, so every
+      # value the claimer needs is captured as a local here, not read from @ivars.
+      row = {
+        source_system: "date9ja", source_entity: "profile", destination_type: "Profile",
+        brand_id: @brand.id, importer_version: "winner"
+      }.merge(attrs)
+      hook = lambda do |_record|
+        next if fired
+
+        fired = true
+        Thread.new do
+          LegacyReference.connection_pool.with_connection { LegacyReference.create!(**row) }
+        end.join
+      end
+      LegacyReference.set_callback(:create, :before, hook)
+      yield
+      assert fired, "the staged claimer never fired -- the race was not reproduced"
+    ensure
+      LegacyReference.skip_callback(:create, :before, hook, raise: false)
+    end
+
+    test "the staging really does drive claim into a database unique violation" do
+      # Without the savepoint this INSERT is what aborts bind!'s transaction.
+      assert_nothing_raised do
+        with_concurrent_claimer(source_id: KEY, destination_id: @profile.id) { bind }
+      end
+      assert_equal 1, LegacyReference.where(source_id: KEY).count, "exactly one row survives"
+    end
+
+    test "a lost race against an identical binding resolves idempotently" do
+      reference = nil
+      with_concurrent_claimer(source_id: KEY, destination_id: @profile.id) do
+        reference = bind(fingerprint: "fp-2", importer_version: "v2")
+      end
+
+      assert_equal 1, LegacyReference.where(source_id: KEY).count
+      assert_equal @profile, reference.destination
+      assert_equal "v2", reference.reload.importer_version, "recovery still refreshes metadata"
+    end
+
+    test "a lost race on the source key raises ImmutableBinding, not an aborted transaction" do
+      error = assert_raises(ReferenceMap::ImmutableBinding) do
+        with_concurrent_claimer(source_id: KEY, destination_id: @other_profile.id) { bind }
+      end
+
+      refute_match(/InFailedSqlTransaction/, error.message)
+      assert_equal @other_profile.id, LegacyReference.find_by(source_id: KEY).destination_id,
+        "the winner's binding is never rewritten"
+    end
+
+    test "a lost race on the destination raises DestinationConflict, not an aborted transaction" do
+      error = assert_raises(ReferenceMap::DestinationConflict) do
+        with_concurrent_claimer(source_id: OTHER_KEY, destination_id: @profile.id) { bind }
+      end
+
+      refute_match(/InFailedSqlTransaction/, error.message)
+      refute LegacyReference.exists?(source_id: KEY), "the loser never gets a row"
+    end
+
+    test "the connection stays usable after a lost race" do
+      assert_raises(ReferenceMap::ImmutableBinding) do
+        with_concurrent_claimer(source_id: KEY, destination_id: @other_profile.id) { bind }
+      end
+
+      # The regression itself: before the fix the failed INSERT left the
+      # transaction aborted and every statement after it raised
+      # PG::InFailedSqlTransaction.
+      assert_nothing_raised do
+        ReferenceMap.resolve(source_system: "date9ja", source_entity: "profile", source_id: KEY)
+      end
+    end
+
+    private
+
+    def profile_for(brand, user)
+      membership = BrandMembership.create!(brand:, user:)
+      Profile.create!(
+        brand:, user:, brand_membership: membership,
+        display_name: "P#{user.id}", birthdate: 27.years.ago.to_date, gender: "woman"
+      )
+    end
+  end
+
   class ReferenceMapConcurrencyTest < ActiveSupport::TestCase
     self.use_transactional_tests = false
 

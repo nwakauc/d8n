@@ -8,6 +8,212 @@
 - Last verified: 2026-09-02
 - Cutover: **BLOCKED** until data parity and feature parity both pass.
 
+## Date9ja profile & preference migration — Pass 2: the importer — **IMPLEMENTED / SELF_VERIFIED (2026-09-06)**
+
+The half of the migration that makes a migrated member discoverable. Contract:
+[PROFILE-VALUE-MAPPING.md](PROFILE-VALUE-MAPPING.md).
+
+**What was blocking.** The identity importer (VERIFIED) deliberately created no
+preference rows, and `Matching::ProfileParticipant` requires `min_age`,
+`max_age` and a non-empty `interested_in` — so **all 280 migrated members were
+excluded from matching entirely**. It also copied `users.gender` through
+unchanged; because the legacy column is an integer enum, that wrote the strings
+`"0"`/`"1"` into `profiles.gender`, which `Matching::EligibilityScope` compares
+verbatim against `interested_in`. Both halves are fixed here.
+
+**Product decisions taken by Uchechi (2026-09-06), all recorded in
+`PROFILE-VALUE-MAPPING.md` §6.2:** D-1 `man`/`woman`; D-9 migrate `looking_for`
+verbatim; D-7 / D-10 / D-11 relax the four required-but-sourceless fields.
+
+**D-9 in full, because it governs how the importer treats real people.** Every
+`looking_for` value migrates exactly as stored. **Some Date9ja members are gay**,
+so a same-gender preference is a correct answer and an orientation — never an
+error to flag, quarantine, re-ask or "correct" — and **migration does not change
+anything a member has already chosen**. The Pass-1 cohort figures (70.5 %
+same-code onboarded vs 16.7 % never-onboarded) remain on record as history about
+the onboarding *form*; they are not evidence about any individual. Same-code
+pairs get no special status anywhere in the code, and a regression test asserts a
+migrated same-gender pair is discoverable on exactly the same terms as any other.
+
+**What was built.**
+
+| File | Change |
+|---|---|
+| `domains/date9ja/import/value_mapping.rb` | NEW — the only place a legacy enum CODE becomes a D8N value. Separates FACT (what the legacy code means, quoted from Date9ja source) from DECISION (which D8N string it becomes, citing the decision that authorised it). Fails closed on any code without an approved destination. |
+| `domains/date9ja/import/profile_preference_import.rb` | NEW — the importer: gender decode, `ProfilePreference`, option selections, `ReferenceMap` binding, per-row savepointed transaction. |
+| `domains/date9ja/import/profile_preference_reconciliation.rb` | NEW — deterministic PII-free tally. Dispositions stay a strict partition; `notes` separately explain fields left unset. |
+| `domains/date9ja/snapshot/user_record.rb` / `user_source.rb` | Seven preference columns added to the explicit allowlist. Identity `fingerprint` deliberately unchanged; the preference binding uses its own. |
+| `domains/date9ja/import/field_mapping.rb` | `gender` now decodes through `ValueMapping` instead of `clamp`, so a fresh identity import is correct from the start. |
+| `domains/profiles/date9ja_profile_catalog.rb` | D-7/D-10/D-11: `max_distance_km`, `meeting_pace`, `smoking`, `drinking` moved out of the REQUIRED lists. All four stay **enabled**, and the enabled contract's contents *and order* are unchanged. |
+
+**What it never does.** It never invents a value — an unanswered field and an
+unmapped code both stay unset, each with its own reconciliation note. It never
+overwrites an answer already in D8N; a re-run only fills gaps. It never folds a
+legacy code onto a near-enough D8N option: `courtship` / `dating` /
+`activity_partner` (D-5) and `wants_children: open` (D-6) fail closed and are
+counted, so resolving those decisions completes those members on a later re-run.
+`max_distance_km` is never written. No sensitive column is read.
+
+**Mappings shipped.** gender `0/1 → man/woman`; `looking_for → interested_in`
+verbatim; age pair verbatim when valid, dropped (not clamped) when not;
+`relationship_intention 0/2/4 → marriage / long_term_relationship / friendship`;
+`children_count → has_children` (every legacy code answers D8N's yes/no question
+exactly, and `none` is an explicit choice distinct from NULL, so the enum/integer
+trap does not arise); `wants_children 0/1 → yes/no`.
+
+**Evidence.** New: `profile_preference_import_test.rb` 21 runs, `value_mapping_test.rb`
+12 runs — 0 failures. End-to-end proof: two migrated members run through the
+**real `Matching::EligibilityScope`** find each other, in both directions, and so
+do a migrated same-gender pair. Idempotency: a second run creates nothing, never
+overwrites a member-changed answer, and does fill a gap a previous run had to
+leave open. Reconciliation asserted PII-free and strictly balanced. Domain-wide
+regression (`test/domains` + `test/scripts`) 836 runs / 0 failures. RuboCop 65
+files / 0 offenses. Brakeman 0/0. `zeitwerk:check` clean.
+
+**A test blind spot closed.** Every committed identity-import fixture supplied
+`gender: "woman"` — a word the real column never contains — which is exactly why
+the suite could not see the importer writing `"0"`/`"1"`. Fixtures now carry the
+real integer codes, with tests for both decode and the unknown-code path.
+
+**Lifecycle (pre-rehearsal record; superseded by the completed rehearsal below).
+IMPLEMENTED / SELF_VERIFIED. NOT independently reviewed. NOT VERIFIED. NOT
+`PARITY_ACCEPTED`.** At the time this entry was written, the importer had not
+yet been run against the snapshot. The authoritative current state is the
+completed 2026-09-06 isolated rehearsal below. Still open before
+profile/preference parity: **D-8** (publication
+policy — migrated profiles remain `:draft`/`:hidden`, so nobody is discoverable
+in production yet), **D-4** (`full_name` split; `first_name`/`last_name` are
+required identity fields the importer still does not set), **E-1**
+(`country_code`, required, and no source value is ISO-2), plus D-3, D-5, D-6,
+E-2…E-6. Profile scalars (country, lifestyle, height, body_type) are a later
+slice by design.
+
+### Destination rehearsal — COMPLETE (2026-09-06)
+
+Ran against the restored `date9ja_snapshot_sanitized` on the isolated PG17
+instance, into a throwaway `d8n_date9ja_rehearsal_pref_20260906`
+(`RAILS_ENV=test`). **No Date9ja production system was contacted.** New operator
+entry point: `date9ja:import_profile_preferences`. Full numbers:
+`RECONCILIATION.md` "Pass-2 destination rehearsal".
+
+Identity import reproduced its VERIFIED baseline exactly (288 → 280 imported / 8
+skipped / 0 failed, 1580 bindings). Profiles were then reset to the raw legacy
+gender code the *earlier* rehearsal actually produced, and 5 profiles were given
+a member-chosen value, so the repair path and the preservation guard were both
+exercised against the real corpus.
+
+**Pass 1.** 288 considered → **280 imported / 8 skipped / 0 failed**, balanced,
+**0 anomalies**. Created 280 `ProfilePreference`, 477 option selections, 280
+bindings; decoded **275** genders — exactly the number holding a raw code, and
+none of the 5 member-owned values. **0 raw `"0"`/`"1"` remain.**
+
+**Every destination figure reconciles with the source cohort**: `interested_in`
+`["man"]:194 / ["woman"]:86` equals `looking_for` 194/86 (**not** gender's
+189/91, proving no inference from gender); the gender × interested_in matrix
+equals census measure 259 once the 5 planted choices are accounted for; each
+option-group value equals its source code count; ages present 63 / absent 216 /
+half-answered 1 / **invalid 0**; `max_distance_km` NULL for all 280.
+
+**Intentionally unresolved, nothing invented:** `courtship` 26, `dating` 7,
+`activity_partner` 0 present (D-5); `wants_children: open` 45 (D-6).
+`education` / `smoking` / `drinking` are out of this slice's scope.
+
+**Pass 2 (idempotency).** `0 imported / 280 already_imported / 8 skipped / 0
+failed`; **every creation counter zero**; duplicate bindings, duplicate
+preferences and duplicate selections all **0**.
+
+**Member-choice preservation, on real data.** 5/5 member-chosen genders, 10/10
+member-changed preferences (including a `max_distance_km: 42` the importer never
+writes and never cleared), and 10/10 member-changed option selections all
+survived the rerun untouched.
+
+**Discovery compatibility** — measured inside a rolled-back transaction;
+publication state is byte-identical before and after (`draft:273 suspended:7`,
+`hidden:280`). **Nothing was published or unhidden.** The migrated `man`/`woman`
+strings work with `Matching::EligibilityScope`, and **same-gender values are
+first-class**: a `man→man` viewer has the largest reciprocal pool of any shape
+(**104**), against 93 for `man→woman`. Unset `max_distance_km` does not eliminate
+the cohort.
+
+**One finding, recorded not fixed: the remaining blocker is the age range, not
+gender or distance.** 217 of 280 members have no age range, so only 68
+participate in matching and 33 have a candidate. Same absence-of-source shape as
+D-10/D-7; recorded as **D-12**. No value was invented for it.
+
+**One reconciliation-accuracy fix during the run.** The importer reported the
+single half-answered age pair (min set, max NULL) as `age_range_invalid`, which
+contradicted the census's proven "0 invalid, 0 inverted" and would have sent a
+reviewer hunting corrupt data that does not exist. Split into a distinct
+`age_range_partial` note, with a regression test.
+
+**Lifecycle. IMPLEMENTED / SELF_VERIFIED. NOT independently reviewed. NOT
+VERIFIED. NOT `PARITY_ACCEPTED`.** Remaining before profile/preference parity:
+**D-8** (publication — migrated members are still `:draft`/`:hidden`, so nobody
+is discoverable in production), **D-12** (age range), **D-4** (name split),
+**E-1** (`country_code`), plus D-3, D-5, D-6, E-2…E-6.
+
+## `Migration::ReferenceMap.claim` concurrency recovery — **IMPLEMENTED / SELF_VERIFIED (2026-09-06)**
+
+Small production fix to shared migration infrastructure, taken as its own slice
+because it is the one real engineering blocker in front of the profile &
+preference importer. Full diagnosis and record:
+[FOLLOWUP-REFERENCE-MAP-CLAIM.md](FOLLOWUP-REFERENCE-MAP-CLAIM.md) — now **CLOSED**.
+
+**Defect.** `claim` rescued a unique violation and then called `locate` to
+re-resolve the binding. The failing `create!` ran inside the transaction `bind!`
+opens, and in PostgreSQL a failed statement aborts the whole transaction — so the
+documented recovery path could only raise `PG::InFailedSqlTransaction`. Under
+concurrent claimers (parallel importer workers, an overlapping cutover-delta
+worker, a retried job beside the original) `bind!` failed hard instead of
+resolving idempotently.
+
+**Fix.** One change: the `create!` in `claim` now runs inside
+`LegacyReference.transaction(requires_new: true)`, so the violation rolls back to
+a savepoint and the enclosing transaction survives. Same idiom Rails uses for
+`create_or_find_by!`. No signature, semantics, or call-site change; `bind!`,
+`locate`, `assert_same_binding!` and `refresh_metadata!` are untouched.
+
+**Deterministic reproduction — and why the obvious one fails.** Staging the
+conflicting row before `bind!` does **not** reproduce this: `LegacyReference` has
+model-level uniqueness validations (`app/models/legacy_reference.rb:20-23`), so
+`create!` SELECTs first and raises `RecordInvalid` **without issuing the failing
+INSERT**, leaving the transaction clean. The defect needs a real
+`ActiveRecord::RecordNotUnique` from the index, which only occurs when a
+competing writer commits *after* our validation passed — which is also why
+`ReferenceMapConcurrencyTest` only failed intermittently. New
+`ReferenceMapLostRaceTest` commits the competing row **from a second connection
+inside a `before_create` hook**, joined before the hook returns: no sleeps, no
+scheduling luck. Covers all three outcomes (idempotent / `ImmutableBinding` /
+`DestinationConflict`), the winner's binding never being rewritten, the loser
+never getting a row, and the connection staying usable afterwards.
+
+**Verified both ways.** With the savepoint removed, five tests fail with
+`PG::InFailedSqlTransaction`. With it in place, 3/3 consecutive runs green.
+
+**Same shape elsewhere — audited, one genuine look-alike left open.** All 16
+`rescue ActiveRecord::RecordNotUnique` sites reviewed. Most rescue *outside* the
+transaction block (Rails has already issued the ROLLBACK, so the connection is
+clean); `Analytics::Emit` is covered by Rails' own `create_or_find_by!`, which
+already uses `requires_new: true`. **`Notifications::EventPublisher.publish!`
+(`domains/notifications/event_publisher.rb:108`) has the same exposure** — it
+recovers with `find_by!` after `find_or_create_by!` and is called inside the
+transaction `Hooks::SendHook` opens (`send_hook.rb:58`). **Not fixed here**: it is
+outside migration infrastructure and off Pass 2's path, and deserves its own
+slice rather than being smuggled into this one.
+
+**Files.** `domains/migration/reference_map.rb` (savepoint + comment),
+`test/domains/migration/reference_map_test.rb` (+6 tests),
+`FOLLOWUP-REFERENCE-MAP-CLAIM.md` (CLOSED), `README.md`.
+
+**Evidence.** `reference_map_test.rb` 20 runs / 58 assertions / 0 failures (×3).
+Touched-area (`test/domains/{migration,date9ja,profiles}` + `test/scripts`) 502
+runs / 15466 assertions / 0 failures. RuboCop 0 offenses on both touched files.
+
+**Lifecycle. IMPLEMENTED / SELF_VERIFIED. NOT independently reviewed.** The
+existing thread-racing `ReferenceMapConcurrencyTest` is retained as an
+integration check but remains scheduling-dependent by nature; the new tests are
+the deterministic guard.
+
 ## Date9ja profile & preference migration — Pass 1: source value census & mapping contract — **IMPLEMENTED / SELF_VERIFIED (2026-09-05)**
 
 Evidence feature. It measures the Date9ja source so Pass 2 can be built safely.

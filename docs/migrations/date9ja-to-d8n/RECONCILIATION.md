@@ -145,12 +145,169 @@ seed or admin exclusion, so neither does this table.
 | No `max_distance_km` source | **288** | column NULL for every row (D-10) |
 | No `meeting_pace` source | **288** | column does not exist (D-7) |
 | No `country_code` derivable without E-1 | **288** | zero rows are already ISO-2 |
-| `looking_for` of doubtful reliability | **79** onboarded members whose value equals their own gender, within a 280-row eligible population whose reliability is doubtful as a whole | onboarding form pre-filled the control and the field was never enforced (D-9). **Not a count of wrong values** — the census cannot identify an individual wrong value |
+| ~~`looking_for` of doubtful reliability~~ | **0 — not a quarantine class** | **D-9 RESOLVED (2026-09-06): every `looking_for` value migrates exactly as stored.** Nothing here is quarantined. A same-gender preference is an orientation, not a defect — some members are gay — and migration does not revise what a member already chose. The cohort figures (79/112 onboarded vs 28/168 not) remain in `PROFILE-VALUE-MAPPING.md` §5.3 as history about the *form*, never as a judgement about a person |
 | `body_type` outside the six documented suggestions | **13** of 194 present | free-text column (D-3) |
 | Missing required `smoking` | **201** | never answered (D-11) |
 | Missing required `drinking` | **113** | never answered (D-11) |
 | `full_name` not two-token | **38** | 26 one-token + 12 three-or-more (D-4) |
 | `height` outside any plausible band | present:188, range **1..588** | junk values (E-2) |
+
+### Pass-2 destination-side contract (profile & preference importer)
+
+`Date9ja::Import::ProfilePreferenceReconciliation#to_h` is deterministic and
+**PII-free** — counts and codes only, asserted by test. Every considered row
+lands in exactly one disposition, so
+`source_users_considered == sum(dispositions)` always holds (`balanced?`).
+
+| Section | Keys |
+|---|---|
+| `dispositions` | `imported`, `already_imported`, `skipped`, `failed` |
+| `created` | `preferences_created`, `option_selections_created`, `genders_decoded`, `legacy_references_created` |
+| `anomalies` | `binding_conflicts`, `malformed_rows` |
+| `reasons` | `source_soft_deleted`, `source_banned`, `profile_not_imported`, `already_imported`, `dangling_binding`, `binding_conflict`, `preference_invalid`, `option_selection_invalid`, `source_row_error` |
+| `notes` | why a field was left unset on an otherwise successful import |
+
+**`notes` are deliberately NOT dispositions.** A row can import successfully and
+still leave a field unset — because the member never answered (`*_absent`) or
+because its legacy code has no approved D8N destination yet (`*_unmapped`).
+That is a partial import, not a failure, and counting it as one would misreport
+the run. Expected source-side magnitudes, from the Pass-1 census:
+
+| Note | Expected | Cause |
+|---|---:|---|
+| `max_distance_km_no_source` | **280** (every eligible row) | column NULL for all 288 (D-10 relaxed) |
+| `meeting_pace_no_source` | **280** (every eligible row) | column never existed (D-7 relaxed) |
+| `age_range_absent` | ~215 | `preferred_age_min`/`max` NULL for 222/223 |
+| `age_range_invalid` | **0** | census found 0 out-of-range and 0 inverted |
+| `relationship_intent_absent` | 75 | NULL |
+| `relationship_intent_unmapped` | **35** | `courtship` 27 + `dating` 7 + `activity_partner` 1 (D-5) |
+| `wants_children_unmapped` | **45** | legacy `open` (D-6) |
+| `has_children_absent` | 139 | `children_count` NULL |
+| `interested_in_unmapped` | **0** | both codes map; **same-gender values are ordinary, never unmapped** |
+| `gender_unmapped` | **0** | both codes map, 0 NULL |
+
+Acceptance for a Pass-2 run: `balanced?` true; `preferences_created + already_imported`
+equals the eligible population (280); `anomalies` all zero; and every
+`*_unmapped` count equals the census figure above — a *different* number means
+the source drifted or a mapping table changed, and must be explained before the
+run is accepted.
+
+### Pass-2 destination rehearsal — RUN 2026-09-06
+
+**Environment.** Isolated PG17 instance (`127.0.0.1:55432`) holding
+`date9ja_snapshot_sanitized`, read through `Date9ja::Snapshot::Connection`
+(fail-closed safety fences); destination a throwaway
+`d8n_date9ja_rehearsal_pref_20260906` under `RAILS_ENV=test`. **No Date9ja
+production system was contacted.** Dependency order: `db:schema:load` →
+`Brands::Date9jaInstaller` (12 option groups / 86 options) →
+`date9ja:import_identity` → `date9ja:import_profile_preferences`.
+
+Identity import reproduced its VERIFIED baseline exactly: 288 considered → **280
+imported / 8 skipped (`source_soft_deleted`) / 0 failed**, 1580 bindings.
+
+**Staged starting state.** To exercise the gender repair path against the real
+corpus, all 280 profiles were reset to the raw legacy code the *earlier*
+rehearsal actually produced (`"0"` / `"1"`), and **5 profiles whose source says
+`man` were given the member-chosen value `"woman"`** — non-legacy values the
+importer must not touch.
+
+#### Source (eligible cohort, `deleted_at IS NULL AND banned_at IS NULL` = 280) → destination
+
+| Measure | Source | Destination | |
+|---|---|---|---|
+| eligible migrated members | 280 | 280 Profile rows found | ✅ |
+| `gender` | `0:189 1:91` | `man:184` + `woman:96` — i.e. 189/91 with the 5 planted member choices moved | ✅ |
+| raw `"0"`/`"1"` remaining | — | **0** | ✅ |
+| genders decoded | 275 raw codes present | `genders_decoded: 275` | ✅ |
+| member-chosen gender overwritten | — | **0 of 5** | ✅ |
+| `looking_for` → `interested_in` | `0:194 1:86` | `["man"]:194` `["woman"]:86` | ✅ |
+| gender × interested_in | census 259 `g0/l0:105 g0/l1:84 g1/l0:89 g1/l1:2` | `man→man:105` `man→woman:79` `woman→man:89` `woman→woman:7` — the 5 planted profiles moved from `man→` to `woman→` | ✅ |
+| age pair valid | 63 | `min_age`+`max_age` set on **63** | ✅ |
+| age both NULL | 216 | `age_range_absent: 216` | ✅ |
+| age half-answered | 1 (min only) | `age_range_partial: 1` | ✅ |
+| age inverted / out of range | **0 / 0** | `age_range_invalid: 0` | ✅ |
+| `preferred_distance_km` | NULL for all 280 | `max_distance_km` NULL for **280**, set for **0** | ✅ |
+| `ProfilePreference` created | — | **280** | ✅ |
+| `profile_preference` bindings | — | **280**, 0 unbound, 0 duplicate | ✅ |
+
+**`interested_in` is taken from `looking_for`, never inferred from gender** —
+proven by the totals: 194/86 matches `looking_for`, not gender's 189/91.
+**Same-gender preferences are carried across normally**: `man→man` is the single
+largest bucket at 105, handled by exactly the same code path, with no flag,
+reason code or quarantine.
+
+#### Option selections — 477 created
+
+| Group | Source populated | Mapped | Unresolved | NULL skipped | Created | Anomalies |
+|---|---:|---:|---:|---:|---:|---:|
+| `relationship_intent` ← `relationship_intention` | 208 | **175** | **33** | 72 | 175 | 0 |
+| `wants_children` ← `wants_children` | 203 | **158** | **45** | 77 | 158 | 0 |
+| `has_children` ← `children_count` | 144 | **144** | 0 | 136 | 144 | 0 |
+| `meeting_pace` | **0 — no source column exists** | 0 | 0 | — | 0 | 0 |
+
+Destination values: `relationship_intent` `marriage:106` `long_term_relationship:68`
+`friendship:1`; `wants_children` `yes:139` `no:19`; `has_children` `no:138` `yes:6`.
+Each equals its source code count exactly.
+
+**Intentionally unresolved — no mapping was invented to improve these numbers:**
+
+| Legacy value | Count | Why unresolved |
+|---|---:|---|
+| `relationship_intention: courtship` (1) | **26** | no D8N option means this (D-5) |
+| `relationship_intention: dating` (3) | **7** | `casual_dating` and `open_to_dating` are different claims (D-5) |
+| `relationship_intention: activity_partner` (5) | **0 present** | no D8N counterpart (D-5) |
+| `wants_children: open` (2) | **45** | `maybe` and `open_to_partner_with_children` mean different things (D-6) |
+
+`education`, `smoking` and `drinking` are **not in this slice's scope** — profile
+scalars are a later slice; no selection or column was written for them.
+
+#### Idempotency — second run, same source
+
+`0 imported / 280 already_imported / 8 skipped / 0 failed`, balanced, and **every
+creation counter zero**: 0 preferences, 0 option selections, 0 genders decoded, 0
+bindings. Duplicate `LegacyReference` bindings **0**; duplicate preferences per
+profile **0**; duplicate selections per group **0**; totals unchanged at
+280 / 477 / 280.
+
+#### Member-choice preservation — proven on the real corpus
+
+Between the two runs, member-owned values were planted and the importer re-run:
+
+| Planted | Result |
+|---|---|
+| 5 profiles with a member-chosen `gender` (`"woman"`, source says `man`) | **5/5 preserved, 0 overwritten** |
+| 10 preferences changed (`interested_in` `["woman","man"]`, ages 21-55, `max_distance_km: 42`) | **10/10 preserved exactly**, including a distance the importer never writes and never cleared |
+| 10 `wants_children` selections changed to `maybe` | **10/10 preserved** |
+
+The gender repair fired on **exactly** the 275 profiles still holding a raw
+legacy code and on none of the 5 member-owned values.
+
+#### Discovery compatibility — bounded, nothing published
+
+Run inside a transaction that was **rolled back**; publication state before and
+after is identical (`draft:273 suspended:7`, `visibility hidden:280`). **No
+migrated member was published or unhidden.**
+
+| Viewer shape | Reciprocal gender match | …with an age range | Full `EligibilityScope` |
+|---|---:|---:|---:|
+| `man → man` (same-gender) | **104** | 16 | 0 |
+| `man → woman` | 93 | 18 | **4** |
+| `woman → man` | 84 | 42 | 0 |
+| `woman → woman` (same-gender) | 84 | 42 | 0 |
+
+The migrated `man`/`woman` strings are **compatible with
+`Matching::EligibilityScope`**, and **same-gender values are treated identically
+to opposite-gender ones** — `man→man` yields the *largest* reciprocal pool of any
+shape (104). Unset `max_distance_km` does **not** eliminate the cohort: with no
+viewer location and no distance on either side, `EligibilityScope#without_viewer_location`
+keeps every candidate whose own `max_distance_km` is NULL, and all 4 candidates in
+the working sample are exactly those.
+
+**The remaining narrowing is age reciprocity, not gender and not distance.** Only
+68 of 280 migrated members are matching participants, and 33 of those have at
+least one candidate, because **217 members have no age range at all**. That is
+the same absence-of-source shape as D-10 / D-7, and it is recorded as **D-12**;
+no value was invented for it here.
 
 ### Standing invariants
 

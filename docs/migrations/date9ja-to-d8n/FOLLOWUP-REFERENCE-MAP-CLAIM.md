@@ -1,13 +1,18 @@
 # Follow-up: `Migration::ReferenceMap.claim` aborts its own recovery path
 
-**Status:** OPEN — **blocking for Pass 2** of the profile & preference migration.
+**Status: CLOSED — fixed 2026-09-06.** `domains/migration/reference_map.rb`
+`claim` now wraps its INSERT in `LegacyReference.transaction(requires_new: true)`,
+so a unique violation rolls back to a savepoint and the enclosing transaction
+survives to run the documented recovery. Deterministic regression tests:
+`Migration::ReferenceMapLostRaceTest` (`test/domains/migration/reference_map_test.rb`).
+No longer blocking for Pass 2. The rest of this document is retained as the
+diagnosis and the record of what was changed.
 **Raised:** 2026-09-05, during Pass 1 (source value census). Found by code
 reading after a concurrency test failed under parallel load.
-**Not fixed here.** Pass 1 is an evidence feature and changed no production code
-(this document was re-worded, but not the code, in the 2026-09-06 review-fix
-pass);
-this is a production defect in shared migration infrastructure and needs its own
-slice, its own review, and its own commit.
+**History.** Raised during Pass 1, which is an evidence feature and deliberately
+changed no production code. Fixed afterwards as its own small slice, as intended
+— the fix is production code in shared migration infrastructure, kept separate
+from both the Pass-1 evidence work and Pass 2.
 
 ---
 
@@ -79,9 +84,10 @@ path.
   parallel-only failure, confirming the suite has several order/timing-sensitive
   tests and that the trigger here is scheduling, not the census work.
 
-## Why this blocks Pass 2
+## Why this had to be fixed before Pass 2
 
-Pass 2 is a **direct `ReferenceMap` consumer**: it will bind the
+Pass 2 is a **direct `ReferenceMap` consumer**, which is why this was treated as
+a blocker: it will bind the
 `ProfilePreference` it creates for each migrated member, plus whatever further
 bindings Pass 2 explicitly introduces. *(It is not claimed here that every
 `ProfileOptionSelection` is registered as its own binding — Pass 2 has not been
@@ -101,17 +107,48 @@ The exposure is narrower than "any retry", and worth stating exactly:
 - the same path is on the critical route for the cutover delta, which is where
   concurrency is most likely to be introduced.
 
-## Scope of the fix (for whoever picks this up)
+## The fix, as applied (2026-09-06)
 
-1. Wrap the `create!` in `claim` in `requires_new: true` so the unique-violation
-   rolls back to a savepoint and the outer transaction survives.
-2. Confirm `assert_same_binding!` still classifies all three outcomes correctly
-   (identical → idempotent, source key taken → `ImmutableBinding`, destination
-   taken → `DestinationConflict`).
-3. Make `ReferenceMapConcurrencyTest` deterministic rather than
-   scheduling-dependent, so the regression cannot hide again.
-4. Check whether any other importer rescues a constraint violation inside an
-   enclosing transaction — the same shape may exist elsewhere.
+**1. Savepoint.** `claim` wraps its `create!` in
+`LegacyReference.transaction(requires_new: true)`. The unique violation now rolls
+back to a savepoint; the enclosing transaction stays usable and the recovery
+`locate` runs. This is the same idiom Rails uses internally for
+`create_or_find_by!`. One-line change; no signature, semantics or call-site change.
 
-Do not bundle this with a Pass-2 feature: it is shared infrastructure with its
-own blast radius and deserves an independent review.
+**2. All three outcomes reconfirmed** by test — identical → idempotent (metadata
+still refreshes), source key taken → `ImmutableBinding` (the winner's binding is
+never rewritten), destination taken → `DestinationConflict` (the loser gets no
+row).
+
+**3. Deterministic regression tests.** `ReferenceMapLostRaceTest` reproduces the
+lost race without threads racing, sleeps, or scheduling luck.
+
+> **Why a naive reproduction does not work, and why the old test was flaky.**
+> Staging the conflicting row *before* calling `bind!` does **not** reproduce
+> this defect. `LegacyReference` carries model-level uniqueness validations
+> (`app/models/legacy_reference.rb:20-23`), so `create!` SELECTs first and raises
+> `ActiveRecord::RecordInvalid` **without ever issuing the failing INSERT** —
+> the transaction is never poisoned and the recovery works. The defect needs a
+> genuine `ActiveRecord::RecordNotUnique` from the database index, which only
+> happens when a competing writer commits *after* our validation passed. That is
+> exactly why `ReferenceMapConcurrencyTest` only failed intermittently: it
+> needed two threads to clear validation in the same instant.
+>
+> The new tests therefore commit the competing row **from a second connection
+> inside a `before_create` hook** — after our validations have passed, before our
+> INSERT. The thread is joined before the hook returns, so the ordering is fixed.
+> Verified both ways: with the savepoint removed, five tests fail with
+> `PG::InFailedSqlTransaction`; with it in place, 3/3 runs green.
+
+**4. Same shape elsewhere — checked.** All 16 `rescue ActiveRecord::RecordNotUnique`
+sites were reviewed. Most rescue *outside* the transaction block (the exception
+has already escaped, so Rails has issued the ROLLBACK and the connection is
+clean), and `Analytics::Emit` is safe because Rails' own `create_or_find_by!`
+already uses `requires_new: true`. **One genuine look-alike was found and is NOT
+fixed here** because it is outside migration infrastructure and off Pass 2's
+path: `Notifications::EventPublisher.publish!`
+(`domains/notifications/event_publisher.rb:108`) recovers with `find_by!` after
+`find_or_create_by!`, and is called *inside* the transaction that
+`Hooks::SendHook` opens (`domains/hooks/send_hook.rb:58`). It has the same
+aborted-transaction exposure under concurrency and wants the same one-line fix in
+its own slice.

@@ -110,13 +110,21 @@ module Migration
     private_class_method :locate
 
     def claim(key:, target:, importer_version:, fingerprint:)
-      LegacyReference.create!(
-        **key.to_h_attrs,
-        destination_type: target.type, destination_id: target.id, brand_id: target.brand_id,
-        importer_version:, source_fingerprint: fingerprint
-      )
+      # `requires_new: true` is load-bearing, not defensive. In PostgreSQL a
+      # failed statement aborts the whole transaction, and this runs inside the
+      # one bind! opened -- so without a savepoint the unique violation would
+      # poison that transaction and the recovery `locate` below could only raise
+      # PG::InFailedSqlTransaction. The savepoint scopes the rollback to this
+      # insert and leaves the enclosing transaction usable.
+      LegacyReference.transaction(requires_new: true) do
+        LegacyReference.create!(
+          **key.to_h_attrs,
+          destination_type: target.type, destination_id: target.id, brand_id: target.brand_id,
+          importer_version:, source_fingerprint: fingerprint
+        )
+      end
     rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
-      # A concurrent writer won the race between our locate check and this
+      # A concurrent claimer won the race between our locate check and this
       # insert. Re-resolve and let assert_same_binding! classify the outcome
       # (identical => idempotent, source key taken => ImmutableBinding,
       # destination taken => DestinationConflict).

@@ -64,7 +64,7 @@ module Date9ja
         {
           display_name: clamp(record.display_name, 80),
           birthdate: parse_date(record.date_of_birth),
-          gender: clamp(record.gender, 40),
+          gender: gender(record),
           city: clamp(record.city, 120),
           country_code: country_code(record.country_of_residence),
           bio: clamp(record.about_me, 1_000),
@@ -72,6 +72,17 @@ module Date9ja
           status: profile_status(record),
           visibility: profile_visibility(record)
         }.compact
+      end
+
+      # `users.gender` is an INTEGER enum (`{ man: 0, woman: 1 }`), not a word.
+      # Copying it through unchanged wrote the strings "0"/"1" into
+      # `profiles.gender`, which `Matching::EligibilityScope` then compared
+      # verbatim against `interested_in` — so it matched nothing. Decode through
+      # the one mapping table (D-1) instead. An unknown code is left nil rather
+      # than guessed; `ProfilePreferenceImport` records it as a note.
+      def gender(record)
+        outcome = ValueMapping.gender(record.gender)
+        outcome.ok? ? outcome.value : nil
       end
 
       def clamp(value, limit)

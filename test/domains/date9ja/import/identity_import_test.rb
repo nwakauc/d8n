@@ -37,7 +37,11 @@ module Date9ja
           "profile_hidden" => false,
           "onboarding_completed_at" => Time.utc(2024, 2, 1),
           "date_of_birth" => Date.new(1994, 6, 15),
-          "gender" => "woman",
+          # The REAL source shape: `users.gender` is an integer enum
+          # (`{ man: 0, woman: 1 }`), never a word. Fixtures used to supply
+          # "woman" here, which is why the suite could not see that the importer
+          # was writing "0"/"1" into profiles.gender.
+          "gender" => 1,
           "display_name" => "Member #{id}",
           "city" => "Lagos",
           "country_of_residence" => "NG",
@@ -133,7 +137,7 @@ module Date9ja
       end
 
       test "maps the approved non-sensitive profile fields" do
-        import([ row(id: 1, display_name: "Ada", gender: "woman", city: "Abuja", country_of_residence: "NG") ])
+        import([ row(id: 1, display_name: "Ada", gender: 1, city: "Abuja", country_of_residence: "NG") ])
 
         profile = resolved("profile", 1)
         assert_equal "Ada", profile.display_name
@@ -141,6 +145,20 @@ module Date9ja
         assert_equal "woman", profile.gender
         assert_equal "Abuja", profile.city
         assert_equal "NG", profile.country_code
+      end
+
+      test "decodes the legacy integer gender enum rather than copying the code" do
+        import([ row(id: 1, gender: 0), row(id: 2, gender: 1, phone: "+2348020000002") ])
+
+        assert_equal "man", resolved("profile", 1).gender
+        assert_equal "woman", resolved("profile", 2).gender
+      end
+
+      test "leaves gender unset for a code with no approved meaning" do
+        import([ row(id: 1, gender: 7) ])
+
+        assert_nil resolved("profile", 1).gender,
+          "an unknown legacy code is never guessed at or copied through"
       end
 
       # --- idempotency -----------------------------------------------------

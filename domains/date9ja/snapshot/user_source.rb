@@ -19,6 +19,8 @@ module Date9ja
         created_at deleted_at suspended_at banned_at profile_hidden
         onboarding_completed_at date_of_birth gender display_name city
         country_of_residence about_me ideal_partner_description
+        looking_for preferred_age_min preferred_age_max preferred_distance_km
+        relationship_intention wants_children children_count
       ].freeze
 
       def initialize(rows: nil, connection: nil, verify_schema: true)

@@ -74,18 +74,34 @@ D-3, D-4, D-5, D-6, D-7, D-8, D-9, D-10, D-11.** There is no D-2: the pre-run
 draft's invalid-preference row was closed by evidence (no invalid ages or
 distances exist) and nothing was renumbered around it.
 
-Headline blockers for Pass 2:
+**RESOLVED 2026-09-06 — and shipped in the Pass-2 importer:**
 
-- **D-1** — the canonical gender / interested-in vocabulary. D8N discovery matches
-  `profiles.gender` against `profile_preferences.interested_in` reciprocally and
-  exactly, and `profiles.gender` has no catalogue to map onto.
-- **D-9** — whether to migrate the stored `looking_for` values as they are.
-  Historical Date9ja behaviour creates substantial doubt about whether they
-  reliably represent member intent, and D8N enforces the field.
-- **D-10** — `preferred_distance_km` is a required Date9ja preference field and is
-  NULL for every source row, so no member can get a complete `ProfilePreference`.
-- **D-7** — `meeting_pace` is a required Date9ja completion group with **no legacy
-  source**, which blocks publication for every migrated member.
+- **D-1** — the gender vocabulary is **`man` / `woman`**, on both sides of the
+  reciprocal match.
+- **D-9** — **migrate every `looking_for` value exactly as stored.** Two reasons:
+  **some members are gay**, so a same-gender preference is an orientation and a
+  correct answer, never an error to flag or re-ask; and **migration does not
+  change anything a member has already chosen.** The Pass-1 cohort figures stay
+  on record as history about the onboarding form, not as evidence about any
+  individual.
+- **D-7 / D-10 / D-11** — **relax** the four required-but-sourceless fields
+  (`max_distance_km`, `meeting_pace`, `smoking`, `drinking`). All four stay
+  enabled and collected; none is a publication gate. Nothing was fabricated and
+  nothing was discarded.
+
+**Still blocking full profile/preference parity:**
+
+- **D-8** — publication policy for migrated members. They remain `:draft` /
+  `:hidden`, so nobody is discoverable in production yet. This is now the single
+  largest remaining gate.
+- **D-4** — the `full_name` split. `first_name` / `last_name` are required
+  identity fields no importer sets, and 38 of 288 names do not fit a two-token
+  assumption.
+- **E-1** — `country_code` is required and **no** source value is already ISO-2.
+- **D-5 / D-6** — the residual option codes the importer fails closed on:
+  `courtship` (27), `dating` (7), `activity_partner` (1) and
+  `wants_children: open` (45). Resolving them completes those members on a
+  re-run; nothing is folded onto a near-enough option in the meantime.
 
 These are independent of, and do not resolve, the sensitive-field rows above
 (tribe / ethnicity / denomination / genotype / state_of_origin / preferred_tribes /

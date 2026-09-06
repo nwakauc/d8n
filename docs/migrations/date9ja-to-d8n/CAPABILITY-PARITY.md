@@ -180,6 +180,26 @@ mapping is approved, ten product decisions and six engineering-contract decision
 are open (`PROFILE-VALUE-MAPPING.md` §6), and **nothing here is promoted. No
 count in this document changes.**
 
+Delta log: Date9ja profile & preference importer — Pass 2 IMPLEMENTED /
+SELF_VERIFIED (2026-09-06, `STATUS.md`). **Rows unchanged; no count in this
+document changes.** `Date9ja::Import::ProfilePreferenceImport` creates the
+`ProfilePreference` and option selections the identity slice deliberately did
+not, and decodes `profiles.gender` from the legacy integer code to `man`/`woman`
+so `Matching::EligibilityScope` can match it — together removing the reason every
+migrated member was excluded from matching. Proven end to end against the **real**
+`EligibilityScope`: two migrated members find each other in both directions, and
+so does a migrated same-gender pair. Product decisions taken: D-1 (`man`/`woman`),
+D-9 (migrate `looking_for` verbatim — a same-gender preference is an orientation,
+not a defect, and migration never revises a member's own choice), D-7/D-10/D-11
+(relax the four required-but-sourceless fields; all stay enabled). Fails closed
+and counts, rather than guessing, on D-5's `courtship`/`dating`/`activity_partner`
+and D-6's `wants_children: open`. **Gender / Interested-in / Relationship-intent /
+Family / Completion stay PARTIAL** — migrated profiles are still `:draft`/`:hidden`
+pending **D-8**, `first_name`/`last_name` are still unset pending **D-4**, and
+`country_code` is still unmappable pending **E-1**, so no member is discoverable
+in production yet. Not independently reviewed, no operator rehearsal, **NOT
+`PARITY_ACCEPTED`.**
+
 ## Source evidence used for normalization
 
 The reachability review used Date9ja API controllers/models/jobs/channels plus the web and mobile clients, including `api/app/controllers/api/v1/careers_controller.rb`, `feedback_items_controller.rb`, `message_reactions_controller.rb`, `dating_hub/*`, `community/*`, `aunty_phobie_controller.rb`, `profile_views_controller.rb`, `profile_videos_controller.rb`, and `config/routes.rb`; web `src/pages/CareersPage.js`, `CommunityPage.js`, `DatingHubPage.js`, `AuntyPhobiePage.js`, `ProfileViewsPage.js`, `MessagesPage.js`, and `src/api/client.js`; and the mobile navigation/API surfaces. These are source-repository observations only; no production usage counts were accessed.

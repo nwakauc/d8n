@@ -19,8 +19,9 @@ The source password hashes are expected to be directly reusable: Date9ja uses De
 - [API-COMPATIBILITY.md](API-COMPATIBILITY.md) — legacy frontend/API comparison and minimum client work
 - [RECONCILIATION.md](RECONCILIATION.md) — count, integrity, media, and idempotency checks
 - [SNAPSHOT-RUNBOOK.md](SNAPSHOT-RUNBOOK.md) — minimum sanitized snapshot / data dictionary needed to unblock the bcrypt proof and importer
-- [FOLLOWUP-REFERENCE-MAP-CLAIM.md](FOLLOWUP-REFERENCE-MAP-CLAIM.md) — open, Pass-2-blocking
-  defect in the shared `Migration::ReferenceMap` idempotency spine
+- [FOLLOWUP-REFERENCE-MAP-CLAIM.md](FOLLOWUP-REFERENCE-MAP-CLAIM.md) — **CLOSED (2026-09-06)**;
+  the aborted-transaction defect in the shared `Migration::ReferenceMap` idempotency
+  spine, its savepoint fix, and why a naive reproduction of it does not work
 - [PROFILE-VALUE-MAPPING.md](PROFILE-VALUE-MAPPING.md) — value-level mapping contract for the
   profile & preference migration (legacy `users` values -> D8N profile/preference/option values);
   carries the Pass-1 census evidence and the profile-value decision register

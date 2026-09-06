@@ -13,7 +13,12 @@ module Date9ja
       :confirmed_at, :phone_verified_at, :created_at, :deleted_at,
       :suspended_at, :banned_at, :profile_hidden, :onboarding_completed_at,
       :date_of_birth, :gender, :display_name, :city, :country_of_residence,
-      :about_me, :ideal_partner_description
+      :about_me, :ideal_partner_description,
+      # Preference / option-group inputs, added with the profile & preference
+      # importer slice. Legacy enum CODES and integers -- decoded by
+      # Date9ja::Import::ValueMapping, never interpreted here.
+      :looking_for, :preferred_age_min, :preferred_age_max, :preferred_distance_km,
+      :relationship_intention, :wants_children, :children_count
     ) do
       BOOLEAN = ActiveModel::Type::Boolean.new
 
@@ -39,7 +44,14 @@ module Date9ja
           city: row["city"],
           country_of_residence: row["country_of_residence"],
           about_me: row["about_me"],
-          ideal_partner_description: row["ideal_partner_description"]
+          ideal_partner_description: row["ideal_partner_description"],
+          looking_for: row["looking_for"],
+          preferred_age_min: row["preferred_age_min"],
+          preferred_age_max: row["preferred_age_max"],
+          preferred_distance_km: row["preferred_distance_km"],
+          relationship_intention: row["relationship_intention"],
+          wants_children: row["wants_children"],
+          children_count: row["children_count"]
         )
       end
 

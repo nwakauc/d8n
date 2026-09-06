@@ -495,6 +495,39 @@ Do **not** begin these after the snapshot lands — they need `DECISIONS.md` row
 | Leak check | reconciliation output is counts + reason codes only — no email/phone/hash/free-text |
 | Outcome | Wave A Slice 3 **implementation reviewed + rehearsal VERIFIED**. **NOT `PARITY_ACCEPTED`, NOT production-ready, NOT cutover-ready.** Deferred mapping/product decisions remain open (see `STATUS.md`). |
 
+### Profile & preference importer rehearsal (Pass 2) — record — **IMPLEMENTED / SELF_VERIFIED (2026-09-06)**
+
+| Field | Value |
+|---|---|
+| Importer | `Date9ja::Import::ProfilePreferenceImport`, `date9ja:import_profile_preferences` rake task |
+| Source | `date9ja_snapshot_sanitized` on the isolated PG17 instance (read-only, fail-closed `Snapshot::Connection` fences) |
+| Destination | throwaway `d8n_date9ja_rehearsal_pref_20260906`, `RAILS_ENV=test` |
+| Order | `db:schema:load` → `Brands::Date9jaInstaller` (12 groups / 86 options) → `date9ja:import_identity` (280/8/0) → `date9ja:import_profile_preferences` |
+| First pass | 288 considered → **280 imported / 8 skipped / 0 failed**; 280 preferences, 477 option selections, 275 genders decoded, 280 bindings; all anomaly counters 0; balanced |
+| Second pass | 288 considered → **0 imported / 280 already_imported / 8 skipped / 0 failed**; every creation counter 0; zero duplicate bindings/preferences/selections |
+| Member-choice preservation | 5/5 member-chosen genders, 10/10 member-changed preferences, 10/10 member-changed selections all survived the rerun |
+| Publication | **unchanged** — `draft:273 suspended:7`, `hidden:280` before and after; the discovery smoke check ran inside a rolled-back transaction |
+| Leak check | reconciliation output is counts + reason/note codes only — no email, phone, name or free text |
+| Outcome | **IMPLEMENTED / SELF_VERIFIED.** NOT independently reviewed, **NOT `PARITY_ACCEPTED`**, not production- or cutover-ready. D-8 / D-12 / D-4 / E-1 remain open (`STATUS.md`). |
+
+```bash
+# Isolated snapshot instance already running on 127.0.0.1:55432.
+export RAILS_ENV=test
+export DATABASE_URL=postgresql://localhost/d8n_date9ja_rehearsal_pref_20260906   # throwaway
+export DATE9JA_SNAPSHOT_DATABASE_URL=postgresql://127.0.0.1:55432/date9ja_snapshot_sanitized
+
+createdb d8n_date9ja_rehearsal_pref_20260906
+bin/rails db:schema:load
+bin/rails runner 'Brands::Date9jaInstaller.call(hosts: ["date9ja.test"])'
+bin/rails date9ja:import_identity              # 280 imported / 8 skipped / 0 failed
+bin/rails date9ja:import_profile_preferences   # 280 imported / 477 selections / 275 decoded
+bin/rails date9ja:import_profile_preferences   # rerun -> 280 already_imported, zero growth
+```
+
+**Cleanup:** `dropdb d8n_date9ja_rehearsal_pref_20260906`; stop the PG17
+instance. Nothing is committed and no snapshot data leaves the isolated
+environment.
+
 ### Profile-photo MEDIA PREFLIGHT rehearsal (pass 1) — procedure
 
 `bin/rails date9ja:preflight_photos` (after `date9ja:import_identity`, same

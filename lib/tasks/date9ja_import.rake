@@ -18,6 +18,25 @@ namespace :date9ja do
     Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
   end
 
+  desc "Rehearsal: Date9ja profile & preference import (Pass 2) against a restored scratch " \
+       "snapshot (set DATE9JA_SNAPSHOT_DATABASE_URL). Run AFTER date9ja:import_identity. " \
+       "Creates ProfilePreference + option selections and decodes the legacy gender code; " \
+       "publishes nothing and unhides nobody. Prints a PII-free reconciliation JSON."
+  task import_profile_preferences: :environment do
+    require "json"
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+
+    connection = Date9ja::Snapshot::Connection.connect!
+    source = Date9ja::Snapshot::UserSource.new(connection: connection)
+
+    result = Date9ja::Import::ProfilePreferenceImport.call(brand: brand, source: source)
+
+    puts JSON.pretty_generate(result.reconciliation.to_h)
+  ensure
+    Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
+  end
+
   desc "Wave A Step 3 operator check: drive ALREADY-MIGRATED Date9ja accounts through the shared " \
        "D8N auth journey (login + brand session + cross-brand isolation + recovery→reset + " \
        "deactivate↔reactivate). Broad companion to scripts/date9ja/bcrypt_proof.rb (which proves " \

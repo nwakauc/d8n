@@ -56,17 +56,58 @@ module Profiles
     ].freeze
 
     REQUIRED_IDENTITY_FIELDS = %w[ first_name last_name ].freeze
+
+    # REQUIRED vs ENABLED
+    #
+    # A field being *enabled* means the brand collects it. A field being
+    # *required* means a profile cannot be complete (and therefore cannot
+    # publish) without it. The four fields moved out of the required lists below
+    # are still enabled, still collected, and still asked for in onboarding —
+    # they are simply not publication gates.
+    #
+    # WHY THEY MOVED (D-7, D-10, D-11, resolved 2026-09-06). The Pass-1 source
+    # census measured what Date9ja actually holds for its ~280 migrating
+    # members:
+    #
+    #   max_distance_km  NULL for ALL 288 source rows (census 240)
+    #   meeting_pace     no source column has ever existed (census 202 = `none`)
+    #   smoking          NULL for 201 (census 212)
+    #   drinking         NULL for 113 (census 213)
+    #
+    # Keeping them required left exactly three options: block every migrated
+    # member from publishing until they answer, invent values they never gave,
+    # or relax the requirement. Inventing member data is the one this programme
+    # has consistently refused (ADR 0027 photo moderation, ADR 0029 video
+    # duration), and blocking everyone empties the brand at cutover. So the
+    # requirement moved. Nothing was fabricated and nothing was discarded.
+    #
+    # This is a Date9ja brand-policy statement, not a platform change: other
+    # brands' catalogues are untouched, and the shared FieldCatalog still owns
+    # what these fields mean and how they validate.
     REQUIRED_PROFILE_FIELDS = %w[
-      display_name birthdate gender country_code city bio smoking drinking
+      display_name birthdate gender country_code city bio
     ].freeze
     OPTIONAL_PROFILE_FIELDS = %w[
-      occupation job_title school_or_institution looking_for_text height_cm body_type
-      languages fitness
+      smoking drinking occupation job_title school_or_institution looking_for_text
+      height_cm body_type languages fitness
     ].freeze
-    REQUIRED_PREFERENCE_FIELDS = %w[ interested_in min_age max_age max_distance_km ].freeze
+    # The ENABLED set and its order are the brand's public contract and did not
+    # change when smoking/drinking stopped being publication gates; only the
+    # REQUIRED list above did.
+    ENABLED_PROFILE_FIELDS = %w[
+      display_name birthdate gender country_code city bio smoking drinking
+      occupation job_title school_or_institution looking_for_text height_cm
+      body_type languages fitness
+    ].freeze
+    REQUIRED_PREFERENCE_FIELDS = %w[ interested_in min_age max_age ].freeze
+    # Enabled but not required — see REQUIRED_PROFILE_FIELDS above.
+    ENABLED_PREFERENCE_FIELDS = %w[ interested_in min_age max_age max_distance_km ].freeze
     REQUIRED_OPTION_GROUPS = %w[
-      relationship_intent has_children wants_children meeting_pace
+      relationship_intent has_children wants_children
     ].freeze
+    # Installed and offered, but never a publication gate: no legacy source
+    # exists, so requiring it would block every migrated member forever.
+    OPTIONAL_OPTION_GROUPS = %w[ meeting_pace ].freeze
 
     # Post-onboarding richness is deliberately separate from publication. Fixed,
     # reusable section keys understood by Profiles::RichCompletion; no executable
@@ -80,9 +121,9 @@ module Profiles
       identity_fields: REQUIRED_IDENTITY_FIELDS,
       enabled_identity_fields: REQUIRED_IDENTITY_FIELDS,
       profile_fields: REQUIRED_PROFILE_FIELDS,
-      enabled_profile_fields: (REQUIRED_PROFILE_FIELDS + OPTIONAL_PROFILE_FIELDS).freeze,
+      enabled_profile_fields: ENABLED_PROFILE_FIELDS,
       preference_fields: REQUIRED_PREFERENCE_FIELDS,
-      enabled_preference_fields: REQUIRED_PREFERENCE_FIELDS,
+      enabled_preference_fields: ENABLED_PREFERENCE_FIELDS,
       collections: %w[ photos location ],
       option_groups: REQUIRED_OPTION_GROUPS,
       rich_profile_sections: RICH_PROFILE_SECTIONS
