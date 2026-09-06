@@ -46,6 +46,122 @@ For media, verify every source blob/object exists, matches checksum/size/type, m
 
 Run the importer twice against the same snapshot: the second run must create zero users, profiles, relationships, conversations, or messages, and destination IDs/fingerprints must remain unchanged. Test interruption/resume as well.
 
+## Profile & preference VALUE census contract (Pass 1 — PROFILE-VALUE-MAPPING.md)
+
+Pass 1 is evidence only: it creates no destination row, so there is **no
+destination reconciliation yet**. What it produces is the SOURCE side that the
+later Pass-2 importer must balance against. Authority for the mapping itself is
+[PROFILE-VALUE-MAPPING.md](PROFILE-VALUE-MAPPING.md).
+
+Measures live in `scripts/date9ja/source_census.sql` at **ord 200-299**, under the
+same READ ONLY transaction and v2 schema-signature guard as every other measure.
+
+### Which database produces which section
+
+Most sections are sanitizer-faithful. Two are not, and running them against the
+sanitized copy measures the sanitizer rather than Date9ja — record which database
+produced each number:
+
+| Section | Ord | Database |
+|---|---|---|
+| `source_types` | 200-202 | either |
+| `profile_values` | 210-225 | `date9ja_snapshot_sanitized` |
+| `preference_validity` | 230-246 | `date9ja_snapshot_sanitized` |
+| `gender_compat` | 250-259, 290-299 | `date9ja_snapshot_sanitized` |
+| `profile_shape` (name token shape) | 260-261 | **pristine restore only** |
+| `country` | 265-266 | `date9ja_snapshot_sanitized` |
+| `publication` | 270-272 | `date9ja_snapshot_sanitized` |
+| `arrays` — `languages_spoken` / `preferred_countries` / `relocation_preferences` | 283-285 | `date9ja_snapshot_sanitized` |
+| `arrays` — `interests` / `relationship_values` / `dealbreakers` | 280-282 | **pristine restore only** |
+
+Only the aggregate census output leaves the isolated environment. No measure in
+this range emits a name, a free-text value, a location string, an array element,
+or any row-level data — see PROFILE-VALUE-MAPPING.md section 2.1 for the emitter
+contract and the test that enforces it.
+
+### Source-side counts Pass 2 must balance against
+
+**Run 2026-09-05; measures 221 / 225 / 259 / 290-299 re-run 2026-09-06** after an
+independent review — `date9ja_snapshot_sanitized` (and `date9ja_snapshot_tmp` for
+the PRISTINE-ONLY rows) on the isolated PG17 instance. Schema signature
+`41a653a8d4c25621071fb76e6e59fbc0` OK on both; the re-run measures returned
+identical values on both databases.
+
+**Population — the importer's own rule, not one invented for reconciliation.**
+`IdentityImport#import_one` skips `soft_deleted?` / `banned?`
+(`identity_import.rb:63-64`, `user_record.rb:48,50`), so the migration-eligible
+population is `deleted_at IS NULL AND banned_at IS NULL`: **288 source rows, 8
+soft-deleted, 280 migration-eligible** (measure 290). The importer applies no
+seed or admin exclusion, so neither does this table.
+
+| Measure | Ord | Source | Target | Acceptance |
+|---|---|---:|---:|---|
+| users eligible for a complete `ProfilePreference` | 245 | **0** | pending | 0 expected while D-10 is open — `preferred_distance_km` is NULL for all 288 |
+| users lacking >= 1 required preference input | 246 | **280** | pending | equals the whole live population; every one handled by the approved D-10/D-9 policy, none silently dropped |
+| 245 + 246 partition check | — | **280** | — | must equal kept + not banned; enforced by test |
+| `preferred_age_min` NULL | 230 | **222** | pending | accounted for by policy |
+| `preferred_age_max` NULL | 231 | **223** | pending | accounted for by policy |
+| both age preferences NULL | 232 | **222** | pending | accounted for by policy |
+| age values outside 18..120 | 233-236 | **0 / 0 / 0 / 0** | 0 | no invalid-age policy needed |
+| inverted age ranges | 237 | **0** | 0 | none exist |
+| valid age pairs | 238 | **65** | 65 | migrate verbatim; equal |
+| `preferred_distance_km` NULL | 240 | **288** | — | NO_SOURCE (D-10) |
+| `preferred_distance_km` invalid (<=0 / >500) | 241, 242 | **0 / 0** | 0 | none exist |
+| valid distances | 243 | **0** | 0 | none exist |
+| reciprocal-capable population | 257 | **280** | pending | upper bound on discovery-eligible migrated profiles |
+| `gender` NULL | 250 | **0** | 0 | every member has a candidate gender |
+| `looking_for` NULL | 251 | **0** | 0 | every member has a stated preference (reliability is D-9) |
+| gender codes with no `looking_for` counterpart | 255 | **0** | — | shared vocabulary confirmed |
+| `looking_for` codes with no gender counterpart | 256 | **0** | — | shared vocabulary confirmed |
+| gender x looking_for pairs (all 288) | 258 | `g0/l0:108 g0/l1:89 g1/l0:89 g1/l1:2` | pending | D-9 governs how many survive as `interested_in` |
+| gender x looking_for pairs (migration-eligible) | 259 | `g0/l0:105 g0/l1:84 g1/l0:89 g1/l1:2` | pending | the 280 rows Pass 2 will actually see |
+| migration-eligible population | 290 | **280** | 280 | importer skip rule; must equal 245 + 246 |
+| eligible AND onboarded — total / same code / differing / indeterminate | 291-294 | **112 / 79 / 33 / 0** | — | D-9 evidence; 79/112 = 70.5 % same code |
+| eligible AND never onboarded — total / same code / differing / indeterminate | 295-298 | **168 / 28 / 140 / 0** | — | D-9 evidence; 28/168 = 16.7 % same code |
+| cohort partition proof | 299 | `eligible:280 onboarded:112=79+33+0 not_onboarded:168=28+140+0 **OK**` | OK | must read OK; enforced by test |
+| `body_type` allowlisted buckets | 221 | `slim:63 regular:56 athletic:23 muscular:16 curvy:12 plus_size:11` · `OTHER:13` · `NULL:94` | pending | free text; **only the six documented suggestions are ever emitted** (D-3) |
+| `body_type` distinct non-blank values | 225 | **18** | — | 12 spellings outside the six suggestions |
+| expected `relationship_intent` selections | 215 | **213** (75 NULL) | pending | one selection per mapped member; unmapped codes fail closed |
+| expected `wants_children` selections | 217 | **208** (80 NULL) | pending | as above |
+| expected `has_children` selections | 223 | **149** (139 NULL) | pending | `children_count` is an ENUM — `3` = `three_or_more` |
+| expected `education_level` selections | 219 | **89** (199 NULL) | pending | as above |
+| expected `meeting_pace` selections | 202 | **NO_SOURCE — 0** | 0 | required group, never fabricated (D-7) |
+| `smoking` present (required field) | 212 | **87** (201 NULL) | pending | D-11 cohort |
+| `drinking` present (required field) | 213 | **175** (113 NULL) | pending | D-11 cohort |
+| `country_of_residence` already ISO-2 | 265 | **0 of 288** | pending | every row needs E-1 |
+| `country_of_residence` distinct names | 265 | **23** | — | size of the E-1 mapping table |
+| `country_of_residence` outside the allowlist | 266 | **20** | pending | explicit review under E-1 |
+| `full_name` token shape *(pristine)* | 260 | 1-token **26** / 2-token **250** / 3+ **12** | pending | quantifies D-4; no split performed |
+| publication cohorts | 270 | `visible/not_onboarded:166` `visible/onboarded:114` `hidden/not_onboarded:6` `hidden/onboarded:2` | pending | equals the cohorts the approved D-8 policy publishes/hides |
+| candidate publish cohort | 272 | **109** | pending | upper bound — D8N publication also requires `Profiles::Completion` |
+| `profile_completeness_score` > 0 | 35 | **0** | — | carries no signal; do not migrate |
+| unclassified `users` columns | 202 | **none** | — | invariant holds |
+| expected value-census columns missing | 201 | **none** | — | invariant holds |
+
+**Quarantinable / no-source rows for Pass 2:**
+
+| Class | Count | Cause |
+|---|---:|---|
+| No `max_distance_km` source | **288** | column NULL for every row (D-10) |
+| No `meeting_pace` source | **288** | column does not exist (D-7) |
+| No `country_code` derivable without E-1 | **288** | zero rows are already ISO-2 |
+| `looking_for` of doubtful reliability | **79** onboarded members whose value equals their own gender, within a 280-row eligible population whose reliability is doubtful as a whole | onboarding form pre-filled the control and the field was never enforced (D-9). **Not a count of wrong values** — the census cannot identify an individual wrong value |
+| `body_type` outside the six documented suggestions | **13** of 194 present | free-text column (D-3) |
+| Missing required `smoking` | **201** | never answered (D-11) |
+| Missing required `drinking` | **113** | never answered (D-11) |
+| `full_name` not two-token | **38** | 26 one-token + 12 three-or-more (D-4) |
+| `height` outside any plausible band | present:188, range **1..588** | junk values (E-2) |
+
+### Standing invariants
+
+- Measure **201** must read `none` — every column this census expects exists in
+  the source.
+- Measure **202** must read `none` — every column in the source is classified by
+  the importer, the sensitive denylist, this census, or `SNAPSHOT-RUNBOOK.md` §4.
+- No Pass-2 importer may default, clamp, or invent a value for an unmapped source
+  code. Unmapped codes fail closed, consistent with the photo-moderation
+  (ADR 0027) and video-duration (ADR 0029) precedents.
+
 ## Identity importer reconciliation contract (Wave A slice 3)
 
 `Date9ja::Import::IdentityImport` (in the Date9ja adapter, `domains/date9ja/`)

@@ -1,12 +1,298 @@
 # Date9ja → D8N Status
 
 - Current phase: **Phase 1 — Shared Platform Foundations** (Wave A)
-- Current capability: **D8N brand-aware profile field catalogue foundation — IMPLEMENTED / SELF_VERIFIED 2026-09-05, READY FOR FEATURE-BOUNDARY CODEX REVIEW** (ADR 0030, below). This is a shared-platform capability (not Date9ja-specific); it resolves the MASTER-PLAN "Before writable Date9ja profiles" blocker. Earlier: Migrated-account authentication transition + recovery/reactivation (Wave A Step 3 closeout) — IMPLEMENTED / SELF_VERIFIED 2026-09-04, READY FOR FEATURE-BOUNDARY CODEX REVIEW (`AUTH-TRANSITION.md`). Earlier still: Batches 2 & 3 reviewed; sanitized snapshot milestone VERIFIED; reconciliation census + schema-signature v2 VERIFIED (independent review); import execution model RESOLVED; **bcrypt compatibility proof VERIFIED (2026-09-02, operator ran `scripts/date9ja/bcrypt_proof.rb` against a real `$2a$12$` account → `$2a$ 12 PASS`)**; identity + membership + non-sensitive profile importer — implementation reviewed + **operator rehearsal VERIFIED (2026-09-03)** against `date9ja_snapshot_sanitized` (288 source rows → 280 imported / 8 skipped `source_soft_deleted` / 0 failed; second pass 280 already_imported / 0 created; source reconciliation balanced); **profile-photo pass 2 implementation VERIFIED + L2 synthetic-corpus rehearsal VERIFIED (Codex independent review 2026-09-03: FINAL VERDICT ACCEPT)**; **profile-video pass 1 (media preflight) VERIFIED (Codex 2026-09-03: ACCEPT WITH SMALL FIX — documentation correction completed), sanitized rehearsal 35/35 preflighted + idempotent; legacy `duration_seconds` NULL for all 35 (no row known to exceed the limit; actual duration unproven — pass 2 must derive it from the container)**. **NOT PARITY_ACCEPTED, NOT production-ready, NOT cutover-ready. L3 NOT YET READY.**
+- Current capability: **Date9ja profile & preference migration Pass 1 — source value census & mapping contract — IMPLEMENTED / SELF_VERIFIED + OPERATOR EVIDENCE RUN COMPLETE 2026-09-05, READY FOR FEATURE-BOUNDARY CODEX REVIEW** (`PROFILE-VALUE-MAPPING.md`, below). Evidence only: no importer change, no value migrated, no mapping approved. Census run against `date9ja_snapshot_sanitized` + `date9ja_snapshot_tmp`; schema signature OK; measures 201/202 both `none`. **Settled: `users.gender` IS an integer enum (`{man:0, woman:1}`), so the current importer writes `"0"`/`"1"` into `profiles.gender` and is NOT discovery-compatible.** Earlier: **D8N brand-aware profile field catalogue foundation — IMPLEMENTED / SELF_VERIFIED 2026-09-05, READY FOR FEATURE-BOUNDARY CODEX REVIEW** (ADR 0030, below). This is a shared-platform capability (not Date9ja-specific); it resolves the MASTER-PLAN "Before writable Date9ja profiles" blocker. Earlier: Migrated-account authentication transition + recovery/reactivation (Wave A Step 3 closeout) — IMPLEMENTED / SELF_VERIFIED 2026-09-04, READY FOR FEATURE-BOUNDARY CODEX REVIEW (`AUTH-TRANSITION.md`). Earlier still: Batches 2 & 3 reviewed; sanitized snapshot milestone VERIFIED; reconciliation census + schema-signature v2 VERIFIED (independent review); import execution model RESOLVED; **bcrypt compatibility proof VERIFIED (2026-09-02, operator ran `scripts/date9ja/bcrypt_proof.rb` against a real `$2a$12$` account → `$2a$ 12 PASS`)**; identity + membership + non-sensitive profile importer — implementation reviewed + **operator rehearsal VERIFIED (2026-09-03)** against `date9ja_snapshot_sanitized` (288 source rows → 280 imported / 8 skipped `source_soft_deleted` / 0 failed; second pass 280 already_imported / 0 created; source reconciliation balanced); **profile-photo pass 2 implementation VERIFIED + L2 synthetic-corpus rehearsal VERIFIED (Codex independent review 2026-09-03: FINAL VERDICT ACCEPT)**; **profile-video pass 1 (media preflight) VERIFIED (Codex 2026-09-03: ACCEPT WITH SMALL FIX — documentation correction completed), sanitized rehearsal 35/35 preflighted + idempotent; legacy `duration_seconds` NULL for all 35 (no row known to exceed the limit; actual duration unproven — pass 2 must derive it from the container)**. **NOT PARITY_ACCEPTED, NOT production-ready, NOT cutover-ready. L3 NOT YET READY.**
 - Builder: Claude (senior engineer)
 - Reviewer: Independent reviewer — Codex (batches 1–3 + profile-photo pass 2 / L2 reviewed)
 - Review cadence: bounded batches (~3–5 slices), not per-slice. Significant work remains **SELF_VERIFIED** until independent review.
 - Last verified: 2026-09-02
 - Cutover: **BLOCKED** until data parity and feature parity both pass.
+
+## Date9ja profile & preference migration — Pass 1: source value census & mapping contract — **IMPLEMENTED / SELF_VERIFIED (2026-09-05)**
+
+Evidence feature. It measures the Date9ja source so Pass 2 can be built safely.
+It migrates no value, changes no importer, approves no mapping, and creates no
+`ProfilePreference` or `ProfileOptionSelection`. Contract:
+[PROFILE-VALUE-MAPPING.md](PROFILE-VALUE-MAPPING.md).
+
+**Current lifecycle: IMPLEMENTED / SELF_VERIFIED. NOT VERIFIED. NOT
+`PARITY_ACCEPTED`.** An independent Codex feature-boundary review on 2026-09-05
+returned **CHANGES REQUIRED / NOT READY TO COMMIT**; the review-fix pass of
+2026-09-06 (recorded at the end of this entry) closed all five findings and is
+itself awaiting a narrow independent confirmation.
+
+> **The "Why now" / "What was built" narrative immediately below is the
+> HISTORICAL pre-run record**, written before the census was executed. Where it
+> states an unknown, that unknown has since been answered — see *Operator
+> evidence run* and *Review-fix pass* below, which are the current truth.
+
+**Why now.** The identity importer is VERIFIED but forces every migrated profile
+to `:draft`/`:hidden`, and says why in its own code: *"This slice has not imported
+photos, preferences, location, or option selections"*
+(`domains/date9ja/import/field_mapping.rb:56-58`). Photos are now done (pass 2
+VERIFIED). Preferences and option selections are the unbuilt half, and they are
+load-bearing:
+
+- `Matching::ProfileParticipant:10` requires `min_age` **and** `max_age` **and**
+  `interested_in.any?`. **No migrated member has a `ProfilePreference` row at
+  all**, so all 280 are excluded from matching under any circumstances.
+- `Matching::EligibilityScope:39-40` matches reciprocally and exactly on strings
+  (`profiles.gender` = ANY(`interested_in`) **and** `interested_in` @>
+  `[viewer.gender]`), while `profiles.gender` is an unconstrained `string(40)`
+  with no catalogue (`db/schema.rb:928`). The vocabulary is therefore a decision,
+  not a lookup.
+- `SANITIZATION-CONTRACT.md:138` and `CAPABILITY-PARITY.md:25` classify legacy
+  `users.gender` as an **integer enum code**; the importer copies it through with
+  no decode (`user_record.rb:37` -> `field_mapping.rb:71`); every committed test
+  supplies the string `"woman"`/`"man"`, so the suite cannot detect an integer
+  source. Whether the 280 rehearsed rows hold `"0"`/`"1"` or `"man"`/`"woman"` was
+  **UNKNOWN at the time this was written** and unanswerable without reading the
+  snapshot. **The run has since answered it: `integer/int4`, so they hold
+  `"0"`/`"1"`.** See *Operator evidence run*.
+
+`MIGRATION-MATRIX.md:12` already named the gate for this row: *"map enums/arrays
+into typed capabilities and stable options ... value census and approvals"*. No
+such census existed.
+
+**What was built.** New measures (ord 200-299) inside the existing, VERIFIED
+`scripts/date9ja/source_census.sql` — same READ ONLY transaction, same v2
+schema-signature guard, same allowlist/`OTHER` convention. No second census
+mechanism. Sections: `source_types` (200-202), `profile_values` (210-225),
+`preference_validity` (230-246), `gender_compat` (250-259 and 290-299),
+`profile_shape` (260-261), `country` (265-266), `publication` (270-272), `arrays`
+(280-285). **Current count: 69 Pass-1 measures, census total 166** (57 measures at
+first implementation; the review-fix pass added 12 and rewrote one).
+
+**Output-safety contract (new, and tighter than the existing convention).** A
+`value:count` pair is emitted only when the column has <= 24 distinct non-NULL
+values AND the value is either a plain integer or <= 40 chars of **at most four
+space-separated tokens each starting with a letter**; everything else folds to
+`OTHER`, and a high-cardinality column emits only its distinct/NULL counts. The
+token rule is what separates an enum LABEL from free text. Names, countries and
+arrays are reduced to token-shape / classification / cardinality counts only. No
+sensitive-denylist column, coordinate, contact detail or row-level value is read
+anywhere in the range.
+
+**Two fidelity caveats recorded, not glossed** (`SANITIZATION-CONTRACT.md` §4.1):
+`profile_shape` (260/261) and the `interests`/`relationship_values`/`dealbreakers`
+rows (280-282) are **PRISTINE-ONLY** — the sanitizer pseudonymizes both name
+columns and redacts all three arrays to `'{}'`, so against the sanitized copy
+those measures describe the sanitizer, not Date9ja.
+
+**Meeting-pace verdict: NO LEGACY SOURCE FOUND.** Absent from `SNAPSHOT-RUNBOOK.md`
+§4, from `UserSource::SELECTED_COLUMNS`, from both `FieldMapping` constants, and
+from every artifact in `docs/migrations/date9ja-to-d8n/`, `scripts/date9ja/` and
+`domains/date9ja/`. Its only hit is `BRAND-CONTRACT.md:21`, describing the
+**D8N-side** catalogue group authored in `Date9jaProfileCatalog`. The verdict is
+re-proved at run time rather than resting on documentation: measure **202** lists
+every `users` column not classified by the importer, the sensitive denylist, this
+census, or the runbook, and **must read `none`**.
+
+**Gender / looking_for compatibility verdict: was PENDING at implementation
+time** — decidable from measures 200/210/211/252-256 and recorded in
+`PROFILE-VALUE-MAPPING.md` §5 after the run. **Now answered: the vocabularies map
+unambiguously (§5.1), the importer is not D8N-compatible (§5.2), and the stored
+`looking_for` values are doubtful (§5.3).** What was already FACT: with no
+`ProfilePreference` row, migrated members cannot participate in matching
+regardless of the gender answer.
+
+**Decision register — the pre-run draft (E-1…E-4, D-1…D-8) is SUPERSEDED.** The
+run closed the invalid-preference rows (no invalid ages or distances exist) and
+opened D-9 / D-10 / D-11; the review-fix pass rewrote E-5 and added E-6. **The
+current identifiers are E-1…E-6 and D-1, D-3…D-11 — there is no D-2.** Full text
+in `PROFILE-VALUE-MAPPING.md` §6.
+
+**Files**
+
+| File | Change |
+|---|---|
+| `scripts/date9ja/source_census.sql` | +56 measures, new emitter contract, fidelity + run guidance |
+| `docs/migrations/date9ja-to-d8n/PROFILE-VALUE-MAPPING.md` | NEW — mapping contract + decision register |
+| `docs/migrations/date9ja-to-d8n/RECONCILIATION.md` | NEW section — Pass-1 source-side counts Pass 2 must balance |
+| `test/support/date9ja_census_sql.rb` | NEW — parses the committed census SQL so tests run the real text |
+| `test/scripts/date9ja/profile_value_census_test.rb` | NEW — census tests (current count under *Review-fix pass* below) |
+
+**Evidence (as of first implementation — superseded by the *Review-fix pass*
+counts below).** Focused: 37 runs / 10257 assertions / 0 failures. Touched-area
+regression (`test/domains/{date9ja,migration,profiles}` + `test/scripts`): 482
+runs / 13044 assertions / 0 failures. Full suite: **2040 runs / 22197 assertions
+/ 2 failures**, both pre-existing and neither in this feature's code —
+(a) the established `deliver_product_notification_job_test.rb:41` DateZA
+notification baseline failure, and (b) `Migration::ReferenceMapConcurrencyTest`,
+which passes in isolation (6/6) and whose cause is unchanged production code (see
+below). A clean-tree control run of the same suite (work stashed) produced **2003
+runs / 2 failures**, the notification baseline plus a *different* parallel-only
+failure (`LocationSearchControllerTest` rate limiting) — confirming the suite has
+pre-existing order/timing-sensitive tests and that this feature introduced no
+regression. RuboCop: 4 offenses, all pre-existing in
+`domains/notifications/email_presenters/dateza.rb`, none in the new files.
+`zeitwerk:check` "All is good!". Brakeman 0 warnings / 0 errors.
+`git diff --check` clean.
+
+**Latent defect observed, deliberately NOT fixed here** (outside this feature
+boundary; production code):
+`Migration::ReferenceMap.claim` (`domains/migration/reference_map.rb:112-124`)
+rescues `RecordNotUnique` and then calls `locate` — but the failing `create!` runs
+inside the enclosing `LegacyReference.transaction` opened at line 42, so
+PostgreSQL has already aborted that transaction and the rescue path raises
+`PG::InFailedSqlTransaction` instead of re-resolving. The recovery is only sound
+if the insert is wrapped in its own savepoint (`requires_new: true`). This is
+pre-existing, unchanged by this feature, and only manifests when the race is
+genuinely lost. Raise it as its own slice.
+
+### Operator evidence run — COMPLETE (2026-09-05)
+
+Census executed against `date9ja_snapshot_sanitized` and, for the PRISTINE-ONLY
+sections, `date9ja_snapshot_tmp`, on the isolated PG17 instance
+(`127.0.0.1:55432`; started for the run and stopped afterwards). Schema signature
+**`41a653a8d4c25621071fb76e6e59fbc0` OK** on both (51 tables, 574 columns), inside
+the `READ ONLY` transaction, always rolled back. Measures **201 and 202 both
+returned `none`**. Existing measures reproduced the recorded baseline (288 users,
+280 kept, 8 soft-deleted, 209 confirmed, 79 unconfirmed, 184 phone present),
+confirming the run hit the right artifact.
+
+**Headline findings** (full evidence in `PROFILE-VALUE-MAPPING.md`):
+
+1. **`users.gender` is `integer/int4`** — `enum :gender, { man: 0, woman: 1 }`.
+   The importer's `clamp(record.gender, 40)` therefore writes the **strings
+   `"0"`/`"1"`** into `profiles.gender`. `EligibilityScope` compares that to
+   `interested_in`, so **a decode is mandatory in Pass 2**. The 280 profiles from
+   the VERIFIED identity rehearsal carry `"0"`/`"1"` today; that rehearsal stays
+   valid for what it asserted (counts, idempotency, reconciliation) — it never
+   asserted value semantics.
+2. **The vocabulary maps unambiguously.** `gender` and `looking_for` are the same
+   two-value enum, never NULL, with zero codes unique to either side and no
+   "everyone" value. `0 → man`, `1 → woman` is total and lossless. Date9ja's own
+   `matching_orientation` scope is reciprocal in exactly D8N's shape.
+3. **The stored `looking_for` values are doubtful (new decision D-9).**
+   *(Figures below are the 2026-09-06 re-measurement; the first write-up of this
+   finding used ad-hoc queries and a population that no committed measure
+   reproduced — that is Codex finding 2, now closed.)* Over the
+   migration-eligible population (**280**, the importer's own not-deleted /
+   not-banned rule): **70.5 %** of the onboarded cohort stores a `looking_for`
+   equal to its own gender (79/112) against **16.7 %** never-onboarded (28/168);
+   partition proof `OK`. Two facts about Date9ja explain the mechanism — the
+   onboarding form pre-filled the control
+   (`web/src/pages/AuthPages.js:900` — `user.looking_for || 'man'`) and the field
+   did not filter candidates until Phase 2.4 (`api/app/models/user.rb:458-460`).
+   **INFERENCE, stated as such:** that creates substantial doubt about whether
+   the stored values reliably represent member intent. It does **not** show any
+   individual value is wrong. D8N enforces the field, so a migration policy
+   decision is required.
+4. **`preferred_distance_km` is NULL for all 288 rows (new decision D-10).** It is
+   a **required** Date9ja preference field, so the eligible-for-complete-
+   `ProfilePreference` cohort is **0 of 280**; all 280 land in the "lacking a
+   required input" cohort. Same class of gap as `meeting_pace`.
+5. **Age data is clean.** Zero below 18, zero above 120, zero inverted. The
+   drafted invalid-age and invalid-distance policies are **not needed** — the
+   problem is absence, not invalidity.
+6. **`meeting_pace`: NO LEGACY SOURCE FOUND, reconfirmed** — measure 202 returned
+   `none` on both databases, and none of Date9ja's 16 `users` enums is a
+   meeting-pace concept.
+7. **No country is already ISO-2** — all 288 are spelled-out names across 23
+   distinct values, so the importer's `\A[A-Z]{2}\z` filter drops 100% of them.
+8. **`children_count` is an ENUM, not a count** (`{none:0, one:1, two:2,
+   three_or_more:3}`) — a naive integer copy into `profiles.children_count` would
+   be wrong for code 3.
+9. **`profile_completeness_score` is 0 for all 288** — carries no signal; do not
+   migrate.
+10. **The REVIEW_REQUIRED arrays are controlled-vocabulary-*shaped*** — 60/68,
+    33/34, 26/33 label-shaped distinct elements (E-4). **Shape is not safety:**
+    this does *not* show they are safe to preserve in a shareable sanitized
+    snapshot, and their `SANITIZATION-CONTRACT.md` classification is unchanged
+    (E-5).
+
+**Two defects in this feature's own census were found by the run and fixed:**
+
+- Measures 245/246 used a bare predicate and its `NOT`, so a NULL input made the
+  AND-chain NULL and the row fell out of *both* cohorts — both returned 0 against
+  a live population of 280. Now `IS TRUE` / `IS NOT TRUE`, with a regression test
+  asserting the two always partition the live population.
+- The array `vocab_shaped_elems` test was case-sensitive and single-token, so it
+  classified a Title-Case controlled vocabulary as arbitrary content — it reported
+  3/68 label-shaped for `interests` where the correct answer is 60/68. Now uses
+  the same case-insensitive label grammar as the bounded emitter, plus a
+  `sentence_shaped_elems` counter.
+
+A third measure was added because the charter question "can these map to one
+canonical reciprocal vocabulary without ambiguity?" is not answerable from
+marginals alone: **258**, the `gender x looking_for` cross-tab. Census total at
+the end of this run was **154** measures (57 in the Pass-1 range); the review-fix
+pass below took it to **166** (69 in the Pass-1 range).
+
+**Blocking follow-up raised, not fixed:**
+[`FOLLOWUP-REFERENCE-MAP-CLAIM.md`](FOLLOWUP-REFERENCE-MAP-CLAIM.md) —
+`Migration::ReferenceMap.claim` rescues `RecordNotUnique` and then queries inside
+the already-aborted enclosing transaction, so its documented idempotent-recovery
+path raises `PG::InFailedSqlTransaction` instead. Pre-existing, unchanged by this
+feature, and **blocking for Pass 2** because Pass 2 is a `ReferenceMap` consumer.
+
+**Lifecycle at the end of this run.** IMPLEMENTED / SELF_VERIFIED, operator
+evidence run COMPLETE, not independently reviewed. The review that followed
+returned CHANGES REQUIRED — see below.
+
+### Review-fix pass — Codex CHANGES REQUIRED, five findings closed (2026-09-06)
+
+The 2026-09-05 feature-boundary review returned **CHANGES REQUIRED / NOT READY TO
+COMMIT**. Bounded fix pass: census SQL, census tests and documentation only. **No
+production, domain, importer, schema or `ReferenceMap` code was touched, and Pass
+2 was not started.**
+
+1. **HIGH — `body_type` privacy leak.** The generic label grammar could emit short
+   arbitrary user-entered text, and `body_type` is **free text**, not an enum:
+   the onboarding control is a plain `<input>` with a suggestion datalist
+   (`AuthPages.js:1520-1528`) and `normalize_body_type` stores any unrecognised
+   value verbatim (`me_controller.rb:84-99`, asserted by its own test
+   `me_update_test.rb:21-25`). Measure **221** now uses a **closed allowlist** of
+   the six documented historical suggestions — the same six in
+   `me_controller.rb:87-97`, `ProfilePage.js:61-68` and `AuthPages.js:1521-1528`
+   — and folds everything else, at any cardinality, to `OTHER`; measure **225**
+   emits the distinct count only. Adversarial regression tests cover a
+   person-name-shaped value, a health/sensitive phrase, ordinary free text,
+   punctuation-free arbitrary words, every allowlisted spelling, NULL, blank,
+   unknown values and a 40-value high-cardinality column. Corrected aggregate:
+   `slim:63 regular:56 athletic:23 muscular:16 curvy:12 plus_size:11 OTHER:13
+   NULL:94`, 194 present, **18 distinct**. The pre-fix distribution was discarded
+   and is reproduced nowhere.
+2. **HIGH — `looking_for` evidence was not reproducible.** The quantitative claim
+   rested on ad-hoc queries. New committed measures, with the population taken
+   from the importer's own rule (`identity_import.rb:63-64` +
+   `user_record.rb:48,50`), not invented: **259** eligible cross-tab, **290**
+   eligible population, **291-294** onboarded cohort, **295-298** never-onboarded
+   cohort, **299** partition proof. Synthetic tests cover population filtering,
+   cross-tab correctness, the onboarding partition, NULL handling, excluded rows
+   and partition sums. `PROFILE-VALUE-MAPPING.md` §5.3 now separates FACT
+   (database), FACT (historical code), INFERENCE and PRODUCT DECISION.
+3. **MEDIUM — array evidence overclaimed sanitizer safety.** The
+   shape aggregates are kept; the recommendation to reclassify `interests` /
+   `relationship_values` / `dealbreakers` to PRESERVE is **withdrawn**. E-4
+   remains a vocabulary-alignment question; E-5 is now "how to run the privacy
+   review the contract requires", with **no** recommended default. **No sanitizer
+   classification was changed.** New **E-6** records that the contract's stated
+   reason for PRESERVE-ing `body_type` ("a small enum", line 146) is factually
+   wrong, for review — again without changing the classification.
+4. **MEDIUM — contradictory documentation.** Pre-run unknowns are now labelled
+   historical rather than reading as current state; measure counts, test counts
+   and decision identifiers are consistent across `PROFILE-VALUE-MAPPING.md`,
+   `STATUS.md`, `CAPABILITY-PARITY.md`, `DECISIONS.md`, `RECONCILIATION.md` and
+   `README.md`. **Current identifiers: E-1…E-6 and D-1, D-3…D-11 — there is no
+   D-2.** Parity counts unchanged.
+5. **LOW — ReferenceMap follow-up wording.** `FOLLOWUP-REFERENCE-MAP-CLAIM.md`
+   now scopes Pass 2's consumption to the bindings Pass 2 actually introduces,
+   and describes the trigger as concurrent claimers rather than implying an
+   ordinary sequential retry races. The core diagnosis is unchanged and the
+   production code is untouched.
+
+**Re-run evidence.** Measures 221 / 225 / 259 / 290-299 re-run against
+`date9ja_snapshot_sanitized` **and** `date9ja_snapshot_tmp` on the isolated PG17
+instance — schema signature OK on both, `READ ONLY`, rolled back, **identical
+values on both databases**, instance stopped afterwards. Focused census tests:
+**52 runs / 12662 assertions / 0 failures**.
+
+**Lifecycle. IMPLEMENTED / SELF_VERIFIED. NOT VERIFIED. NOT `PARITY_ACCEPTED`.**
+Remaining before Pass 1 closes: a narrow independent confirmation of these five
+fixes. Pass 2 additionally requires D-1, D-3 … D-11 and E-1 … E-6, plus the
+ReferenceMap follow-up.
 
 ## D8N brand-aware profile field catalogue foundation — **IMPLEMENTED / SELF_VERIFIED (2026-09-05)**
 

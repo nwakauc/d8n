@@ -156,6 +156,30 @@ The detailed inventory and these counts are authoritative. Other migration docum
 
 These rows do not reduce the user parity bar and are not counted as Date9ja consumer capabilities.
 
+Delta log: Profile/preference VALUE evidence gate opened (2026-09-05) — **no status
+and no count in this document changes.** Pass 1 of the profile & preference
+migration added the source value census (`scripts/date9ja/source_census.sql`
+ord 200-299) and the mapping contract
+[PROFILE-VALUE-MAPPING.md](PROFILE-VALUE-MAPPING.md). It records, as verified
+evidence rather than assumption, that the Gender / Interested-in / Lifestyle /
+Family / Relationship-intent / Profile-editing / Completion rows remain PARTIAL
+for a specific reason: the identity importer creates **no `ProfilePreference` and
+no `ProfileOptionSelection`**, so `Matching::ProfileParticipant` excludes every
+migrated member from matching. It also records that the required Date9ja
+`meeting_pace` option group has **NO LEGACY SOURCE**.
+
+**The operator census run is COMPLETE (2026-09-05; affected measures re-run
+2026-09-06 after an independent review returned CHANGES REQUIRED).** The legacy
+values are now **measured**, and the measurement makes these rows *more* clearly
+PARTIAL, not less: `users.gender` is an integer enum, so the importer writes the
+strings `"0"`/`"1"` into `profiles.gender` and a decode is mandatory;
+`preferred_distance_km` is NULL for every source row, so **0 of 280** eligible
+members could receive a complete `ProfilePreference` today; and the stored
+`looking_for` values are of doubtful reliability. **Measured is not mapped** — no
+mapping is approved, ten product decisions and six engineering-contract decisions
+are open (`PROFILE-VALUE-MAPPING.md` §6), and **nothing here is promoted. No
+count in this document changes.**
+
 ## Source evidence used for normalization
 
 The reachability review used Date9ja API controllers/models/jobs/channels plus the web and mobile clients, including `api/app/controllers/api/v1/careers_controller.rb`, `feedback_items_controller.rb`, `message_reactions_controller.rb`, `dating_hub/*`, `community/*`, `aunty_phobie_controller.rb`, `profile_views_controller.rb`, `profile_videos_controller.rb`, and `config/routes.rb`; web `src/pages/CareersPage.js`, `CommunityPage.js`, `DatingHubPage.js`, `AuntyPhobiePage.js`, `ProfileViewsPage.js`, `MessagesPage.js`, and `src/api/client.js`; and the mobile navigation/API surfaces. These are source-repository observations only; no production usage counts were accessed.

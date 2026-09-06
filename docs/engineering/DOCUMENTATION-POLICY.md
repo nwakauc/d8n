@@ -15,6 +15,7 @@ Update before creating. Link related documents rather than copying large section
 | Current execution truth | `docs/migrations/date9ja-to-d8n/STATUS.md` |
 | Capability inventory/status | `CAPABILITY-PARITY.md` |
 | Capability ordering | `PARITY-BUILD-PLAN.md` |
+| Profile/preference value mapping | `PROFILE-VALUE-MAPPING.md` |
 | User acceptance | `FEATURE-PARITY-ACCEPTANCE.md` |
 | API compatibility | `API-COMPATIBILITY.md` plus canonical `docs/api/openapi.yaml` |
 | Data/cutover operations | `RECONCILIATION.md`, `CUTOVER-RUNBOOK.md` |

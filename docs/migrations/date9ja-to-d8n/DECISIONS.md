@@ -59,6 +59,38 @@ This is the single queue for unresolved decisions. `CAPABILITY-PARITY.md` is aut
 | Migration media preflight (source blob vs. attachment vs. destination identity) | Photo/video/message media migration needs a home for source-media graph + transfer state that is neither `ProfilePhoto` nor `ReferenceMap` | Wave A profile-photo pass 1 — **ADR 0027 Accepted; `Migration::MediaObjectRef` / `MediaAttachmentRef` implemented + rehearsal VERIFIED 2026-09-03** |
 | Migration media byte transfer (source-storage adapter, non-transactional recovery) | Pass 2 must stream legacy R2 bytes into D8N private storage and create real `ProfilePhoto`s idempotently, without weakening shared media guarantees | Wave A profile-photo pass 2 — **ADR 0028 ACCEPTED (2026-09-03); IMPLEMENTATION VERIFIED + L2 SYNTHETIC-CORPUS REHEARSAL VERIFIED (Codex independent review 2026-09-03: FINAL VERDICT ACCEPT — L2 review loop closed; still NOT PARITY_ACCEPTED / production-ready / cutover-ready; L3 NOT YET READY, separate operational/security gate). History: IMPLEMENTED / SELF_VERIFIED (2026-09-03); implementation-review round 1 (Codex BLOCK) fixes applied — authoritative deterministic-chain `already_transferred` (no prefix inference), Phase-B owner re-resolution, NO remote I/O under any DB lock (`LockGuard` + A/B/C `AdoptOrUpload`), async never reports premature success (`transferred` only after ready + validated deterministic display), bounded destination verification, exact canonical-content-type equality, strict `SourceReader` key grammar, retry-exhaustion → terminal. Implementation-review round 2 (Codex BLOCK — 2 defects) fixes applied: (a) ONE authoritative display-validation contract — shared `Media::DisplayDerivative.valid?` (D8N media domain; exact deterministic key + service + content type + `Blob.checksum` integrity + JPEG decode over a bounded remote read); `Media::ProcessProfilePhotoJob` runs it OUTSIDE every DB lock and no longer trusts any metadata-only check as a success/ready-no-op/purge path (CLAIM → `:verify_ready` → `reconcile_ready` confirm / rebuild-from-raw / fail-closed-terminal); exact key re-derived after raw purge from persisted `ProfilePhoto#metadata` (existing jsonb, not a new table); `Migration::MediaTransfer.valid_accepted_display?` delegates to it. (b) Phase-B `finalize_binding` rejects an existing Photo→ProfilePhoto binding that is the same user but wrong profile/brand → `binding_conflict`/`mapping_drift`, never `already_transferred`, never a silent reparent. Code + L1 automated tests green, RuboCop/Zeitwerk/Brakeman clean, NOT independently re-reviewed, NOT VERIFIED/PARITY_ACCEPTED, `_media_v2` NOT built, L2/L3 NOT run, no bytes moved. FINAL Codex acceptance-check correction: `canonical_content_type` (verified detected media type) is now a DECLARED canonical-identity field and is in the canonical string before the UUIDv5 — because it drives `original.<ext>` — so the migration storage key `migrations/media/v3/date9ja/profile_photo_original/<UUIDv5>/original.<ext>` is a TOTAL deterministic function of the declared identity (`version v3 | source_system | source_blob_id | source_attachment_id | destination_purpose | destination_brand | canonical_content_type`). Verified source content-type drift → `source_changed`, never a silent re-key. Every prior Codex blocker (Rev 1 → FINAL check) closed. Pass 2 implementation READY; L1/L2 ready after implementation; L3 real R2 blocked only on operator logistics. Rev 4 baseline (3 Codex FINAL-review blockers, all closed): (1) migration storage key is a dedicated `CanonicalKey.final_key` (NOT `Media::ObjectKey.profile_photo_original`) — no user id, no profile public id, no mutable `Brand#slug`; destination remap → `mapping_drift`/`binding_conflict`, no re-key; (2) short attachment lock — Phase A (prepare/verify, NO lock) → Phase B (short finalization txn) → Phase C (after-commit enqueue); no R2/hash/upload/libvips under the `MediaAttachmentRef` lock; tiny blob-row coordination txn distinct from the finalization lock; (3) abandoned processing claim — `ProfilePhoto` gains nullable `processing_started_at` + `processing_claim_token` (processing-lifecycle hardening, NOT a migration table); claim/reclaim/finalize/failure gate on `processing_state == processing AND claim_token == my_token` (token REQUIRED — bare timestamp loses the ABA race); sweeper reclaims stale `processing`. Shared seam FINAL: `Profiles::PhotoUpload.build_photo!` extraction. Retained: no destination state on `MediaObjectRef`, no new migration table (inference-based recovery); Active Storage cases 1–6, no case-4 adoption, per-reuse real remote-byte verification; four-concept orphan model; distinct `_media_v2` rehearsal artifact; explicit `SourceReader` security contract. `ProfilePhoto` enum/state model, `Media::PhotoPolicy`, `MediaObjectRef`, `MediaAttachmentRef`, `ReferenceMap` unchanged.** |
 
+## Profile & preference values (delegated queue)
+
+Non-sensitive profile/preference **value mapping** decisions live in
+[PROFILE-VALUE-MAPPING.md](PROFILE-VALUE-MAPPING.md) §6, which separates
+engineering-contract rows from product/migration-policy rows. They are recorded
+there rather than duplicated here because each one is only meaningful next to the
+census measure that sizes it. Opened 2026-09-05 by Pass 1 (source value census),
+regenerated from the operator evidence run and revised by the 2026-09-06
+review-fix pass. **None is answered.**
+
+**Current identifiers — engineering contract E-1 … E-6; product / migration D-1,
+D-3, D-4, D-5, D-6, D-7, D-8, D-9, D-10, D-11.** There is no D-2: the pre-run
+draft's invalid-preference row was closed by evidence (no invalid ages or
+distances exist) and nothing was renumbered around it.
+
+Headline blockers for Pass 2:
+
+- **D-1** — the canonical gender / interested-in vocabulary. D8N discovery matches
+  `profiles.gender` against `profile_preferences.interested_in` reciprocally and
+  exactly, and `profiles.gender` has no catalogue to map onto.
+- **D-9** — whether to migrate the stored `looking_for` values as they are.
+  Historical Date9ja behaviour creates substantial doubt about whether they
+  reliably represent member intent, and D8N enforces the field.
+- **D-10** — `preferred_distance_km` is a required Date9ja preference field and is
+  NULL for every source row, so no member can get a complete `ProfilePreference`.
+- **D-7** — `meeting_pace` is a required Date9ja completion group with **no legacy
+  source**, which blocks publication for every migrated member.
+
+These are independent of, and do not resolve, the sensitive-field rows above
+(tribe / ethnicity / denomination / genotype / state_of_origin / preferred_tribes /
+preferred_religion), which remain "Awaiting Uchechi" and were untouched by Pass 1.
+
 ## Mixed
 
 | Decision | Product question | Engineering question | Status |

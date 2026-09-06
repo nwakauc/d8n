@@ -13,6 +13,15 @@
 --   The output table is pasted into RECONCILIATION.md (Source column) and used
 --   as the acceptance baseline for every Wave A/B importer dry-run.
 --
+--   Sections `source_types`, `profile_values`, `preference_validity`,
+--   `gender_compat`, `profile_shape`, `country`, `publication` and `arrays`
+--   (ord 200-299) are the profile/preference VALUE census added for Pass 1 of
+--   the profile & preference migration. Their output is the evidence base for
+--   docs/migrations/date9ja-to-d8n/PROFILE-VALUE-MAPPING.md. They have their own
+--   emitter safety contract -- see the block header at ord 200. Two of those
+--   sections are PRISTINE-ONLY (see "SNAPSHOT FIDELITY" there); everything else
+--   is sanitizer-faithful and correct to run against date9ja_snapshot_sanitized.
+--
 -- WHAT THIS IS NOT
 --   Not an importer. Not a product decision. It writes nothing (runs inside a
 --   READ ONLY transaction that is always rolled back), copies no row contents,
@@ -348,7 +357,793 @@ WITH census(ord, section, measure, source_count, note) AS (
   (174, 'feedback', 'feedback_items total',
         (SELECT count(*) FROM feedback_items), 'user-submitted feedback records'),
   (175, 'feedback', 'feedback_items unreviewed',
-        (SELECT count(*) FROM feedback_items WHERE reviewed_at IS NULL), 'review queue continuity')
+        (SELECT count(*) FROM feedback_items WHERE reviewed_at IS NULL), 'review queue continuity'),
+
+  -- =========================================================================
+  -- PROFILE / PREFERENCE VALUE CENSUS  (Pass 1 evidence)
+  -- Authority: docs/migrations/date9ja-to-d8n/PROFILE-VALUE-MAPPING.md
+  --
+  -- WHY THIS EXISTS
+  --   D8N discovery matches RECIPROCALLY and EXACTLY on strings:
+  --     Matching::EligibilityScope -> profiles.gender = ANY(preference.interested_in)
+  --                                AND preference.interested_in @> [viewer.gender]
+  --   `profiles.gender` is an unconstrained string(40) and Date9ja stores its
+  --   equivalents as legacy codes. The mapping therefore CANNOT be guessed; it
+  --   has to be measured. These measures produce that evidence and nothing else.
+  --   They create no rows and decide no mapping.
+  --
+  -- BOUNDED-VOCABULARY EMITTER (safety contract for every `*_values` measure)
+  --   A value:count pair is emitted ONLY when ALL of these hold:
+  --     (a) the column has <= 24 distinct non-NULL values -- above that the
+  --         column is treated as unbounded/free-text and ONLY the distinct
+  --         count and NULL count are emitted, never a value;
+  --     (b) the value is a plain integer (^-?[0-9]{1,9}$), OR
+  --     (c) the value is <= 40 chars and is at most FOUR space-separated
+  --         tokens each of which STARTS WITH A LETTER --
+  --         ^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$ (case-insensitive) --
+  --         emitted lower-cased with spaces normalised to underscores so the
+  --         space-separated `value:count` output stays unambiguous (a legacy
+  --         'Non Binary' emits as `non_binary`).
+  --         The token rule is what separates an enum LABEL from free text: a
+  --         sentence, a date, an address, a height or a phone number all have
+  --         either too many tokens or a token that does not start with a
+  --         letter, so they fold to OTHER. Proven by the whole-section privacy
+  --         sweep in test/scripts/date9ja/profile_value_census_test.rb.
+  --   Anything else -- punctuation, emails, URLs, phone numbers, free text,
+  --   adversarial input -- folds to OTHER. NULLs are counted as 'NULL'.
+  --   This is strictly tighter than echoing a column: it cannot emit an
+  --   address, a handle, or a sentence, and it cannot emit anything at all
+  --   from a high-cardinality column. Widening the cap only ever moves counts
+  --   out of UNBOUNDED; it can never emit a value that fails (b)/(c).
+  --
+  -- FREE-TEXT COLUMNS ARE EXCLUDED FROM THE BOUNDED EMITTER
+  --   The bounded emitter above is only sound for columns whose write path
+  --   constrains the value to a vocabulary. `users.body_type` does not: it is
+  --   a free-text input, so a short arbitrary phrase can satisfy the label
+  --   grammar. Measure 221 therefore uses a CLOSED ALLOWLIST of the six
+  --   documented historical suggestions and folds everything else to OTHER.
+  --   Any future free-text column must do the same -- do NOT widen the label
+  --   grammar to accommodate one.
+  --
+  -- ARRAY ELEMENT SHAPE
+  --   Array measures emit counts only. `label_shaped_elems` uses the SAME
+  --   case-insensitive label grammar as the bounded emitter (up to three
+  --   letter-initial tokens) -- a lowercase-snake-only test would classify a
+  --   Title-Case controlled vocabulary as arbitrary content and mislead the
+  --   mapping decision. `sentence_shaped_elems` counts elements that are long
+  --   or carry sentence punctuation. Neither emits an element.
+  --
+  -- ROW-LEVEL DATA IS NEVER EMITTED. Names, free text, coordinates, contact
+  --   details and sensitive-identity columns are never read by this section.
+  --
+  -- SNAPSHOT FIDELITY (see SANITIZATION-CONTRACT.md section 4.1)
+  --   sanitized-faithful : every `*_values`, `preference_validity`,
+  --                        `gender_compat`, `publication` and `country`
+  --                        measure, plus languages_spoken /
+  --                        preferred_countries / relocation_preferences.
+  --   PRISTINE-ONLY      : full_name / display_name token shape (sanitizer
+  --                        pseudonymizes both) and interests /
+  --                        relationship_values / dealbreakers (sanitizer
+  --                        redacts all three to '{}'). Running these against
+  --                        the sanitized copy measures the SANITIZER, not
+  --                        Date9ja -- record which database produced them.
+  -- =========================================================================
+  (200, 'source_types', 'measured users columns: data_type/udt_name',
+        NULL,
+        (SELECT string_agg(column_name || ':' || replace(data_type, ' ', '_') || '/' || udt_name,
+                              ' ' ORDER BY column_name)
+           FROM information_schema.columns
+          WHERE table_schema = current_schema() AND table_name = 'users'
+            AND column_name = ANY (
+                  ARRAY['body_type','children_count','commitment_timeline','country_of_residence',
+                        'dealbreakers','display_name','drinking','education',
+                        'family_involvement_preference','fitness','full_name','gender','height',
+                        'interests','languages_spoken','looking_for','marital_status',
+                        'onboarding_completed_at','preferred_age_max','preferred_age_min',
+                        'preferred_countries','preferred_distance_km','profile_completeness_score',
+                        'profile_hidden','relationship_intention','relationship_values',
+                        'relocation_preferences','smoking','wants_children','willing_to_relocate']))),
+  (201, 'source_types', 'expected value-census columns MISSING from users (must be none)',
+        NULL,
+        (SELECT COALESCE(string_agg(c, ' ' ORDER BY c), 'none')
+           FROM unnest(
+                  ARRAY['body_type','children_count','commitment_timeline','country_of_residence',
+                        'dealbreakers','display_name','drinking','education',
+                        'family_involvement_preference','fitness','full_name','gender','height',
+                        'interests','languages_spoken','looking_for','marital_status',
+                        'onboarding_completed_at','preferred_age_max','preferred_age_min',
+                        'preferred_countries','preferred_distance_km','profile_completeness_score',
+                        'profile_hidden','relationship_intention','relationship_values',
+                        'relocation_preferences','smoking','wants_children','willing_to_relocate']) c
+          WHERE c NOT IN (SELECT column_name FROM information_schema.columns
+                           WHERE table_schema = current_schema() AND table_name = 'users'))),
+  (202, 'source_types', 'users columns NOT classified by importer/denylist/value-census/runbook (schema metadata only)',
+        NULL,
+        (SELECT COALESCE(string_agg(column_name, ' ' ORDER BY column_name), 'none')
+           FROM information_schema.columns
+          WHERE table_schema = current_schema() AND table_name = 'users'
+            AND column_name <> ALL (
+                  ARRAY['about_me','admin','attribution_campaign','attribution_content',
+                        'attribution_medium','attribution_source','aunty_phobie_language','ban_reason',
+                        'banned_at','body_type','browser_name','children_count','city',
+                        'commitment_timeline','confirmation_sent_at','confirmation_token',
+                        'confirmed_at','country_of_residence','created_at','current_sign_in_at',
+                        'current_sign_in_ip','date_of_birth','dealbreakers','deleted_at',
+                        'deletion_reason','denomination','device_type','display_name','drinking',
+                        'education','email','email_notification_preferences','encrypted_password',
+                        'ethnicity','family_involvement_preference','fitness',
+                        'flagged_for_moderation_at','founding_member','full_name','gender','genotype',
+                        'height','hide_last_seen','id','ideal_partner_description',
+                        'interest_in_nigerian_culture','interests','intertribal_marriage_openness',
+                        'is_nigerian','jti','languages_spoken','last_active_at','last_sign_in_at',
+                        'last_sign_in_ip','location_latitude','location_longitude','looking_for',
+                        'marital_status','nationality','notification_preferences','occupation',
+                        'onboarding_completed_at','os_name','phone','phone_verified_at',
+                        'polygamy_openness','preferred_age_max','preferred_age_min',
+                        'preferred_countries','preferred_distance_km','preferred_ethnicity',
+                        'preferred_genotype','preferred_religion','preferred_tribes',
+                        'premium_expires_at','profile_completeness_score','profile_hidden','public_id',
+                        'relationship_intention','relationship_values','religion',
+                        'relocation_preferences','reset_password_sent_at','reset_password_token',
+                        'rewind_used_on','seed_account','sign_in_count','signup_source','smoking',
+                        'state_of_origin','subscription_status','suspended_at','suspension_reason',
+                        'tribe','trust_xp','unconfirmed_email','updated_at','v2_onboarding_answers',
+                        'verification_tier','wants_children','willing_to_relocate']))),
+  (210, 'profile_values', 'users.gender bounded value distribution',
+        NULL,
+        (SELECT CASE WHEN d.n > 24
+                     THEN 'UNBOUNDED distinct:' || d.n || ' null:' ||
+                          (SELECT count(*) FROM users WHERE gender IS NULL)
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.gender IS NULL THEN 'NULL'
+                                      WHEN u.gender::text ~ '^-?[0-9]{1,9}$' THEN u.gender::text
+                                      WHEN length(u.gender::text) <= 40
+                                       AND u.gender::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN translate(lower(u.gender::text), ' ', '_')
+                                      ELSE 'OTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(DISTINCT gender::text) n FROM users WHERE gender IS NOT NULL) d)),
+  (211, 'profile_values', 'users.looking_for bounded value distribution',
+        NULL,
+        (SELECT CASE WHEN d.n > 24
+                     THEN 'UNBOUNDED distinct:' || d.n || ' null:' ||
+                          (SELECT count(*) FROM users WHERE looking_for IS NULL)
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.looking_for IS NULL THEN 'NULL'
+                                      WHEN u.looking_for::text ~ '^-?[0-9]{1,9}$' THEN u.looking_for::text
+                                      WHEN length(u.looking_for::text) <= 40
+                                       AND u.looking_for::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN translate(lower(u.looking_for::text), ' ', '_')
+                                      ELSE 'OTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(DISTINCT looking_for::text) n FROM users WHERE looking_for IS NOT NULL) d)),
+  (212, 'profile_values', 'users.smoking bounded value distribution',
+        NULL,
+        (SELECT CASE WHEN d.n > 24
+                     THEN 'UNBOUNDED distinct:' || d.n || ' null:' ||
+                          (SELECT count(*) FROM users WHERE smoking IS NULL)
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.smoking IS NULL THEN 'NULL'
+                                      WHEN u.smoking::text ~ '^-?[0-9]{1,9}$' THEN u.smoking::text
+                                      WHEN length(u.smoking::text) <= 40
+                                       AND u.smoking::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN translate(lower(u.smoking::text), ' ', '_')
+                                      ELSE 'OTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(DISTINCT smoking::text) n FROM users WHERE smoking IS NOT NULL) d)),
+  (213, 'profile_values', 'users.drinking bounded value distribution',
+        NULL,
+        (SELECT CASE WHEN d.n > 24
+                     THEN 'UNBOUNDED distinct:' || d.n || ' null:' ||
+                          (SELECT count(*) FROM users WHERE drinking IS NULL)
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.drinking IS NULL THEN 'NULL'
+                                      WHEN u.drinking::text ~ '^-?[0-9]{1,9}$' THEN u.drinking::text
+                                      WHEN length(u.drinking::text) <= 40
+                                       AND u.drinking::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN translate(lower(u.drinking::text), ' ', '_')
+                                      ELSE 'OTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(DISTINCT drinking::text) n FROM users WHERE drinking IS NOT NULL) d)),
+  (214, 'profile_values', 'users.fitness bounded value distribution',
+        NULL,
+        (SELECT CASE WHEN d.n > 24
+                     THEN 'UNBOUNDED distinct:' || d.n || ' null:' ||
+                          (SELECT count(*) FROM users WHERE fitness IS NULL)
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.fitness IS NULL THEN 'NULL'
+                                      WHEN u.fitness::text ~ '^-?[0-9]{1,9}$' THEN u.fitness::text
+                                      WHEN length(u.fitness::text) <= 40
+                                       AND u.fitness::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN translate(lower(u.fitness::text), ' ', '_')
+                                      ELSE 'OTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(DISTINCT fitness::text) n FROM users WHERE fitness IS NOT NULL) d)),
+  (215, 'profile_values', 'users.relationship_intention bounded value distribution',
+        NULL,
+        (SELECT CASE WHEN d.n > 24
+                     THEN 'UNBOUNDED distinct:' || d.n || ' null:' ||
+                          (SELECT count(*) FROM users WHERE relationship_intention IS NULL)
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.relationship_intention IS NULL THEN 'NULL'
+                                      WHEN u.relationship_intention::text ~ '^-?[0-9]{1,9}$' THEN u.relationship_intention::text
+                                      WHEN length(u.relationship_intention::text) <= 40
+                                       AND u.relationship_intention::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN translate(lower(u.relationship_intention::text), ' ', '_')
+                                      ELSE 'OTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(DISTINCT relationship_intention::text) n FROM users WHERE relationship_intention IS NOT NULL) d)),
+  (216, 'profile_values', 'users.commitment_timeline bounded value distribution',
+        NULL,
+        (SELECT CASE WHEN d.n > 24
+                     THEN 'UNBOUNDED distinct:' || d.n || ' null:' ||
+                          (SELECT count(*) FROM users WHERE commitment_timeline IS NULL)
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.commitment_timeline IS NULL THEN 'NULL'
+                                      WHEN u.commitment_timeline::text ~ '^-?[0-9]{1,9}$' THEN u.commitment_timeline::text
+                                      WHEN length(u.commitment_timeline::text) <= 40
+                                       AND u.commitment_timeline::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN translate(lower(u.commitment_timeline::text), ' ', '_')
+                                      ELSE 'OTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(DISTINCT commitment_timeline::text) n FROM users WHERE commitment_timeline IS NOT NULL) d)),
+  (217, 'profile_values', 'users.wants_children bounded value distribution',
+        NULL,
+        (SELECT CASE WHEN d.n > 24
+                     THEN 'UNBOUNDED distinct:' || d.n || ' null:' ||
+                          (SELECT count(*) FROM users WHERE wants_children IS NULL)
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.wants_children IS NULL THEN 'NULL'
+                                      WHEN u.wants_children::text ~ '^-?[0-9]{1,9}$' THEN u.wants_children::text
+                                      WHEN length(u.wants_children::text) <= 40
+                                       AND u.wants_children::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN translate(lower(u.wants_children::text), ' ', '_')
+                                      ELSE 'OTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(DISTINCT wants_children::text) n FROM users WHERE wants_children IS NOT NULL) d)),
+  (218, 'profile_values', 'users.marital_status bounded value distribution',
+        NULL,
+        (SELECT CASE WHEN d.n > 24
+                     THEN 'UNBOUNDED distinct:' || d.n || ' null:' ||
+                          (SELECT count(*) FROM users WHERE marital_status IS NULL)
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.marital_status IS NULL THEN 'NULL'
+                                      WHEN u.marital_status::text ~ '^-?[0-9]{1,9}$' THEN u.marital_status::text
+                                      WHEN length(u.marital_status::text) <= 40
+                                       AND u.marital_status::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN translate(lower(u.marital_status::text), ' ', '_')
+                                      ELSE 'OTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(DISTINCT marital_status::text) n FROM users WHERE marital_status IS NOT NULL) d)),
+  (219, 'profile_values', 'users.education bounded value distribution',
+        NULL,
+        (SELECT CASE WHEN d.n > 24
+                     THEN 'UNBOUNDED distinct:' || d.n || ' null:' ||
+                          (SELECT count(*) FROM users WHERE education IS NULL)
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.education IS NULL THEN 'NULL'
+                                      WHEN u.education::text ~ '^-?[0-9]{1,9}$' THEN u.education::text
+                                      WHEN length(u.education::text) <= 40
+                                       AND u.education::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN translate(lower(u.education::text), ' ', '_')
+                                      ELSE 'OTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(DISTINCT education::text) n FROM users WHERE education IS NOT NULL) d)),
+  (220, 'profile_values', 'users.family_involvement_preference bounded value distribution',
+        NULL,
+        (SELECT CASE WHEN d.n > 24
+                     THEN 'UNBOUNDED distinct:' || d.n || ' null:' ||
+                          (SELECT count(*) FROM users WHERE family_involvement_preference IS NULL)
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.family_involvement_preference IS NULL THEN 'NULL'
+                                      WHEN u.family_involvement_preference::text ~ '^-?[0-9]{1,9}$' THEN u.family_involvement_preference::text
+                                      WHEN length(u.family_involvement_preference::text) <= 40
+                                       AND u.family_involvement_preference::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN translate(lower(u.family_involvement_preference::text), ' ', '_')
+                                      ELSE 'OTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(DISTINCT family_involvement_preference::text) n FROM users WHERE family_involvement_preference IS NOT NULL) d)),
+  -- body_type is USER-ENTERED FREE TEXT, not an enum: the onboarding control is
+  -- a plain <input> with a suggestion datalist (Date9ja web/src/pages/AuthPages.js
+  -- :1520-1528) and the API stores any unrecognised value verbatim
+  -- (api/app/controllers/api/v1/me_controller.rb:84-99 `normalize_body_type`
+  -- falls back to `raw`; proven by its own test api/test/requests/api/v1/
+  -- me_update_test.rb:21-25, which stores "not-a-real-body-type" unchanged).
+  -- The generic bounded emitter is therefore NOT safe here -- a short
+  -- person-name-shaped or sensitive phrase satisfies the label grammar. This
+  -- measure uses a CLOSED ALLOWLIST of the documented historical suggestions
+  -- instead; everything else folds to OTHER, fail-closed. Provenance of the
+  -- six values (all three agree): me_controller.rb:87-97 canonical targets,
+  -- web/src/pages/ProfilePage.js:61-68 select options, AuthPages.js:1521-1528
+  -- datalist. Documented aliases (average / plus / big) are deliberately NOT
+  -- allowlisted: they only ever reach the column through a path that already
+  -- canonicalises them, and folding them to OTHER is the safe direction.
+  (221, 'profile_values', 'users.body_type ALLOWLISTED bucket counts (free text; unknown folds to OTHER)',
+        (SELECT count(*) FROM users WHERE body_type IS NOT NULL AND btrim(body_type) <> ''),
+        (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                SELECT CASE
+                         WHEN u.body_type IS NULL THEN 'NULL'
+                         WHEN btrim(u.body_type) = '' THEN 'BLANK'
+                         WHEN lower(regexp_replace(btrim(u.body_type), '[[:space:]-]+', '_', 'g'))
+                              IN ('slim', 'athletic', 'regular', 'curvy', 'muscular', 'plus_size')
+                           THEN lower(regexp_replace(btrim(u.body_type), '[[:space:]-]+', '_', 'g'))
+                         ELSE 'OTHER'
+                       END b, count(*) c
+                  FROM users u GROUP BY 1) t)),
+  (225, 'profile_values', 'users.body_type distinct non-blank value count (no values emitted)',
+        (SELECT count(DISTINCT body_type) FROM users
+          WHERE body_type IS NOT NULL AND btrim(body_type) <> ''),
+        'cardinality only -- how far the column drifted from the six documented suggestions'),
+  (222, 'profile_values', 'users.willing_to_relocate bounded value distribution',
+        NULL,
+        (SELECT CASE WHEN d.n > 24
+                     THEN 'UNBOUNDED distinct:' || d.n || ' null:' ||
+                          (SELECT count(*) FROM users WHERE willing_to_relocate IS NULL)
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.willing_to_relocate IS NULL THEN 'NULL'
+                                      WHEN u.willing_to_relocate::text ~ '^-?[0-9]{1,9}$' THEN u.willing_to_relocate::text
+                                      WHEN length(u.willing_to_relocate::text) <= 40
+                                       AND u.willing_to_relocate::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN translate(lower(u.willing_to_relocate::text), ' ', '_')
+                                      ELSE 'OTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(DISTINCT willing_to_relocate::text) n FROM users WHERE willing_to_relocate IS NOT NULL) d)),
+  (223, 'profile_values', 'users.children_count bounded value distribution',
+        NULL,
+        (SELECT CASE WHEN d.n > 24
+                     THEN 'UNBOUNDED distinct:' || d.n || ' null:' ||
+                          (SELECT count(*) FROM users WHERE children_count IS NULL)
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.children_count IS NULL THEN 'NULL'
+                                      WHEN u.children_count::text ~ '^-?[0-9]{1,9}$' THEN u.children_count::text
+                                      WHEN length(u.children_count::text) <= 40
+                                       AND u.children_count::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN translate(lower(u.children_count::text), ' ', '_')
+                                      ELSE 'OTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(DISTINCT children_count::text) n FROM users WHERE children_count IS NOT NULL) d)),
+  (224, 'profile_values', 'users.height aggregate (no per-row values)',
+        NULL,
+        (SELECT 'null:' || (SELECT count(*) FROM users WHERE height IS NULL)
+             || ' present:' || (SELECT count(*) FROM users WHERE height IS NOT NULL)
+             || ' min:' || COALESCE((SELECT min(height)::text FROM users), 'n/a')
+             || ' max:' || COALESCE((SELECT max(height)::text FROM users), 'n/a'))),
+  (230, 'preference_validity', 'preferred_age_min IS NULL',
+        (SELECT count(*) FROM users WHERE preferred_age_min IS NULL),
+        'no D8N ProfilePreference.min_age input'),
+  (231, 'preference_validity', 'preferred_age_max IS NULL',
+        (SELECT count(*) FROM users WHERE preferred_age_max IS NULL),
+        'no D8N ProfilePreference.max_age input'),
+  (232, 'preference_validity', 'both age preferences NULL',
+        (SELECT count(*) FROM users WHERE preferred_age_min IS NULL AND preferred_age_max IS NULL),
+        'Matching::ProfileParticipant requires both'),
+  (233, 'preference_validity', 'preferred_age_min < 18 (D8N floor)',
+        (SELECT count(*) FROM users WHERE preferred_age_min IS NOT NULL AND preferred_age_min < 18),
+        'violates FieldCatalog min_age gte 18'),
+  (234, 'preference_validity', 'preferred_age_min > 120 (D8N ceiling)',
+        (SELECT count(*) FROM users WHERE preferred_age_min IS NOT NULL AND preferred_age_min > 120),
+        'violates FieldCatalog min_age lte 120'),
+  (235, 'preference_validity', 'preferred_age_max < 18 (D8N floor)',
+        (SELECT count(*) FROM users WHERE preferred_age_max IS NOT NULL AND preferred_age_max < 18),
+        'violates FieldCatalog max_age gte 18'),
+  (236, 'preference_validity', 'preferred_age_max > 120 (D8N ceiling)',
+        (SELECT count(*) FROM users WHERE preferred_age_max IS NOT NULL AND preferred_age_max > 120),
+        'violates FieldCatalog max_age lte 120'),
+  (237, 'preference_validity', 'preferred_age_min > preferred_age_max (inverted)',
+        (SELECT count(*) FROM users WHERE preferred_age_min IS NOT NULL AND preferred_age_max IS NOT NULL AND preferred_age_min > preferred_age_max),
+        'violates FieldCatalog age_range_is_ordered'),
+  (238, 'preference_validity', 'age pair VALID for D8N',
+        (SELECT count(*) FROM users WHERE preferred_age_min BETWEEN 18 AND 120 AND preferred_age_max BETWEEN 18 AND 120 AND preferred_age_min <= preferred_age_max),
+        'migrates unchanged'),
+  (240, 'preference_validity', 'preferred_distance_km IS NULL',
+        (SELECT count(*) FROM users WHERE preferred_distance_km IS NULL),
+        'no D8N ProfilePreference.max_distance_km input'),
+  (241, 'preference_validity', 'preferred_distance_km <= 0',
+        (SELECT count(*) FROM users WHERE preferred_distance_km IS NOT NULL AND preferred_distance_km <= 0),
+        'violates FieldCatalog max_distance_km gt 0'),
+  (242, 'preference_validity', 'preferred_distance_km > 500 (D8N ceiling)',
+        (SELECT count(*) FROM users WHERE preferred_distance_km IS NOT NULL AND preferred_distance_km > 500),
+        'violates FieldCatalog max_distance_km lte 500'),
+  (243, 'preference_validity', 'preferred_distance_km VALID for D8N',
+        (SELECT count(*) FROM users WHERE preferred_distance_km BETWEEN 1 AND 500),
+        'migrates unchanged'),
+  (239, 'preference_validity', 'age preference aggregate bounds (no per-row values)',
+        NULL,
+        (SELECT 'min_age[' || COALESCE(min(preferred_age_min)::text, 'n/a') || '..' ||
+                COALESCE(max(preferred_age_min)::text, 'n/a') || '] max_age[' ||
+                COALESCE(min(preferred_age_max)::text, 'n/a') || '..' ||
+                COALESCE(max(preferred_age_max)::text, 'n/a') || ']' FROM users)),
+  (244, 'preference_validity', 'distance preference aggregate bounds (no per-row values)',
+        NULL,
+        (SELECT 'distance[' || COALESCE(min(preferred_distance_km)::text, 'n/a') || '..' ||
+                COALESCE(max(preferred_distance_km)::text, 'n/a') || ']' FROM users)),
+  (245, 'preference_validity', 'users ELIGIBLE for a complete ProfilePreference (Pass 2 target)',
+        -- `IS TRUE` / `IS NOT TRUE` rather than a bare predicate / NOT: a NULL
+        -- input makes the AND-chain NULL, and `WHERE NULL` counts nothing --
+        -- which would silently drop the row from BOTH cohorts instead of
+        -- partitioning the live population. These two measures MUST sum to the
+        -- kept, non-banned population.
+        (SELECT count(*) FROM users
+          WHERE deleted_at IS NULL AND banned_at IS NULL
+            AND (looking_for IS NOT NULL
+                   AND preferred_age_min BETWEEN 18 AND 120
+                   AND preferred_age_max BETWEEN 18 AND 120
+                   AND preferred_age_min <= preferred_age_max
+                   AND preferred_distance_km BETWEEN 1 AND 500) IS TRUE),
+        'all four required Date9ja preference fields present and inside D8N validation ceilings'),
+  (246, 'preference_validity', 'users LACKING at least one required preference input (Pass 2 policy cohort)',
+        (SELECT count(*) FROM users
+          WHERE deleted_at IS NULL AND banned_at IS NULL
+            AND (looking_for IS NOT NULL
+                   AND preferred_age_min BETWEEN 18 AND 120
+                   AND preferred_age_max BETWEEN 18 AND 120
+                   AND preferred_age_min <= preferred_age_max
+                   AND preferred_distance_km BETWEEN 1 AND 500) IS NOT TRUE),
+        'needs an approved invalid/missing-data policy before Pass 2'),
+  (250, 'gender_compat', 'users.gender IS NULL',
+        (SELECT count(*) FROM users WHERE gender IS NULL),
+        'cannot be a discovery CANDIDATE: EligibilityScope matches profiles.gender exactly'),
+  (251, 'gender_compat', 'users.looking_for IS NULL',
+        (SELECT count(*) FROM users WHERE looking_for IS NULL),
+        'cannot be a discovery VIEWER: interested_in would be empty'),
+  (252, 'gender_compat', 'distinct users.gender values',
+        (SELECT count(DISTINCT gender::text) FROM users WHERE gender IS NOT NULL),
+        'size of the source gender code space'),
+  (253, 'gender_compat', 'distinct users.looking_for values',
+        (SELECT count(DISTINCT looking_for::text) FROM users WHERE looking_for IS NOT NULL),
+        'size of the source looking_for code space'),
+  (254, 'gender_compat', 'distinct values present in BOTH gender and looking_for',
+        (SELECT count(*) FROM (SELECT DISTINCT gender::text v FROM users WHERE gender IS NOT NULL
+                               INTERSECT
+                               SELECT DISTINCT looking_for::text FROM users WHERE looking_for IS NOT NULL) s),
+        'shared code space: if this equals BOTH distinct counts the columns are reciprocal as-is'),
+  (255, 'gender_compat', 'distinct gender values NOT present in looking_for',
+        (SELECT count(*) FROM (SELECT DISTINCT gender::text v FROM users WHERE gender IS NOT NULL
+                               EXCEPT
+                               SELECT DISTINCT looking_for::text FROM users WHERE looking_for IS NOT NULL) s),
+        'nonzero means a candidate gender no viewer can express a preference for'),
+  (256, 'gender_compat', 'distinct looking_for values NOT present in gender',
+        (SELECT count(*) FROM (SELECT DISTINCT looking_for::text v FROM users WHERE looking_for IS NOT NULL
+                               EXCEPT
+                               SELECT DISTINCT gender::text FROM users WHERE gender IS NOT NULL) s),
+        'nonzero means looking_for carries a wider vocabulary (e.g. an everyone/both code)'),
+  (257, 'gender_compat', 'users with BOTH gender and looking_for present',
+        (SELECT count(*) FROM users WHERE gender IS NOT NULL AND looking_for IS NOT NULL
+           AND deleted_at IS NULL AND banned_at IS NULL),
+        'reciprocal-capable population once the vocabulary mapping is approved'),
+  (258, 'gender_compat', 'gender x looking_for pair distribution (bounded codes only)',
+        NULL,
+        (SELECT CASE WHEN p.n > 24
+                     THEN 'UNBOUNDED distinct_pairs:' || p.n
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.gender IS NULL THEN 'gNULL'
+                                      WHEN u.gender::text ~ '^-?[0-9]{1,9}$' THEN 'g' || u.gender::text
+                                      WHEN length(u.gender::text) <= 40
+                                       AND u.gender::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN 'g' || translate(lower(u.gender::text), ' ', '_')
+                                      ELSE 'gOTHER'
+                                    END || '/' ||
+                                    CASE
+                                      WHEN u.looking_for IS NULL THEN 'lNULL'
+                                      WHEN u.looking_for::text ~ '^-?[0-9]{1,9}$' THEN 'l' || u.looking_for::text
+                                      WHEN length(u.looking_for::text) <= 40
+                                       AND u.looking_for::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN 'l' || translate(lower(u.looking_for::text), ' ', '_')
+                                      ELSE 'lOTHER'
+                                    END b, count(*) c
+                               FROM users u GROUP BY 1) t)
+                END
+           FROM (SELECT count(*) n FROM (SELECT DISTINCT gender::text, looking_for::text FROM users) d) p)),
+  -- -----------------------------------------------------------------------
+  -- MIGRATION-ELIGIBLE POPULATION AND ONBOARDING PARTITION (ord 259, 290-299)
+  --
+  -- POPULATION DEFINITION -- taken from the authoritative importer rules, NOT
+  -- invented here. `Date9ja::Import::IdentityImport#import_one`
+  -- (domains/date9ja/import/identity_import.rb:63-64) skips a source row when
+  -- `record.soft_deleted?` or `record.banned?`, and
+  -- `Date9ja::Snapshot::UserRecord` (domains/date9ja/snapshot/user_record.rb
+  -- :48,50) defines those as `deleted_at.present?` / `banned_at.present?`.
+  -- The migration-eligible population is therefore exactly:
+  --     deleted_at IS NULL AND banned_at IS NULL
+  -- There is no seed/admin exclusion in the importer, so none is applied here;
+  -- measures 245/246 already use this same predicate.
+  --
+  -- ONBOARDING PARTITION -- `onboarding_completed_at IS NOT NULL`, the same
+  -- predicate as measures 30 and 270. Onboarding is NOT an eligibility filter;
+  -- it splits the eligible population because the two cohorts reached the
+  -- `looking_for` column through different write paths.
+  --
+  -- Each cohort is split into three MUTUALLY EXCLUSIVE buckets -- same code,
+  -- differing code, indeterminate (either side NULL) -- so 291+292+293 = 290
+  -- and 295+296+297 = 294, and 290+294 = the eligible population. Measure 299
+  -- states those sums and reports OK / MISMATCH rather than assuming them.
+  -- Counts only; no row-level data.
+  -- -----------------------------------------------------------------------
+  (259, 'gender_compat', 'gender x looking_for pair distribution, MIGRATION-ELIGIBLE only (bounded codes)',
+        (SELECT count(*) FROM users WHERE deleted_at IS NULL AND banned_at IS NULL),
+        (SELECT CASE WHEN p.n > 24
+                     THEN 'UNBOUNDED distinct_pairs:' || p.n
+                     ELSE (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                             SELECT CASE
+                                      WHEN u.gender IS NULL THEN 'gNULL'
+                                      WHEN u.gender::text ~ '^-?[0-9]{1,9}$' THEN 'g' || u.gender::text
+                                      WHEN length(u.gender::text) <= 40
+                                       AND u.gender::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN 'g' || translate(lower(u.gender::text), ' ', '_')
+                                      ELSE 'gOTHER'
+                                    END || '/' ||
+                                    CASE
+                                      WHEN u.looking_for IS NULL THEN 'lNULL'
+                                      WHEN u.looking_for::text ~ '^-?[0-9]{1,9}$' THEN 'l' || u.looking_for::text
+                                      WHEN length(u.looking_for::text) <= 40
+                                       AND u.looking_for::text ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,3}$'
+                                        THEN 'l' || translate(lower(u.looking_for::text), ' ', '_')
+                                      ELSE 'lOTHER'
+                                    END b, count(*) c
+                               FROM users u
+                              WHERE u.deleted_at IS NULL AND u.banned_at IS NULL
+                              GROUP BY 1) t)
+                END
+           FROM (SELECT count(*) n FROM (SELECT DISTINCT gender::text, looking_for::text FROM users
+                                          WHERE deleted_at IS NULL AND banned_at IS NULL) d) p)),
+  (290, 'gender_compat', 'MIGRATION-ELIGIBLE population (importer: not soft-deleted, not banned)',
+        (SELECT count(*) FROM users WHERE deleted_at IS NULL AND banned_at IS NULL),
+        'identity_import.rb:63-64 + user_record.rb:48,50'),
+  (291, 'gender_compat', 'eligible AND onboarded: cohort size',
+        (SELECT count(*) FROM users
+          WHERE deleted_at IS NULL AND banned_at IS NULL AND onboarding_completed_at IS NOT NULL),
+        'reached looking_for through the onboarding form'),
+  (292, 'gender_compat', 'eligible AND onboarded: looking_for code SAME as gender code',
+        (SELECT count(*) FROM users
+          WHERE deleted_at IS NULL AND banned_at IS NULL AND onboarding_completed_at IS NOT NULL
+            AND (gender::text = looking_for::text) IS TRUE),
+        NULL),
+  (293, 'gender_compat', 'eligible AND onboarded: looking_for code DIFFERS from gender code',
+        (SELECT count(*) FROM users
+          WHERE deleted_at IS NULL AND banned_at IS NULL AND onboarding_completed_at IS NOT NULL
+            AND (gender::text <> looking_for::text) IS TRUE),
+        NULL),
+  (294, 'gender_compat', 'eligible AND onboarded: indeterminate (gender or looking_for NULL)',
+        (SELECT count(*) FROM users
+          WHERE deleted_at IS NULL AND banned_at IS NULL AND onboarding_completed_at IS NOT NULL
+            AND (gender IS NULL OR looking_for IS NULL)),
+        NULL),
+  (295, 'gender_compat', 'eligible AND NOT onboarded: cohort size',
+        (SELECT count(*) FROM users
+          WHERE deleted_at IS NULL AND banned_at IS NULL AND onboarding_completed_at IS NULL),
+        'never submitted the onboarding form'),
+  (296, 'gender_compat', 'eligible AND NOT onboarded: looking_for code SAME as gender code',
+        (SELECT count(*) FROM users
+          WHERE deleted_at IS NULL AND banned_at IS NULL AND onboarding_completed_at IS NULL
+            AND (gender::text = looking_for::text) IS TRUE),
+        NULL),
+  (297, 'gender_compat', 'eligible AND NOT onboarded: looking_for code DIFFERS from gender code',
+        (SELECT count(*) FROM users
+          WHERE deleted_at IS NULL AND banned_at IS NULL AND onboarding_completed_at IS NULL
+            AND (gender::text <> looking_for::text) IS TRUE),
+        NULL),
+  (298, 'gender_compat', 'eligible AND NOT onboarded: indeterminate (gender or looking_for NULL)',
+        (SELECT count(*) FROM users
+          WHERE deleted_at IS NULL AND banned_at IS NULL AND onboarding_completed_at IS NULL
+            AND (gender IS NULL OR looking_for IS NULL)),
+        NULL),
+  (299, 'gender_compat', 'partition proof for 290-298 (must read OK)',
+        NULL,
+        (SELECT 'eligible:' || e.n
+             || ' onboarded:' || a.tot || '=' || a.same || '+' || a.diff || '+' || a.ind
+             || ' not_onboarded:' || b.tot || '=' || b.same || '+' || b.diff || '+' || b.ind
+             || ' ' || CASE WHEN a.tot = a.same + a.diff + a.ind
+                             AND b.tot = b.same + b.diff + b.ind
+                             AND e.n = a.tot + b.tot
+                            THEN 'OK' ELSE 'MISMATCH' END
+           FROM (SELECT count(*) n FROM users WHERE deleted_at IS NULL AND banned_at IS NULL) e,
+                (SELECT count(*) tot,
+                        count(*) FILTER (WHERE (gender::text = looking_for::text) IS TRUE) same,
+                        count(*) FILTER (WHERE (gender::text <> looking_for::text) IS TRUE) diff,
+                        count(*) FILTER (WHERE gender IS NULL OR looking_for IS NULL) ind
+                   FROM users
+                  WHERE deleted_at IS NULL AND banned_at IS NULL
+                    AND onboarding_completed_at IS NOT NULL) a,
+                (SELECT count(*) tot,
+                        count(*) FILTER (WHERE (gender::text = looking_for::text) IS TRUE) same,
+                        count(*) FILTER (WHERE (gender::text <> looking_for::text) IS TRUE) diff,
+                        count(*) FILTER (WHERE gender IS NULL OR looking_for IS NULL) ind
+                   FROM users
+                  WHERE deleted_at IS NULL AND banned_at IS NULL
+                    AND onboarding_completed_at IS NULL) b)),
+  (260, 'profile_shape', 'users.full_name token shape (PRISTINE-ONLY; no names emitted)',
+        NULL,
+        (SELECT 'null:'   || (SELECT count(*) FROM users WHERE full_name IS NULL)
+             || ' blank:' || (SELECT count(*) FROM users WHERE full_name IS NOT NULL AND btrim(full_name) = '')
+             || ' 1_token:'  || (SELECT count(*) FROM users WHERE btrim(full_name) <> ''
+                                  AND array_length(regexp_split_to_array(btrim(full_name), '\s+'), 1) = 1)
+             || ' 2_token:'  || (SELECT count(*) FROM users WHERE btrim(full_name) <> ''
+                                  AND array_length(regexp_split_to_array(btrim(full_name), '\s+'), 1) = 2)
+             || ' 3plus_token:' || (SELECT count(*) FROM users WHERE btrim(full_name) <> ''
+                                  AND array_length(regexp_split_to_array(btrim(full_name), '\s+'), 1) >= 3))),
+  (261, 'profile_shape', 'users.display_name token shape (PRISTINE-ONLY; no names emitted)',
+        NULL,
+        (SELECT 'null:'   || (SELECT count(*) FROM users WHERE display_name IS NULL)
+             || ' blank:' || (SELECT count(*) FROM users WHERE display_name IS NOT NULL AND btrim(display_name) = '')
+             || ' 1_token:'  || (SELECT count(*) FROM users WHERE btrim(display_name) <> ''
+                                  AND array_length(regexp_split_to_array(btrim(display_name), '\s+'), 1) = 1)
+             || ' 2_token:'  || (SELECT count(*) FROM users WHERE btrim(display_name) <> ''
+                                  AND array_length(regexp_split_to_array(btrim(display_name), '\s+'), 1) = 2)
+             || ' 3plus_token:' || (SELECT count(*) FROM users WHERE btrim(display_name) <> ''
+                                  AND array_length(regexp_split_to_array(btrim(display_name), '\s+'), 1) >= 3))),
+  (265, 'country', 'users.country_of_residence value SHAPE classification (no raw values)',
+        NULL,
+        (SELECT 'null:' || (SELECT count(*) FROM users WHERE country_of_residence IS NULL)
+             || ' blank:' || (SELECT count(*) FROM users
+                               WHERE country_of_residence IS NOT NULL AND btrim(country_of_residence) = '')
+             || ' iso2:' || (SELECT count(*) FROM users WHERE btrim(country_of_residence) ~ '^[A-Za-z]{2}$')
+             || ' name_like:' || (SELECT count(*) FROM users
+                                   WHERE btrim(country_of_residence) ~ '^[A-Za-z][A-Za-z .-]{2,59}$')
+             || ' other:' || (SELECT count(*) FROM users
+                               WHERE btrim(country_of_residence) <> ''
+                                 AND btrim(country_of_residence) !~ '^[A-Za-z]{2}$'
+                                 AND btrim(country_of_residence) !~ '^[A-Za-z][A-Za-z .-]{2,59}$')
+             || ' distinct:' || (SELECT count(DISTINCT lower(btrim(country_of_residence))) FROM users
+                                  WHERE btrim(country_of_residence) <> ''))),
+  (266, 'country', 'users.country_of_residence ALLOWLISTED bucket counts (unknown folds to OTHER)',
+        NULL,
+        (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+           SELECT CASE
+                    WHEN country_of_residence IS NULL OR btrim(country_of_residence) = '' THEN 'NULL'
+                    WHEN lower(btrim(country_of_residence)) IN ('ng','nga','nigeria') THEN 'nigeria'
+                    WHEN lower(btrim(country_of_residence)) IN ('gb','uk','gbr','united kingdom') THEN 'united_kingdom'
+                    WHEN lower(btrim(country_of_residence)) IN ('us','usa','united states',
+                         'united states of america') THEN 'united_states'
+                    WHEN lower(btrim(country_of_residence)) IN ('ca','can','canada') THEN 'canada'
+                    WHEN lower(btrim(country_of_residence)) IN ('gh','gha','ghana') THEN 'ghana'
+                    WHEN lower(btrim(country_of_residence)) IN ('za','zaf','south africa') THEN 'south_africa'
+                    WHEN lower(btrim(country_of_residence)) IN ('ke','ken','kenya') THEN 'kenya'
+                    WHEN lower(btrim(country_of_residence)) IN ('ie','irl','ireland') THEN 'ireland'
+                    WHEN lower(btrim(country_of_residence)) IN ('de','deu','germany') THEN 'germany'
+                    WHEN lower(btrim(country_of_residence)) IN ('ae','are','united arab emirates') THEN 'uae'
+                    ELSE 'OTHER'
+                  END b, count(*) c FROM users GROUP BY 1) t)),
+  (270, 'publication', 'profile_hidden x onboarding_completed_at cohorts',
+        NULL,
+        (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+           SELECT CASE WHEN profile_hidden THEN 'hidden' ELSE 'visible' END || '/' ||
+                  CASE WHEN onboarding_completed_at IS NOT NULL THEN 'onboarded' ELSE 'not_onboarded' END b,
+                  count(*) c FROM users GROUP BY 1) t)),
+  (271, 'publication', 'profile_completeness_score bands',
+        NULL,
+        (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+           SELECT CASE
+                    WHEN profile_completeness_score IS NULL THEN 'NULL'
+                    WHEN profile_completeness_score < 0 OR profile_completeness_score > 100 THEN 'OUT_OF_RANGE'
+                    WHEN profile_completeness_score = 0 THEN '000'
+                    WHEN profile_completeness_score < 50 THEN '001_049'
+                    WHEN profile_completeness_score < 80 THEN '050_079'
+                    WHEN profile_completeness_score < 100 THEN '080_099'
+                    ELSE '100'
+                  END b, count(*) c FROM users GROUP BY 1) t)),
+  (272, 'publication', 'live + onboarded + not hidden (candidate migrated-publication cohort)',
+        (SELECT count(*) FROM users
+          WHERE deleted_at IS NULL AND banned_at IS NULL AND suspended_at IS NULL
+            AND profile_hidden = false AND onboarding_completed_at IS NOT NULL),
+        'candidate only: D8N publication requires Profiles::Completion to pass, not this flag'),
+  (280, 'arrays', 'users.interests array shape (PRISTINE-ONLY)',
+        NULL,
+        (SELECT 'null:'      || (SELECT count(*) FROM users WHERE interests IS NULL)
+             || ' empty:'    || (SELECT count(*) FROM users WHERE interests IS NOT NULL AND cardinality(interests) = 0)
+             || ' nonempty:' || (SELECT count(*) FROM users WHERE cardinality(interests) > 0)
+             || ' max_card:' || COALESCE((SELECT max(cardinality(interests)) FROM users), 0)
+             || ' distinct_elems:'     || (SELECT count(DISTINCT e) FROM users, unnest(interests) e)
+             || ' label_shaped_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(interests) e
+                                            WHERE e ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,2}$')
+             || ' sentence_shaped_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(interests) e
+                                            WHERE length(e) > 40 OR e ~ '[.,;:!?]')
+             || ' long_elems:'         || (SELECT count(DISTINCT e) FROM users, unnest(interests) e
+                                            WHERE length(e) > 40))),
+  (281, 'arrays', 'users.relationship_values array shape (PRISTINE-ONLY)',
+        NULL,
+        (SELECT 'null:'      || (SELECT count(*) FROM users WHERE relationship_values IS NULL)
+             || ' empty:'    || (SELECT count(*) FROM users WHERE relationship_values IS NOT NULL AND cardinality(relationship_values) = 0)
+             || ' nonempty:' || (SELECT count(*) FROM users WHERE cardinality(relationship_values) > 0)
+             || ' max_card:' || COALESCE((SELECT max(cardinality(relationship_values)) FROM users), 0)
+             || ' distinct_elems:'     || (SELECT count(DISTINCT e) FROM users, unnest(relationship_values) e)
+             || ' label_shaped_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(relationship_values) e
+                                            WHERE e ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,2}$')
+             || ' sentence_shaped_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(relationship_values) e
+                                            WHERE length(e) > 40 OR e ~ '[.,;:!?]')
+             || ' long_elems:'         || (SELECT count(DISTINCT e) FROM users, unnest(relationship_values) e
+                                            WHERE length(e) > 40))),
+  (282, 'arrays', 'users.dealbreakers array shape (PRISTINE-ONLY)',
+        NULL,
+        (SELECT 'null:'      || (SELECT count(*) FROM users WHERE dealbreakers IS NULL)
+             || ' empty:'    || (SELECT count(*) FROM users WHERE dealbreakers IS NOT NULL AND cardinality(dealbreakers) = 0)
+             || ' nonempty:' || (SELECT count(*) FROM users WHERE cardinality(dealbreakers) > 0)
+             || ' max_card:' || COALESCE((SELECT max(cardinality(dealbreakers)) FROM users), 0)
+             || ' distinct_elems:'     || (SELECT count(DISTINCT e) FROM users, unnest(dealbreakers) e)
+             || ' label_shaped_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(dealbreakers) e
+                                            WHERE e ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,2}$')
+             || ' sentence_shaped_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(dealbreakers) e
+                                            WHERE length(e) > 40 OR e ~ '[.,;:!?]')
+             || ' long_elems:'         || (SELECT count(DISTINCT e) FROM users, unnest(dealbreakers) e
+                                            WHERE length(e) > 40))),
+  (283, 'arrays', 'users.languages_spoken array shape',
+        NULL,
+        (SELECT 'null:'      || (SELECT count(*) FROM users WHERE languages_spoken IS NULL)
+             || ' empty:'    || (SELECT count(*) FROM users WHERE languages_spoken IS NOT NULL AND cardinality(languages_spoken) = 0)
+             || ' nonempty:' || (SELECT count(*) FROM users WHERE cardinality(languages_spoken) > 0)
+             || ' max_card:' || COALESCE((SELECT max(cardinality(languages_spoken)) FROM users), 0)
+             || ' distinct_elems:'     || (SELECT count(DISTINCT e) FROM users, unnest(languages_spoken) e)
+             || ' label_shaped_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(languages_spoken) e
+                                            WHERE e ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,2}$')
+             || ' sentence_shaped_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(languages_spoken) e
+                                            WHERE length(e) > 40 OR e ~ '[.,;:!?]')
+             || ' long_elems:'         || (SELECT count(DISTINCT e) FROM users, unnest(languages_spoken) e
+                                            WHERE length(e) > 40))),
+  (284, 'arrays', 'users.preferred_countries array shape',
+        NULL,
+        (SELECT 'null:'      || (SELECT count(*) FROM users WHERE preferred_countries IS NULL)
+             || ' empty:'    || (SELECT count(*) FROM users WHERE preferred_countries IS NOT NULL AND cardinality(preferred_countries) = 0)
+             || ' nonempty:' || (SELECT count(*) FROM users WHERE cardinality(preferred_countries) > 0)
+             || ' max_card:' || COALESCE((SELECT max(cardinality(preferred_countries)) FROM users), 0)
+             || ' distinct_elems:'     || (SELECT count(DISTINCT e) FROM users, unnest(preferred_countries) e)
+             || ' label_shaped_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(preferred_countries) e
+                                            WHERE e ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,2}$')
+             || ' sentence_shaped_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(preferred_countries) e
+                                            WHERE length(e) > 40 OR e ~ '[.,;:!?]')
+             || ' long_elems:'         || (SELECT count(DISTINCT e) FROM users, unnest(preferred_countries) e
+                                            WHERE length(e) > 40))),
+  (285, 'arrays', 'users.relocation_preferences array shape',
+        NULL,
+        (SELECT 'null:'      || (SELECT count(*) FROM users WHERE relocation_preferences IS NULL)
+             || ' empty:'    || (SELECT count(*) FROM users WHERE relocation_preferences IS NOT NULL AND cardinality(relocation_preferences) = 0)
+             || ' nonempty:' || (SELECT count(*) FROM users WHERE cardinality(relocation_preferences) > 0)
+             || ' max_card:' || COALESCE((SELECT max(cardinality(relocation_preferences)) FROM users), 0)
+             || ' distinct_elems:'     || (SELECT count(DISTINCT e) FROM users, unnest(relocation_preferences) e)
+             || ' label_shaped_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(relocation_preferences) e
+                                            WHERE e ~* '^[a-z][a-z0-9_-]*( [a-z][a-z0-9_-]*){0,2}$')
+             || ' sentence_shaped_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(relocation_preferences) e
+                                            WHERE length(e) > 40 OR e ~ '[.,;:!?]')
+             || ' long_elems:'         || (SELECT count(DISTINCT e) FROM users, unnest(relocation_preferences) e
+                                            WHERE length(e) > 40)))
 )
 SELECT section, measure, source_count, note
 FROM census
@@ -361,3 +1156,12 @@ ROLLBACK;
 \echo 'docs/migrations/date9ja-to-d8n/RECONCILIATION.md (Source column + notes),'
 \echo 'record the snapshot id / run timestamp, and use it as the importer'
 \echo 'dry-run acceptance baseline.'
+\echo ''
+\echo 'Sections source_types / profile_values / preference_validity /'
+\echo 'gender_compat / profile_shape / country / publication / arrays (ord 200+)'
+\echo 'also go into docs/migrations/date9ja-to-d8n/PROFILE-VALUE-MAPPING.md.'
+\echo 'Record WHICH database produced them: profile_shape (260/261) and the'
+\echo 'interests / relationship_values / dealbreakers rows (280-282) are'
+\echo 'PRISTINE-ONLY -- against the sanitized copy they measure the sanitizer.'
+\echo 'Measure 202 must read "none"; anything listed there is an unclassified'
+\echo 'source column that has to be classified before Pass 2.'
