@@ -12,7 +12,7 @@ module Date9ja
       :id, :public_id, :email, :phone, :encrypted_password,
       :confirmed_at, :phone_verified_at, :created_at, :deleted_at,
       :suspended_at, :banned_at, :profile_hidden, :onboarding_completed_at,
-      :date_of_birth, :gender, :display_name, :city, :country_of_residence,
+      :date_of_birth, :gender, :full_name, :display_name, :city, :country_of_residence,
       :about_me, :ideal_partner_description,
       # Preference / option-group inputs, added with the profile & preference
       # importer slice. Legacy enum CODES and integers -- decoded by
@@ -40,6 +40,7 @@ module Date9ja
           onboarding_completed_at: row["onboarding_completed_at"],
           date_of_birth: row["date_of_birth"],
           gender: row["gender"],
+          full_name: row["full_name"],
           display_name: row["display_name"],
           city: row["city"],
           country_of_residence: row["country_of_residence"],
@@ -71,6 +72,18 @@ module Date9ja
           confirmed_at, phone_verified_at, deleted_at, suspended_at, banned_at,
           profile_hidden, onboarding_completed_at, date_of_birth, gender, city,
           country_of_residence
+        ].map(&:to_s).join("|")
+        Digest::SHA256.hexdigest(material)[0, 32]
+      end
+
+      # Separate fingerprint for the readiness pass. It includes only a digest
+      # of source inputs; names and location text never enter D8N evidence/logs.
+      def readiness_fingerprint
+        material = [
+          full_name, city, country_of_residence, profile_hidden,
+          onboarding_completed_at, suspended_at, banned_at, deleted_at,
+          preferred_age_min, preferred_age_max, relationship_intention,
+          wants_children, children_count
         ].map(&:to_s).join("|")
         Digest::SHA256.hexdigest(material)[0, 32]
       end

@@ -16,6 +16,9 @@ class Profile < ApplicationRecord
   has_many :selected_profile_options, through: :profile_option_selections, source: :profile_option
   has_many :prompt_answers, class_name: "ProfilePromptAnswer", dependent: :restrict_with_exception
   has_many :profile_locations, dependent: :restrict_with_exception
+  has_one :migration_profile_readiness,
+    class_name: "Migration::ProfileReadiness",
+    dependent: :restrict_with_exception
   has_many :find_exposures_as_viewer,
     class_name: "FindProfileExposure",
     foreign_key: :viewer_profile_id,

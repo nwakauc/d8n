@@ -29,6 +29,11 @@ module Date9ja
         refute_includes UserRecord.members.map(&:to_s), "languages_spoken"
       end
 
+      test "selects the narrowly required legacy name for readiness without logging it" do
+        assert_includes UserSource::SELECTED_COLUMNS, "full_name"
+        assert_includes UserRecord.members.map(&:to_s), "full_name"
+      end
+
       test "does not run the schema guard for synthetic rows" do
         # No connection => SchemaGuard is never touched.
         assert_nothing_raised { UserSource.new(rows: [ base_row ]).to_a }

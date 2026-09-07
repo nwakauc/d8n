@@ -135,10 +135,8 @@ module Date9ja
           credential.user_id == user.id && credential.password? && credential.active? && credential.deleted_at.nil? &&
           credential.identity_identifier_id == email_identifier.id &&
           membership.user_id == user.id && membership.brand_id == brand.id &&
-          membership.status == FieldMapping.membership_status(record).to_s && membership.deleted_at.nil? &&
+          membership.deleted_at.nil? &&
           profile.user_id == user.id && profile.brand_id == brand.id && profile.deleted_at.nil? &&
-          profile.status == FieldMapping.profile_status(record).to_s &&
-          profile.visibility == FieldMapping.profile_visibility(record).to_s &&
           profile.brand_membership_id == membership.id
         return :incomplete unless structural
 

@@ -46,6 +46,71 @@ For media, verify every source blob/object exists, matches checksum/size/type, m
 
 Run the importer twice against the same snapshot: the second run must create zero users, profiles, relationships, conversations, or messages, and destination IDs/fingerprints must remain unchanged. Test interruption/resume as well.
 
+## Migrated profile readiness contract — 2026-09-07
+
+`Date9ja::Import::ProfileReadinessImport` is the migration-side bridge into the
+existing shared completion/publication services. It persists one current,
+PII-free `Migration::ProfileReadiness` row per eligible source member with one
+disposition (`ready`, `intentionally_hidden`, `remediation_required`, `failed`)
+and zero or more reason codes. Source names, city strings, emails and other PII
+are not stored in the evidence row; only a source fingerprint is retained.
+
+The run is accepted only when `eligible == sum(dispositions)`, technical failures
+are zero, and a second run preserves destination IDs and member/operator/native
+values. Reconciliation exposes source/mapped/preserved/unresolved measures for
+names, country, location, ages and every required option group, plus completion
+before/after and publication counts.
+
+### Executable baseline — available isolated destination
+
+Run 2026-09-07 against `d8n_date9ja_rehearsal_l2_20260903`, applying the current
+Date9ja catalogue only inside a rolled-back transaction:
+
+| Measure | Count |
+|---|---:|
+| Profiles | 280 |
+| Complete before readiness | 0 |
+| Missing first/last name | 280 / 280 |
+| Missing country / location | 280 / 280 |
+| Missing interested-in / min-age / max-age | 280 / 280 / 280 |
+| Missing relationship-intent / has-children / wants-children | 280 / 280 / 280 |
+| Missing city / bio | 280 / 74 |
+| Missing publication-eligible photo | 125 |
+
+This destination predates the completed profile-preference pass, so it is a real
+baseline for the available identity+photo artifact, not the final readiness
+rehearsal. It must not replace the later checked-in evidence of 63 valid age
+pairs and 477 approved option selections.
+
+### Sanitized source rehearsal — DEFERRED EVIDENCE
+
+The established `date9ja_snapshot_sanitized` source database and
+`DATE9JA_SNAPSHOT_DATABASE_URL` are absent from the current environment. No
+source data was copied from unapproved local databases and no production system
+was accessed. Therefore ready/hidden/remediation totals and deterministic mapping
+counts for the 280-member cohort are not recorded here. Run
+`date9ja:import_profile_readiness` twice in the approved isolated environment,
+with the current brand catalogue installed and the identity, preference and
+media passes already complete. Keep the default `classify_only` until D-8 is
+explicitly approved.
+
+### Recovery audit — 2026-09-07
+
+The established recovery procedure was re-traced in `SNAPSHOT-RUNBOOK.md`:
+restore an approved encrypted backup into isolated PostgreSQL 17 as
+`date9ja_snapshot_tmp`, create the sanitized working copy
+`date9ja_snapshot_sanitized`, run the sanitizer and verifier, then expose it
+through `DATE9JA_SNAPSHOT_DATABASE_URL` (the prior rehearsal used local port
+55432). The repository contains the source census, schema signature, sanitizer,
+verifier, and recorded 288 → 280 → 8 evidence, but no dump/archive or approved
+connection details are present in the current workspace. The local PostgreSQL
+catalog was checked: it contains D8N rehearsal databases and unrelated or
+ambiguously named databases; those were not opened or treated as Date9ja data.
+A bounded home/workspace artifact search found no matching Date9ja dump. No
+production access, export, restore, or source mutation was performed. The
+readiness rehearsal remains blocked until the approved snapshot/database or its
+encrypted restore artifact is supplied by an authorized operator.
+
 ## Profile & preference VALUE census contract (Pass 1 — PROFILE-VALUE-MAPPING.md)
 
 Pass 1 is evidence only: it creates no destination row, so there is **no

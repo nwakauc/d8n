@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_04_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_07_060000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -541,6 +541,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_120000) do
     t.check_constraint "byte_size IS NULL OR byte_size > 0", name: "chk_migration_media_object_refs_positive_size"
     t.check_constraint "preflight_state >= 0 AND preflight_state <= 3", name: "chk_migration_media_object_refs_preflight_state"
     t.check_constraint "transfer_state >= 0 AND transfer_state <= 3", name: "chk_migration_media_object_refs_transfer_state"
+  end
+
+  create_table "migration_profile_readinesses", force: :cascade do |t|
+    t.jsonb "applied_fields", default: [], null: false
+    t.datetime "assessed_at", null: false
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "disposition", null: false
+    t.string "importer_version", null: false
+    t.bigint "profile_id"
+    t.datetime "publication_applied_at"
+    t.jsonb "reason_codes", default: [], null: false
+    t.string "source_entity", null: false
+    t.string "source_fingerprint"
+    t.string "source_id", null: false
+    t.string "source_system", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["brand_id"], name: "index_migration_profile_readinesses_on_brand_id"
+    t.index ["profile_id"], name: "idx_migration_profile_readiness_profile", unique: true, where: "(profile_id IS NOT NULL)"
+    t.index ["source_system", "source_entity", "source_id"], name: "idx_migration_profile_readiness_source", unique: true
+    t.index ["user_id"], name: "index_migration_profile_readinesses_on_user_id"
+    t.check_constraint "disposition >= 0 AND disposition <= 3", name: "chk_migration_profile_readiness_disposition"
+    t.check_constraint "jsonb_typeof(applied_fields) = 'array'::text", name: "chk_migration_profile_readiness_applied_fields_array"
+    t.check_constraint "jsonb_typeof(reason_codes) = 'array'::text", name: "chk_migration_profile_readiness_reasons_array"
+    t.check_constraint "profile_id IS NULL AND user_id IS NULL OR profile_id IS NOT NULL AND user_id IS NOT NULL", name: "chk_migration_profile_readiness_owner_pair"
   end
 
   create_table "notification_deliveries", force: :cascade do |t|
@@ -1122,6 +1148,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_120000) do
   add_foreign_key "messages", "messages", column: ["reply_to_message_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_reply_to_message_tenant"
   add_foreign_key "messages", "profiles", column: ["sender_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_sender_tenant"
   add_foreign_key "migration_media_attachment_refs", "migration_media_object_refs", column: "media_object_ref_id"
+  add_foreign_key "migration_profile_readinesses", "brands"
+  add_foreign_key "migration_profile_readinesses", "profiles"
+  add_foreign_key "migration_profile_readinesses", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_migration_profile_readiness_profile_tenant"
+  add_foreign_key "migration_profile_readinesses", "users"
   add_foreign_key "notification_deliveries", "brands"
   add_foreign_key "notification_deliveries", "device_registrations"
   add_foreign_key "notification_deliveries", "notifications"

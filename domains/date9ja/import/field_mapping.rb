@@ -23,7 +23,7 @@ module Date9ja
 
       # Non-sensitive legacy `users` columns this slice maps onto shared Profile.
       PROFILE_SOURCE_COLUMNS = %w[
-        display_name date_of_birth gender city country_of_residence about_me
+        full_name display_name date_of_birth gender city country_of_residence about_me
         ideal_partner_description profile_hidden suspended_at onboarding_completed_at
       ].freeze
 

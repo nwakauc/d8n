@@ -37,6 +37,28 @@ namespace :date9ja do
     Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
   end
 
+  desc "Rehearsal: classify migrated Date9ja profile readiness against the restored scratch " \
+       "snapshot. Run after identity, profile-preference, and media passes. Deterministic gaps " \
+       "are filled without overwriting destination answers. DATE9JA_PUBLICATION_POLICY defaults " \
+       "to classify_only; publish_visible_onboarded must not be used until D-8 is approved."
+  task import_profile_readiness: :environment do
+    require "json"
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+    publication_policy = ENV.fetch("DATE9JA_PUBLICATION_POLICY", "classify_only").to_sym
+
+    connection = Date9ja::Snapshot::Connection.connect!
+    source = Date9ja::Snapshot::UserSource.new(connection: connection)
+
+    result = Date9ja::Import::ProfileReadinessImport.call(
+      brand:, source:, publication_policy:
+    )
+
+    puts JSON.pretty_generate(result.reconciliation.to_h)
+  ensure
+    Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
+  end
+
   desc "Wave A Step 3 operator check: drive ALREADY-MIGRATED Date9ja accounts through the shared " \
        "D8N auth journey (login + brand session + cross-brand isolation + recovery→reset + " \
        "deactivate↔reactivate). Broad companion to scripts/date9ja/bcrypt_proof.rb (which proves " \

@@ -89,19 +89,46 @@ distances exist) and nothing was renumbered around it.
   enabled and collected; none is a publication gate. Nothing was fabricated and
   nothing was discarded.
 
+**Resolved for migrated-profile readiness on 2026-09-07:**
+
+- **D-4 execution policy** — migrate only an exact two-token `full_name` as
+  `first_name` + `last_name`. One-token and 3+-token values require
+  `name_confirmation_required`; no surname is fabricated and existing names are
+  never overwritten. This does not claim that every cultural name is inherently
+  two-part; it is the narrow deterministic migration boundary.
+- **E-1** — only reviewed aliases already enumerated by source-census measure 266
+  map to canonical ISO-2. Case/whitespace normalization is allowed; every other
+  value becomes `country_unresolved`. No fuzzy country, nationality, ethnicity,
+  or preferred-country inference.
+- **D-12** — valid complete pairs remain verbatim. Missing or partial pairs are
+  `age_preference_required`; no full-band/default preference is written.
+- **D-5 / D-6 unresolved values** — no new semantic mapping was approved.
+  `courtship`, `dating`, `activity_partner`, and `wants_children: open` remain
+  explicit remediation, distinct from source NULL and destination catalogue
+  failure.
+
 **Still blocking full profile/preference parity:**
 
 - **D-8** — publication policy for migrated members. They remain `:draft` /
   `:hidden`, so nobody is discoverable in production yet. This is now the single
   largest remaining gate.
-- **D-4** — the `full_name` split. `first_name` / `last_name` are required
-  identity fields no importer sets, and 38 of 288 names do not fit a two-token
-  assumption.
-- **E-1** — `country_code` is required and **no** source value is already ISO-2.
 - **D-5 / D-6** — the residual option codes the importer fails closed on:
   `courtship` (27), `dating` (7), `activity_partner` (1) and
   `wants_children: open` (45). Resolving them completes those members on a
   re-run; nothing is folded onto a near-enough option in the meantime.
+
+**D-8 remains the smallest open publication decision.** Implemented safe facts:
+source-hidden and suspended members are never published; incomplete members are
+remediation-required; native/operator active state and a later unpublish are not
+overwritten. The default run is `classify_only`. The only remaining choice is:
+
+| D-8 choice | Result |
+|---|---|
+| Approve `publish_visible_onboarded` | Complete, source-visible, source-onboarded, available members pass through `Profiles::Publication.activate!`; no direct state update. |
+| Keep `classify_only` | The same members are recorded `ready` but stay draft/hidden until an operator/member action. |
+
+Source-visible but never-onboarded members remain
+`legacy_visibility_decision_required`; the importer does not infer intent.
 
 These are independent of, and do not resolve, the sensitive-field rows above
 (tribe / ethnicity / denomination / genotype / state_of_origin / preferred_tribes /
