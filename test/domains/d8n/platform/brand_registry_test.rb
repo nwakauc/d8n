@@ -93,7 +93,7 @@ module D8n
         end
       end
 
-      test "resolves the Date9ja foundation contract without discovery or matching" do
+      test "resolves the Date9ja core dating loop contract" do
         brand = Brand.new(
           slug: "date9ja", name: "Date9ja",
           auth_methods: %w[email_password phone_password],
@@ -112,11 +112,11 @@ module D8n
         assert contract.capability_enabled?("verify.contact.phone")
         assert contract.capability_enabled?("trust.report_evidence")
         assert_not contract.capability_enabled?("discovery.surface.feed")
-        assert_not contract.capability_enabled?("discovery.surface.browse")
-        assert_not contract.capability_enabled?("match.interaction.like")
-        assert_not contract.capability_enabled?("chat.conversation")
+        assert contract.capability_enabled?("discovery.surface.browse")
+        assert contract.capability_enabled?("match.interaction.like")
+        assert contract.capability_enabled?("chat.conversation")
         assert_not contract.capability_enabled?("match.opener")
-        assert_empty contract.discovery_surfaces
+        assert_equal [ "discovery.find" ], contract.discovery_surfaces.keys
         assert_nil contract.opener
         assert_nil contract.interaction.verification_requirement
         assert_equal :immediate, contract.media.initial_visibility
@@ -135,6 +135,17 @@ module D8n
         assert_equal 50.megabytes, video.max_byte_size
       end
 
+      test "every registered brand notification type has a materialization definition" do
+        BrandRegistry.slugs.each do |slug|
+          brand = Brand.new(slug:, name: slug)
+          contract = BrandRegistry.fetch(brand:)
+          contract.notifications.notification_types.each do |notification_type|
+            assert_equal notification_type, Notifications::Types.fetch(notification_type).code,
+              "#{slug} declares an undefined notification type"
+          end
+        end
+      end
+
       test "HookUs and DateZA do not enable profile video" do
         %w[hookus dateza].each do |slug|
           contract = BrandRegistry.fetch(brand: Brand.new(slug:, name: slug))
@@ -143,7 +154,7 @@ module D8n
         end
       end
 
-      test "Date9ja capability access fails closed with stable configured errors" do
+      test "Date9ja capability access enables the core loop and keeps feed disabled" do
         contract = BrandRegistry.fetch(
           brand: Brand.new(
             slug: "date9ja", name: "Date9ja", auth_methods: %w[email_password phone_password]
@@ -157,20 +168,15 @@ module D8n
         end
         assert_equal :matching_not_configured, feed_error.code
 
-        chat_error = assert_raises(CapabilityAccess::NotConfigured) do
-          CapabilityAccess.authorize!(contract:, capability: "chat.conversation")
-        end
-        assert_equal :messaging_not_configured, chat_error.code
+        assert CapabilityAccess.authorize!(contract:, capability: "chat.conversation")
       end
 
-      test "Date9ja stays out of the production discovery strategy registry" do
+      test "Date9ja is available in the production discovery strategy registry" do
         brand = Brand.new(
           slug: "date9ja", name: "Date9ja", auth_methods: %w[email_password phone_password]
         )
 
-        assert_raises(Matching::StrategyRegistry::UnsupportedBrand) do
-          Matching::StrategyRegistry.fetch(brand:)
-        end
+        assert_equal Matching::Strategies::Date9jaContract, Matching::StrategyRegistry.fetch(brand:)
       end
 
       test "does not allow a brand contract to enable a planned capability" do

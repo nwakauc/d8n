@@ -1,5 +1,7 @@
 # Date9ja Capability Parity Matrix
 
+> Current execution note (2026-09-07): Date9ja Core Dating Loop is **IMPLEMENTED / SELF-VERIFIED** through shared D8N browse discovery, reciprocal eligibility, likes, passes, mutual matches, conversations, and text messages. The Date9ja contract enables only the browse surface (`discovery.find`); daily-batch/feed semantics, opener, historical graph migration, and frontend parity remain separate work. This runtime enablement is not independent review, parity acceptance, or production cutover.
+
 Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, notifications, Action Cable channels, and D8N routes/domains. This document is the single source of truth for the normalized retained user-capability inventory and its status totals. A capability is not expendable because D8N does not support it today. **Full retained Date9ja feature parity is a production cutover requirement.**
 
 ## Scope rule

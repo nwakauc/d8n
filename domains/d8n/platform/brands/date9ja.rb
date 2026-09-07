@@ -1,29 +1,22 @@
 module D8n
   module Platform
     module Brands
-      # Date9ja platform brand contract — BRAND FOUNDATION slice.
+      # Date9ja platform brand contract.
       #
-      # This enables only the shared D8N capabilities that are un-blocked for
-      # Date9ja today: identity/session/account, the non-sensitive profile
-      # capability surface, contact verification, private profile media, brand
-      # notifications, and the core safety actions (block/report).
+      # This enables the shared D8N identity, profile, core dating-loop, media,
+      # notification, and safety capabilities that are currently approved for
+      # Date9ja.
       #
-      # Deliberately NOT enabled yet (each waits on its own remediation/decision
-      # slice — see docs/migrations/date9ja-to-d8n/MASTER-PLAN.md and
-      # PARITY-BUILD-PLAN.md):
-      #   * discovery.* / match.* / chat.* — need Date9ja discovery surface,
-      #     ranking and location semantics plus the brand-scoped profile write
-      #     remediation.
-      #   * match.opener — needs the Date9ja interaction product decision.
-      #   * verify.identity.* / trust.reputation — verification and Trust XP
-      #     architecture decisions are open.
+      # The core dating loop uses only shared D8N discovery, matching and chat.
+      # Historical graph migration and opener semantics remain separate slices.
+      # Verification and Trust XP remain intentionally unconfigured pending
+      # their separate architecture/product decisions.
       #
       # Fields blocked by DECISIONS.md are left conservative, not invented. The
       # legacy Date9ja API exposes pending photos and removes rejected photos;
       # use D8N's immediate visibility state to preserve that behavior until a
       # product decision explicitly changes it.
-      #   * verification prerequisites are unresolved -> no interaction
-      #     verification requirement.
+      # No interaction-verification prerequisite is enabled in this slice.
       module Date9ja
         CAPABILITIES = %w[
           id.registration
@@ -54,6 +47,19 @@ module D8n
           profile.completion
           profile.publication
           profile.visibility
+          discovery.surface.browse
+          discovery.exposure
+          discovery.cursor
+          match.eligibility
+          match.compatibility
+          match.ranking
+          match.interaction.like
+          match.interaction.pass
+          match.relationship.create
+          match.relationship.list
+          match.relationship.unmatch
+          chat.conversation
+          chat.message.text
           verify.contact.email
           verify.contact.phone
           trust.block
@@ -96,7 +102,7 @@ module D8n
             phone_country_calling_code: "234",
             interaction: BrandContract::InteractionConfiguration.new(
               eligibility_policy: ELIGIBILITY_POLICY,
-              compatibility_strategy: nil,
+              compatibility_strategy: Matching::Strategies::Date9jaContract,
               verification_requirement: nil
             ),
             media: BrandContract::MediaConfiguration.new(
@@ -119,9 +125,34 @@ module D8n
                 "membership_registered" => BrandContract::NotificationPlan.new(
                   notification_type: "date9ja.welcome",
                   email_template: :welcome
+                ),
+                "like_received" => BrandContract::NotificationPlan.new(
+                  notification_type: "date9ja.like_received",
+                  email_template: :product
+                ),
+                "match_created" => BrandContract::NotificationPlan.new(
+                  notification_type: "date9ja.match_created",
+                  email_template: :product
+                ),
+                "message_received" => BrandContract::NotificationPlan.new(
+                  notification_type: "date9ja.message_received",
+                  email_template: :product
                 )
               }
-            )
+            ),
+            discovery_surfaces: [
+              DiscoverySurface.new(
+                key: "discovery.find",
+                delivery_type: :browse,
+                strategy: Matching::Strategies::Date9jaContract,
+                eligibility_policy: ELIGIBILITY_POLICY,
+                error_code: :find_not_configured
+              )
+            ],
+            default_discovery_surface: "discovery.find",
+            error_codes: {
+              "discovery.find" => :find_not_configured
+            }
           )
         end
       end

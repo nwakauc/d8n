@@ -24,7 +24,7 @@ module Matching
         @cursor = cursor
         @limit = normalize_limit(limit)
         @surface = PolicyRegistry.surface_for(brand:)
-        @policy = surface.policy
+        @policy = PolicyRegistry.fetch(brand:)
         @filter = Filter.parse(brand:, min_age:, max_age:, max_distance_km:, relationship_intent:)
         @now = now
       end

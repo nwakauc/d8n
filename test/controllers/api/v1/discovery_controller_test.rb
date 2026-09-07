@@ -294,11 +294,7 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_equal "brand_not_configured", JSON.parse(response.body).fetch("error")
   end
 
-  test "does not expose the Date9ja contract strategy as production discovery" do
-    # Date9ja is now a registered brand (Brands::Date9jaInstaller) but its
-    # foundation contract enables no discovery surface, so discovery still fails
-    # closed — with the accurate "matching not configured for this brand" code
-    # rather than "brand not configured".
+  test "serves the Date9ja shared discovery surface" do
     date9ja = Brands::Date9jaInstaller.call(hosts: [ "date9ja.test" ])
     viewer = create_profile(
       brand: date9ja, gender: "woman", age: 30,
@@ -309,8 +305,8 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
 
     get "/api/v1/discovery", headers: bearer_headers(token)
 
-    assert_response :not_found
-    assert_equal "matching_not_configured", JSON.parse(response.body).fetch("error")
+    assert_response :success
+    assert_equal [], JSON.parse(response.body).fetch("profiles")
   end
 
   test "preloads public options with bounded select queries" do

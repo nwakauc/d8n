@@ -8,7 +8,7 @@ module Matching
       end
 
       def self.production_ready?
-        false
+        true
       end
 
       def self.rank(scope:, viewer:, eligibility_policy:)
