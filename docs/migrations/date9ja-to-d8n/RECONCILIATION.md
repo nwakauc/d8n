@@ -1,5 +1,52 @@
 # Reconciliation Plan
 
+## Historical graph/state migration — implementation evidence (2026-09-08)
+
+`Date9ja::Snapshot::HistoricalGraphSource` normalizes Date9ja relationship rows
+(`liker_id`/`liked_id`, `user_a_id`/`user_b_id`, `sender_id`/`match_id`, and
+equivalent block/report columns) into the `Date9ja::Import::HistoricalGraphImport`
+contract. Date9ja has no conversation table: `date9ja-match:<match_id>:conversation`
+is the deterministic source identity used by both derived conversations and
+messages. The importer processes rows in dependency order: likes/passes, matches,
+conversations, messages, blocks, reports. Every
+relationship participant is resolved through the Date9ja `profile`
+`Migration::ReferenceMap` binding; missing or ineligible owners are counted as
+`participant_not_migrated`. Each row runs in a savepoint and receives its own
+source-entity reference binding. Existing bindings/records are reused, native
+records are not rewritten, and writes use direct canonical persistence so no
+runtime notifications, quotas, or current timestamps are generated. Message
+content is currently accepted only for text rows; unsupported/blank historical
+message types are quarantined. Profile views are not imported pending a product
+retention decision.
+
+Fixture evidence covers canonical graph creation, ordered text history, missing
+participant quarantine, second-run zero growth, immutable reference reuse, and
+zero `NotificationEvent` side effects. Only rows with explicit `created_at` are
+imported; missing timestamps are quarantined as `missing_created_at`. Message
+types are checked before body handling: text is supported, while media/voice/video
+and other types are quarantined as `unsupported_message_type`, even with captions.
+Reply links, read state, edited timestamps, and report free text/evidence remain
+explicit parity items because they are not in the normalized source contract.
+Reports use source identity bindings; destination uniqueness can still reject
+duplicate open profile reports as `destination_conflict` rather than collapsing
+them. Existing native tuple relationships may absorb a historical binding; native
+lifecycle state wins. Full 546-like / 82-match / 1,025-message corpus totals
+remain deferred to the approved whole-system rehearsal.
+
+The historical HTTP journey is fixture-proven through the normal Date9ja
+runtime (`test/controllers/api/v1/date9ja_historical_conversation_journey_test.rb`):
+Date9ja-shaped source rows pass through the snapshot adapter and importer, and
+the resulting canonical graph is then exercised only through the public Core
+Dating Loop endpoints — the historical match lists, the derived conversation
+resolves to the same record the importer bound, historical messages read back in
+the API's canonical newest-first order with senders/bodies/timestamps intact, a
+new native message is sent over HTTP, and the peer reads history plus that new
+message. Rerunning the import afterwards produces no duplicate match,
+conversation or message, leaves the native message and all reference bindings
+byte-identical, and emits no `NotificationEvent` — while the native HTTP send
+keeps its ordinary runtime notification behaviour. This is fixture evidence
+through the real runtime, not a real-corpus rehearsal or production migration.
+
 No production counts were collected in Phase 1 because production access remains out of scope. Run against the approved snapshot and staging/import output, recording snapshot/run IDs and timestamps.
 
 ## Source census

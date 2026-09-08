@@ -2,6 +2,8 @@
 
 > Current execution note (2026-09-07): Date9ja Core Dating Loop is **IMPLEMENTED / SELF-VERIFIED** through shared D8N browse discovery, reciprocal eligibility, likes, passes, mutual matches, conversations, and text messages. The Date9ja contract enables only the browse surface (`discovery.find`); daily-batch/feed semantics, opener, historical graph migration, and frontend parity remain separate work. This runtime enablement is not independent review, parity acceptance, or production cutover.
 
+> Current execution note (2026-09-08): Historical Date9ja graph/state import is **IMPLEMENTED / SELF-VERIFIED** for deterministic Date9ja-shaped fixtures through the snapshot normalizer and canonical likes, passes, matches, conversations, text messages, blocks, and reports. The historical HTTP journey is fixture-proven end to end through the normal Date9ja runtime (migrated match, conversation, ordered historical messages, a new native message, and the peer's read), with a post-native rerun preserving native state. Historical profile views, reply/read/edit fidelity, non-text message content, and corpus-scale reconciliation remain deferred; real sanitized-corpus rehearsal is pending and production is untouched. This is not a production migration, parity acceptance, or cutover readiness.
+
 Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, notifications, Action Cable channels, and D8N routes/domains. This document is the single source of truth for the normalized retained user-capability inventory and its status totals. A capability is not expendable because D8N does not support it today. **Full retained Date9ja feature parity is a production cutover requirement.**
 
 ## Scope rule

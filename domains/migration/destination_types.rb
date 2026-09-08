@@ -23,7 +23,14 @@ module Migration
       "Profile" => :brand_owned,
       "ProfilePreference" => :brand_owned,
       "ProfilePhoto" => :brand_owned,
-      "ProfileVideo" => :brand_owned
+      "ProfileVideo" => :brand_owned,
+      "Like" => :brand_owned,
+      "ProfilePass" => :brand_owned,
+      "Match" => :brand_owned,
+      "Conversation" => :brand_owned,
+      "Message" => :brand_owned,
+      "ProfileBlock" => :brand_owned,
+      "Report" => :brand_owned
     }.freeze
 
     def self.known?(type)
