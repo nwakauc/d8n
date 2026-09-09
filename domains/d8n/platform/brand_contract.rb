@@ -101,6 +101,14 @@ module D8n
         capabilities.include?(CapabilityKey.new(key, reserved_segments: [ slug ]))
       end
 
+      # Whether the brand uses D8N's curated Place selector / ProfileLocation
+      # contract. False for brands (Date9ja) that store country/city as profile
+      # scalars and have no coordinate or distance product behaviour. This is
+      # the same signal the contract already ties `place_country_codes` to.
+      def place_selection_enabled?
+        capability_enabled?("profile.location.place_selection")
+      end
+
       def surface(key)
         discovery_surfaces[CapabilityKey.new(key, reserved_segments: [ slug ]).to_s]
       end

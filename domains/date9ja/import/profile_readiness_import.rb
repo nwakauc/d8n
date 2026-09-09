@@ -213,6 +213,13 @@ module Date9ja
       end
 
       def apply_location!(profile, applied_fields:)
+        # A brand that does not declare place selection (Date9ja stores
+        # country/city as profile scalars and has no ProfileLocation / distance
+        # contract — see Matching::EligibilityPolicy::LIQUIDITY_FIRST) never
+        # receives a migration-created ProfileLocation. A member's own or an
+        # operator's ProfileLocation is still left untouched.
+        return unless D8n::Platform::BrandRegistry.fetch(brand:).place_selection_enabled?
+
         if ProfileLocation.kept.exists?(profile:)
           reconciliation.measure!(:native_values_preserved)
           reconciliation.measure!(:locations_preserved)

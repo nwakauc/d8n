@@ -83,10 +83,14 @@ module D8n
           notify.push
         ].freeze
 
-        # Date9ja's matching product uses country/city profile fields and does
-        # not apply coordinate or distance eligibility. This is configuration,
-        # not a Date9ja-specific discovery implementation.
-        ELIGIBILITY_POLICY = Matching::EligibilityPolicy::NO_LOCATION
+        # Date9ja's established liquidity-first discovery policy. Stricter
+        # eligibility left members seeing too few people, so Date9ja
+        # deliberately does not gate discovery on age preferences, location, or
+        # distance, and applies neither age nor distance as a discovery filter.
+        # This is configuration on the shared engine, not a Date9ja-specific
+        # discovery implementation; orientation reciprocity and every platform
+        # safety invariant still apply. Other brands are unaffected.
+        ELIGIBILITY_POLICY = Matching::EligibilityPolicy::LIQUIDITY_FIRST
 
         def self.contract(brand:)
           BrandContract.new(

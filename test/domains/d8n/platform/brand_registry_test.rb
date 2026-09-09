@@ -120,7 +120,7 @@ module D8n
         assert_nil contract.opener
         assert_nil contract.interaction.verification_requirement
         assert_equal :immediate, contract.media.initial_visibility
-        assert_equal Matching::EligibilityPolicy::NO_LOCATION, contract.interaction.eligibility_policy
+        assert_equal Matching::EligibilityPolicy::LIQUIDITY_FIRST, contract.interaction.eligibility_policy
       end
 
       test "Date9ja enables profile video with its legacy-compatible media policy" do

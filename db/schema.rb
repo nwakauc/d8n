@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_07_060000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_08_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -953,20 +953,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_060000) do
     t.string "fitness", limit: 32
     t.string "gender"
     t.integer "height_cm"
+    t.text "ideal_partner_description"
+    t.boolean "is_nigerian"
     t.string "job_title", limit: 120
     t.jsonb "languages", default: [], null: false
     t.jsonb "languages_spoken", default: [], null: false
     t.text "looking_for_text"
     t.jsonb "metadata", default: {}, null: false
+    t.string "nationality", limit: 2
     t.string "occupation", limit: 120
     t.string "pronouns", limit: 40
     t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.string "relocation_preferences", default: [], null: false, array: true
     t.string "school_or_institution", limit: 160
     t.string "smoking", limit: 32
+    t.string "state_of_origin", limit: 80
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.integer "visibility", default: 0, null: false
+    t.boolean "willing_to_relocate"
     t.index "lower((display_name)::text)", name: "index_profiles_on_lower_display_name"
     t.index ["brand_id", "country_code", "city"], name: "index_profiles_on_brand_id_and_country_code_and_city"
     t.index ["brand_id", "status", "visibility", "created_at"], name: "idx_on_brand_id_status_visibility_created_at_3574045134"

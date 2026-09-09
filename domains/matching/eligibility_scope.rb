@@ -21,6 +21,7 @@ module Matching
       @viewer_preference = ProfilePreference.kept.find_by(profile: viewer)
       @location_cutoff = policy.location_max_age&.ago
       @location_filtering = policy.location_filtering
+      @age_filtering = policy.age_filtering
     end
 
     def call
@@ -28,7 +29,11 @@ module Matching
       # retrieval), then discovery-only reciprocal ranking constraints on top.
       scope = VisibilityScope.call(brand:, viewer:)
       scope = reciprocal_gender_scope(scope)
-      scope = reciprocal_age_scope(scope)
+      # Reciprocal age filtering is a brand discovery policy, not a safety
+      # invariant. A liquidity-first brand (Date9ja) disables it so members with
+      # null age bounds — or bounds that would fail the two-sided filter — stay
+      # discoverable. Stored age values are never read or altered when disabled.
+      scope = reciprocal_age_scope(scope) if @age_filtering
       distance_scope(scope)
     end
 

@@ -81,7 +81,7 @@ module Matching
       date9ja = Brand.create!(slug: "date9ja", name: "Date9ja")
       viewer = create_profile(brand: date9ja, gender: "woman", age: 30,
         interested_in: [ "man" ], min_age: 25, max_age: 40, max_distance_km: 1)
-      candidate = create_candidate(brand: date9ja, max_distance_km: 1_000)
+      candidate = create_candidate(brand: date9ja, max_distance_km: 500)
 
       assert_equal [ candidate.id ], EligibilityScope.call(
         brand: date9ja, viewer:, policy: Matching::EligibilityPolicy::NO_LOCATION

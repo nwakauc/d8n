@@ -109,7 +109,13 @@ module Profiles
       body_type languages fitness is_nigerian
       state_of_origin nationality ideal_partner_description willing_to_relocate relocation_preferences
     ].freeze
-    REQUIRED_PREFERENCE_FIELDS = %w[ interested_in min_age max_age ].freeze
+    # Liquidity-first discovery policy: only orientation (`interested_in`) gates
+    # publication. `min_age`/`max_age` stay enabled and editable (and are
+    # preserved when a legacy source carried them) but are not a publication or
+    # discovery requirement — enforcing them excluded the large majority of
+    # migrated members and made the marketplace feel empty. See
+    # Matching::EligibilityPolicy::LIQUIDITY_FIRST.
+    REQUIRED_PREFERENCE_FIELDS = %w[ interested_in ].freeze
     # Enabled but not required — see REQUIRED_PROFILE_FIELDS above.
     ENABLED_PREFERENCE_FIELDS = %w[ interested_in min_age max_age max_distance_km ].freeze
     REQUIRED_OPTION_GROUPS = %w[

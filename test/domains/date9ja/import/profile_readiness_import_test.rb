@@ -79,12 +79,15 @@ module Date9ja
 
         readiness([ source_row ])
 
+        # Date9ja declares no place-selection capability, so readiness never
+        # creates a ProfileLocation (fabricated or resolved) and location is not
+        # a completion/discovery gate — there is no location remediation reason.
         assert_not ProfileLocation.kept.exists?(profile: profile_for(1))
         result = Migration::ProfileReadiness.find_by!(profile: profile_for(1))
-        assert_includes result.reason_codes, "location_confirmation_required"
+        assert_not_includes result.reason_codes, "location_confirmation_required"
       end
 
-      test "missing and partial age preferences remain unset and require member confirmation" do
+      test "missing and partial age preferences remain unset and are never fabricated" do
         rows = [
           row(id: 1, preferred_age_min: nil, preferred_age_max: nil),
           row(id: 2, preferred_age_min: 25, preferred_age_max: nil, email: "ada@example.test")
@@ -93,7 +96,10 @@ module Date9ja
 
         result = readiness(rows)
 
-        assert_equal 2, result.reconciliation.reason_count("age_preference_required")
+        # Liquidity-first: age preferences are not a Date9ja completion or
+        # discovery gate, so a missing bound is not a remediation reason. The
+        # importer still never invents a value.
+        assert_equal 0, result.reconciliation.reason_count("age_preference_required")
         rows.each do |source_row|
           preference = profile_for(source_row.fetch(:id)).profile_preference
           assert_nil preference.min_age
@@ -264,12 +270,12 @@ module Date9ja
         attach_ready_photo(profile)
         readiness([ source_row ])
         evidence = Migration::ProfileReadiness.find_by!(profile:)
-        assert_equal %w[city country_code first_name last_name location], evidence.applied_fields
+        # No "location": Date9ja declares no place-selection capability, so
+        # readiness never creates a ProfileLocation.
+        assert_equal %w[city country_code first_name last_name], evidence.applied_fields
 
         profile.user.reload.update!(first_name: nil, last_name: nil)
         profile.reload.update!(country_code: nil)
-        profile.profile_locations.kept.find_by!(id: profile.profile_locations.kept.first!.id)
-          .update!(deleted_at: Time.current)
 
         result = readiness([ source_row ])
 
@@ -281,7 +287,7 @@ module Date9ja
         reasons = Migration::ProfileReadiness.find_by!(profile:).reason_codes
         assert_includes reasons, "name_confirmation_required"
         assert_includes reasons, "country_unresolved"
-        assert_includes reasons, "location_confirmation_required"
+        assert_not_includes reasons, "location_confirmation_required"
       end
 
       test "stale persisted requirements are rejected before any member is changed" do
