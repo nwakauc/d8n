@@ -1217,6 +1217,139 @@ WITH census(ord, section, measure, source_count, note) AS (
              || ' long_elems:'         || (SELECT count(DISTINCT e) FROM users, unnest(relocation_preferences) e
                                             WHERE length(e) > 40))),
 
+  -- ---- SENSITIVE identity / culture / health classification (PRISTINE-ONLY) -
+  -- Privacy-safe review inputs for SensitiveProfileImport. Every measure emits
+  -- ONLY aggregate counts: a per-column ALLOWLIST that mirrors the D8N option
+  -- codes (Profiles::CapabilityCatalog), with everything unrecognised folded to
+  -- OTHER. No member-entered string is ever emitted. The allowlist_hit /
+  -- OTHER split is exactly what the E-5 review needs to decide whether a
+  -- column can be reclassified REDACT -> PRESERVE for the reviewed values.
+  -- These run PRISTINE-ONLY: the sanitizer NULLs every column below.
+  (320, 'sensitive', 'users.is_nigerian distribution (boolean, no free text)',
+        NULL,
+        (SELECT 'true:' || count(*) FILTER (WHERE is_nigerian IS TRUE)
+             || ' false:' || count(*) FILTER (WHERE is_nigerian IS FALSE)
+             || ' null:' || count(*) FILTER (WHERE is_nigerian IS NULL) FROM users)),
+  (321, 'sensitive', 'users.state_of_origin ALLOWLISTED to the 37 canonical states (unknown -> OTHER)',
+        (SELECT count(*) FROM users WHERE state_of_origin IS NOT NULL AND btrim(state_of_origin) <> ''),
+        (SELECT 'allowlist_hit:' || count(*) FILTER (
+                  WHERE lower(btrim(regexp_replace(state_of_origin, '\s+', ' ', 'g'))) IN (
+                    'abia','adamawa','akwa ibom','anambra','bauchi','bayelsa','benue','borno',
+                    'cross river','delta','ebonyi','edo','ekiti','enugu','gombe','imo','jigawa',
+                    'kaduna','kano','katsina','kebbi','kogi','kwara','lagos','nasarawa','niger',
+                    'ogun','ondo','osun','oyo','plateau','rivers','sokoto','taraba','yobe','zamfara',
+                    'federal capital territory','fct','abuja'))
+             || ' other_nonblank:' || count(*) FILTER (
+                  WHERE state_of_origin IS NOT NULL AND btrim(state_of_origin) <> ''
+                    AND lower(btrim(regexp_replace(state_of_origin, '\s+', ' ', 'g'))) NOT IN (
+                    'abia','adamawa','akwa ibom','anambra','bauchi','bayelsa','benue','borno',
+                    'cross river','delta','ebonyi','edo','ekiti','enugu','gombe','imo','jigawa',
+                    'kaduna','kano','katsina','kebbi','kogi','kwara','lagos','nasarawa','niger',
+                    'ogun','ondo','osun','oyo','plateau','rivers','sokoto','taraba','yobe','zamfara',
+                    'federal capital territory','fct','abuja'))
+             || ' null_or_blank:' || count(*) FILTER (WHERE state_of_origin IS NULL OR btrim(state_of_origin) = '')
+           FROM users)),
+  (322, 'sensitive', 'users.nationality shape (ISO-2 vs name vs other; no values)',
+        NULL,
+        (SELECT 'iso2:' || count(*) FILTER (WHERE btrim(nationality) ~ '^[A-Za-z]{2}$')
+             || ' name_like:' || count(*) FILTER (WHERE btrim(nationality) ~ '^[A-Za-z][A-Za-z .-]{2,59}$')
+             || ' other_nonblank:' || count(*) FILTER (
+                  WHERE nationality IS NOT NULL AND btrim(nationality) <> ''
+                    AND btrim(nationality) !~ '^[A-Za-z]{2}$'
+                    AND btrim(nationality) !~ '^[A-Za-z][A-Za-z .-]{2,59}$')
+             || ' null_or_blank:' || count(*) FILTER (WHERE nationality IS NULL OR btrim(nationality) = '')
+           FROM users)),
+  (323, 'sensitive', 'users.tribe ALLOWLISTED to D8N tribe codes (unknown -> OTHER)',
+        (SELECT count(*) FROM users WHERE tribe IS NOT NULL AND btrim(tribe) <> ''),
+        (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+           SELECT CASE
+                    WHEN tribe IS NULL OR btrim(tribe) = '' THEN 'NULL'
+                    WHEN lower(btrim(tribe)) IN ('igbo','ibo') THEN 'igbo'
+                    WHEN lower(btrim(tribe)) = 'yoruba' THEN 'yoruba'
+                    WHEN lower(btrim(tribe)) IN ('hausa','hausa fulani') THEN 'hausa'
+                    WHEN lower(btrim(tribe)) = 'fulani' THEN 'fulani'
+                    WHEN lower(btrim(tribe)) IN ('ijaw','izon') THEN 'ijaw'
+                    WHEN lower(btrim(tribe)) = 'ibibio' THEN 'ibibio'
+                    WHEN lower(btrim(tribe)) IN ('edo','bini') THEN 'edo'
+                    WHEN lower(btrim(tribe)) = 'kanuri' THEN 'kanuri'
+                    ELSE 'OTHER'
+                  END b, count(*) c FROM users GROUP BY 1) t)),
+  (324, 'sensitive', 'users.ethnicity ALLOWLISTED to D8N ethnicity codes (unknown -> OTHER)',
+        (SELECT count(*) FROM users WHERE ethnicity IS NOT NULL AND btrim(ethnicity) <> ''),
+        (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+           SELECT CASE
+                    WHEN ethnicity IS NULL OR btrim(ethnicity) = '' THEN 'NULL'
+                    WHEN lower(btrim(ethnicity)) IN ('igbo','ibo','yoruba','hausa','fulani','ijaw',
+                         'ibibio','edo','bini','kanuri','tiv','nupe','igala','efik','urhobo',
+                         'itsekiri','annang','mixed','mixed race') THEN 'allowlist_hit'
+                    ELSE 'OTHER'
+                  END b, count(*) c FROM users GROUP BY 1) t)),
+  (325, 'sensitive', 'users.religion ALLOWLISTED to D8N religion codes (unknown -> OTHER)',
+        (SELECT count(*) FROM users WHERE religion IS NOT NULL AND btrim(religion) <> ''),
+        (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+           SELECT CASE
+                    WHEN religion IS NULL OR btrim(religion) = '' THEN 'NULL'
+                    WHEN lower(btrim(religion)) IN ('christian','christianity','catholic','protestant','pentecostal') THEN 'christian'
+                    WHEN lower(btrim(religion)) IN ('muslim','islam','islamic') THEN 'muslim'
+                    WHEN lower(btrim(religion)) IN ('traditional','african traditional','spiritual') THEN 'spiritual'
+                    WHEN lower(btrim(religion)) IN ('hindu','hinduism','buddhist','buddhism','jewish','judaism',
+                         'sikh','sikhism','agnostic','atheist','none') THEN 'allowlist_other_faith'
+                    ELSE 'OTHER'
+                  END b, count(*) c FROM users GROUP BY 1) t)),
+  (326, 'sensitive', 'users.denomination ALLOWLISTED to D8N denomination codes (unknown -> OTHER)',
+        (SELECT count(*) FROM users WHERE denomination IS NOT NULL AND btrim(denomination) <> ''),
+        (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+           SELECT CASE
+                    WHEN denomination IS NULL OR btrim(denomination) = '' THEN 'NULL'
+                    WHEN lower(btrim(regexp_replace(denomination, '\s+', ' ', 'g'))) IN (
+                         'catholic','roman catholic','anglican','church of nigeria','pentecostal','baptist',
+                         'methodist','presbyterian','orthodox','adventist','seventh day adventist',
+                         'evangelical','non denominational','nondenominational','sunni','shia','shiite',
+                         'ahmadiyya','none') THEN 'allowlist_hit'
+                    ELSE 'OTHER'
+                  END b, count(*) c FROM users GROUP BY 1) t)),
+  (327, 'sensitive', 'users.genotype ALLOWLISTED to haemoglobin genotypes (health data; unknown -> OTHER)',
+        (SELECT count(*) FROM users WHERE genotype IS NOT NULL AND btrim(genotype) <> ''),
+        (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+           SELECT CASE
+                    WHEN genotype IS NULL OR btrim(genotype) = '' THEN 'NULL'
+                    WHEN upper(btrim(genotype)) IN ('AA','AS','SS','AC','SC','CC') THEN upper(btrim(genotype))
+                    WHEN lower(btrim(genotype)) IN ('not tested','unknown','dont know') THEN 'not_tested'
+                    ELSE 'OTHER'
+                  END b, count(*) c FROM users GROUP BY 1) t)),
+  (328, 'sensitive', 'users.intertribal_marriage_openness / polygamy_openness bounded distributions',
+        NULL,
+        (SELECT 'intertribal[' || COALESCE((SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                   SELECT CASE WHEN intertribal_marriage_openness IS NULL THEN 'NULL'
+                               WHEN length(intertribal_marriage_openness::text) <= 20
+                                AND intertribal_marriage_openness::text ~* '^[a-z0-9 _-]+$'
+                                 THEN lower(intertribal_marriage_openness::text)
+                               ELSE 'OTHER' END b, count(*) c FROM users GROUP BY 1) t), 'n/a')
+             || '] polygamy[' || COALESCE((SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
+                   SELECT CASE WHEN polygamy_openness IS NULL THEN 'NULL'
+                               WHEN length(polygamy_openness::text) <= 20
+                                AND polygamy_openness::text ~* '^[a-z0-9 _-]+$'
+                                 THEN lower(polygamy_openness::text)
+                               ELSE 'OTHER' END b, count(*) c FROM users GROUP BY 1) t), 'n/a') || ']')),
+  (329, 'sensitive', 'users.interest_in_nigerian_culture shape only (free text; no values)',
+        NULL,
+        (SELECT 'null:' || count(*) FILTER (WHERE interest_in_nigerian_culture IS NULL)
+             || ' present:' || count(*) FILTER (WHERE interest_in_nigerian_culture IS NOT NULL
+                                                  AND btrim(interest_in_nigerian_culture) <> '')
+             || ' over_1000_chars:' || count(*) FILTER (WHERE length(interest_in_nigerian_culture) > 1000)
+           FROM users)),
+  (330, 'sensitive', 'users.preferred_religion / preferred_tribes / preferred_ethnicity / preferred_genotype array shapes',
+        NULL,
+        (SELECT 'religion[nonempty:' || count(*) FILTER (WHERE cardinality(preferred_religion) > 0)
+             || ' distinct_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(preferred_religion) e) || ']'
+             || ' tribes[nonempty:' || count(*) FILTER (WHERE cardinality(preferred_tribes) > 0)
+             || ' distinct_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(preferred_tribes) e) || ']'
+             || ' ethnicity[nonempty:' || count(*) FILTER (WHERE cardinality(preferred_ethnicity) > 0)
+             || ' distinct_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(preferred_ethnicity) e) || ']'
+             || ' genotype[nonempty:' || count(*) FILTER (WHERE cardinality(preferred_genotype) > 0)
+             || ' distinct_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(preferred_genotype) e) || ']'
+           FROM users)),
+
   -- ---- authoritative readiness / liquidity impact (2026-09-08) ---------
   -- The date is pinned to the snapshot timestamp so output is deterministic.
   (300, 'readiness', 'date of birth state', NULL,

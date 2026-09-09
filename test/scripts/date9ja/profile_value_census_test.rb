@@ -191,6 +191,51 @@ module Date9ja
       end
     end
 
+    # -- sensitive classification (ord 320-339, PRISTINE-ONLY) ---------------
+
+    SANITIZER_NULLED_SENSITIVE = %w[
+      tribe denomination state_of_origin nationality religion ethnicity
+      intertribal_marriage_openness polygamy_openness is_nigerian
+      interest_in_nigerian_culture genotype
+      preferred_religion preferred_tribes preferred_ethnicity preferred_genotype
+    ].freeze
+
+    test "every sensitive measure has a unique ord in the sensitive section" do
+      sensitive = Date9jaCensusSql.measures_in(320..339)
+
+      assert_operator sensitive.size, :>=, 10
+      assert_equal sensitive.keys, sensitive.keys.uniq
+      assert_equal %w[sensitive], sensitive.values.map(&:section).uniq
+    end
+
+    test "every sensitive measure emits only aggregate counts, never a raw value" do
+      Date9jaCensusSql.measures_in(320..339).each_value do |measure|
+        body = "#{measure.count_sql} #{measure.note_sql}"
+        # A CASE that classifies a value must always fold the rest to OTHER /
+        # allowlist_hit; a measure with no CASE must only ever `count(...)`.
+        if body.include?("CASE")
+          assert(body.include?("'OTHER'") || body.include?("allowlist_hit"),
+            "#{measure.ord} #{measure.name}: classifying CASE without an OTHER/allowlist_hit fold")
+        end
+        refute_match(/string_agg\(\s*(?!b\b)/, body,
+          "#{measure.ord} #{measure.name}: string_agg must only aggregate bucket labels, never raw values")
+      end
+    end
+
+    test "every sensitive measure only reads columns the sanitizer destroys" do
+      # These measures are PRISTINE-ONLY by design; proving they touch nothing
+      # the sanitized snapshot keeps means running them there is a harmless no-op.
+      allowed = SANITIZER_NULLED_SENSITIVE + %w[users]
+      Date9jaCensusSql.measures_in(320..339).each_value do |measure|
+        identifiers = "#{measure.count_sql} #{measure.note_sql}".scan(/[a-z_][a-z0-9_]*/i).uniq
+        leaked = identifiers & %w[
+          email phone about_me ideal_partner_description city display_name full_name
+          encrypted_password current_sign_in_ip
+        ]
+        assert_empty leaked, "#{measure.ord} #{measure.name} reads a non-sensitive contact/PII column"
+      end
+    end
+
     # -- source types ---------------------------------------------------------
 
     test "source_types reports the real storage type of every measured column" do

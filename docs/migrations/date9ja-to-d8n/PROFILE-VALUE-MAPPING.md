@@ -75,6 +75,19 @@
 > **Nothing on the Date9ja `users` profile/preference surface is now left
 > without a D8N destination.** Remaining work on these three is purely the
 > element-vocabulary review, which is a privacy decision, not an engineering gap.
+>
+> **Sensitive fields (2026-09-09, slice 10).** `is_nigerian` / `state_of_origin`
+> / `nationality` / `tribe` / `ethnicity` / `religion` / `denomination` /
+> `genotype` / `intertribal_marriage_openness` / `polygamy_openness` /
+> `interest_in_nigerian_culture` / `preferred_religion` / `preferred_tribes` /
+> `preferred_ethnicity` / `preferred_genotype` all now have live owner-only D8N
+> destinations and a wired, fail-closed `SensitiveProfileImport` (its own
+> `SensitiveUserSource` adapter — the ordinary-path firewall is intact). None is
+> a publication or discovery gate. Full detail + per-field status in
+> [SENSITIVE-PRESERVATION-REPORT.md](SENSITIVE-PRESERVATION-REPORT.md). The only
+> remaining gate is the privacy-safe source classification (`source_census.sql`
+> measures 320-330 on a pristine snapshot + `SANITIZATION-CONTRACT` R1 review),
+> plus a genotype-at-rest security sign-off.
 
 **Authority.** This is the working contract for **Pass 2** of the Date9ja profile &
 preference migration: how each legacy `users` value becomes a D8N value. It is

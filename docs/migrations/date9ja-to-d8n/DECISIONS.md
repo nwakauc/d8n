@@ -17,11 +17,11 @@ This is the single queue for unresolved decisions. `CAPABILITY-PARITY.md` is aut
 
 | Decision | Why it matters | Capability | Blocker | Recommended options | Status |
 |---|---|---|---|---|---|
-| Retain tribe | Sensitive field may affect display, matching, and migration | Profiles | Yes | Private catalogue; matching-only; archive-only | Awaiting Uchechi. Engineering machinery exists (2026-09-05, ADR 0030): canonical `sensitive_identity` + `storage: :pending` `FieldCatalog` definition, deterministically rejected on write, enabled by no brand. No product exposure decision made. |
-| Retain ethnicity | Sensitive field may affect display, matching, and migration | Profiles | Yes | Private catalogue; matching-only; archive-only | Awaiting Uchechi. Same machinery as "Retain tribe" above (ADR 0030). No product exposure decision made. |
-| Retain denomination | Sensitive field may affect display, matching, and migration | Profiles | Yes | Private catalogue; private-only; archive-only | Awaiting Uchechi. Deferred pending a hierarchy/representation decision (flat vocabulary vs. nested under a selected religion) — no `FieldCatalog`/`CapabilityCatalog` definition exists yet (ADR 0030). |
-| Retain preferred tribes | Matching preference affects recommendations | Matching/Profiles | Yes | Typed preference; matching-only; archive-only | Awaiting Uchechi. Deferred as a preference/matching concept, not an ordinary profile scalar — no definition exists yet (ADR 0030). `preferred_religion` carries the same deferral, not yet a separate row. |
-| Retain genotype | Sensitive health-adjacent data requires explicit purpose and consent | Profiles/Trust | Yes | Do not migrate; private consented use; archive-only | Awaiting Uchechi. Deferred pending product + security/modelling decision — no `FieldCatalog` definition exists yet (ADR 0030). |
+| Retain tribe | Sensitive field may affect display, matching, and migration | Profiles | No longer a product blocker | Owner-only option group (matches Date9ja: never public) | **DESTINATION READY — BLOCKED ONLY BY PRIVACY-SAFE SOURCE CLASSIFICATION.** `tribe` option group live (owner-only), Date9ja-enabled; `SensitiveProfileImport` + explicit `SensitiveVocabularies::TRIBE` mapping wired, gap-fill, fail closed (slice 10, 2026-09-09). Migration of real values needs census measure 323 (`source_census.sql`, allowlist-hit vs OTHER) run on a pristine snapshot and the `SANITIZATION-CONTRACT` R1 line reviewed — a privacy-safe extraction step, not a product decision. |
+| Retain ethnicity | Sensitive field may affect display, matching, and migration | Profiles | No longer a product blocker | Owner-only option group | **DESTINATION READY — BLOCKED ONLY BY PRIVACY-SAFE SOURCE CLASSIFICATION.** `ethnicity` option group live (owner-only), Date9ja-enabled; `SensitiveVocabularies::ETHNICITY` wired. Real values need census measure 324 on pristine + R1 review. |
+| Retain denomination | Sensitive field may affect display, matching, and migration | Profiles | No longer a product blocker | Owner-only option group; flat vocabulary (matches the single legacy column) | **DESTINATION READY — BLOCKED ONLY BY PRIVACY-SAFE SOURCE CLASSIFICATION.** `denomination` option group live (owner-only, flat), Date9ja-enabled; `SensitiveVocabularies::DENOMINATION` wired. Real values need census measure 326 on pristine + R1 review. |
+| Retain preferred tribes | Matching preference affects recommendations | Matching/Profiles | No longer a product blocker | `ProfilePreference#preferred_attributes` (owner-only) | **DESTINATION READY — BLOCKED ONLY BY PRIVACY-SAFE SOURCE CLASSIFICATION.** Generic owner-only `preferred_attributes` store (`{religion,tribe,ethnicity,genotype}` codes) live; `SensitiveProfileImport` maps each array through the same reviewed vocabulary. `preferred_religion` / `preferred_ethnicity` / `preferred_genotype` covered by the same store. Real values need census measure 330 on pristine + R1 review. |
+| Retain genotype | Sensitive health-adjacent data requires explicit purpose and consent | Profiles/Trust | No longer a product blocker | Owner-only option group; never public; not in matching | **DESTINATION READY — BLOCKED ONLY BY PRIVACY-SAFE SOURCE CLASSIFICATION.** `genotype` option group live (owner-only, haemoglobin genotypes), Date9ja-enabled; `SensitiveVocabularies::GENOTYPE` wired; never placed in a public field, never logged with identity. Real values need census measure 327 on pristine + a security/DPIA review of storing haemoglobin genotype at rest. |
 | Exact verification gates | Determines publication, interaction, and badge behavior | Verification/Trust | Yes | Preserve current gates; staged step-up; approved strengthening | Awaiting Uchechi |
 | Approved photo publication | Prevents surprise hiding or re-review loops | Media/Moderation | Yes | Preserve approved state; review exceptions; full re-review | **RESOLVED — preserve legacy behaviour: pending photos visible, rejected excluded (`:immediate` policy). Applies to profile video too (ADR 0023).** |
 | Profile video retained | Introduction video is parity | Media | Yes | Retain as shared Media capability | **RESOLVED — retain; ADR 0023; implemented this batch pending review** |
@@ -59,7 +59,7 @@ This is the single queue for unresolved decisions. `CAPABILITY-PARITY.md` is aut
 | Community shared-capability boundary | Community is in parity but must not become a Date9ja fork | Community implementation `SPECIFIED` |
 | Dating Hub primitive decomposition and ownership | Prevents copying the legacy monolith | Dating Hub implementation `SPECIFIED` |
 | Trust ledger and derived reputation architecture | Separates auditable events from user-visible status | Trust implementation `SPECIFIED` — **architecture specified in ADR 0025 (Proposed); "User-visible trust score/history" product row still gates presentation** |
-| Genotype privacy/model architecture | Determines whether data is modelled, encrypted, or excluded | Any genotype modelling/import |
+| Genotype privacy/model architecture | Determines whether data is modelled, encrypted, or excluded | Any genotype modelling/import — **DESTINATION READY (slice 10, 2026-09-09): owner-only `genotype` option group, never public, never in matching, never logged with identity; `SensitiveProfileImport` wired fail-closed. Still needs a security/DPIA sign-off on storing haemoglobin genotype at rest (encryption-at-rest vs. plain owner-only column) before real values are imported — that is the only remaining gate, and it is a security review, not a product-scope decision.** |
 | Canonical scalar profile field catalogue and brand-scoped write/serialization enforcement | Prevents a Date9ja profile subsystem and per-brand field-registry drift; blocks writable Date9ja profiles until resolved | Writable Date9ja profiles — **RESOLVED (2026-09-05) — implemented as `Profiles::FieldCatalog`; ADR 0030 Accepted. Date9ja proven as a full explicit consumer with zero new production code (`STATUS.md`). Does not resolve the sensitive-field product decisions above.** |
 | Legacy operational mapping to D8N HQ | Ensures safe administration before legacy retirement | Legacy admin retirement |
 | External legacy reference map (source↔destination binding, immutability, tenant safety) | Deterministic idempotent spine for every importer slice | Wave A slice 2 — **ADR 0022 accepted by independent review; product-owner acknowledgment recorded by normal ADR workflow** |
@@ -141,9 +141,14 @@ overwritten. The default run is `classify_only`. The only remaining choice is:
 Source-visible but never-onboarded members remain
 `legacy_visibility_decision_required`; the importer does not infer intent.
 
-These are independent of, and do not resolve, the sensitive-field rows above
-(tribe / ethnicity / denomination / genotype / state_of_origin / preferred_tribes /
-preferred_religion), which remain "Awaiting Uchechi" and were untouched by Pass 1.
+These are independent of the sensitive-field rows above (tribe / ethnicity /
+denomination / genotype / state_of_origin / nationality / is_nigerian /
+preferred_tribes / preferred_religion / …). As of slice 10 (2026-09-09) every
+one of those has a live owner-only D8N destination and a wired, fail-closed
+`SensitiveProfileImport`; none is "Awaiting Uchechi" for the *concept*. The only
+remaining gate is the privacy-safe source classification (`source_census.sql`
+measures 320-330 on a pristine snapshot + `SANITIZATION-CONTRACT` R1 review),
+plus a security/DPIA sign-off specific to genotype at rest.
 
 ## Mixed
 

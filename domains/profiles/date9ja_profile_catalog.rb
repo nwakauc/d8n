@@ -68,6 +68,12 @@ module Profiles
       { key: "religion_importance", visibility: :owner_only },
       { key: "tribe", visibility: :owner_only },
       { key: "genotype", visibility: :owner_only },
+      # Remaining sensitive Date9ja identity/culture concepts — lossless homes,
+      # owner-only, collected and preserved, never a publication gate.
+      { key: "ethnicity", visibility: :owner_only },
+      { key: "denomination", visibility: :owner_only },
+      { key: "intertribal_marriage_openness", visibility: :owner_only },
+      { key: "polygamy_openness", visibility: :owner_only },
       { key: "family_involvement", visibility: :owner_only },
       { key: "faith_practice", visibility: :owner_only },
       { key: "money_providing", visibility: :owner_only },
@@ -131,6 +137,7 @@ module Profiles
       smoking drinking occupation job_title school_or_institution looking_for_text
       height_cm body_type languages fitness state_of_origin nationality
       ideal_partner_description willing_to_relocate relocation_preferences
+      interest_in_nigerian_culture
     ].freeze
     # The ENABLED set and its order are the brand's public contract and did not
     # change when smoking/drinking stopped being publication gates; only the
@@ -140,6 +147,7 @@ module Profiles
       occupation job_title school_or_institution looking_for_text height_cm
       body_type languages fitness is_nigerian
       state_of_origin nationality ideal_partner_description willing_to_relocate relocation_preferences
+      interest_in_nigerian_culture
     ].freeze
     # Liquidity-first discovery policy: only orientation (`interested_in`) gates
     # publication. `min_age`/`max_age` stay enabled and editable (and are

@@ -28,6 +28,13 @@ class ProfilePreference < ApplicationRecord
   validate :profile_matches_scope
   validate :interested_in_is_array
   validate :preferred_country_codes_are_valid
+  validate :preferred_attributes_are_valid
+
+  # A generic owner-only matching-preference store, keyed by attribute. The
+  # lossless home for Date9ja's `preferred_religion` / `preferred_tribes` /
+  # `preferred_ethnicity` / `preferred_genotype` arrays.
+  PREFERRED_ATTRIBUTE_KEYS = %w[religion tribe ethnicity genotype].freeze
+  PREFERRED_ATTRIBUTE_MAX_VALUES = 20
 
   before_validation :normalize_preferences
 
@@ -80,11 +87,41 @@ class ProfilePreference < ApplicationRecord
     end
   end
 
+  def preferred_attributes_are_valid
+    unless preferred_attributes.is_a?(Hash)
+      errors.add(:preferred_attributes, "must be an object")
+      return
+    end
+
+    extra = preferred_attributes.keys.map(&:to_s) - PREFERRED_ATTRIBUTE_KEYS
+    errors.add(:preferred_attributes, "has unknown keys: #{extra.join(', ')}") if extra.any?
+
+    preferred_attributes.each_value do |values|
+      unless values.is_a?(Array) && values.size <= PREFERRED_ATTRIBUTE_MAX_VALUES &&
+          values.all? { |v| v.is_a?(String) && v.length <= 40 }
+        errors.add(:preferred_attributes, "values must be arrays of at most #{PREFERRED_ATTRIBUTE_MAX_VALUES} short codes")
+        break
+      end
+    end
+  end
+
   def normalize_preferences
     self.country = country.to_s.strip.upcase.presence
     self.relationship_intent = relationship_intent.to_s.strip.presence
     normalize_interested_in
     normalize_preferred_country_codes
+    normalize_preferred_attributes
+  end
+
+  def normalize_preferred_attributes
+    return unless preferred_attributes.is_a?(Hash)
+
+    self.preferred_attributes = preferred_attributes.each_with_object({}) do |(key, values), acc|
+      next unless values.is_a?(Array)
+
+      cleaned = values.filter_map { |v| v.is_a?(String) ? v.strip.downcase.presence : nil }.uniq
+      acc[key.to_s] = cleaned if cleaned.any?
+    end
   end
 
   def normalize_interested_in

@@ -300,6 +300,16 @@ module Profiles
         default_audience: :public, validation: { enum: %w[never occasionally regularly] }
       ),
 
+      # Free-text self-description of a member's connection to Nigerian culture.
+      # Owner-private: never shown to other members. Stored so a migrated Date9ja
+      # member does not silently lose what they wrote.
+      Field.new(
+        key: "interest_in_nigerian_culture", group: :profile, label: "Interest in Nigerian culture",
+        data_type: :text, storage: { record: :profile, column: :interest_in_nigerian_culture },
+        sensitivity: :owner_private, default_audience: :owner_only,
+        validation: { max_length: 1_000 }, completion_requirable: false
+      ),
+
       # ---- Identity-sensitive capabilities — DEFINED, not yet stored --------
       # D8N knows these canonical concepts exist; that is ALL it does. They are
       # `storage: :pending` (no column, cannot be enabled), `sensitive_identity`

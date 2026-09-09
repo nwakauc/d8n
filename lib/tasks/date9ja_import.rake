@@ -59,6 +59,28 @@ namespace :date9ja do
     Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
   end
 
+  desc "Rehearsal: preserve the SENSITIVE Date9ja profile values (religion / tribe / ethnicity / " \
+       "denomination / genotype / state_of_origin / nationality / is_nigerian / openness flags / " \
+       "matching-preference arrays / interest_in_nigerian_culture) against the restored scratch " \
+       "snapshot. Run AFTER date9ja:import_identity and date9ja:import_profile_preferences. Reads " \
+       "ONLY the sensitive columns, through the dedicated SensitiveUserSource adapter. Gap-fill " \
+       "only, owner-only destinations, fail closed. On the sanitized snapshot every value is " \
+       "NULL/'{}' so this writes nothing. Prints a PII-free reconciliation JSON."
+  task import_sensitive_profile: :environment do
+    require "json"
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+
+    connection = Date9ja::Snapshot::Connection.connect!
+    source = Date9ja::Snapshot::SensitiveUserSource.new(connection: connection)
+
+    result = Date9ja::Import::SensitiveProfileImport.call(brand: brand, source: source)
+
+    puts JSON.pretty_generate(result.reconciliation.to_h)
+  ensure
+    Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
+  end
+
   desc "Wave A Step 3 operator check: drive ALREADY-MIGRATED Date9ja accounts through the shared " \
        "D8N auth journey (login + brand session + cross-brand isolation + recovery→reset + " \
        "deactivate↔reactivate). Broad companion to scripts/date9ja/bcrypt_proof.rb (which proves " \

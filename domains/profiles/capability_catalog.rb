@@ -254,8 +254,57 @@ module Profiles
         }
       },
       "genotype" => {
+        # Health-adjacent. Owner-only, never public, never a completion gate; a
+        # brand opts in explicitly (Date9ja does). Conservative superset of the
+        # haemoglobin genotypes; refine against Date9ja source when available.
         label: "Genotype", cardinality: :single, max_selections: 1, visibility: :owner_only,
-        options: { "aa" => "AA", "as" => "AS", "ss" => "SS", "ac" => "AC", "not_tested" => "Not tested" }
+        options: {
+          "aa" => "AA", "as" => "AS", "ss" => "SS", "ac" => "AC", "sc" => "SC", "cc" => "CC",
+          "not_tested" => "Not tested", "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      # A self-identified ethnicity, distinct from `tribe` (Date9ja stores both
+      # columns). Conservative superset; owner-only.
+      "ethnicity" => {
+        label: "Ethnicity", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "igbo" => "Igbo", "yoruba" => "Yoruba", "hausa" => "Hausa", "fulani" => "Fulani",
+          "ijaw" => "Ijaw", "ibibio" => "Ibibio", "edo" => "Edo", "kanuri" => "Kanuri",
+          "tiv" => "Tiv", "nupe" => "Nupe", "igala" => "Igala", "efik" => "Efik",
+          "urhobo" => "Urhobo", "itsekiri" => "Itsekiri", "annang" => "Annang",
+          "mixed" => "Mixed", "other" => "Other", "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      # Religious denomination. Flat vocabulary (matches how the single legacy
+      # column works — Date9ja does not nest it under a selected religion).
+      "denomination" => {
+        label: "Denomination", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "catholic" => "Catholic", "anglican" => "Anglican", "pentecostal" => "Pentecostal",
+          "baptist" => "Baptist", "methodist" => "Methodist", "presbyterian" => "Presbyterian",
+          "orthodox" => "Orthodox", "adventist" => "Seventh-day Adventist",
+          "evangelical" => "Evangelical", "non_denominational" => "Non-denominational",
+          "sunni" => "Sunni", "shia" => "Shia", "ahmadiyya" => "Ahmadiyya",
+          "none" => "None", "other" => "Other", "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      # Openness to marrying outside one's own tribe / ethnicity.
+      "intertribal_marriage_openness" => {
+        label: "Open to intertribal marriage?",
+        cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "open" => "Open", "not_open" => "Not open", "depends" => "Depends",
+          "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      # Openness to a polygamous arrangement.
+      "polygamy_openness" => {
+        label: "Open to polygamy?",
+        cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "open" => "Open", "not_open" => "Not open", "depends" => "Depends",
+          "prefer_not_to_say" => "Prefer not to say"
+        }
       },
       "family_involvement" => {
         label: "Family involvement", cardinality: :single, max_selections: 1, visibility: :owner_only,

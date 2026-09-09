@@ -22,17 +22,19 @@ module Date9ja
         aunty_phobie_language interest_in_nigerian_culture
       ].freeze
 
-      # A denied legacy name may ALSO be the name of a D8N-native `profiles`
-      # column: `fed4f35` added `is_nigerian` / `state_of_origin` / `nationality`
-      # as native Date9ja onboarding fields (Profiles::FieldCatalog, conditional
-      # on `is_nigerian`). Those columns are owned exclusively by a member
-      # completing onboarding on D8N — no Date9ja importer reads or writes them,
-      # and the legacy values stay "Awaiting Uchechi" (DECISIONS.md, ADR 0030),
-      # dropped by the snapshot sanitizer (scripts/date9ja/sanitize_snapshot.sql).
-      # The firewall test allows a denied name to appear in `Profile.column_names`
-      # ONLY when it is declared here; any other collision is a defect. A
-      # destination column existing is never, by itself, permission to import it.
-      NATIVE_DESTINATION_FIELDS = %w[ is_nigerian state_of_origin nationality ].freeze
+      # A denied legacy name may ALSO be the name of a D8N `profiles` column:
+      # `fed4f35` added `is_nigerian` / `state_of_origin` / `nationality`. This
+      # ordinary import path (UserSource / UserRecord / FieldMapping) still never
+      # reads or writes them — the firewall here is unchanged. Their legacy
+      # values are preserved by the SEPARATE, gated `SensitiveProfileImport`
+      # (its own `SensitiveUserSource` adapter, gap-fill, owner-only, fail
+      # closed), not by anything in this module. The firewall test allows a
+      # denied name to appear in `Profile.column_names` ONLY when it is declared
+      # here; any other collision is a defect. A destination column existing is
+      # never, by itself, permission for THIS path to import it.
+      NATIVE_DESTINATION_FIELDS = %w[
+        is_nigerian state_of_origin nationality interest_in_nigerian_culture
+      ].freeze
 
       # Non-sensitive legacy `users` columns this slice maps onto shared Profile.
       PROFILE_SOURCE_COLUMNS = %w[

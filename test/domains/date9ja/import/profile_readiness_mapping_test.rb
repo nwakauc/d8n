@@ -91,6 +91,44 @@ module Date9ja
         end
       end
 
+      test "Nigerian state mapping is a closed 37-value allowlist that fails closed" do
+        assert_equal "Imo", NigerianStateMapping.call("  imo ").state
+        assert_equal "Akwa Ibom", NigerianStateMapping.call("Akwa-Ibom").state
+        assert_equal "Federal Capital Territory", NigerianStateMapping.call("Abuja").state
+        assert NigerianStateMapping.call("Lagos Island").unmapped?
+        assert NigerianStateMapping.call(nil).absent?
+        assert_equal 36, NigerianStateMapping::STATES.size # 36 states + the FCT
+      end
+
+      test "sensitive controlled vocabularies map explicitly and quarantine the unknown" do
+        assert_equal "igbo", SensitiveVocabularies::TRIBE.call("Ibo").code
+        assert_equal "christian", SensitiveVocabularies::RELIGION.call("Catholic").code
+        assert_equal "as", SensitiveVocabularies::GENOTYPE.call("AS").code
+        assert_equal "not_open", SensitiveVocabularies::POLYGAMY_OPENNESS.call("no").code
+        assert SensitiveVocabularies::TRIBE.call("Klingon").unmapped?
+        assert SensitiveVocabularies::TRIBE.call(nil).absent?
+      end
+
+      test "sensitive matching-preference arrays map per element, losslessly" do
+        out = SensitiveVocabularies::PREFERRED.fetch("tribe").call_many([ "Igbo", "Yoruba", "Martian" ])
+        assert_equal %w[igbo yoruba], out.codes
+        assert_equal :partial, out.status
+      end
+
+      test "every sensitive vocabulary only emits codes its D8N option group defines" do
+        {
+          "tribe" => SensitiveVocabularies::TRIBE, "ethnicity" => SensitiveVocabularies::ETHNICITY,
+          "religion" => SensitiveVocabularies::RELIGION, "denomination" => SensitiveVocabularies::DENOMINATION,
+          "genotype" => SensitiveVocabularies::GENOTYPE,
+          "intertribal_marriage_openness" => SensitiveVocabularies::INTERTRIBAL_MARRIAGE_OPENNESS,
+          "polygamy_openness" => SensitiveVocabularies::POLYGAMY_OPENNESS
+        }.each do |key, mapping|
+          catalogue = Profiles::CapabilityCatalog::OPTION_CAPABILITIES.fetch(key).fetch(:options).keys
+          emitted = mapping.instance_variable_get(:@aliases).values.uniq
+          assert_empty(emitted - catalogue, "#{key} vocabulary emits a code its option group does not define")
+        end
+      end
+
       test "place resolution is exact and limited to canonical Nigerian places" do
         Geography::NigeriaCatalog.install!
         Geography::SouthAfricaCatalog.install!
