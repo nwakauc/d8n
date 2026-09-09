@@ -48,6 +48,18 @@ module Migration
       end
     end
 
+    # Read-only. Whether a D8N record was created by a migration importer — i.e.
+    # any LegacyReference binds to it. Consumer policy (e.g. Profiles::Completion)
+    # uses this to hold a migration-origin record to a migration completion
+    # contract; no source identifier is exposed.
+    def migrated?(record)
+      return false if record.nil? || record.id.nil?
+
+      LegacyReference.where(
+        destination_type: record.class.polymorphic_name, destination_id: record.id
+      ).exists?
+    end
+
     # Reconciliation helper: bindings whose D8N record can no longer be loaded.
     def dangling(source_system:)
       LegacyReference.for_source(source_system).reject(&:resolvable?)

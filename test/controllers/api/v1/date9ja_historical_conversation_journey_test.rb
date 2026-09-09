@@ -39,8 +39,8 @@ class Api::V1::Date9jaHistoricalConversationJourneyTest < ActionDispatch::Integr
       assert_equal 2, result.counts.fetch("messages.imported")
     end
 
-    @alice_token, = Session.issue!(brand: @brand, user: @alice.user)
-    @bob_token, = Session.issue!(brand: @brand, user: @bob.user)
+    @alice_token, = Session.issue!(brand: @brand, user: @alice.user, credential: verified_credential(@alice.user, "alice@example.test"))
+    @bob_token, = Session.issue!(brand: @brand, user: @bob.user, credential: verified_credential(@bob.user, "bob@example.test"))
     host! "date9ja.test"
   end
 
@@ -130,6 +130,14 @@ class Api::V1::Date9jaHistoricalConversationJourneyTest < ActionDispatch::Integr
     )
     ProfilePreference.create!(brand: @brand, user:, profile:, min_age: 25, max_age: 40, interested_in:)
     profile
+  end
+
+  # Date9ja gates interaction (not visibility) on a verified login identifier.
+  def verified_credential(user, email)
+    identifier = IdentityIdentifier.create!(
+      user:, kind: :email, normalized_value: email, verified_at: Time.current
+    )
+    Credential.create!(user:, identity_identifier: identifier, kind: :password, status: :active)
   end
 
   def bind_profile(source_id, profile)

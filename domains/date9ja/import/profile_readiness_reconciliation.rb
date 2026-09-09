@@ -13,7 +13,7 @@ module Date9ja
         relationship_intent_satisfied relationship_intent_unresolved
         has_children_satisfied has_children_unresolved
         wants_children_satisfied wants_children_unresolved
-        publications_applied native_values_preserved
+        publications_applied publications_withdrawn native_values_preserved
         ineligible_suppression_failed
       ].freeze
 

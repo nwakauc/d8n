@@ -16,7 +16,9 @@ module D8n
       # legacy Date9ja API exposes pending photos and removes rejected photos;
       # use D8N's immediate visibility state to preserve that behavior until a
       # product decision explicitly changes it.
-      # No interaction-verification prerequisite is enabled in this slice.
+      #
+      # Interaction requires a verified login identifier (see `interaction`
+      # below); visibility/publication does not.
       module Date9ja
         CAPABILITIES = %w[
           id.registration
@@ -106,7 +108,13 @@ module D8n
             interaction: BrandContract::InteractionConfiguration.new(
               eligibility_policy: ELIGIBILITY_POLICY,
               compatibility_strategy: Matching::Strategies::Date9jaContract,
-              verification_requirement: nil
+              # Market-driven policy (2026-09-09): an unverified member is fully
+              # visible (they publish on finishing onboarding, verified or not),
+              # but cannot act — like, pass, open a profile, hook, or message —
+              # until the identifier they logged in with is verified. Being seen
+              # is what pulls them back to verify. Enforced by
+              # Identity::InteractionAccess for the published-member case only.
+              verification_requirement: :verified_login_identifier
             ),
             media: BrandContract::MediaConfiguration.new(
               photo_policy: Media::PhotoPolicy,

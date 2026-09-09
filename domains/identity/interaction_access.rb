@@ -9,8 +9,9 @@ module Identity
     def self.authorize!(session:, brand:)
       return unless verification_requirement(brand:) == :verified_login_identifier
       # Existing profile/onboarding/lifecycle authorization remains authoritative
-      # when the member is not yet published. This policy only changes the valid,
-      # published DateZA member case where verification is the sole missing gate.
+      # when the member is not yet published. This policy only adds a gate for a
+      # valid, published member (DateZA; Date9ja) whose sole missing step is
+      # verifying the identifier they logged in with.
       return unless published_profile?(session:, brand:)
       return if verified_session_identifier?(session:)
 

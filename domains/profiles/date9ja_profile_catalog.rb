@@ -63,7 +63,12 @@ module Profiles
       { key: "travel_frequency" }
     ].freeze
 
-    REQUIRED_IDENTITY_FIELDS = %w[ first_name last_name ].freeze
+    # Date9ja collapses the profile name into a single given name that doubles as
+    # the display name (see `display_name` note below). `last_name` stays enabled
+    # and editable but is not a publication gate — legacy `full_name` is often a
+    # single token and Date9ja never required a surname.
+    REQUIRED_IDENTITY_FIELDS = %w[ first_name ].freeze
+    ENABLED_IDENTITY_FIELDS = %w[ first_name last_name ].freeze
 
     # REQUIRED vs ENABLED
     #
@@ -92,8 +97,14 @@ module Profiles
     # This is a Date9ja brand-policy statement, not a platform change: other
     # brands' catalogues are untouched, and the shared FieldCatalog still owns
     # what these fields mean and how they validate.
+    #
+    # `display_name` is NOT required: Date9ja uses the given name as the display
+    # name. `Profiles::CurrentProfile` derives `display_name` from `first_name`
+    # for a new member, and the readiness importer sets it to the legacy display
+    # name when one exists, otherwise `first_name`. It stays enabled so a member
+    # can still choose a distinct display name later.
     REQUIRED_PROFILE_FIELDS = %w[
-      display_name birthdate gender country_code city bio is_nigerian
+      birthdate gender country_code city bio is_nigerian
     ].freeze
     OPTIONAL_PROFILE_FIELDS = %w[
       smoking drinking occupation job_title school_or_institution looking_for_text
@@ -126,6 +137,40 @@ module Profiles
     # exists, so requiring it would block every migrated member forever.
     OPTIONAL_OPTION_GROUPS = %w[ meeting_pace ].freeze
 
+    # MIGRATED LEGACY MEMBER vs. NEW MEMBER ONBOARDING
+    #
+    # AUTHORITATIVE PRODUCT RULE (2026-09-09): a legacy Date9ja member who
+    # finished Date9ja onboarding and is not hidden/suspended/banned/deleted is
+    # visible on D8N — exactly as they were on Date9ja. Date9ja never gated
+    # visibility on a bio, a photo, a resolved city, a cultural answer, a
+    # surname, or a verified email/phone; neither does D8N for that member.
+    # Being seen (not interacting — see `verification_requirement`) is what drives
+    # the member back to finish verification and enrich their profile.
+    #
+    # So for a migration-origin profile the ONLY publication gates are the
+    # reciprocal-matching essentials that every non-deleted source row already
+    # carries: an adult birthdate, a decoded gender, an orientation
+    # (`interested_in`, set from `looking_for`), and a given name (which also
+    # becomes the display name). Everything else — display_name, country, city,
+    # bio, is_nigerian, every option group, the surname — stays enabled and
+    # prompted, but is not a gate. Nothing is fabricated.
+    #
+    # A NEW Date9ja registration has no LegacyReference and keeps the full
+    # REQUIRED_* contract above — Profiles::Completion applies this relaxation
+    # only to migration-origin profiles.
+    #
+    # Every entry here is a strict subset of the matching REQUIRED_* list: this
+    # can only remove a gate, never add one.
+    MIGRATION_COMPLETION = {
+      "identity_fields" => %w[ first_name ],
+      "profile_fields" => %w[ birthdate gender ],
+      "preference_fields" => %w[ interested_in ],
+      "collections" => [],
+      "option_groups" => [],
+      "conditional_profile_fields" => [],
+      "conditional_option_groups" => []
+    }.freeze
+
     # Post-onboarding richness is deliberately separate from publication. Fixed,
     # reusable section keys understood by Profiles::RichCompletion; no executable
     # rules in brand data. Sensitive-field-backed sections are omitted.
@@ -136,7 +181,7 @@ module Profiles
 
     REQUIREMENTS = {
       identity_fields: REQUIRED_IDENTITY_FIELDS,
-      enabled_identity_fields: REQUIRED_IDENTITY_FIELDS,
+      enabled_identity_fields: ENABLED_IDENTITY_FIELDS,
       profile_fields: REQUIRED_PROFILE_FIELDS,
       enabled_profile_fields: ENABLED_PROFILE_FIELDS,
       preference_fields: REQUIRED_PREFERENCE_FIELDS,
@@ -153,6 +198,7 @@ module Profiles
       conditional_option_groups: [
         { "if" => { "is_nigerian" => true }, "groups" => [ "tribe" ] }
       ],
+      migration_completion: MIGRATION_COMPLETION,
       rich_profile_sections: RICH_PROFILE_SECTIONS
     }.freeze
 
@@ -181,11 +227,22 @@ module Profiles
         retire_unconfigured_interest_options!
         if install_requirements
           brand.update!(profile_requirements: REQUIREMENTS)
-        elsif configured.fetch("collections", []).include?("location")
-          # Older Date9ja installs treated ProfileLocation as a publication
-          # requirement. Remove only that obsolete requirement while preserving
-          # any operator-managed changes to the rest of the contract.
-          brand.update!(profile_requirements: configured.merge("collections" => [ "photos" ]))
+        else
+          patched = configured
+          if patched.fetch("collections", []).include?("location")
+            # Older Date9ja installs treated ProfileLocation as a publication
+            # requirement. Remove only that obsolete requirement while preserving
+            # any operator-managed changes to the rest of the contract.
+            patched = patched.merge("collections" => [ "photos" ])
+          end
+          unless patched.key?("migration_completion")
+            # Installs that predate the migrated-member completion relaxation.
+            # Intersect with whatever the operator currently requires so the
+            # relaxation stays a strict subset of their contract (can only
+            # remove a gate, never add one).
+            patched = patched.merge("migration_completion" => relaxation_within(patched))
+          end
+          brand.update!(profile_requirements: patched) unless patched == configured
         end
         brand.update!(auth_methods: AUTH_METHODS) if brand.auth_methods.blank?
       end
@@ -196,6 +253,17 @@ module Profiles
     private
 
     attr_reader :brand
+
+    def relaxation_within(configured)
+      effective = Brand::DEFAULT_PROFILE_REQUIREMENTS.merge(configured)
+      MIGRATION_COMPLETION.to_h do |key, value|
+        if value.is_a?(Array) && Brand::MIGRATION_COMPLETION_LIST_KEYS.include?(key)
+          [ key, value & Array(effective[key]) ]
+        else
+          [ key, value ]
+        end
+      end
+    end
 
     # The generic installer is intentionally additive for existing brands. Date9ja
     # owns a curated interest subset, so a re-run retires choices removed from its

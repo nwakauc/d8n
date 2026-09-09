@@ -126,10 +126,17 @@ module Date9ja
           )
           reasons.concat(state_reasons)
 
-          if disposition == :ready && publication_policy == :publish_visible_onboarded && !profile.active?
-            Profiles::Publication.activate!(user: profile.user, brand:)
-            publication_applied_at ||= Time.current
-            reconciliation.measure!(:publications_applied)
+          if publication_policy == :publish_visible_onboarded
+            if disposition == :ready && !profile.active?
+              Profiles::Publication.activate!(user: profile.user, brand:)
+              publication_applied_at ||= Time.current
+              reconciliation.measure!(:publications_applied)
+            elsif disposition == :intentionally_hidden && profile.active? && profile.visible?
+              # Source state turned unpublishable (hidden/suspended/restricted)
+              # after an earlier publish — withdraw it defensively.
+              Profiles::Publication.deactivate!(user: profile.user, brand:)
+              reconciliation.measure!(:publications_withdrawn)
+            end
           end
 
           persist_readiness!(
@@ -173,6 +180,19 @@ module Date9ja
 
       def apply_profile_scalars!(profile, record, applied_fields:)
         attrs = {}
+
+        # Date9ja uses the given name as the display name. Preserve a distinct
+        # legacy display name if the member set one; otherwise fall back to
+        # first_name (resolved by apply_names! just above). Never overwrite a
+        # value the member/operator already holds.
+        if profile.display_name.blank? && !applied_fields.include?("display_name")
+          display_name = FieldMapping.clamp(record.display_name, 80) || profile.user.first_name
+          if display_name.present?
+            attrs[:display_name] = display_name
+            applied_fields << "display_name"
+          end
+        end
+
         reconciliation.measure!(:countries_source_present) if record.country_of_residence.present?
 
         if profile.city.blank? && !applied_fields.include?("city")
@@ -297,23 +317,31 @@ module Date9ja
           return [ :intentionally_hidden, [ "native_visibility_preserved" ] ]
         end
 
+        # Source-side hard states are moderator/lifecycle actions and override any
+        # later destination state — a member Date9ja has hidden, suspended, or
+        # discovery-restricted is never shown on D8N, even if a prior pass
+        # published them.
         if profile.suspended? || profile.brand_membership.suspended? || profile.user.suspended? || record.suspended?
           return [ :intentionally_hidden, [ "source_suspended" ] ]
         end
+        return [ :intentionally_hidden, [ "source_discovery_restricted" ] ] if record.discovery_restricted?
+        return [ :intentionally_hidden, [ "legacy_profile_hidden" ] ] if record.profile_hidden
+
         unless profile.user.active? && profile.brand_membership.active?
           return [ :intentionally_hidden, [ "destination_unavailable" ] ]
         end
 
         # Identity import never activates a profile. An already active/visible
-        # destination therefore reflects a later native/operator decision and
-        # takes precedence over the legacy snapshot.
+        # destination reflects a later native/operator decision and is kept.
         if profile.active? && profile.visible?
           reconciliation.measure!(:native_values_preserved)
           return [ :ready, [ "native_visibility_preserved" ] ]
         end
-        return [ :intentionally_hidden, [ "legacy_profile_hidden" ] ] if record.profile_hidden
-        return [ :remediation_required, [ "legacy_visibility_decision_required" ] ] if record.onboarding_completed_at.blank?
 
+        # Date9ja's own discovery predicate (`index_users_on_discovery_eligible`:
+        # not deleted/banned/suspended/discovery_restricted and profile_hidden =
+        # false) does NOT require `onboarding_completed_at`. A member Date9ja
+        # shows in discovery is shown on D8N.
         [ :ready, [] ]
       end
 

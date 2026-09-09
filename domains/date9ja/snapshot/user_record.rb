@@ -11,7 +11,7 @@ module Date9ja
     UserRecord = Data.define(
       :id, :public_id, :email, :phone, :encrypted_password,
       :confirmed_at, :phone_verified_at, :created_at, :deleted_at,
-      :suspended_at, :banned_at, :profile_hidden, :onboarding_completed_at,
+      :suspended_at, :banned_at, :discovery_restricted_at, :profile_hidden, :onboarding_completed_at,
       :date_of_birth, :gender, :full_name, :display_name, :city, :country_of_residence,
       :about_me, :ideal_partner_description,
       # Preference / option-group inputs, added with the profile & preference
@@ -36,6 +36,7 @@ module Date9ja
           deleted_at: row["deleted_at"],
           suspended_at: row["suspended_at"],
           banned_at: row["banned_at"],
+          discovery_restricted_at: row["discovery_restricted_at"],
           profile_hidden: BOOLEAN.cast(row["profile_hidden"]) || false,
           onboarding_completed_at: row["onboarding_completed_at"],
           date_of_birth: row["date_of_birth"],
@@ -64,13 +65,19 @@ module Date9ja
 
       def suspended? = suspended_at.present?
 
+      # Moderator-owned hard discovery restriction (Date9ja
+      # `index_users_on_discovery_eligible` excludes it, independent of
+      # profile_hidden/suspension). D8N has no discovery-restriction feature yet,
+      # so a restricted member is imported but never published — fail closed.
+      def discovery_restricted? = discovery_restricted_at.present?
+
       # Change-detection fingerprint for LegacyReference.source_fingerprint.
       # Deliberately excludes email/phone/free-text so nothing identifying is
       # written to the D8N database in plaintext.
       def fingerprint
         material = [
           confirmed_at, phone_verified_at, deleted_at, suspended_at, banned_at,
-          profile_hidden, onboarding_completed_at, date_of_birth, gender, city,
+          discovery_restricted_at, profile_hidden, onboarding_completed_at, date_of_birth, gender, city,
           country_of_residence
         ].map(&:to_s).join("|")
         Digest::SHA256.hexdigest(material)[0, 32]
@@ -81,7 +88,7 @@ module Date9ja
       def readiness_fingerprint
         material = [
           full_name, city, country_of_residence, profile_hidden,
-          onboarding_completed_at, suspended_at, banned_at, deleted_at,
+          onboarding_completed_at, suspended_at, banned_at, deleted_at, discovery_restricted_at,
           preferred_age_min, preferred_age_max, relationship_intention,
           wants_children, children_count
         ].map(&:to_s).join("|")

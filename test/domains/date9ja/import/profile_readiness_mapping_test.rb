@@ -5,15 +5,24 @@ require "test_helper"
 module Date9ja
   module Import
     class ProfileReadinessMappingTest < ActiveSupport::TestCase
-      test "name mapping accepts only an exact two-token pair" do
+      test "name mapping takes the first token as the given name and joins the rest as the surname" do
         mapped = NameMapping.call("  Ada   Nwosu ")
         assert mapped.mapped?
         assert_equal "Ada", mapped.first_name
         assert_equal "Nwosu", mapped.last_name
 
-        refute NameMapping.call("Madonna").mapped?
-        refute NameMapping.call("Ada Obi Nwosu").mapped?
+        one_token = NameMapping.call("Madonna")
+        assert one_token.mapped?
+        assert_equal "Madonna", one_token.first_name
+        assert_nil one_token.last_name
+
+        three_token = NameMapping.call("Ada Obi Nwosu")
+        assert three_token.mapped?
+        assert_equal "Ada", three_token.first_name
+        assert_equal "Obi Nwosu", three_token.last_name
+
         refute NameMapping.call(nil).mapped?
+        refute NameMapping.call("   ").mapped?
       end
 
       test "country mapping is explicit normalized and fails closed" do

@@ -118,7 +118,7 @@ module D8n
         assert_not contract.capability_enabled?("match.opener")
         assert_equal [ "discovery.find" ], contract.discovery_surfaces.keys
         assert_nil contract.opener
-        assert_nil contract.interaction.verification_requirement
+        assert_equal :verified_login_identifier, contract.interaction.verification_requirement
         assert_equal :immediate, contract.media.initial_visibility
         assert_equal Matching::EligibilityPolicy::LIQUIDITY_FIRST, contract.interaction.eligibility_policy
       end

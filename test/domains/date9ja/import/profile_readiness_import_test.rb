@@ -31,7 +31,9 @@ module Date9ja
           assert profile.visible?
           assert Migration::ProfileReadiness.find_by!(profile:).disposition_ready?
           assert_equal "NG", profile.country_code
-          assert_equal "place", profile.profile_locations.kept.first!.source
+          # Date9ja declares no place-selection capability: country/city are
+          # profile scalars and readiness never creates a ProfileLocation.
+          assert_not ProfileLocation.kept.exists?(profile:)
         end
 
         viewer = profile_for(1)
@@ -43,34 +45,36 @@ module Date9ja
         assert_includes scope, candidate
       end
 
-      test "one-token and three-token names require confirmation without fabrication" do
+      test "one-token and three-token names map to a given name without fabricating a surname" do
         rows = [
           row(id: 1, full_name: "Madonna"),
           row(id: 2, full_name: "Ada Obi Nwosu", email: "ada@example.test")
         ]
         import_identity_and_preferences(rows)
 
-        result = readiness(rows)
+        readiness(rows)
 
-        assert_equal 2, result.reconciliation.count(:remediation_required)
-        assert_equal 2, result.reconciliation.reason_count("name_confirmation_required")
-        rows.each do |source_row|
-          user = profile_for(source_row.fetch(:id)).user
-          assert_nil user.first_name
-          assert_nil user.last_name
-        end
+        madonna = profile_for(1).user
+        assert_equal "Madonna", madonna.first_name
+        assert_nil madonna.last_name, "a single-token name gets no fabricated surname"
+
+        ada = profile_for(2).user
+        assert_equal "Ada", ada.first_name
+        assert_equal "Obi Nwosu", ada.last_name, "no token is discarded"
       end
 
-      test "unknown country fails closed with a country remediation reason" do
+      test "an unresolved country does not block a migrated member and is never guessed" do
         source_row = row(id: 1, country_of_residence: "Atlantis")
         import_identity_and_preferences([ source_row ])
+        attach_ready_photo(profile_for(1))
 
-        readiness([ source_row ])
+        result = readiness([ source_row ], publication_policy: :publish_visible_onboarded)
 
-        result = Migration::ProfileReadiness.find_by!(profile: profile_for(1))
-        assert result.disposition_remediation_required?
-        assert_includes result.reason_codes, "country_unresolved"
+        # Country is profile enrichment, not a Date9ja visibility gate. The
+        # importer still refuses to guess an unknown value.
+        assert_equal 1, result.reconciliation.count(:ready)
         assert_nil profile_for(1).country_code
+        assert_equal 1, result.reconciliation.to_h.dig("measures", "countries_unresolved")
       end
 
       test "an unresolved city never creates a fake location or coordinates" do
@@ -107,15 +111,20 @@ module Date9ja
         end
       end
 
-      test "unresolved required option distinguishes source mapping from catalogue failure" do
+      test "an unmapped source option is left unset and does not block a migrated member" do
         source_row = row(id: 1, relationship_intention: 1)
         import_identity_and_preferences([ source_row ])
+        attach_ready_photo(profile_for(1))
 
-        readiness([ source_row ])
+        result = readiness([ source_row ], publication_policy: :publish_visible_onboarded)
 
-        result = Migration::ProfileReadiness.find_by!(profile: profile_for(1))
-        assert_includes result.reason_codes, "relationship_intent_unmapped"
-        refute_includes result.reason_codes, "relationship_intent_selection_missing"
+        # `courtship` (1) has no approved D8N mapping. It is never coerced onto a
+        # near option, and — since option groups are not a Date9ja visibility
+        # gate — its absence does not hold the member back.
+        assert_equal 1, result.reconciliation.count(:ready)
+        assert_equal 1, result.reconciliation.to_h.dig("measures", "relationship_intent_unresolved")
+        group = ProfileOptionGroup.kept.find_by!(brand: @brand, key: "relationship_intent")
+        assert_not ProfileOptionSelection.kept.exists?(profile: profile_for(1), profile_option_group: group)
       end
 
       test "an explicitly hidden complete legacy member stays intentionally hidden" do
@@ -232,16 +241,43 @@ module Date9ja
         assert_nil Migration::ProfileReadiness.find_by!(profile: profile_for(1)).publication_applied_at
       end
 
-      test "a visible but never-onboarded source member requires the unresolved D-8 decision" do
+      test "a never-onboarded source member is still published — Date9ja shows them in discovery" do
         source_row = row(id: 1, onboarding_completed_at: nil)
         import_identity_and_preferences([ source_row ])
-        attach_ready_photo(profile_for(1))
 
-        readiness([ source_row ])
+        result = readiness([ source_row ], publication_policy: :publish_visible_onboarded)
 
-        result = Migration::ProfileReadiness.find_by!(profile: profile_for(1))
-        assert result.disposition_remediation_required?
-        assert_includes result.reason_codes, "legacy_visibility_decision_required"
+        assert_equal 1, result.reconciliation.count(:ready)
+        profile = profile_for(1).reload
+        assert profile.active?
+        assert profile.visible?
+      end
+
+      test "a discovery-restricted source member is imported but never published" do
+        source_row = row(id: 1, discovery_restricted_at: Time.current)
+        import_identity_and_preferences([ source_row ])
+
+        result = readiness([ source_row ], publication_policy: :publish_visible_onboarded)
+
+        assert_equal 1, result.reconciliation.count(:intentionally_hidden)
+        profile = profile_for(1).reload
+        assert profile.draft?
+        assert profile.hidden?
+        assert_includes Migration::ProfileReadiness.find_by!(profile:).reason_codes, "source_discovery_restricted"
+      end
+
+      test "a source member discovery-restricted after an earlier publish is withdrawn" do
+        source_row = row(id: 1)
+        import_identity_and_preferences([ source_row ])
+        readiness([ source_row ], publication_policy: :publish_visible_onboarded)
+        assert profile_for(1).reload.visible?
+
+        restricted = source_row.merge(discovery_restricted_at: Time.current)
+        readiness([ restricted ], publication_policy: :publish_visible_onboarded)
+
+        profile = profile_for(1).reload
+        assert profile.draft?
+        assert profile.hidden?
       end
 
       test "rerunning readiness is idempotent and creates one current evidence row" do
@@ -285,9 +321,55 @@ module Date9ja
         assert_not ProfileLocation.kept.exists?(profile:)
         assert_equal 1, result.reconciliation.count(:remediation_required)
         reasons = Migration::ProfileReadiness.find_by!(profile:).reason_codes
+        # first_name is the one identity gate that remains for a migrated member;
+        # a cleared country is preserved-as-cleared and is not a gate.
         assert_includes reasons, "name_confirmation_required"
-        assert_includes reasons, "country_unresolved"
         assert_not_includes reasons, "location_confirmation_required"
+      end
+
+      test "a new (non-migrated) Date9ja member keeps the full cultural completion contract" do
+        # Same shape as a migrated member, but with no LegacyReference binding.
+        user = User.create!(first_name: "Chidi", last_name: "Eze")
+        membership = BrandMembership.create!(user:, brand: @brand)
+        profile = Profile.create!(
+          user:, brand: @brand, brand_membership: membership, display_name: "Fresh",
+          birthdate: 30.years.ago.to_date, gender: "man", country_code: "NG",
+          city: "Lagos", bio: "A genuine biography"
+        )
+        ProfilePreference.create!(profile:, user:, brand: @brand, interested_in: [ "woman" ])
+        attach_ready_photo(profile)
+
+        missing = Profiles::Completion.call(profile:).missing.map(&:to_s)
+
+        assert_not Migration::ReferenceMap.migrated?(profile)
+        assert_includes missing, "is_nigerian"
+        %w[religion family_involvement faith_practice money_providing settlement children conflict].each do |group|
+          assert_includes missing, "options.#{group}"
+        end
+      end
+
+      test "a migrated member published under the migration contract is not later unpublished for a cultural gap" do
+        source_row = row(id: 1)
+        import_identity_and_preferences([ source_row ])
+        attach_ready_photo(profile_for(1))
+        readiness([ source_row ], publication_policy: :publish_visible_onboarded)
+
+        profile = profile_for(1).reload
+        assert profile.active?
+        assert profile.visible?
+
+        Profiles::Publication.unpublish_if_incomplete!(profile: profile.reload)
+
+        assert profile.reload.active?, "a migrated member must stay published through the runtime completion check"
+        assert profile.visible?
+      end
+
+      test "migration_completion can only relax a requirement, never add one" do
+        assert_raises(ActiveRecord::RecordInvalid) do
+          @brand.update!(profile_requirements: @brand.profile_requirements.deep_dup.merge(
+            "migration_completion" => { "profile_fields" => %w[display_name birthdate gender not_a_real_gate] }
+          ))
+        end
       end
 
       test "stale persisted requirements are rejected before any member is changed" do

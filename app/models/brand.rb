@@ -8,7 +8,13 @@ class Brand < ApplicationRecord
   }.freeze
   PROFILE_CONFIGURATION_KEYS = %w[
     enabled_identity_fields enabled_profile_fields enabled_preference_fields rich_profile_sections
-    minimum_lengths conditional_profile_fields conditional_option_groups
+    minimum_lengths conditional_profile_fields conditional_option_groups migration_completion
+  ].freeze
+  # Requirement keys a brand may relax for a migration-origin profile via
+  # `migration_completion`. Each relaxation must be a strict subset of the same
+  # top-level requirement, so it can only remove a publication gate.
+  MIGRATION_COMPLETION_LIST_KEYS = %w[
+    identity_fields profile_fields preference_fields collections option_groups
   ].freeze
   PROFILE_REQUIREMENT_KEYS = (DEFAULT_PROFILE_REQUIREMENTS.keys + PROFILE_CONFIGURATION_KEYS).freeze
 
@@ -85,13 +91,17 @@ class Brand < ApplicationRecord
 
     configured = profile_requirements.deep_stringify_keys
     unknown_keys = configured.keys - PROFILE_REQUIREMENT_KEYS
-    list_keys = PROFILE_REQUIREMENT_KEYS - %w[minimum_lengths conditional_profile_fields conditional_option_groups]
+    list_keys = PROFILE_REQUIREMENT_KEYS -
+      %w[minimum_lengths conditional_profile_fields conditional_option_groups migration_completion]
     invalid_lists = configured.slice(*list_keys).reject do |_key, value|
       value.is_a?(Array) && value.all? { |item| item.is_a?(String) }
     end
     invalid_structures = !minimum_lengths_shape_valid?(configured["minimum_lengths"]) ||
       !conditional_rules_shape_valid?(configured["conditional_profile_fields"], target_key: "fields") ||
-      !conditional_rules_shape_valid?(configured["conditional_option_groups"], target_key: "groups")
+      !conditional_rules_shape_valid?(configured["conditional_option_groups"], target_key: "groups") ||
+      !migration_completion_shape_valid?(
+        configured["migration_completion"], DEFAULT_PROFILE_REQUIREMENTS.merge(configured)
+      )
     if unknown_keys.any? || invalid_lists.any? || invalid_structures
       errors.add(:profile_requirements, "must contain only supported string lists")
       return
@@ -148,6 +158,25 @@ class Brand < ApplicationRecord
 
     validate_minimum_lengths(requirements, enabled_profile_fields)
     validate_conditional_requirements(requirements, enabled_profile_fields)
+  end
+
+  def migration_completion_shape_valid?(value, configured)
+    return true if value.nil?
+    return false unless value.is_a?(Hash)
+
+    value.all? do |key, relaxed|
+      case key
+      when *MIGRATION_COMPLETION_LIST_KEYS
+        relaxed.is_a?(Array) && relaxed.all? { |item| item.is_a?(String) } &&
+          (relaxed - Array(configured[key])).empty?
+      when "conditional_profile_fields"
+        conditional_rules_shape_valid?(relaxed, target_key: "fields")
+      when "conditional_option_groups"
+        conditional_rules_shape_valid?(relaxed, target_key: "groups")
+      else
+        false
+      end
+    end
   end
 
   def minimum_lengths_shape_valid?(value)

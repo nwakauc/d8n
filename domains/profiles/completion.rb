@@ -89,7 +89,10 @@ module Profiles
 
     def basics_complete?
       identity_complete = identity_fields.all? { |field| profile.user.public_send(field).present? }
-      identity_complete && [ profile.display_name, profile.birthdate, profile.gender ].all?(&:present?)
+      # A brand may collapse the display name into the given name (Date9ja):
+      # first_name then stands in for a blank display_name.
+      display_name = profile.display_name.presence || profile.user.first_name
+      identity_complete && [ display_name, profile.birthdate, profile.gender ].all?(&:present?)
     end
 
     def missing_identity_fields
@@ -176,7 +179,22 @@ module Profiles
     end
 
     def requirements
-      @requirements ||= profile.brand.profile_completion_requirements
+      @requirements ||= resolve_requirements
+    end
+
+    # A brand may declare a `migration_completion` relaxation (a strict subset of
+    # its own required lists). It applies only to a migration-origin profile:
+    # a member imported from a legacy system predates onboarding fields added
+    # after they joined and is prompted to fill them post-migration, while a
+    # fresh registration keeps the full contract. No brand without the key, and
+    # no non-migrated profile, changes behaviour.
+    def resolve_requirements
+      configured = profile.brand.profile_completion_requirements
+      relaxation = configured["migration_completion"]
+      return configured if relaxation.blank?
+      return configured unless Migration::ReferenceMap.migrated?(profile)
+
+      configured.merge(relaxation)
     end
 
     def profile_fields

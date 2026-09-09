@@ -455,7 +455,14 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     viewer = create_profile(brand:, gender: "woman", age: 30, interested_in: [ "man" ], min_age: 25, max_age: 40)
     target = create_profile(brand:, gender: "man", age: 31, interested_in: [ "woman" ], min_age: 25, max_age: 40, display_name: "Ade")
     video = attach_ready_video(target)
-    token, = Session.issue!(brand:, user: viewer.user)
+    # Date9ja gates interaction (profile detail included) on a verified login identifier.
+    viewer_identifier = IdentityIdentifier.create!(
+      user: viewer.user, kind: :email, normalized_value: "viewer@example.com", verified_at: Time.current
+    )
+    credential = Credential.create!(
+      user: viewer.user, identity_identifier: viewer_identifier, kind: :password, status: :active
+    )
+    token, = Session.issue!(brand:, user: viewer.user, credential:)
     host! "date9ja.test"
 
     get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(token)
