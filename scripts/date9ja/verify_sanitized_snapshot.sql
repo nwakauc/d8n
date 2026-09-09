@@ -18,7 +18,7 @@
 \set ON_ERROR_STOP on
 
 -- ---------------------------------------------------------------------------
--- Schema guard — canonical Date9ja source-schema signature (v2), shared
+-- Schema guard — canonical Date9ja source-schema signature (v3), shared
 -- verbatim with sanitize_snapshot.sql and source_census.sql.
 -- ---------------------------------------------------------------------------
 \ir schema_signature.sql
@@ -28,8 +28,9 @@
 -- ---------------------------------------------------------------------------
 DO $pre$
 BEGIN
-  IF to_regclass('sanitize_audit.counts') IS NULL THEN
-    RAISE EXCEPTION 'sanitize_audit.counts is missing — run sanitize_snapshot.sql first';
+  IF to_regclass('sanitize_audit.counts') IS NULL OR
+     to_regclass('sanitize_audit.lifecycle_counts') IS NULL THEN
+    RAISE EXCEPTION 'sanitize_audit count tables are missing — run sanitize_snapshot.sql first';
   END IF;
 END
 $pre$;
@@ -68,7 +69,7 @@ DECLARE
 BEGIN
   -- 1. row counts unchanged vs. the sanitizer's pre-run capture
   FOR ref IN
-    SELECT metric FROM sanitize_audit.counts WHERE metric <> 'run_at_epoch'
+    SELECT metric FROM sanitize_audit.counts
   LOOP
     EXECUTE format('SELECT count(*) FROM %I', ref) INTO n;
     IF n <> (SELECT value FROM sanitize_audit.counts WHERE metric = ref) THEN
@@ -167,7 +168,9 @@ BEGIN
       'error_logs.backtrace','error_logs.request_path','users.about_me',
       'users.ideal_partner_description',
       'users.interest_in_nigerian_culture','users.occupation','users.deletion_reason',
+      'users.deletion_comment','users.discovery_restriction_note',
       'users.suspension_reason','users.ban_reason','profile_videos.rejection_reason',
+      'exit_attempts.comment','exit_attempts.final_comment',
       'selfie_verifications.rejection_reason','trust_adjustments.note',
       'notification_deliveries.last_error','push_tokens.last_error',
       'career_applications.cover_letter','career_applications.admin_note',
@@ -188,7 +191,8 @@ BEGIN
   FOR ref IN SELECT unnest(ARRAY[
       'notifications.payload','audit_logs.metadata','trust_events.metadata',
       'verification_events.metadata','verification_checks.ai_review_result',
-      'aunty_phobie_messages.context_snapshot','users.v2_onboarding_answers' ])
+      'aunty_phobie_messages.context_snapshot','users.v2_onboarding_answers',
+      'exit_attempts.context' ])
   LOOP
     EXECUTE format('SELECT count(*) FROM %I WHERE %I <> ''{}''::jsonb',
       split_part(ref,'.',1), split_part(ref,'.',2)) INTO n;
@@ -210,7 +214,8 @@ BEGIN
   -- redacted varchar[] must be empty
   FOR ref IN SELECT unnest(ARRAY[
       'users.preferred_religion','users.preferred_tribes','users.interests',
-      'users.relationship_values','users.dealbreakers','personas.core_values',
+      'users.relationship_values','users.dealbreakers','users.languages_spoken',
+      'users.preferred_countries','users.relocation_preferences','personas.core_values',
       'personas.hobbies_and_interests','personas.good_stories','personas.topics_to_ease_into' ])
   LOOP
     EXECUTE format('SELECT count(*) FROM %I WHERE cardinality(%I) > 0',
@@ -291,6 +296,45 @@ BEGIN
       OR country_of_residence ~ '@' OR body_type ~ '@';
   IF n > 0 THEN fails := fails || format('%s users rows have an "@" in a text field', n); END IF;
 
+  SELECT count(*) INTO n FROM users
+   WHERE country_of_residence NOT IN (
+     'Nigeria','United Kingdom','United States','Canada','Ghana','South Africa',
+     'Kenya','Ireland','Germany','United Arab Emirates','OTHER','')
+      OR (body_type IS NOT NULL AND body_type NOT IN (
+          'slim','regular','athletic','muscular','curvy','plus_size','OTHER',''));
+  IF n > 0 THEN fails := fails || format('%s users retain unsafe country/body-type free text', n); END IF;
+
+  -- Bounded lifecycle vocabularies. OTHER is a deliberate quarantine bucket
+  -- whose raw count was captured before sanitization.
+  SELECT count(*) INTO n FROM users
+   WHERE discovery_restriction_reason IS NOT NULL
+     AND discovery_restriction_reason NOT IN (
+       'commercial_solicitation','off_platform_promotion','promotional_profile',
+       'suspected_scam','spam','impersonation','inappropriate_content',
+       'safety_concern','other','OTHER');
+  IF n > 0 THEN fails := fails || format('%s users have unsafe discovery restriction reasons', n); END IF;
+  SELECT count(*) INTO n FROM users
+   WHERE deletion_reason_code IS NOT NULL
+     AND deletion_reason_code NOT IN (
+       'found_someone','not_enough_matches','not_enough_relevant_people','low_activity',
+       'wants_mobile_app','fake_or_scam_profiles','poor_experience','technical_problems',
+       'privacy_or_safety','too_many_notifications','taking_a_break','other','OTHER');
+  IF n > 0 THEN fails := fails || format('%s users have unsafe deletion reason codes', n); END IF;
+  SELECT count(*) INTO n FROM exit_attempts
+   WHERE (reason_code IS NOT NULL AND reason_code NOT IN (
+          'found_someone','not_enough_matches','not_enough_relevant_people','low_activity',
+          'wants_mobile_app','fake_or_scam_profiles','poor_experience','technical_problems',
+          'privacy_or_safety','too_many_notifications','taking_a_break','other','OTHER'))
+      OR (intervention IS NOT NULL AND intervention NOT IN (
+          'update_preferences','pause_and_grow','what_would_bring_you_back','mobile_app',
+          'report_problem','notification_settings','safety','celebrate','pause','generic','OTHER'))
+      OR outcome NOT IN ('pending','stayed','paused','deleted','OTHER')
+      OR retention_action NOT IN (
+          'none','preferences_updated','notifications_updated','feedback_submitted',
+          'problem_reported','safety_concern_reported','success_story_shared',
+          'app_launch_notice_requested','OTHER');
+  IF n > 0 THEN fails := fails || format('%s exit_attempts have unsafe categorical values', n); END IF;
+
   -- 12. legacy IDs + determinism
   SELECT count(*) INTO n FROM users WHERE email <> 'date9ja+' || id || '@snapshot.invalid';
   IF n > 0 THEN fails := fails || format('%s users.email not deterministic from id', n); END IF;
@@ -301,6 +345,20 @@ BEGIN
      OR (SELECT count(*) FROM users WHERE phone IS NOT NULL) <>
         (SELECT count(DISTINCT phone) FROM users WHERE phone IS NOT NULL) THEN
     fails := fails || 'users id/public_id/email/phone uniqueness broken';
+  END IF;
+
+  -- Lifecycle state must survive sanitization exactly.
+  IF (SELECT count(*) FROM users WHERE profile_hidden) <>
+     (SELECT value FROM sanitize_audit.lifecycle_counts WHERE metric='profile_hidden') OR
+     (SELECT count(*) FROM users WHERE discovery_restricted_at IS NOT NULL) <>
+     (SELECT value FROM sanitize_audit.lifecycle_counts WHERE metric='discovery_restricted') OR
+     (SELECT count(*) FROM users WHERE suspended_at IS NOT NULL) <>
+     (SELECT value FROM sanitize_audit.lifecycle_counts WHERE metric='suspended') OR
+     (SELECT count(*) FROM users WHERE banned_at IS NOT NULL) <>
+     (SELECT value FROM sanitize_audit.lifecycle_counts WHERE metric='banned') OR
+     (SELECT count(*) FROM users WHERE deleted_at IS NOT NULL) <>
+     (SELECT value FROM sanitize_audit.lifecycle_counts WHERE metric='deleted') THEN
+    fails := fails || 'migration-relevant lifecycle aggregate state changed';
   END IF;
 
   -- 13. no orphaned core FKs
@@ -343,6 +401,14 @@ BEGIN
     LEFT JOIN users a ON a.id = r.reporter_id LEFT JOIN users b ON b.id = r.reported_id
     WHERE a.id IS NULL OR b.id IS NULL;
   IF n > 0 THEN fails := fails || format('%s orphan reports', n); END IF;
+
+  SELECT count(*) INTO n FROM exit_attempts e
+    LEFT JOIN users u ON u.id = e.user_id WHERE u.id IS NULL;
+  IF n > 0 THEN fails := fails || format('%s orphan exit_attempts', n); END IF;
+
+  SELECT count(*) INTO n FROM pg_constraint
+   WHERE contype = 'f' AND connamespace = 'public'::regnamespace AND NOT convalidated;
+  IF n > 0 THEN fails := fails || format('%s public foreign keys are not validated', n); END IF;
 
   -- 14. entitlement / verification state still present (nothing over-nulled)
   IF (SELECT count(*) FROM users WHERE subscription_status IS NULL) > 0

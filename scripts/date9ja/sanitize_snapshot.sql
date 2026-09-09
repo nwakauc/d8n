@@ -23,8 +23,9 @@
 --   psql -v ON_ERROR_STOP=1 -d date9ja_snapshot_sanitized \
 --        -f scripts/date9ja/verify_sanitized_snapshot.sql
 --
---   Target MUST be `date9ja_snapshot_sanitized` (a copy).
---   NEVER run against `date9ja_snapshot_tmp` (the pristine raw restore).
+--   Target name MUST identify a sanitized disposable copy: either the historical
+--   `date9ja_snapshot_sanitized` name or `date9ja_migration_sanitized_YYYYMMDD`.
+--   NEVER run against a pristine source restore.
 -- =============================================================================
 
 \set ON_ERROR_STOP on
@@ -49,34 +50,28 @@ SELECT :'sanitize_ack' = 'SANITIZE_THE_COPY' AS ack_ok \gset
   \quit
 \endif
 
--- 0b. Never run against the named pristine raw restore; refuse a second run.
+-- 0b. Require an unmistakably sanitized scratch-database name. Every
+-- transformation below is idempotent, so an interrupted operator workflow may
+-- safely rerun it.
 DO $guard$
-DECLARE
-  n bigint;
 BEGIN
-  IF current_database() = 'date9ja_snapshot_tmp' THEN
+  IF current_database() !~ '^date9ja_(snapshot_sanitized|migration_sanitized_[0-9]{8})$' THEN
     RAISE EXCEPTION
-      'REFUSING TO RUN: current_database() is date9ja_snapshot_tmp (the pristine raw restore). Target date9ja_snapshot_sanitized only.';
+      'REFUSING TO RUN: database % is not an approved sanitized disposable-copy name.',
+      current_database();
   END IF;
 
-  -- Idempotency guard: several transformations (hashed buckets) are not
-  -- safe to apply twice. Start from a fresh copy of the raw restore.
-  SELECT count(*) INTO n FROM users WHERE email ~ '@snapshot\.invalid$';
-  IF n > 0 THEN
-    RAISE EXCEPTION
-      'REFUSING TO RUN: % users already have @snapshot.invalid emails — this database looks already sanitized. Start from a fresh copy.', n;
-  END IF;
 END
 $guard$;
 
--- Audit rows live OUTSIDE public so the public schema stays exactly 51 tables
--- for the shared v2 schema-signature check (schema_signature.sql). The operator
+-- Audit rows live OUTSIDE public so the public schema stays exactly 52 tables
+-- for the shared v3 schema-signature check (schema_signature.sql). The operator
 -- drops this schema before packaging the snapshot (see SNAPSHOT-RUNBOOK.md).
 DROP SCHEMA IF EXISTS sanitize_audit CASCADE;
 CREATE SCHEMA sanitize_audit;
 
 -- -----------------------------------------------------------------------------
--- 1. Schema-drift guard — canonical Date9ja source-schema signature (v2).
+-- 1. Schema-drift guard — canonical Date9ja source-schema signature (v3).
 --    ONE definition, shared with verify_sanitized_snapshot.sql and
 --    source_census.sql. Exact base-table set AND full structural signature
 --    (type, nullability, ordinal, precision, default), or abort. Any drift
@@ -91,9 +86,6 @@ CREATE TABLE sanitize_audit.counts (
   metric text PRIMARY KEY,
   value  bigint NOT NULL
 );
-INSERT INTO sanitize_audit.counts (metric, value)
-  SELECT 'run_at_epoch', extract(epoch FROM now())::bigint;
-
 INSERT INTO sanitize_audit.counts (metric, value) VALUES
   ('users',                        (SELECT count(*) FROM users)),
   ('photos',                       (SELECT count(*) FROM photos)),
@@ -110,7 +102,32 @@ INSERT INTO sanitize_audit.counts (metric, value) VALUES
   ('message_reactions',            (SELECT count(*) FROM message_reactions)),
   ('verification_checks',          (SELECT count(*) FROM verification_checks)),
   ('trust_events',                 (SELECT count(*) FROM trust_events)),
-  ('notifications',                (SELECT count(*) FROM notifications));
+  ('notifications',                (SELECT count(*) FROM notifications)),
+  ('exit_attempts',                 (SELECT count(*) FROM exit_attempts));
+
+CREATE TABLE sanitize_audit.lifecycle_counts (
+  metric text PRIMARY KEY,
+  value  bigint NOT NULL
+);
+INSERT INTO sanitize_audit.lifecycle_counts (metric, value) VALUES
+  ('profile_hidden',               (SELECT count(*) FROM users WHERE profile_hidden)),
+  ('discovery_restricted',         (SELECT count(*) FROM users WHERE discovery_restricted_at IS NOT NULL)),
+  ('suspended',                    (SELECT count(*) FROM users WHERE suspended_at IS NOT NULL)),
+  ('banned',                       (SELECT count(*) FROM users WHERE banned_at IS NOT NULL)),
+  ('deleted',                      (SELECT count(*) FROM users WHERE deleted_at IS NOT NULL)),
+  ('unknown_discovery_reason',     (SELECT count(*) FROM users
+                                    WHERE discovery_restriction_reason IS NOT NULL
+                                      AND discovery_restriction_reason NOT IN (
+                                        'commercial_solicitation','off_platform_promotion','promotional_profile',
+                                        'suspected_scam','spam','impersonation','inappropriate_content',
+                                        'safety_concern','other'))),
+  ('unknown_deletion_reason_code', (SELECT count(*) FROM users
+                                    WHERE deletion_reason_code IS NOT NULL
+                                      AND deletion_reason_code NOT IN (
+                                        'found_someone','not_enough_matches','not_enough_relevant_people',
+                                        'low_activity','wants_mobile_app','fake_or_scam_profiles',
+                                        'poor_experience','technical_problems','privacy_or_safety',
+                                        'too_many_notifications','taking_a_break','other')));
 
 -- salt used for every pseudonymous derivation (documented; not a secret)
 \set salt 'date9ja-snapshot-v1'
@@ -141,6 +158,28 @@ UPDATE users SET
   date_of_birth         = CASE WHEN date_of_birth IS NULL THEN NULL
                                ELSE make_date(extract(year FROM date_of_birth)::int, 7, 1) END,
   city                  = NULL,
+  country_of_residence  = CASE
+                            WHEN lower(btrim(country_of_residence)) IN ('ng','nga','nigeria') THEN 'Nigeria'
+                            WHEN lower(btrim(country_of_residence)) IN ('gb','uk','gbr','united kingdom') THEN 'United Kingdom'
+                            WHEN lower(btrim(country_of_residence)) IN ('us','usa','united states','united states of america') THEN 'United States'
+                            WHEN lower(btrim(country_of_residence)) IN ('ca','can','canada') THEN 'Canada'
+                            WHEN lower(btrim(country_of_residence)) IN ('gh','gha','ghana') THEN 'Ghana'
+                            WHEN lower(btrim(country_of_residence)) IN ('za','zaf','south africa') THEN 'South Africa'
+                            WHEN lower(btrim(country_of_residence)) IN ('ke','ken','kenya') THEN 'Kenya'
+                            WHEN lower(btrim(country_of_residence)) IN ('ie','irl','ireland') THEN 'Ireland'
+                            WHEN lower(btrim(country_of_residence)) IN ('de','deu','germany') THEN 'Germany'
+                            WHEN lower(btrim(country_of_residence)) IN ('ae','are','united arab emirates') THEN 'United Arab Emirates'
+                            WHEN btrim(country_of_residence) = '' THEN ''
+                            ELSE 'OTHER'
+                          END,
+  body_type             = CASE
+                            WHEN body_type IS NULL THEN NULL
+                            WHEN btrim(body_type) = '' THEN ''
+                            WHEN lower(regexp_replace(btrim(body_type), '[[:space:]-]+', '_', 'g'))
+                                 IN ('slim','regular','athletic','muscular','curvy','plus_size')
+                              THEN lower(regexp_replace(btrim(body_type), '[[:space:]-]+', '_', 'g'))
+                            ELSE 'OTHER'
+                          END,
   -- Coordinates are dropped, not coarsened: a shareable rehearsal snapshot must
   -- not carry real user geography, and no currently-unblocked migration test
   -- needs them (discovery/distance rehearsal is separately gated and can use
@@ -168,8 +207,29 @@ UPDATE users SET
   interest_in_nigerian_culture = CASE WHEN interest_in_nigerian_culture IS NULL THEN NULL ELSE '[redacted]' END,
   occupation                   = CASE WHEN occupation IS NULL THEN NULL ELSE '[redacted]' END,
   deletion_reason              = CASE WHEN deletion_reason IS NULL THEN NULL ELSE '[redacted]' END,
+  deletion_reason_code         = CASE
+                                   WHEN deletion_reason_code IS NULL THEN NULL
+                                   WHEN deletion_reason_code IN (
+                                     'found_someone','not_enough_matches','not_enough_relevant_people',
+                                     'low_activity','wants_mobile_app','fake_or_scam_profiles',
+                                     'poor_experience','technical_problems','privacy_or_safety',
+                                     'too_many_notifications','taking_a_break','other','OTHER')
+                                     THEN deletion_reason_code
+                                   ELSE 'OTHER'
+                                 END,
+  deletion_comment             = CASE WHEN deletion_comment IS NULL THEN NULL ELSE '[redacted]' END,
   suspension_reason            = CASE WHEN suspension_reason IS NULL THEN NULL ELSE '[redacted]' END,
   ban_reason                   = CASE WHEN ban_reason IS NULL THEN NULL ELSE '[redacted]' END,
+  discovery_restriction_reason = CASE
+                                   WHEN discovery_restriction_reason IS NULL THEN NULL
+                                   WHEN discovery_restriction_reason IN (
+                                     'commercial_solicitation','off_platform_promotion','promotional_profile',
+                                     'suspected_scam','spam','impersonation','inappropriate_content',
+                                     'safety_concern','other','OTHER')
+                                     THEN discovery_restriction_reason
+                                   ELSE 'OTHER'
+                                 END,
+  discovery_restriction_note   = CASE WHEN discovery_restriction_note IS NULL THEN NULL ELSE '[redacted]' END,
   -- Sensitive religious / ethnic / tribal / health-adjacent attributes. The
   -- sensitive-field importer is GATED (DECISIONS.md) and will need its own
   -- product-approved extract, so nothing currently justifies carrying real
@@ -190,17 +250,61 @@ UPDATE users SET
   interests           = '{}'::character varying[],
   relationship_values = '{}'::character varying[],
   dealbreakers        = '{}'::character varying[],
+  languages_spoken    = '{}'::character varying[],
+  preferred_countries = '{}'::character varying[],
+  relocation_preferences = '{}'::character varying[],
   v2_onboarding_answers = '{}'::jsonb,
   signup_source        = CASE WHEN signup_source IS NULL THEN NULL
+                              WHEN signup_source ~ '^bucket_[0-9]+$' THEN signup_source
                               ELSE 'bucket_' || (abs(hashtext(lower(signup_source))::bigint) % 16)::text END,
   attribution_source   = CASE WHEN attribution_source IS NULL THEN NULL
+                              WHEN attribution_source ~ '^bucket_[0-9]+$' THEN attribution_source
                               ELSE 'bucket_' || (abs(hashtext(lower(attribution_source))::bigint) % 16)::text END,
   attribution_medium   = CASE WHEN attribution_medium IS NULL THEN NULL
+                              WHEN attribution_medium ~ '^bucket_[0-9]+$' THEN attribution_medium
                               ELSE 'bucket_' || (abs(hashtext(lower(attribution_medium))::bigint) % 16)::text END,
   attribution_campaign = CASE WHEN attribution_campaign IS NULL THEN NULL
+                              WHEN attribution_campaign ~ '^bucket_[0-9]+$' THEN attribution_campaign
                               ELSE 'bucket_' || (abs(hashtext(lower(attribution_campaign))::bigint) % 16)::text END,
   attribution_content  = CASE WHEN attribution_content IS NULL THEN NULL
+                              WHEN attribution_content ~ '^bucket_[0-9]+$' THEN attribution_content
                               ELSE 'bucket_' || (abs(hashtext(lower(attribution_content))::bigint) % 16)::text END;
+
+-- 3.1a retention / exit-flow state -----------------------------------------
+-- Keep bounded product-state vocabulary and timestamps, but remove every
+-- member-authored string and the arbitrary point-in-time JSON context.
+UPDATE exit_attempts SET
+  reason_code = CASE
+                  WHEN reason_code IS NULL THEN NULL
+                  WHEN reason_code IN (
+                    'found_someone','not_enough_matches','not_enough_relevant_people',
+                    'low_activity','wants_mobile_app','fake_or_scam_profiles',
+                    'poor_experience','technical_problems','privacy_or_safety',
+                    'too_many_notifications','taking_a_break','other','OTHER') THEN reason_code
+                  ELSE 'OTHER'
+                END,
+  intervention = CASE
+                   WHEN intervention IS NULL THEN NULL
+                   WHEN intervention IN (
+                     'update_preferences','pause_and_grow','what_would_bring_you_back',
+                     'mobile_app','report_problem','notification_settings','safety',
+                     'celebrate','pause','generic','OTHER') THEN intervention
+                   ELSE 'OTHER'
+                 END,
+  outcome = CASE
+              WHEN outcome IN ('pending','stayed','paused','deleted','OTHER') THEN outcome
+              ELSE 'OTHER'
+            END,
+  retention_action = CASE
+                       WHEN retention_action IN (
+                         'none','preferences_updated','notifications_updated','feedback_submitted',
+                         'problem_reported','safety_concern_reported','success_story_shared',
+                         'app_launch_notice_requested','OTHER') THEN retention_action
+                       ELSE 'OTHER'
+                     END,
+  comment = CASE WHEN comment IS NULL THEN NULL ELSE '[redacted]' END,
+  final_comment = CASE WHEN final_comment IS NULL THEN NULL ELSE '[redacted]' END,
+  context = '{}'::jsonb;
 
 -- 3.2 phone_verifications ---------------------------------------------------
 UPDATE phone_verifications SET
@@ -453,6 +557,15 @@ BEGIN
   IF n > 0 THEN RAISE EXCEPTION 'POST-CHECK: % messages.body not redacted', n; END IF;
   SELECT count(*) INTO n FROM aunty_phobie_messages WHERE content <> '[redacted]';
   IF n > 0 THEN RAISE EXCEPTION 'POST-CHECK: % aunty_phobie_messages.content not redacted', n; END IF;
+  SELECT count(*) INTO n FROM users
+   WHERE discovery_restriction_note IS NOT NULL AND discovery_restriction_note <> '[redacted]'
+      OR deletion_comment IS NOT NULL AND deletion_comment <> '[redacted]';
+  IF n > 0 THEN RAISE EXCEPTION 'POST-CHECK: % users carry unredacted lifecycle free text', n; END IF;
+  SELECT count(*) INTO n FROM exit_attempts
+   WHERE comment IS NOT NULL AND comment <> '[redacted]'
+      OR final_comment IS NOT NULL AND final_comment <> '[redacted]'
+      OR context <> '{}'::jsonb;
+  IF n > 0 THEN RAISE EXCEPTION 'POST-CHECK: % exit_attempts carry unsafe free text/context', n; END IF;
 
   -- generalisation
   SELECT count(*) INTO n FROM users
@@ -478,12 +591,29 @@ BEGIN
     RAISE EXCEPTION 'POST-CHECK: users id/public_id/email cardinality diverged';
   END IF;
 
+  -- migration-relevant lifecycle state is preserved exactly. Free-text reason
+  -- bodies are not part of these measures.
+  IF (SELECT count(*) FROM users WHERE profile_hidden) <>
+     (SELECT value FROM sanitize_audit.lifecycle_counts WHERE metric='profile_hidden') OR
+     (SELECT count(*) FROM users WHERE discovery_restricted_at IS NOT NULL) <>
+     (SELECT value FROM sanitize_audit.lifecycle_counts WHERE metric='discovery_restricted') OR
+     (SELECT count(*) FROM users WHERE suspended_at IS NOT NULL) <>
+     (SELECT value FROM sanitize_audit.lifecycle_counts WHERE metric='suspended') OR
+     (SELECT count(*) FROM users WHERE banned_at IS NOT NULL) <>
+     (SELECT value FROM sanitize_audit.lifecycle_counts WHERE metric='banned') OR
+     (SELECT count(*) FROM users WHERE deleted_at IS NOT NULL) <>
+     (SELECT value FROM sanitize_audit.lifecycle_counts WHERE metric='deleted') THEN
+    RAISE EXCEPTION 'POST-CHECK: lifecycle aggregate state changed during sanitization';
+  END IF;
+
   -- orphan core FKs (spot set)
   SELECT count(*) INTO n FROM messages m LEFT JOIN matches mt ON mt.id = m.match_id WHERE mt.id IS NULL;
   IF n > 0 THEN RAISE EXCEPTION 'POST-CHECK: % orphan messages', n; END IF;
   SELECT count(*) INTO n FROM active_storage_attachments a
     LEFT JOIN active_storage_blobs b ON b.id = a.blob_id WHERE b.id IS NULL;
   IF n > 0 THEN RAISE EXCEPTION 'POST-CHECK: % orphan attachments', n; END IF;
+  SELECT count(*) INTO n FROM exit_attempts e LEFT JOIN users u ON u.id = e.user_id WHERE u.id IS NULL;
+  IF n > 0 THEN RAISE EXCEPTION 'POST-CHECK: % orphan exit attempts', n; END IF;
 
   RAISE NOTICE 'inline post-checks passed';
 END

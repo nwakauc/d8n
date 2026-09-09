@@ -11,7 +11,7 @@ module Date9ja
           when :ok then true
           when :drift
             raise ActiveRecord::StatementInvalid,
-              "PG::RaiseException: ERROR:  SCHEMA DRIFT: expected 51 public base tables, found 52\nCONTEXT: ..."
+              "PG::RaiseException: ERROR:  SCHEMA DRIFT: expected 52 public base tables, found 53\nCONTEXT: ..."
           end
         end
       end

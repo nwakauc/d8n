@@ -1,5 +1,15 @@
 # Reconciliation Plan
 
+## Authoritative rehearsal baseline — 2026-09-08
+
+The current rehearsal source baseline is the aggregate-only evidence in
+[`AUTHORITATIVE-SNAPSHOT-20260908.md`](AUTHORITATIVE-SNAPSHOT-20260908.md): 584
+users, 552 identity-import eligible, 32 excluded/deleted, 631 photos, 90 profile
+videos, and schema v3 `0b0e2e2b4b6df617558834f859c44750`. It is
+**SELF_VERIFIED**, not independently VERIFIED, and is not the future cutover
+snapshot. All older 288-user/279-photo values below are historical evidence and
+must not be combined with this baseline in one reconciliation run.
+
 ## Historical graph/state migration — implementation evidence (2026-09-08)
 
 `Date9ja::Snapshot::HistoricalGraphSource` normalizes Date9ja relationship rows

@@ -1,5 +1,12 @@
 # Date9ja Profile & Preference Value Mapping Contract
 
+> **Authoritative rehearsal refresh (2026-09-09):** the complete census was
+> rerun on the verified 2026-09-08 production snapshot. Current aggregate
+> values and preservation gaps are recorded in
+> [AUTHORITATIVE-SNAPSHOT-20260908.md](AUTHORITATIVE-SNAPSHOT-20260908.md).
+> The 288-row figures below remain historical 2026-09-02 evidence. They are not
+> silently overwritten or presented as current.
+
 **Authority.** This is the working contract for **Pass 2** of the Date9ja profile &
 preference migration: how each legacy `users` value becomes a D8N value. It is
 subordinate to `MASTER-PLAN.md` (phase model), `CAPABILITY-PARITY.md` (what must

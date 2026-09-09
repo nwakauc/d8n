@@ -1,5 +1,18 @@
 # Date9ja → D8N Status
 
+- **Authoritative 2026-09-08 rehearsal snapshot contract — IMPLEMENTED /
+  SELF_VERIFIED (2026-09-09):** the verified 1,425,219-byte custom-format dump
+  (`e1770ef…f72`) was restored only to disposable local PostgreSQL 17.11. Schema
+  v3 pins the actual production snapshot at 52 tables / 592 columns /
+  `0b0e2e2b…`; the frozen Date9ja HEAD is separately 52 / 597 / `6b8b90cc…`.
+  Sanitization passed twice, verification passed with zero violations, and
+  synthetic PII/free-text negative cases failed closed. The full safe census is
+  recorded in [AUTHORITATIVE-SNAPSHOT-20260908.md](AUTHORITATIVE-SNAPSHOT-20260908.md).
+  This supersedes the old snapshot for new rehearsal evidence but does not erase
+  the historical 2026-09-02 results, is not independently VERIFIED, and is not
+  the future cutover snapshot. Import, publication, discovery-policy changes and
+  cutover were not run.
+
 - **Date9ja onboarding parity contract — IMPLEMENTED / SELF-VERIFIED (2026-09-08):** the Date9ja catalogue now exposes the legacy cultural path (Nigerian/non-Nigerian, conditional state/nationality and controlled tribe choices), owner-only faith/genotype data, the six compatibility answer groups, relocation fields, and the legacy 10-character bio gate through `GET /api/v1/profile/configuration`. These capabilities use shared D8N profile fields and option groups; they are not enabled for other brands. Genotype and cultural selections are owner-only and are not serialized to other members. The Date9ja mobile frontend is not changed in this slice; real-corpus migration of legacy sensitive values and product acceptance remain separate evidence/decision work.
 
 - **Date9ja brand provisioning — IMPLEMENTED / SELF-VERIFIED (2026-09-08):** `Brands::Date9jaInstaller` is registered in `Brands::Provisioner`; `db:seed` and the web entrypoint ensure the canonical `date9ja` Brand/catalogue on fresh databases while preserving existing operator state. `brands:provision[date9ja]` (or `brands:ensure_date9ja`) is the local/manual ensure command, and `brands:verify[date9ja]` is the PII-safe verification command. `DATE9JA_API_HOST` adds an environment-specific host mapping only when configured. No member migration runs during bootstrap; production remains untouched.

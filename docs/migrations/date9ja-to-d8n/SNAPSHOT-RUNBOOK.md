@@ -1,5 +1,14 @@
 # Sanitized Date9ja Snapshot & Data-Dictionary Runbook
 
+> **Current authoritative rehearsal snapshot:**
+> `backups_db_production_20260908030000.dump`, timestamp 2026-09-08 03:00,
+> 1,425,219 bytes, SHA-256
+> `e1770ef340082bffc9f3a7f5975cbf23c9d6958b45b5c0c8080d352fe3f03f72`.
+> Its v3 contract and census are in
+> [AUTHORITATIVE-SNAPSHOT-20260908.md](AUTHORITATIVE-SNAPSHOT-20260908.md).
+> It is a development/rehearsal snapshot, not the future cutover snapshot. The
+> 2026-09-02 material below is retained as historical evidence.
+
 Status: **REHEARSAL ARTIFACT PRODUCED AND VERIFIED FOR ENGINEERING USE
 (2026-09-02).** The operator restored a Date9ja production backup into an
 isolated PG17 instance, ran the sanitizer + verifier, and confirmed a full
@@ -88,9 +97,9 @@ rows and is **out of scope for this snapshot** — see §9.
 > psql -d date9ja_snapshot_sanitized -c 'DROP SCHEMA IF EXISTS sanitize_audit CASCADE;'
 > ```
 > Each script `\ir`-includes `schema_signature.sql`, so all three enforce the
-> identical v2 contract. The sanitizer refuses to run against
-> `date9ja_snapshot_tmp`, refuses a second run, and aborts (rolls back) on any
-> schema drift or post-check violation. Then
+> identical v3 contract. The sanitizer only accepts an approved sanitized
+> disposable-copy database name, is safe to rerun, and aborts (rolls back) on
+> any schema drift or post-check violation. Then
 > `pg_dump` the sanitized DB as the shareable artifact and follow §7–§8 for
 > transfer, storage, and deletion. The stratified-sample guidance below is
 > retained for a future larger snapshot.

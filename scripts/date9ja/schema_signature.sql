@@ -1,5 +1,5 @@
 -- =============================================================================
--- Date9ja SOURCE-schema signature contract  (canonical — v2, 2026-09-02)
+-- Date9ja SOURCE-schema signature contract  (canonical — v3, 2026-09-08)
 -- =============================================================================
 -- ONE definition, included (\ir) by every Date9ja source-adapter script:
 --   scripts/date9ja/sanitize_snapshot.sql
@@ -9,7 +9,7 @@
 -- This is Date9ja SOURCE ADAPTER tooling. It is allowed to know Date9ja's
 -- legacy schema. It does NOT belong in shared D8N migration primitives.
 --
--- WHY v2
+-- WHY v3
 --   The v1 guard hashed only `table_name.column_name`, so a type-only,
 --   nullability-only or ordinal-position-only change to the classified source
 --   schema could pass. v2 makes the guard a genuine structural-compatibility
@@ -32,13 +32,14 @@
 --   index/constraint metadata (checked structurally elsewhere), grantees.
 --
 -- EXPECTED VALUES
---   Computed from the operator's schema-only artifact
---   (~/date9ja-snapshot-work/schema/date9ja-production-schema.sql), 2026-09-02.
---   No raw production database was accessed.
+--   Computed from the verified authoritative rehearsal dump restored into the
+--   disposable local database date9ja_migration_source_20260908. The dump is
+--   dated 2026-09-08 03:00 and has SHA-256
+--   e1770ef340082bffc9f3a7f5975cbf23c9d6958b45b5c0c8080d352fe3f03f72.
 --
---     v2 signature : 41a653a8d4c25621071fb76e6e59fbc0
---     base tables  : 51  (exact set asserted below)
---     columns      : 574
+--     v3 signature : 0b0e2e2b4b6df617558834f859c44750
+--     base tables  : 52  (exact set asserted below)
+--     columns      : 592
 --
 --   PG-version note: `information_schema` renders data_type / udt_name /
 --   precisions identically across PG 14–17, and sequence defaults are
@@ -46,7 +47,7 @@
 --   snapshot. On the FIRST v2 run the operator confirms it by running THIS
 --   FILE standalone (it is self-contained and read-only):
 --     psql -d date9ja_snapshot_sanitized -f scripts/date9ja/schema_signature.sql
---   -> prints "Date9ja schema signature OK (v2 41a653a8...)"  = confirmed.
+--   -> prints "Date9ja schema signature OK (v3 0b0e2e2b...)"  = confirmed.
 --   -> RAISEs "SCHEMA DRIFT: ... signature <X> != expected"    = <X> is the
 --      operator-observed value; if the only cause is a PG17 default-rendering
 --      difference, pin <X> in v_expect_sig below and record the one-line diff
@@ -55,8 +56,8 @@
 
 DO $date9ja_schema_signature$
 DECLARE
-  v_expect_sig    text := '41a653a8d4c25621071fb76e6e59fbc0';
-  v_expect_cols   int  := 574;
+  v_expect_sig    text := '0b0e2e2b4b6df617558834f859c44750';
+  v_expect_cols   int  := 592;
   v_tables        int;
   v_cols          int;
   v_sig           text;
@@ -69,7 +70,7 @@ DECLARE
     'community_answer_votes','community_answers','community_event_rsvps','community_events',
     'community_questions','community_remarks','community_reports','community_stories',
     'company_goals','company_journal_entries','company_settings','daily_introductions',
-    'daily_life_entries','dating_hub_batches','error_logs','explore_impressions',
+    'daily_life_entries','dating_hub_batches','error_logs','exit_attempts','explore_impressions',
     'feedback_items','likes','matches','message_reactions','messages','notification_deliveries',
     'notifications','personas','phone_verifications','photos','profile_passes','profile_videos',
     'profile_views','push_tokens','reports','schema_migrations','selfie_verifications',
@@ -112,7 +113,7 @@ BEGIN
     RAISE EXCEPTION 'SCHEMA DRIFT: expected % public columns, found %', v_expect_cols, v_cols;
   END IF;
 
-  -- (e) canonical v2 structural signature
+  -- (e) canonical v3 structural signature
   SELECT md5(string_agg(
            table_schema            || '|' ||
            table_name              || '|' ||
@@ -133,12 +134,12 @@ BEGIN
 
   IF v_sig IS DISTINCT FROM v_expect_sig THEN
     RAISE EXCEPTION
-      'SCHEMA DRIFT: Date9ja source-schema signature % != expected % (v2). '
+      'SCHEMA DRIFT: Date9ja source-schema signature % != expected % (v3). '
       'Type / nullability / ordinal / default / new-or-renamed column drift. '
       'Re-classify every changed column in SANITIZATION-CONTRACT.md and re-pin the signature before re-running.',
       v_sig, v_expect_sig;
   END IF;
 
-  RAISE NOTICE 'Date9ja schema signature OK (v2 %, % tables, % columns)', v_sig, v_tables, v_cols;
+  RAISE NOTICE 'Date9ja schema signature OK (v3 %, % tables, % columns)', v_sig, v_tables, v_cols;
 END
 $date9ja_schema_signature$;

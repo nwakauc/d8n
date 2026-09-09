@@ -46,7 +46,7 @@ BEGIN;
 SET TRANSACTION READ ONLY;
 
 -- -----------------------------------------------------------------------------
--- Schema-drift guard — canonical Date9ja source-schema signature (v2), shared
+-- Schema-drift guard — canonical Date9ja source-schema signature (v3), shared
 -- verbatim with sanitize_snapshot.sql and verify_sanitized_snapshot.sql. Any
 -- structural drift (type / nullability / ordinal / default / table set) aborts
 -- the run before a single count is read.
@@ -113,6 +113,17 @@ WITH census(ord, section, measure, source_count, note) AS (
   ( 20, 'accounts', 'distinct public_id',
         (SELECT count(DISTINCT public_id) FROM users),
         'must equal users total — legacy-ID map key'),
+  ( 21, 'accounts', 'migration eligible (not deleted, not banned)',
+        (SELECT count(*) FROM users WHERE deleted_at IS NULL AND banned_at IS NULL),
+        'current identity importer eligibility rule'),
+  ( 22, 'accounts', 'excluded from identity import (deleted OR banned)',
+        (SELECT count(*) FROM users WHERE deleted_at IS NOT NULL OR banned_at IS NOT NULL),
+        'overlap-safe excluded cohort'),
+  ( 23, 'accounts', 'exclusion reason counts', NULL,
+        (SELECT 'deleted:' || count(*) FILTER (WHERE deleted_at IS NOT NULL)
+             || ' banned:' || count(*) FILTER (WHERE banned_at IS NOT NULL)
+             || ' both:' || count(*) FILTER (WHERE deleted_at IS NOT NULL AND banned_at IS NOT NULL)
+           FROM users)),
 
   -- ---- profile / lifecycle state ---------------------------------------
   ( 30, 'profiles', 'onboarding_completed_at NOT NULL',
@@ -128,6 +139,36 @@ WITH census(ord, section, measure, source_count, note) AS (
         (SELECT count(*) FROM users WHERE flagged_for_moderation_at IS NOT NULL), 'moderation queue state'),
   ( 35, 'profiles', 'profile_completeness_score > 0',
         (SELECT count(*) FROM users WHERE profile_completeness_score > 0), 'recomputed target-side; sanity only'),
+  ( 36, 'lifecycle', 'discovery_restricted_at NOT NULL',
+        (SELECT count(*) FROM users WHERE discovery_restricted_at IS NOT NULL),
+        'moderator-owned hard discovery restriction; independent of profile_hidden'),
+  ( 37, 'lifecycle', 'discovery restriction reason buckets', NULL,
+        (SELECT string_agg(reason || ':' || n, ' ' ORDER BY reason) FROM (
+           SELECT CASE
+                    WHEN discovery_restriction_reason IS NULL THEN 'NULL'
+                    WHEN discovery_restriction_reason IN (
+                      'commercial_solicitation','off_platform_promotion','promotional_profile',
+                      'suspected_scam','spam','impersonation','inappropriate_content',
+                      'safety_concern','other') THEN discovery_restriction_reason
+                    ELSE 'OTHER'
+                  END reason, count(*) n
+             FROM users GROUP BY 1) d)),
+  ( 38, 'lifecycle', 'visibility/safety state cross-tab', NULL,
+        (SELECT string_agg(state || ':' || n, ' ' ORDER BY state) FROM (
+           SELECT 'hidden_' || profile_hidden::int || '/restricted_' ||
+                  (discovery_restricted_at IS NOT NULL)::int || '/suspended_' ||
+                  (suspended_at IS NOT NULL)::int || '/banned_' ||
+                  (banned_at IS NOT NULL)::int || '/deleted_' ||
+                  (deleted_at IS NOT NULL)::int state, count(*) n
+             FROM users GROUP BY 1) d)),
+  ( 39, 'lifecycle', 'discovery restriction referential anomalies',
+        (SELECT count(*) FROM users
+          WHERE (discovery_restricted_at IS NULL AND
+                 (discovery_restriction_reason IS NOT NULL OR discovery_restriction_note IS NOT NULL OR
+                  discovery_restricted_by_id IS NOT NULL))
+             OR (discovery_restricted_by_id IS NOT NULL AND
+                 NOT EXISTS (SELECT 1 FROM users moderator WHERE moderator.id = users.discovery_restricted_by_id))),
+        'must be zero; no identifiers emitted'),
 
   -- ---- verification / trust (state + counts only) ----------------------
   ( 40, 'verification', 'users verification_tier > 0',
@@ -359,6 +400,33 @@ WITH census(ord, section, measure, source_count, note) AS (
   (175, 'feedback', 'feedback_items unreviewed',
         (SELECT count(*) FROM feedback_items WHERE reviewed_at IS NULL), 'review queue continuity'),
 
+  -- ---- 2026-09-08 lifecycle/schema delta ------------------------------
+  (176, 'retention', 'exit_attempts total',
+        (SELECT count(*) FROM exit_attempts), 'HEAD capability present in authoritative production snapshot'),
+  (177, 'retention', 'exit_attempt outcomes', NULL,
+        (SELECT string_agg(bucket || ':' || n, ' ' ORDER BY bucket) FROM (
+           SELECT CASE WHEN outcome IN ('pending','stayed','paused','deleted') THEN outcome ELSE 'OTHER' END bucket,
+                  count(*) n FROM exit_attempts GROUP BY 1) d)),
+  (178, 'retention', 'exit_attempt retention actions', NULL,
+        (SELECT string_agg(bucket || ':' || n, ' ' ORDER BY bucket) FROM (
+           SELECT CASE WHEN retention_action IN (
+                    'none','preferences_updated','notifications_updated','feedback_submitted',
+                    'problem_reported','safety_concern_reported','success_story_shared',
+                    'app_launch_notice_requested') THEN retention_action ELSE 'OTHER' END bucket,
+                  count(*) n FROM exit_attempts GROUP BY 1) d)),
+  (179, 'retention', 'exit_attempt free-text presence (content never emitted)', NULL,
+        (SELECT 'comment:' || count(*) FILTER (WHERE comment IS NOT NULL AND btrim(comment) <> '')
+             || ' final_comment:' || count(*) FILTER (WHERE final_comment IS NOT NULL AND btrim(final_comment) <> '')
+             || ' context_nonempty:' || count(*) FILTER (WHERE context <> '{}'::jsonb)
+           FROM exit_attempts)),
+  (180, 'schema_delta', 'HEAD-only identity/app-launch columns present in snapshot',
+        (SELECT count(*) FROM information_schema.columns
+          WHERE table_schema = current_schema() AND table_name = 'users'
+            AND column_name IN ('app_launch_notice_at','app_launch_notice_source',
+                                'identity_confirmation_pending','admin_identity_corrected_at',
+                                'admin_identity_confirmed_at')),
+        'must be 0 for this authoritative production snapshot; these five columns are HEAD-only'),
+
   -- =========================================================================
   -- PROFILE / PREFERENCE VALUE CENSUS  (Pass 1 evidence)
   -- Authority: docs/migrations/date9ja-to-d8n/PROFILE-VALUE-MAPPING.md
@@ -418,13 +486,11 @@ WITH census(ord, section, measure, source_count, note) AS (
   --
   -- SNAPSHOT FIDELITY (see SANITIZATION-CONTRACT.md section 4.1)
   --   sanitized-faithful : every `*_values`, `preference_validity`,
-  --                        `gender_compat`, `publication` and `country`
-  --                        measure, plus languages_spoken /
-  --                        preferred_countries / relocation_preferences.
-  --   PRISTINE-ONLY      : full_name / display_name token shape (sanitizer
-  --                        pseudonymizes both) and interests /
-  --                        relationship_values / dealbreakers (sanitizer
-  --                        redacts all three to '{}'). Running these against
+  --                        `gender_compat`, `publication` and bounded enum
+  --                        measures.
+  --   PRISTINE-ONLY      : full_name / display_name token shape, country,
+  --                        body_type and every array measure. The sanitizer
+  --                        pseudonymizes/folds/redacts these. Running them against
   --                        the sanitized copy measures the SANITIZER, not
   --                        Date9ja -- record which database produced them.
   -- =========================================================================
@@ -436,7 +502,9 @@ WITH census(ord, section, measure, source_count, note) AS (
           WHERE table_schema = current_schema() AND table_name = 'users'
             AND column_name = ANY (
                   ARRAY['body_type','children_count','commitment_timeline','country_of_residence',
-                        'dealbreakers','display_name','drinking','education',
+                        'dealbreakers','deletion_comment','deletion_reason_code','discovery_restricted_at',
+                        'discovery_restricted_by_id','discovery_restriction_note',
+                        'discovery_restriction_reason','display_name','drinking','education',
                         'family_involvement_preference','fitness','full_name','gender','height',
                         'interests','languages_spoken','looking_for','marital_status',
                         'onboarding_completed_at','preferred_age_max','preferred_age_min',
@@ -448,7 +516,9 @@ WITH census(ord, section, measure, source_count, note) AS (
         (SELECT COALESCE(string_agg(c, ' ' ORDER BY c), 'none')
            FROM unnest(
                   ARRAY['body_type','children_count','commitment_timeline','country_of_residence',
-                        'dealbreakers','display_name','drinking','education',
+                        'dealbreakers','deletion_comment','deletion_reason_code','discovery_restricted_at',
+                        'discovery_restricted_by_id','discovery_restriction_note',
+                        'discovery_restriction_reason','display_name','drinking','education',
                         'family_involvement_preference','fitness','full_name','gender','height',
                         'interests','languages_spoken','looking_for','marital_status',
                         'onboarding_completed_at','preferred_age_max','preferred_age_min',
@@ -469,7 +539,9 @@ WITH census(ord, section, measure, source_count, note) AS (
                         'commitment_timeline','confirmation_sent_at','confirmation_token',
                         'confirmed_at','country_of_residence','created_at','current_sign_in_at',
                         'current_sign_in_ip','date_of_birth','dealbreakers','deleted_at',
-                        'deletion_reason','denomination','device_type','display_name','drinking',
+                        'deletion_comment','deletion_reason','deletion_reason_code','denomination','device_type',
+                        'discovery_restricted_at','discovery_restricted_by_id','discovery_restriction_note',
+                        'discovery_restriction_reason','display_name','drinking',
                         'education','email','email_notification_preferences','encrypted_password',
                         'ethnicity','family_involvement_preference','fitness',
                         'flagged_for_moderation_at','founding_member','full_name','gender','genotype',
@@ -1143,7 +1215,151 @@ WITH census(ord, section, measure, source_count, note) AS (
              || ' sentence_shaped_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(relocation_preferences) e
                                             WHERE length(e) > 40 OR e ~ '[.,;:!?]')
              || ' long_elems:'         || (SELECT count(DISTINCT e) FROM users, unnest(relocation_preferences) e
-                                            WHERE length(e) > 40)))
+                                            WHERE length(e) > 40))),
+
+  -- ---- authoritative readiness / liquidity impact (2026-09-08) ---------
+  -- The date is pinned to the snapshot timestamp so output is deterministic.
+  (300, 'readiness', 'date of birth state', NULL,
+        (SELECT 'present:' || count(*) FILTER (WHERE date_of_birth IS NOT NULL)
+             || ' missing:' || count(*) FILTER (WHERE date_of_birth IS NULL)
+             || ' future:' || count(*) FILTER (WHERE date_of_birth > DATE '2026-09-08')
+             || ' adult_18plus:' || count(*) FILTER (WHERE date_of_birth <= DATE '2008-09-08')
+             || ' implausible_over_120:' || count(*) FILTER (WHERE date_of_birth < DATE '1906-09-08')
+           FROM users)),
+  (301, 'readiness', 'preferred age pair state', NULL,
+        (SELECT 'complete_valid:' || count(*) FILTER (
+                  WHERE preferred_age_min BETWEEN 18 AND 120 AND preferred_age_max BETWEEN 18 AND 120
+                    AND preferred_age_min <= preferred_age_max)
+             || ' both_null:' || count(*) FILTER (
+                  WHERE preferred_age_min IS NULL AND preferred_age_max IS NULL)
+             || ' partial:' || count(*) FILTER (
+                  WHERE (preferred_age_min IS NULL) <> (preferred_age_max IS NULL))
+             || ' invalid:' || count(*) FILTER (
+                  WHERE preferred_age_min IS NOT NULL AND preferred_age_max IS NOT NULL
+                    AND NOT (preferred_age_min BETWEEN 18 AND 120 AND preferred_age_max BETWEEN 18 AND 120
+                             AND preferred_age_min <= preferred_age_max))
+           FROM users)),
+  (302, 'readiness', 'location/profile geography completeness', NULL,
+        (SELECT 'country_present:' || count(*) FILTER (WHERE btrim(country_of_residence) <> '')
+             || ' city_present:' || count(*) FILTER (WHERE city IS NOT NULL AND btrim(city) <> '')
+             || ' coordinates_pair:' || count(*) FILTER (
+                  WHERE location_latitude IS NOT NULL AND location_longitude IS NOT NULL)
+             || ' preferred_distance_present:' || count(*) FILTER (WHERE preferred_distance_km IS NOT NULL)
+             || ' preferred_countries_nonempty:' || count(*) FILTER (WHERE cardinality(preferred_countries) > 0)
+           FROM users)),
+  (303, 'readiness', 'photo availability by user', NULL,
+        (SELECT 'any_photo:' || count(*) FILTER (WHERE any_photo)
+             || ' non_rejected_photo:' || count(*) FILTER (WHERE non_rejected_photo)
+             || ' approved_photo:' || count(*) FILTER (WHERE approved_photo)
+             || ' no_photo:' || count(*) FILTER (WHERE NOT any_photo)
+           FROM (
+             SELECT u.id, EXISTS (SELECT 1 FROM photos p WHERE p.user_id=u.id) any_photo,
+                    EXISTS (SELECT 1 FROM photos p WHERE p.user_id=u.id AND p.moderation_status <> 2) non_rejected_photo,
+                    EXISTS (SELECT 1 FROM photos p WHERE p.user_id=u.id AND p.moderation_status = 1) approved_photo
+               FROM users u) d)),
+  (304, 'readiness', 'occupation presence',
+        (SELECT count(*) FROM users WHERE occupation IS NOT NULL AND btrim(occupation) <> ''),
+        'content is never emitted'),
+  (305, 'readiness', 'bio presence and length bands', NULL,
+        (SELECT 'missing:' || count(*) FILTER (WHERE about_me IS NULL OR btrim(about_me) = '')
+             || ' len_1_9:' || count(*) FILTER (WHERE length(btrim(about_me)) BETWEEN 1 AND 9)
+             || ' len_10_1000:' || count(*) FILTER (WHERE length(btrim(about_me)) BETWEEN 10 AND 1000)
+             || ' len_1001_5000:' || count(*) FILTER (WHERE length(btrim(about_me)) BETWEEN 1001 AND 5000)
+             || ' len_over_5000:' || count(*) FILTER (WHERE length(btrim(about_me)) > 5000)
+           FROM users)),
+  (306, 'readiness', 'ideal-partner text presence and length bands', NULL,
+        (SELECT 'missing:' || count(*) FILTER (WHERE ideal_partner_description IS NULL OR btrim(ideal_partner_description) = '')
+             || ' len_1_600:' || count(*) FILTER (WHERE length(btrim(ideal_partner_description)) BETWEEN 1 AND 600)
+             || ' len_601_5000:' || count(*) FILTER (WHERE length(btrim(ideal_partner_description)) BETWEEN 601 AND 5000)
+             || ' len_over_5000:' || count(*) FILTER (WHERE length(btrim(ideal_partner_description)) > 5000)
+           FROM users)),
+  (307, 'readiness', 'height quality bands', NULL,
+        (SELECT 'missing:' || count(*) FILTER (WHERE height IS NULL)
+             || ' plausible_cm_100_250:' || count(*) FILTER (WHERE height BETWEEN 100 AND 250)
+             || ' outside_cm_100_250:' || count(*) FILTER (WHERE height IS NOT NULL AND height NOT BETWEEN 100 AND 250)
+             || ' min:' || COALESCE(min(height)::text, 'n/a')
+             || ' max:' || COALESCE(max(height)::text, 'n/a') FROM users)),
+  (308, 'readiness', 'body type presence',
+        (SELECT count(*) FROM users WHERE body_type IS NOT NULL AND btrim(body_type) <> ''),
+        'free text; values never emitted here'),
+  (309, 'readiness', 'source-safety eligible market population',
+        (SELECT count(*) FROM users WHERE deleted_at IS NULL AND banned_at IS NULL AND suspended_at IS NULL
+          AND profile_hidden = false AND discovery_restricted_at IS NULL
+          AND gender IN (0,1) AND looking_for IN (0,1)),
+        'liquidity-first base; age/location/completion intentionally not applied'),
+  (310, 'readiness', 'source-safety eligible excluded by complete-age requirement',
+        (SELECT count(*) FROM users WHERE deleted_at IS NULL AND banned_at IS NULL AND suspended_at IS NULL
+          AND profile_hidden = false AND discovery_restricted_at IS NULL
+          AND gender IN (0,1) AND looking_for IN (0,1)
+          AND (preferred_age_min BETWEEN 18 AND 120 AND preferred_age_max BETWEEN 18 AND 120
+               AND preferred_age_min <= preferred_age_max) IS NOT TRUE),
+        'impact only; approved Date9ja policy does not make age a hard gate'),
+  (311, 'readiness', 'source-safety eligible missing city or country',
+        (SELECT count(*) FROM users WHERE deleted_at IS NULL AND banned_at IS NULL AND suspended_at IS NULL
+          AND profile_hidden = false AND discovery_restricted_at IS NULL
+          AND gender IN (0,1) AND looking_for IN (0,1)
+          AND (btrim(country_of_residence) = '' OR city IS NULL OR btrim(city) = '')),
+        'impact only; approved Date9ja policy does not make location a hard discovery gate'),
+  (312, 'readiness', 'source-safety eligible without any non-rejected photo',
+        (SELECT count(*) FROM users u WHERE deleted_at IS NULL AND banned_at IS NULL AND suspended_at IS NULL
+          AND profile_hidden = false AND discovery_restricted_at IS NULL
+          AND gender IN (0,1) AND looking_for IN (0,1)
+          AND NOT EXISTS (SELECT 1 FROM photos p WHERE p.user_id=u.id AND p.moderation_status <> 2)),
+        'Date9ja shows a placeholder; D8N publication currently requires a photo'),
+  (313, 'readiness', 'source-safety eligible satisfying current D8N source-data gates',
+        (SELECT count(*) FROM users u WHERE deleted_at IS NULL AND banned_at IS NULL AND suspended_at IS NULL
+          AND profile_hidden = false AND discovery_restricted_at IS NULL
+          AND gender IN (0,1) AND looking_for IN (0,1)
+          AND array_length(regexp_split_to_array(btrim(full_name), '\s+'),1)=2
+          AND btrim(display_name) <> '' AND date_of_birth <= DATE '2008-09-08'
+          AND btrim(country_of_residence) <> '' AND city IS NOT NULL AND btrim(city) <> ''
+          AND about_me IS NOT NULL AND length(btrim(about_me)) >= 10
+          AND is_nigerian IS NOT NULL
+          AND ((is_nigerian AND state_of_origin IS NOT NULL AND btrim(state_of_origin) <> '' AND
+                tribe IS NOT NULL AND btrim(tribe) <> '') OR
+               (NOT is_nigerian AND nationality IS NOT NULL AND btrim(nationality) <> ''))
+          AND preferred_age_min BETWEEN 18 AND 120 AND preferred_age_max BETWEEN 18 AND 120
+          AND preferred_age_min <= preferred_age_max
+          AND relationship_intention IS NOT NULL AND children_count IS NOT NULL
+          AND wants_children IS NOT NULL AND religion IS NOT NULL
+          AND family_involvement_preference IS NOT NULL
+          AND v2_onboarding_answers ?& ARRAY['faith_practice','money_providing','settlement','children','conflict']
+          AND EXISTS (SELECT 1 FROM photos p WHERE p.user_id=u.id AND p.moderation_status <> 2)),
+        'source-data potential only; current importer does not preserve every required field/group'),
+  (314, 'validation', 'unknown bounded enum values',
+        (SELECT count(*) FROM users WHERE
+          (gender IS NOT NULL AND gender NOT IN (0,1)) OR
+          (looking_for IS NOT NULL AND looking_for NOT IN (0,1)) OR
+          (relationship_intention IS NOT NULL AND relationship_intention NOT IN (0,1,2,3,4,5)) OR
+          (commitment_timeline IS NOT NULL AND commitment_timeline NOT IN (0,1,2,3,4)) OR
+          (smoking IS NOT NULL AND smoking NOT IN (0,1,2)) OR
+          (drinking IS NOT NULL AND drinking NOT IN (0,1,2)) OR
+          (fitness IS NOT NULL AND fitness NOT IN (0,1,2)) OR
+          (wants_children IS NOT NULL AND wants_children NOT IN (0,1,2)) OR
+          (children_count IS NOT NULL AND children_count NOT IN (0,1,2,3)) OR
+          (marital_status IS NOT NULL AND marital_status NOT IN (0,1,2)) OR
+          (education IS NOT NULL AND education NOT IN (0,1,2,3,4)) OR
+          (family_involvement_preference IS NOT NULL AND family_involvement_preference NOT IN (0,1,2))),
+        (SELECT 'gender:' || count(*) FILTER (WHERE gender IS NOT NULL AND gender NOT IN (0,1))
+             || ' looking_for:' || count(*) FILTER (WHERE looking_for IS NOT NULL AND looking_for NOT IN (0,1))
+             || ' relationship_intention:' || count(*) FILTER (WHERE relationship_intention IS NOT NULL AND relationship_intention NOT IN (0,1,2,3,4,5))
+             || ' commitment_timeline:' || count(*) FILTER (WHERE commitment_timeline IS NOT NULL AND commitment_timeline NOT IN (0,1,2,3,4))
+             || ' lifestyle:' || count(*) FILTER (WHERE (smoking IS NOT NULL AND smoking NOT IN (0,1,2)) OR (drinking IS NOT NULL AND drinking NOT IN (0,1,2)) OR (fitness IS NOT NULL AND fitness NOT IN (0,1,2)))
+             || ' family:' || count(*) FILTER (WHERE (wants_children IS NOT NULL AND wants_children NOT IN (0,1,2)) OR (children_count IS NOT NULL AND children_count NOT IN (0,1,2,3)) OR (marital_status IS NOT NULL AND marital_status NOT IN (0,1,2)) OR (education IS NOT NULL AND education NOT IN (0,1,2,3,4)) OR (family_involvement_preference IS NOT NULL AND family_involvement_preference NOT IN (0,1,2)))
+           FROM users)),
+  (315, 'validation', 'array columns with NULL elements',
+        (SELECT count(*) FROM users WHERE
+          array_position(languages_spoken,NULL) IS NOT NULL OR array_position(interests,NULL) IS NOT NULL OR
+          array_position(relationship_values,NULL) IS NOT NULL OR array_position(dealbreakers,NULL) IS NOT NULL OR
+          array_position(preferred_countries,NULL) IS NOT NULL OR array_position(relocation_preferences,NULL) IS NOT NULL),
+        'must be zero before array mapping'),
+  (316, 'validation', 'array maximum element lengths', NULL,
+        (SELECT 'languages:' || COALESCE(max(length(e)),0) FROM users, unnest(languages_spoken) e) || ' ' ||
+        (SELECT 'interests:' || COALESCE(max(length(e)),0) FROM users, unnest(interests) e) || ' ' ||
+        (SELECT 'relationship_values:' || COALESCE(max(length(e)),0) FROM users, unnest(relationship_values) e) || ' ' ||
+        (SELECT 'dealbreakers:' || COALESCE(max(length(e)),0) FROM users, unnest(dealbreakers) e) || ' ' ||
+        (SELECT 'preferred_countries:' || COALESCE(max(length(e)),0) FROM users, unnest(preferred_countries) e) || ' ' ||
+        (SELECT 'relocation_preferences:' || COALESCE(max(length(e)),0) FROM users, unnest(relocation_preferences) e))
 )
 SELECT section, measure, source_count, note
 FROM census
@@ -1160,8 +1376,8 @@ ROLLBACK;
 \echo 'Sections source_types / profile_values / preference_validity /'
 \echo 'gender_compat / profile_shape / country / publication / arrays (ord 200+)'
 \echo 'also go into docs/migrations/date9ja-to-d8n/PROFILE-VALUE-MAPPING.md.'
-\echo 'Record WHICH database produced them: profile_shape (260/261) and the'
-\echo 'interests / relationship_values / dealbreakers rows (280-282) are'
-\echo 'PRISTINE-ONLY -- against the sanitized copy they measure the sanitizer.'
+\echo 'Record WHICH database produced them: profile_shape (260/261), country,'
+\echo 'body_type and every array row (280-285) are PRISTINE-ONLY -- against'
+\echo 'the sanitized copy they measure the sanitizer, not source values.'
 \echo 'Measure 202 must read "none"; anything listed there is an unclassified'
 \echo 'source column that has to be classified before Pass 2.'

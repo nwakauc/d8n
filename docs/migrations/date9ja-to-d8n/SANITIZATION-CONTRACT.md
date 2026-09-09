@@ -1,14 +1,17 @@
 # Date9ja Snapshot Sanitization Contract
 
-Status: **Sanitizer executed and verified 2026-09-02 under schema guard v1;
-schema-signature contract strengthened to v2 (2026-09-02) after independent
-review. Census tooling SELF_VERIFIED.** No production access occurred.
+Status: **2026-09-02 evidence retained as historical. Authoritative 2026-09-08
+rehearsal snapshot contract v3 implemented and SELF_VERIFIED on a disposable
+local restore; independent review is still pending.** No live production
+connection or production write occurred.
 
 This contract governs `scripts/date9ja/sanitize_snapshot.sql`,
 `scripts/date9ja/verify_sanitized_snapshot.sql`, `scripts/date9ja/source_census.sql`,
 and the shared `scripts/date9ja/schema_signature.sql`. It is the classification
-authority for every column in the Date9ja production schema as restored locally
-by the operator on 2026-09-02 (`~/date9ja-snapshot-work/schema/`).
+authority for every column in the authoritative 2026-09-08 rehearsal snapshot.
+Provenance, every schema delta, HEAD-only columns, and current aggregate evidence
+are recorded in
+[`AUTHORITATIVE-SNAPSHOT-20260908.md`](AUTHORITATIVE-SNAPSHOT-20260908.md).
 
 It is subordinate to [`SNAPSHOT-RUNBOOK.md`](SNAPSHOT-RUNBOOK.md) (why a snapshot
 exists, transfer/storage/deletion) and to `DECISIONS.md` (product/privacy gates).
@@ -50,22 +53,27 @@ constant recorded in the script (§3), so a new/renamed/dropped column forces th
 contract to be revisited before the sanitizer can run again — nothing is silently
 ignored.
 
-## 3. Schema-signature guard — canonical contract (v2)
+## 3. Schema-signature guard — canonical contract (v3)
 
 **One** definition, `scripts/date9ja/schema_signature.sql`, included verbatim
 (`\ir`) by the sanitizer, the verifier and the census. Any structural drift
 `RAISE`s and (inside the sanitizer's transaction) rolls back.
 
-### v1 → v2
+### v1 → v2 → v3
 
 v1 hashed only `table_name.column_name`, so a **type-only, nullability-only or
 ordinal-position-only** change to the classified schema could pass. v2 makes the
 guard a real structural-compatibility contract.
 
-### What v2 asserts
+v3 retains that exact structural algorithm and pins it to the authoritative
+2026-09-08 production snapshot. It adds the classified `exit_attempts` table and
+the six deployed lifecycle columns on `users`. The five later Date9ja HEAD-only
+columns are deliberately absent and therefore still fail the guard.
 
-1. Exactly **51** public base tables, **exact name set** (no missing, no extra).
-2. Exactly **574** public columns.
+### What v3 asserts
+
+1. Exactly **52** public base tables, **exact name set** (no missing, no extra).
+2. Exactly **592** public columns.
 3. `md5` of, per column, ordered by `table_name COLLATE "C", ordinal_position`,
    `'\n'`-joined:
    `table_schema | table_name | ordinal_position | column_name | data_type |
@@ -79,29 +87,21 @@ Deliberately **excluded** as unstable/irrelevant: `udt_catalog` (database name),
 `collation_name`, `dtd_identifier`, comments, storage/TOAST, index/constraint
 metadata (structural integrity is enforced by the DB and reconciled separately).
 
-### Expected v2 signature
+### Expected v3 signature
 
-Computed from the schema-only artifact
-(`~/date9ja-snapshot-work/schema/date9ja-production-schema.sql`); **no raw
-production database accessed**:
+Computed from the verified dump restored into disposable local PostgreSQL 17.11:
 
 | | value |
 |---|---|
-| v2 signature | **`41a653a8d4c25621071fb76e6e59fbc0`** |
-| base tables | 51 (exact set) |
-| columns | 574 |
+| v3 signature | **`0b0e2e2b4b6df617558834f859c44750`** |
+| base tables | 52 (exact set) |
+| columns | 592 |
+| superseded v2 signature | `41a653a8d4c25621071fb76e6e59fbc0` (historical only) |
 | superseded v1 fingerprint | `a317e7fb66f0d304e6273a4ee2473172` (name-only; retained here only for provenance) |
 
-The v2 value was computed with `information_schema` on PostgreSQL 14; its inputs
-(`data_type`, `udt_name`, precisions) render identically on PG 14–17 and
-sequence defaults are normalised, so it is expected to hold on the operator's
-PG17 snapshot. On the **first v2 run** the operator confirms it read-only by running
-`schema_signature.sql` standalone against `date9ja_snapshot_sanitized`
-(`SNAPSHOT-RUNBOOK.md` §3): it prints `... signature OK (v2 41a653a8…)` on a
-match, or `SCHEMA DRIFT: … signature <X> != expected` showing the observed value.
-If PG17 legitimately renders a non-sequence default differently, pin `<X>` in
-`schema_signature.sql` (`v_expect_sig`) and record the one-line diff here —
-never weaken the contract to make it pass.
+The v3 guard passed the exact authoritative restore and rejected independent
+missing-column, extra-column and type-drift variants. Never pin the frozen HEAD
+digest (`6b8b90cc…`) here: HEAD contains five columns not deployed in this dump.
 
 ## 4. Column treatments
 
@@ -109,7 +109,7 @@ Legend for the four integrity columns: **Null** = null/non-null pattern preserve
 **Uniq** = column uniqueness constraint still satisfiable; **RI** = referential
 integrity preserved (no FK column touched); **n/a** = not applicable.
 
-### 4.1 `users` (288 rows) — identity, profile, lifecycle, entitlement
+### 4.1 `users` — identity, profile, lifecycle, entitlement
 
 | Column | Class | Transformation | Why / capability | Null | Uniq | RI |
 |---|---|---|---|---|---|---|
@@ -138,12 +138,35 @@ integrity preserved (no FK column touched); **n/a** = not applicable.
 | `gender`, `looking_for`, `education`, `marital_status`, `wants_children`, `children_count`, `relationship_intention`, `commitment_timeline`, `smoking`, `drinking`, `fitness`, `family_involvement_preference` | PRESERVE | — | Non-sensitive integer enum codes; required to test enum→typed-capability mapping. (`religion`/`ethnicity`/`polygamy_openness`/`intertribal_marriage_openness` moved to DESTROY — see the row above.) | — | n/a | n/a |
 | `preferred_religion`, `preferred_tribes` | REDACT | `'{}'` | Sensitive free-text preference arrays; blocked, not needed for rehearsal | preserved (NOT NULL default) | n/a | n/a |
 | `interests`, `relationship_values`, `dealbreakers` | REDACT / REVIEW_REQUIRED | `'{}'` | Free-text UGC arrays. **REVIEW_REQUIRED:** may be a controlled vocabulary in source → could become PRESERVE for catalog-mapping tests once confirmed. | preserved (NOT NULL) | n/a | n/a |
-| `languages_spoken`, `preferred_countries`, `relocation_preferences` | PRESERVE | — | Low-risk enumerable (languages, ISO country codes); needed for options/preference mapping | — | n/a | n/a |
 | `signup_source`, `attribution_source`, `attribution_medium`, `attribution_campaign`, `attribution_content` | GENERALIZE | `'bucket_' || (abs(hashtext(lower(col))) % 16)` when non-null | "Attribution shape" testing needs populated/empty + rough cardinality, not raw campaign/ad identifiers | preserved | n/a | n/a |
 | `device_type`, `os_name`, `browser_name` | PRESERVE | — | Generic families; non-identifying (item 8) | — | n/a | n/a |
 | `notification_preferences`, `email_notification_preferences` | GENERALIZE | keep only entries whose value is a JSON **boolean**; non-object collapses to `{}` | The app's only write path (`normalize_notification_preferences`) allowlists keys and validates values to booleans; the projection enforces that shape at sanitize time so a non-model write cannot leak. Preserves the on/off toggle shape for preference testing. Reviewer decision R4. | — (NOT NULL, `{}` default) | n/a | n/a |
 | `v2_onboarding_answers` | REDACT | `'{}'` | Keys include `genotype`, `custom_religion`, `faith_practice` — health-adjacent / sensitive free text; blocked | preserved (NOT NULL) | n/a | n/a |
-| `profile_completeness_score`, `verification_tier`, `trust_xp`, `subscription_status`, `premium_expires_at`, `founding_member`, `profile_hidden`, `suspended_at`, `banned_at`, `deleted_at`, `flagged_for_moderation_at`, `last_active_at`, `onboarding_completed_at`, `rewind_used_on`, `hide_last_seen`, `seed_account`, `admin`, `height`, `body_type`, `willing_to_relocate`, `preferred_age_min/max`, `preferred_distance_km`, `country_of_residence`, `aunty_phobie_language`, `sign_in_count`, `current_sign_in_at`, `last_sign_in_at`, `created_at`, `updated_at`, `id` | PRESERVE | — | Lifecycle / entitlement / verification / trust / profile state and timestamps required for reconciliation and no-downgrade proof; `country_of_residence` is a country, `body_type` a small enum | — | `id`, — | RI (id) |
+| `body_type` | GENERALIZE | Six documented suggestions are normalized; blank/null shape retained; every other free-text value becomes `OTHER` | Source is unconstrained free text; raw values cannot enter a shareable artifact | — | n/a | n/a |
+| `country_of_residence` | GENERALIZE | Ten reviewed country aliases become canonical names; blank retained; unknown becomes `OTHER` | Country is migration-relevant but source storage is unconstrained text | — | n/a | n/a |
+| `languages_spoken`, `preferred_countries`, `relocation_preferences` | REDACT / REVIEW_REQUIRED | `{}` | Array elements are user-controlled strings; only pristine aggregate shape is currently approved | preserved NOT NULL | n/a | n/a |
+| `profile_completeness_score`, `verification_tier`, `trust_xp`, `subscription_status`, `premium_expires_at`, `founding_member`, `profile_hidden`, `suspended_at`, `banned_at`, `deleted_at`, `flagged_for_moderation_at`, `last_active_at`, `onboarding_completed_at`, `rewind_used_on`, `hide_last_seen`, `seed_account`, `admin`, `height`, `willing_to_relocate`, `preferred_age_min/max`, `preferred_distance_km`, `aunty_phobie_language`, `sign_in_count`, `current_sign_in_at`, `last_sign_in_at`, `created_at`, `updated_at`, `id` | PRESERVE | — | Lifecycle / entitlement / verification / trust / profile state and timestamps required for reconciliation and no-downgrade proof | — | `id`, — | RI (id) |
+
+#### v3 production lifecycle additions
+
+| Column | Class | Transformation | Why |
+|---|---|---|---|
+| `discovery_restricted_at` | PRESERVE | — | P0 moderator-owned discovery safety state |
+| `discovery_restriction_reason` | PRESERVE / QUARANTINE | Known source taxonomy retained; any unknown becomes literal `OTHER` and its aggregate raw count is retained in `sanitize_audit` | Safe categorical evidence without leaking arbitrary direct-SQL content |
+| `discovery_restriction_note` | REDACT | `[redacted]` when non-null | Moderator free text may contain PII or report narrative |
+| `discovery_restricted_by_id` | PRESERVE | — | FK-safe moderation ownership structure |
+| `deletion_reason_code` | PRESERVE / QUARANTINE | Known source taxonomy retained; unknown becomes `OTHER` with aggregate raw count retained | Safe churn category evidence |
+| `deletion_comment` | REDACT | `[redacted]` when non-null | Member-authored deletion free text |
+
+### 4.1a `exit_attempts` (v3)
+
+| Column | Class | Transformation | Why |
+|---|---|---|---|
+| `id`, `user_id` | PRESERVE | — | PK/FK and relationship integrity |
+| `reason_code`, `intervention`, `outcome`, `retention_action` | PRESERVE / QUARANTINE | Source-controlled allowlists retained; unknown becomes `OTHER` | Aggregate lifecycle/retention state |
+| `comment`, `final_comment` | REDACT | `[redacted]` when non-null | Uncontrolled member free text |
+| `context` | REDACT | `{}` | Arbitrary point-in-time JSON may contain profile or usage data |
+| `resolved_at`, `created_at`, `updated_at` | PRESERVE | — | Workflow timing and state |
 
 ### 4.2 Authentication-adjacent tables
 

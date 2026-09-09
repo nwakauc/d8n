@@ -55,7 +55,13 @@ module Date9ja
         "relocation_preferences" => "character varying[]",
         "deleted_at" => "timestamp",
         "banned_at" => "timestamp",
-        "suspended_at" => "timestamp"
+        "suspended_at" => "timestamp",
+        "discovery_restricted_at" => "timestamp",
+        "discovery_restriction_reason" => "character varying",
+        "discovery_restriction_note" => "text",
+        "discovery_restricted_by_id" => "bigint",
+        "deletion_reason_code" => "character varying",
+        "deletion_comment" => "text"
       }.merge(extra).except(*omit)
 
       definition = columns.map { |name, type| "#{connection.quote_column_name(name)} #{type}" }.join(", ")
@@ -175,7 +181,7 @@ module Date9ja
       Date9jaCensusSql.measures_in(200..299).each_value do |measure|
         # ord 202 legitimately names classified columns as *schema metadata* in an
         # exclusion list; it never reads their values.
-        next if measure.ord == 202
+        next if [ 200, 201, 202 ].include?(measure.ord)
 
         body = "#{measure.count_sql} #{measure.note_sql}"
         forbidden.each do |column|
@@ -196,7 +202,7 @@ module Date9ja
       assert_equal "character_varying/varchar", types.fetch("looking_for")
       assert_equal "ARRAY/_varchar", types.fetch("interests")
       assert_equal "boolean/bool", types.fetch("profile_hidden")
-      assert_equal 30, types.size
+      assert_equal 36, types.size
     end
 
     test "source_types reports no missing columns for a complete users table" do
@@ -852,6 +858,45 @@ module Date9ja
       insert!(gender: "woman")
 
       assert_equal({ "OTHER" => 1, "woman" => 1 }, buckets(210))
+    end
+
+    test "lifecycle cross-tab keeps member pause and moderator restriction independent" do
+      create_fixture!
+      insert!(profile_hidden: true)
+      insert!(discovery_restricted_at: Time.current, discovery_restriction_reason: "spam")
+      insert!(profile_hidden: true, discovery_restricted_at: Time.current, suspended_at: Time.current)
+
+      states = buckets(38)
+      assert_equal 1, states.fetch("hidden_1/restricted_0/suspended_0/banned_0/deleted_0")
+      assert_equal 1, states.fetch("hidden_0/restricted_1/suspended_0/banned_0/deleted_0")
+      assert_equal 1, states.fetch("hidden_1/restricted_1/suspended_1/banned_0/deleted_0")
+    end
+
+    test "unknown enum values are surfaced without echoing their values" do
+      create_fixture!
+      insert!(gender: 99, looking_for: 0, relationship_intention: 77)
+      insert!(gender: 0, looking_for: 1)
+
+      assert_equal 1, count(314)
+      assert_equal "gender:1 looking_for:0 relationship_intention:1 commitment_timeline:0 lifestyle:0 family:0",
+        note(314)
+      refute_includes note(314), "99"
+      refute_includes note(314), "77"
+    end
+
+    test "array validation surfaces null elements without emitting array content" do
+      create_fixture!
+      insert!(languages_spoken: [ "english", nil ])
+
+      assert_equal 1, count(315)
+      refute_includes note(315).to_s, "english"
+    end
+
+    test "authoritative snapshot marks HEAD-only identity columns as absent rather than empty" do
+      create_fixture!
+
+      assert_equal 0, count(180)
+      assert_includes note(180), "HEAD-only"
     end
 
     # -- execution-model guarantees -------------------------------------------
