@@ -397,14 +397,46 @@ module Date9ja
       test "sensitive legacy columns never cross the adapter boundary" do
         denied = FieldMapping::SENSITIVE_DENYLIST
 
+        # The adapter never reads a denied column: it is not SELECTed and not a
+        # member of the record struct.
         assert_empty(denied & Snapshot::UserSource::SELECTED_COLUMNS)
         assert_empty(denied & Snapshot::UserRecord.members.map(&:to_s))
-        assert_empty(denied & Profile.column_names)
 
-        # Even if a raw row carries a sensitive column, it is dropped on read.
-        result = import([ row(id: 1).merge("tribe" => "some-value", "genotype" => "AA") ])
+        # The importer's profile write contract names none of them — neither the
+        # declared source columns nor the literal attribute keys it persists.
+        assert_empty(denied & FieldMapping::PROFILE_SOURCE_COLUMNS)
+        written_keys = FieldMapping.profile_attributes(
+          Snapshot::UserRecord.from_raw(row(id: 1))
+        ).keys.map(&:to_s)
+        assert_empty(denied & written_keys)
+
+        # A denied name is allowed to exist as a D8N-native Profile column ONLY
+        # when it is explicitly declared as native-onboarding-owned. An
+        # undeclared collision means a sensitive legacy field has silently become
+        # importable and is a firewall defect.
+        assert(FieldMapping::NATIVE_DESTINATION_FIELDS.to_set <= denied.to_set,
+          "every declared native-destination field must still be on the denylist")
+        undeclared_collisions =
+          (denied & Profile.column_names) - FieldMapping::NATIVE_DESTINATION_FIELDS
+        assert_empty(undeclared_collisions,
+          "denied legacy column(s) now exist on Profile without an explicit native-ownership declaration")
+
+        # Even if a raw row carries a sensitive column — one the adapter drops,
+        # or one that now names a native Profile column — it never reaches the
+        # destination.
+        result = import([
+          row(id: 1).merge(
+            "tribe" => "some-value", "genotype" => "AA",
+            "is_nigerian" => true, "state_of_origin" => "Imo", "nationality" => "Nigerian"
+          )
+        ])
         assert_equal 1, result.reconciliation.count(:imported)
-        refute_includes resolved("profile", 1).attributes.values.map(&:to_s), "AA"
+
+        profile = resolved("profile", 1)
+        refute_includes profile.attributes.values.map(&:to_s), "AA"
+        assert_nil profile.is_nigerian
+        assert_nil profile.state_of_origin
+        assert_nil profile.nationality
       end
 
       # --- reconciliation ------------------------------------------------
