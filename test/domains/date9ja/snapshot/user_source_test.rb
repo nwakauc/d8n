@@ -24,9 +24,13 @@ module Date9ja
         )
       end
 
-      test "does not cross unused free-form language values into the record" do
-        refute_includes UserSource::SELECTED_COLUMNS, "languages_spoken"
-        refute_includes UserRecord.members.map(&:to_s), "languages_spoken"
+      test "crosses the flat legacy language array for the contract-fidelity pass" do
+        # `languages_spoken` is a non-sensitive member value with a D8N
+        # destination (Profiles structured languages via LanguageMapping). It is
+        # NOT a sensitive/gated column.
+        assert_includes UserSource::SELECTED_COLUMNS, "languages_spoken"
+        assert_includes UserRecord.members.map(&:to_s), "languages_spoken"
+        assert_empty([ "languages_spoken" ] & Date9ja::Import::FieldMapping::SENSITIVE_DENYLIST)
       end
 
       test "selects the narrowly required legacy name for readiness without logging it" do

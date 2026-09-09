@@ -30,11 +30,14 @@ module Profiles
         options: {
           "short_term_fun" => "Short-term fun",
           "casual_dating" => "Casual dating",
+          "dating" => "Dating",
           "friends_with_benefits" => "Friends with benefits",
           "open_to_dating" => "Open to dating",
+          "courtship" => "Courtship",
           "long_term_relationship" => "Long-term relationship",
           "marriage" => "Marriage",
           "friendship" => "Friendship",
+          "activity_partner" => "Activity partner",
           "still_figuring_it_out" => "Still figuring it out"
         }
       },
@@ -135,6 +138,9 @@ module Profiles
         cardinality: :single, max_selections: 1, visibility: :public_profile,
         options: {
           "high_school" => "High school", "vocational" => "Vocational",
+          # A completed tertiary diploma (e.g. Nigerian OND/HND) — more than
+          # "some college", not a full undergraduate degree.
+          "diploma" => "Diploma",
           "some_college" => "Some college", "undergraduate" => "Undergraduate",
           "postgraduate" => "Postgraduate", "doctorate" => "Doctorate",
           "other" => "Other", "prefer_not_to_say" => "Prefer not to say"
@@ -190,8 +196,53 @@ module Profiles
         cardinality: :single, max_selections: 1, visibility: :owner_only,
         options: {
           "yes" => "Yes", "maybe" => "Maybe", "no" => "No",
+          # `open` is distinct from `maybe` and from
+          # `open_to_partner_with_children`: it is "open to it, no strong view",
+          # neither an undecided lean nor a statement about a partner's existing
+          # children. Date9ja collects exactly this value.
+          "open" => "Open to it",
           "open_to_partner_with_children" => "Open to a partner with children",
           "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      # How many children a member already has. Distinct from `has_children`
+      # (a yes/no question): this preserves the exact bucket, and "three_or_more"
+      # is a real category, not the number 3.
+      "children_count" => {
+        label: "How many children do you have?",
+        cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "none" => "None", "one" => "One", "two" => "Two",
+          "three_or_more" => "Three or more", "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      # How much a member wants family involved in the relationship decision, as
+      # an intensity. Distinct from `family_involvement` (which asks about the
+      # arrangement, not the degree).
+      "family_involvement_level" => {
+        label: "How involved do you want family to be?",
+        cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "low" => "Low", "medium" => "Medium", "high" => "High",
+          "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      # How soon a member wants to be settled in a committed relationship.
+      "commitment_timeline" => {
+        label: "How soon are you hoping to settle down?",
+        cardinality: :single, max_selections: 1, visibility: :public_profile,
+        options: {
+          "asap" => "As soon as possible", "within_1_year" => "Within a year",
+          "one_to_two_years" => "One to two years", "two_to_three_years" => "Two to three years",
+          "not_sure" => "Not sure yet"
+        }
+      },
+      "marital_status" => {
+        label: "Marital status",
+        cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "single" => "Single", "divorced" => "Divorced", "widowed" => "Widowed",
+          "separated" => "Separated", "prefer_not_to_say" => "Prefer not to say"
         }
       },
       "tribe" => {

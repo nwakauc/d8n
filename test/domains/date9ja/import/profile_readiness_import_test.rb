@@ -111,15 +111,15 @@ module Date9ja
         end
       end
 
-      test "an unmapped source option is left unset and does not block a migrated member" do
-        source_row = row(id: 1, relationship_intention: 1)
+      test "an out-of-domain source option is left unset and does not block a migrated member" do
+        source_row = row(id: 1, relationship_intention: 99)
         import_identity_and_preferences([ source_row ])
         attach_ready_photo(profile_for(1))
 
         result = readiness([ source_row ], publication_policy: :publish_visible_onboarded)
 
-        # `courtship` (1) has no approved D8N mapping. It is never coerced onto a
-        # near option, and — since option groups are not a Date9ja visibility
+        # 99 is not a real relationship_intention code. It is never coerced onto
+        # a near option, and — since option groups are not a Date9ja visibility
         # gate — its absence does not hold the member back.
         assert_equal 1, result.reconciliation.count(:ready)
         assert_equal 1, result.reconciliation.to_h.dig("measures", "relationship_intent_unresolved")

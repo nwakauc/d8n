@@ -42,21 +42,25 @@ module Date9ja
         assert_nil outcome.value
       end
 
-      test "a real code with no approved destination is unmapped, never guessed" do
-        # relationship_intention 1 = courtship, 3 = dating, 5 = activity_partner.
-        # None has a D8N counterpart that means the same thing (D-5 open).
-        [ 1, 3, 5 ].each do |code|
-          outcome = ValueMapping.lookup("relationship_intent", code)
-          assert outcome.unmapped?, "code #{code} must not be folded onto a near-enough option"
-          assert_nil outcome.value
-          assert_equal code, outcome.code
-        end
+      test "a real code that is not in the enum domain is unmapped, never guessed" do
+        # relationship_intention is a 0..5 enum. A code outside it (99) has no
+        # meaning and must fail closed rather than be folded onto a neighbour.
+        outcome = ValueMapping.lookup("relationship_intent", 99)
+        assert outcome.unmapped?
+        assert_nil outcome.value
+        assert_equal 99, outcome.code
       end
 
-      test "relationship_intent maps only the unambiguous legacy codes" do
+      test "relationship_intent maps every legacy code (D8N contract fidelity)" do
+        # enum :relationship_intention,
+        #   { marriage: 0, courtship: 1, serious_relationship: 2, dating: 3,
+        #     friendship: 4, activity_partner: 5 }
         assert_equal "marriage", ValueMapping.lookup("relationship_intent", 0).value
+        assert_equal "courtship", ValueMapping.lookup("relationship_intent", 1).value
         assert_equal "long_term_relationship", ValueMapping.lookup("relationship_intent", 2).value
+        assert_equal "dating", ValueMapping.lookup("relationship_intent", 3).value
         assert_equal "friendship", ValueMapping.lookup("relationship_intent", 4).value
+        assert_equal "activity_partner", ValueMapping.lookup("relationship_intent", 5).value
       end
 
       test "children_count answers has_children without being treated as a number" do
@@ -68,11 +72,32 @@ module Date9ja
           "code 3 means three_or_more; it must not be read as the number 3"
       end
 
-      test "wants_children maps yes and no but never decides what open meant" do
+      test "wants_children maps every legacy code including open" do
         assert_equal "yes", ValueMapping.lookup("wants_children", 0).value
         assert_equal "no", ValueMapping.lookup("wants_children", 1).value
-        assert ValueMapping.lookup("wants_children", 2).unmapped?,
-          "legacy `open` could be maybe or open_to_partner_with_children (D-6)"
+        assert_equal "open", ValueMapping.lookup("wants_children", 2).value,
+          "D8N added a first-class `open` option for exactly this value"
+      end
+
+      test "every other legacy preference/lifestyle enum maps totally" do
+        {
+          "children_count" => { 0 => "none", 1 => "one", 2 => "two", 3 => "three_or_more" },
+          "family_involvement_level" => { 0 => "low", 1 => "medium", 2 => "high" },
+          "commitment_timeline" => { 0 => "asap", 1 => "within_1_year", 2 => "one_to_two_years",
+                                     3 => "two_to_three_years", 4 => "not_sure" },
+          "marital_status" => { 0 => "single", 1 => "divorced", 2 => "widowed" },
+          "education_level" => { 0 => "high_school", 1 => "diploma", 2 => "undergraduate",
+                                 3 => "postgraduate", 4 => "doctorate" },
+          "smoking" => { 0 => "never", 1 => "occasionally", 2 => "regularly" },
+          "drinking" => { 0 => "never", 1 => "occasionally", 2 => "regularly" },
+          "fitness" => { 0 => "never", 1 => "occasionally", 2 => "regularly" }
+        }.each do |field, mapping|
+          mapping.each do |code, value|
+            assert_equal value, ValueMapping.lookup(field, code).value, "#{field}[#{code}]"
+          end
+          assert ValueMapping.lookup(field, 42).unmapped?, "#{field} still fails closed on an unknown code"
+          assert ValueMapping.lookup(field, nil).absent?, "#{field} distinguishes absent from unmapped"
+        end
       end
 
       test "numeric strings decode identically to integers" do
@@ -92,12 +117,22 @@ module Date9ja
 
         { "relationship_intent" => ValueMapping::RELATIONSHIP_INTENT,
           "has_children" => ValueMapping::HAS_CHILDREN,
-          "wants_children" => ValueMapping::WANTS_CHILDREN }.each do |group_key, table|
+          "wants_children" => ValueMapping::WANTS_CHILDREN,
+          "children_count" => ValueMapping::CHILDREN_COUNT,
+          "family_involvement_level" => ValueMapping::FAMILY_INVOLVEMENT_LEVEL,
+          "commitment_timeline" => ValueMapping::COMMITMENT_TIMELINE,
+          "marital_status" => ValueMapping::MARITAL_STATUS,
+          "education_level" => ValueMapping::EDUCATION }.each do |group_key, table|
           codes = groups.fetch(group_key)[:options].keys
           table.each_value do |mapped|
             assert_includes codes, mapped, "#{group_key} has no option #{mapped.inspect}"
           end
         end
+      end
+
+      test "the lifestyle-frequency scalars map onto the Profile field vocabulary" do
+        allowed = Profiles::FieldCatalog.allowed_values("smoking")
+        ValueMapping::LIFESTYLE_FREQUENCY.each_value { |value| assert_includes allowed, value }
       end
 
       test "an unknown field name fails closed rather than returning nothing" do

@@ -15,6 +15,8 @@ module Date9ja
         wants_children_satisfied wants_children_unresolved
         publications_applied publications_withdrawn native_values_preserved
         ineligible_suppression_failed
+        enrichment_values_mapped enrichment_values_preserved enrichment_values_unresolved
+        languages_mapped languages_unresolved
       ].freeze
 
       def initialize

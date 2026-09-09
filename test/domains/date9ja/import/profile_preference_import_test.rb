@@ -163,7 +163,7 @@ module Date9ja
         import([ row(id: 1, relationship_intention: 0, children_count: 2, wants_children: 1) ])
 
         assert_equal({ "relationship_intent" => "marriage", "has_children" => "yes",
-                       "wants_children" => "no" }, selections_for(1))
+                       "wants_children" => "no", "children_count" => "two" }, selections_for(1))
       end
 
       test "rolls back the member when an approved option group is missing" do
@@ -201,7 +201,8 @@ module Date9ja
         assert_equal 1, succeeded.reconciliation.count(:imported)
         assert_equal 0, succeeded.reconciliation.count(:failed)
         assert preference_for(1)
-        assert_equal 3, ProfileOptionSelection.where(profile: profile_for(1)).count
+        # relationship_intent, has_children, wants_children, children_count.
+        assert_equal 4, ProfileOptionSelection.where(profile: profile_for(1)).count
       end
 
       test "rolls back the member when option-selection persistence is invalid" do
@@ -232,13 +233,31 @@ module Date9ja
         assert_nil preference_for(1).max_distance_km
       end
 
-      test "leaves an unmapped option group unselected and says so" do
-        # relationship_intention 1 = courtship: no D8N counterpart (D-5).
-        result = import([ row(id: 1, relationship_intention: 1) ])
+      test "an out-of-domain option code is left unselected and recorded, not guessed" do
+        # relationship_intention is a 0..5 enum; 99 is not a real value.
+        result = import([ row(id: 1, relationship_intention: 99) ])
 
         refute_includes selections_for(1).keys, "relationship_intent"
         assert_equal 1, result.reconciliation.note_count("relationship_intent_unmapped")
         assert_equal 1, result.reconciliation.count(:imported), "an unmapped code is not a failure"
+      end
+
+      test "every legacy preference/lifestyle enum is preserved as an option selection" do
+        result = import([ row(id: 1,
+          relationship_intention: 1, wants_children: 2, children_count: 3,
+          family_involvement_preference: 1, commitment_timeline: 4,
+          marital_status: 1, education: 1) ])
+
+        sel = selections_for(1)
+        assert_equal "courtship", sel["relationship_intent"]
+        assert_equal "open", sel["wants_children"]
+        assert_equal "yes", sel["has_children"]
+        assert_equal "three_or_more", sel["children_count"]
+        assert_equal "medium", sel["family_involvement_level"]
+        assert_equal "not_sure", sel["commitment_timeline"]
+        assert_equal "divorced", sel["marital_status"]
+        assert_equal "diploma", sel["education_level"]
+        assert_equal 1, result.reconciliation.count(:imported)
       end
 
       test "leaves an unanswered field unset and distinguishes it from unmapped" do

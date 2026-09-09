@@ -7,6 +7,42 @@
 > The 288-row figures below remain historical 2026-09-02 evidence. They are not
 > silently overwritten or presented as current.
 
+> **D8N CONTRACT FIDELITY PASS (2026-09-09).** Governing rule from Uchechi:
+> *if Date9ja supports, stores, exposes or uses a value, D8N must represent and
+> preserve it — extend D8N rather than defer.* Acted on for every non-sensitive
+> clean value:
+> - **relationship_intention** — D-5 CLOSED. `courtship`, `dating`,
+>   `activity_partner` added as first-class D8N `relationship_intent` options
+>   (not folded); `serious_relationship` reuses the exact synonym
+>   `long_term_relationship`. Total 6/6 mapping. `ValueMapping::RELATIONSHIP_INTENT`.
+> - **wants_children** — D-6 (open) CLOSED. `open` added as a first-class D8N
+>   `wants_children` option, distinct from `maybe`. 3/3 mapping.
+> - **children_count** — exact bucket preserved via the new `children_count`
+>   option group (`none/one/two/three_or_more`); `has_children` yes/no kept too.
+> - **family_involvement_preference** — new `family_involvement_level` group
+>   (`low/medium/high`), separate from the nominal `family_involvement`.
+> - **commitment_timeline** — new `commitment_timeline` group (5/5).
+> - **marital_status** — new owner-only `marital_status` group (3/3).
+> - **education** — D-3/D-6 CLOSED for education. `diploma` code added for
+>   `ond_hnd`; 5/5 mapping to `education_level`.
+> - **smoking / drinking / fitness** — D-3 CLOSED. Imported to the `profiles`
+>   scalars verbatim (`never/occasionally/regularly`).
+> - **occupation / body_type** — imported verbatim (never enum-coerced).
+> - **height** — imported when inside a plausible 100–250 cm band; junk quarantined (E-2 policy applied).
+> - **willing_to_relocate** — boolean imported, source tri-state preserved.
+> - **languages_spoken** — `LanguageMapping` explicit table → structured
+>   `profiles.languages` (code only, per E-3). Unknown names (incl. "Pidgin",
+>   which the D8N taxonomy has no code for) stay unmapped, never approximated.
+>
+> Other brands unchanged: DateZA/HookUs pin `wants_children` / `education_level`
+> with `only:`. No new value is a Date9ja publication gate — **534/534 discovery
+> parity re-proved** in rehearsal (`d8n_date9ja_rehearsal_cf_20260909`, dropped).
+> Sanitizer redacts `occupation` and `languages_spoken`, so those two are
+> verified by unit test + census, not by the sanitized rehearsal.
+> **Still out of scope (privacy, sanitizer-redacted, E-5 review outstanding):**
+> `interests`, `relationship_values`, `dealbreakers`. **Concrete path, next
+> increment:** `preferred_countries` (multi-country preference store).
+
 **Authority.** This is the working contract for **Pass 2** of the Date9ja profile &
 preference migration: how each legacy `users` value becomes a D8N value. It is
 subordinate to `MASTER-PLAN.md` (phase model), `CAPABILITY-PARITY.md` (what must

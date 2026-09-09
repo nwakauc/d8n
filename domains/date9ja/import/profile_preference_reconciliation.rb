@@ -57,6 +57,16 @@ module Date9ja
         has_children_absent
         wants_children_absent
         wants_children_unmapped
+        children_count_absent
+        children_count_unmapped
+        family_involvement_level_absent
+        family_involvement_level_unmapped
+        commitment_timeline_absent
+        commitment_timeline_unmapped
+        marital_status_absent
+        marital_status_unmapped
+        education_level_absent
+        education_level_unmapped
       ].freeze
 
       def initialize

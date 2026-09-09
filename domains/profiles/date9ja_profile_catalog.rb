@@ -14,10 +14,19 @@ module Profiles
   class Date9jaProfileCatalog
     # Date9ja is a relationship/marriage-leaning Nigerian product; the curated
     # intents reflect that without copying DateZA's or HookUs's copy.
+    # Date9ja's legacy `relationship_intention` enum has six values
+    # (marriage, courtship, serious_relationship, dating, friendship,
+    # activity_partner). D8N represents every one of them: `serious_relationship`
+    # reuses the exact-synonym `long_term_relationship`; `courtship`, `dating`
+    # and `activity_partner` were added to Profiles::CapabilityCatalog for this
+    # brand rather than folded onto a near-neighbour.
     RELATIONSHIP_INTENTS = %w[
       long_term_relationship
       marriage
+      courtship
+      dating
       open_to_dating
+      activity_partner
       friendship
       still_figuring_it_out
     ].freeze
@@ -43,6 +52,14 @@ module Profiles
       { key: "relationship_intent", cardinality: :single, max_selections: 1, only: RELATIONSHIP_INTENTS },
       { key: "has_children", visibility: :owner_only },
       { key: "wants_children", visibility: :owner_only },
+      # Every legacy Date9ja preference/lifestyle enum has a D8N home. These are
+      # ENABLED and collected but NOT publication gates (see MIGRATION_COMPLETION
+      # and REQUIRED_OPTION_GROUPS): a migrated member is never hidden for a
+      # missing enrichment value.
+      { key: "children_count", visibility: :owner_only },
+      { key: "family_involvement_level", visibility: :owner_only },
+      { key: "commitment_timeline" },
+      { key: "marital_status", visibility: :owner_only },
       { key: "religion", visibility: :owner_only },
       { key: "religion_importance", visibility: :owner_only },
       { key: "tribe", visibility: :owner_only },

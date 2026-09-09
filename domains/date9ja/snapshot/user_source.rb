@@ -21,6 +21,9 @@ module Date9ja
         country_of_residence about_me ideal_partner_description
         looking_for preferred_age_min preferred_age_max preferred_distance_km
         relationship_intention wants_children children_count
+        smoking drinking fitness education commitment_timeline marital_status
+        family_involvement_preference occupation body_type height
+        willing_to_relocate languages_spoken
       ].freeze
 
       def initialize(rows: nil, connection: nil, verify_schema: true)

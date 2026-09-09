@@ -44,7 +44,15 @@ module Date9ja
       OPTION_GROUPS = {
         "relationship_intent" => :relationship_intention,
         "has_children" => :children_count,
-        "wants_children" => :wants_children
+        "wants_children" => :wants_children,
+        # D8N contract-fidelity pass: every legacy preference/lifestyle enum now
+        # has a D8N option group. All fail closed on an unknown code (none does
+        # today — the mappings are total) and none is a publication gate.
+        "children_count" => :children_count,
+        "family_involvement_level" => :family_involvement_preference,
+        "commitment_timeline" => :commitment_timeline,
+        "marital_status" => :marital_status,
+        "education_level" => :education
       }.freeze
 
       Result = Data.define(:reconciliation)
@@ -347,7 +355,9 @@ module Date9ja
         material = [
           record.looking_for, record.preferred_age_min, record.preferred_age_max,
           record.preferred_distance_km, record.relationship_intention,
-          record.wants_children, record.children_count
+          record.wants_children, record.children_count,
+          record.family_involvement_preference, record.commitment_timeline,
+          record.marital_status, record.education
         ].map(&:to_s).join("|")
         Digest::SHA256.hexdigest(material)[0, 32]
       end

@@ -114,6 +114,7 @@ module Date9ja
 
           apply_names!(profile.user, record, applied_fields:)
           apply_profile_scalars!(profile, record, applied_fields:)
+          apply_enrichment_scalars!(profile, record, applied_fields:)
           apply_location!(profile, applied_fields:)
 
           completion = Profiles::Completion.call(profile:)
@@ -230,6 +231,108 @@ module Date9ja
 
         applied_fields.uniq!
         profile.update!(attrs) if attrs.any?
+      end
+
+      # Non-sensitive profile enrichment values. Every one has a D8N destination
+      # (Profiles::FieldCatalog) that Date9ja already enables. Gap-fill only:
+      # a value the member or an operator already holds is never overwritten,
+      # and a field this importer set that was later cleared is not refilled
+      # (tracked through applied_fields, persisted on the readiness row). None of
+      # these is a publication gate, so an unknown/absent value never hides a
+      # member.
+      ENRICHMENT_ENUM_SCALARS = { smoking: :smoking, drinking: :drinking, fitness: :fitness }.freeze
+
+      def apply_enrichment_scalars!(profile, record, applied_fields:)
+        attrs = {}
+
+        ENRICHMENT_ENUM_SCALARS.each do |column, source_attr|
+          unless enrichment_gap?(profile, column, applied_fields)
+            reconciliation.measure!(:enrichment_values_preserved) if profile.public_send(column).present?
+            next
+          end
+
+          outcome = ValueMapping.lookup(column.to_s, record.public_send(source_attr))
+          record_enrichment_disposition(outcome.status)
+          attrs[column] = outcome.value if outcome.ok?
+          applied_fields << column.to_s if outcome.ok?
+        end
+
+        if enrichment_gap?(profile, :body_type, applied_fields)
+          body_type = FieldMapping.clamp(record.body_type&.to_s&.gsub(/\s+/, " "), 80)
+          if body_type
+            attrs[:body_type] = body_type
+            applied_fields << "body_type"
+            reconciliation.measure!(:enrichment_values_mapped)
+          end
+        end
+
+        if enrichment_gap?(profile, :occupation, applied_fields)
+          occupation = FieldMapping.clamp(record.occupation&.to_s&.gsub(/\s+/, " "), 120)
+          if occupation
+            attrs[:occupation] = occupation
+            applied_fields << "occupation"
+            reconciliation.measure!(:enrichment_values_mapped)
+          end
+        end
+
+        if profile.height_cm.nil? && !applied_fields.include?("height_cm")
+          height = plausible_height_cm(record.height)
+          if height
+            attrs[:height_cm] = height
+            applied_fields << "height_cm"
+            reconciliation.measure!(:enrichment_values_mapped)
+          elsif record.height.present?
+            # Present but outside any plausible cm/inch band (source range is
+            # 1..588) — junk, not migrated. Recorded, not hidden.
+            reconciliation.measure!(:enrichment_values_unresolved)
+          end
+        end
+
+        if profile.willing_to_relocate.nil? && !applied_fields.include?("willing_to_relocate")
+          unless record.willing_to_relocate.nil?
+            attrs[:willing_to_relocate] = record.willing_to_relocate
+            applied_fields << "willing_to_relocate"
+            reconciliation.measure!(:enrichment_values_mapped)
+          end
+        end
+
+        apply_languages!(profile, record, applied_fields:, attrs:)
+
+        applied_fields.uniq!
+        profile.update!(attrs) if attrs.any?
+      end
+
+      def apply_languages!(profile, record, applied_fields:, attrs:)
+        return if profile.languages.present? || applied_fields.include?("languages")
+
+        outcome = LanguageMapping.call(record.languages_spoken)
+        if outcome.codes.any?
+          attrs[:languages] = outcome.codes.map { |code| { "code" => code, "proficiency" => nil, "primary" => false } }
+          applied_fields << "languages"
+          reconciliation.measure!(:languages_mapped)
+        elsif record.languages_spoken.any?
+          reconciliation.measure!(:languages_unresolved)
+        end
+      end
+
+      def enrichment_gap?(profile, column, applied_fields)
+        profile.public_send(column).blank? && !applied_fields.include?(column.to_s)
+      end
+
+      def record_enrichment_disposition(status)
+        case status
+        when :ok then reconciliation.measure!(:enrichment_values_mapped)
+        when :unmapped then reconciliation.measure!(:enrichment_values_unresolved)
+        end
+      end
+
+      def plausible_height_cm(value)
+        return nil if value.nil?
+
+        integer = value.is_a?(Integer) ? value : Integer(value.to_s.strip, 10)
+        integer.between?(100, 250) ? integer : nil
+      rescue ArgumentError, TypeError
+        nil
       end
 
       def apply_location!(profile, applied_fields:)

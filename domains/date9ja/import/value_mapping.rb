@@ -53,16 +53,18 @@ module Date9ja
       #   { marriage: 0, courtship: 1, serious_relationship: 2, dating: 3,
       #     friendship: 4, activity_partner: 5 }`
       #
-      # D-5 OPEN. Only the three codes with an unambiguous D8N counterpart are
-      # mapped. `courtship` (1), `dating` (3) and `activity_partner` (5) have no
-      # D8N option that means the same thing, and D8N's `open_to_dating` /
-      # `still_figuring_it_out` have no legacy counterpart. Folding one onto the
-      # other would rewrite what a member said about what they want, so those
-      # codes fail closed until D-5 is resolved.
+      # D8N CONTRACT FIDELITY (2026-09-09): D8N now represents every legacy value.
+      # `serious_relationship` reuses `long_term_relationship` (exact synonym);
+      # `courtship`, `dating` and `activity_partner` were added as first-class
+      # D8N option codes for Date9ja rather than folded onto a near-neighbour.
+      # This is a total, lossless mapping — nothing fails closed.
       RELATIONSHIP_INTENT = {
         0 => "marriage",
+        1 => "courtship",
         2 => "long_term_relationship",
-        4 => "friendship"
+        3 => "dating",
+        4 => "friendship",
+        5 => "activity_partner"
       }.freeze
 
       # FACT: `enum :children_count, { none: 0, one: 1, two: 2, three_or_more: 3 }`
@@ -76,11 +78,45 @@ module Date9ja
 
       # FACT: `enum :wants_children, { yes: 0, no: 1, open: 2 }`
       #
-      # D-6 PARTIALLY OPEN. `yes` and `no` map exactly. Legacy `open` (45
-      # members) does not: D8N offers `maybe` and `open_to_partner_with_children`,
-      # which mean different things, and the legacy label does not say which the
-      # member meant. Fails closed rather than choosing for them.
-      WANTS_CHILDREN = { 0 => "yes", 1 => "no" }.freeze
+      # D8N CONTRACT FIDELITY (2026-09-09): `open` was added as a first-class D8N
+      # `wants_children` option (distinct from `maybe`), so every legacy value
+      # maps exactly. `has_children` (below) still records children-count as a
+      # yes/no; the exact bucket is preserved separately by CHILDREN_COUNT.
+      WANTS_CHILDREN = { 0 => "yes", 1 => "no", 2 => "open" }.freeze
+
+      # FACT: `enum :children_count, { none: 0, one: 1, two: 2, three_or_more: 3 }`
+      # Preserved into the `children_count` option group as the exact bucket —
+      # "three_or_more" is a category, never coerced to the integer 3.
+      CHILDREN_COUNT = { 0 => "none", 1 => "one", 2 => "two", 3 => "three_or_more" }.freeze
+
+      # FACT: `enum :family_involvement_preference, { low: 0, medium: 1, high: 2 }`
+      # An intensity scale — mapped to the `family_involvement_level` group,
+      # which D8N added for exactly this (not the nominal `family_involvement`).
+      FAMILY_INVOLVEMENT_LEVEL = { 0 => "low", 1 => "medium", 2 => "high" }.freeze
+
+      # FACT: `enum :commitment_timeline,
+      #   { asap: 0, within_1_year: 1, one_to_two_years: 2,
+      #     two_to_three_years: 3, not_sure: 4 }`
+      COMMITMENT_TIMELINE = {
+        0 => "asap", 1 => "within_1_year", 2 => "one_to_two_years",
+        3 => "two_to_three_years", 4 => "not_sure"
+      }.freeze
+
+      # FACT: `enum :marital_status, { single: 0, divorced: 1, widowed: 2 }`
+      MARITAL_STATUS = { 0 => "single", 1 => "divorced", 2 => "widowed" }.freeze
+
+      # FACT: `enum :education, { secondary: 0, ond_hnd: 1, bsc: 2, msc: 3, phd: 4 }`
+      # `ond_hnd` (Nigerian OND/HND tertiary diploma) maps to the `diploma` code
+      # D8N added for it; the rest are exact synonyms of existing codes.
+      EDUCATION = {
+        0 => "high_school", 1 => "diploma", 2 => "undergraduate",
+        3 => "postgraduate", 4 => "doctorate"
+      }.freeze
+
+      # FACT: `enum :smoking/:drinking/:fitness, { never: 0, occasionally: 1, regularly: 2 }`
+      # D8N's `profiles.smoking/drinking/fitness` are free strings validated to
+      # exactly this vocabulary (Profiles::FieldCatalog). Labels carried verbatim.
+      LIFESTYLE_FREQUENCY = { 0 => "never", 1 => "occasionally", 2 => "regularly" }.freeze
 
       # No legacy source exists for `meeting_pace` — proven by census measure 202
       # returning `none` (no unclassified source column) and by the absence of any
@@ -93,7 +129,15 @@ module Date9ja
         "interested_in" => INTERESTED_IN,
         "relationship_intent" => RELATIONSHIP_INTENT,
         "has_children" => HAS_CHILDREN,
-        "wants_children" => WANTS_CHILDREN
+        "wants_children" => WANTS_CHILDREN,
+        "children_count" => CHILDREN_COUNT,
+        "family_involvement_level" => FAMILY_INVOLVEMENT_LEVEL,
+        "commitment_timeline" => COMMITMENT_TIMELINE,
+        "marital_status" => MARITAL_STATUS,
+        "education_level" => EDUCATION,
+        "smoking" => LIFESTYLE_FREQUENCY,
+        "drinking" => LIFESTYLE_FREQUENCY,
+        "fitness" => LIFESTYLE_FREQUENCY
       }.freeze
 
       module_function

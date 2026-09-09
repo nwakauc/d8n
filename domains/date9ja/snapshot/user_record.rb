@@ -18,7 +18,15 @@ module Date9ja
       # importer slice. Legacy enum CODES and integers -- decoded by
       # Date9ja::Import::ValueMapping, never interpreted here.
       :looking_for, :preferred_age_min, :preferred_age_max, :preferred_distance_km,
-      :relationship_intention, :wants_children, :children_count
+      :relationship_intention, :wants_children, :children_count,
+      # Non-sensitive profile/preference enrichment values, added with the
+      # D8N contract-fidelity pass. Legacy enum CODES / integers / a flat
+      # language array -- decoded by Date9ja::Import::ValueMapping /
+      # LanguageMapping, never interpreted here. None is a sensitive column
+      # (FieldMapping::SENSITIVE_DENYLIST is unchanged).
+      :smoking, :drinking, :fitness, :education, :commitment_timeline,
+      :marital_status, :family_involvement_preference, :occupation, :body_type,
+      :height, :willing_to_relocate, :languages_spoken
     ) do
       BOOLEAN = ActiveModel::Type::Boolean.new
 
@@ -53,8 +61,44 @@ module Date9ja
           preferred_distance_km: row["preferred_distance_km"],
           relationship_intention: row["relationship_intention"],
           wants_children: row["wants_children"],
-          children_count: row["children_count"]
+          children_count: row["children_count"],
+          smoking: row["smoking"],
+          drinking: row["drinking"],
+          fitness: row["fitness"],
+          education: row["education"],
+          commitment_timeline: row["commitment_timeline"],
+          marital_status: row["marital_status"],
+          family_involvement_preference: row["family_involvement_preference"],
+          occupation: row["occupation"],
+          body_type: row["body_type"],
+          height: row["height"],
+          willing_to_relocate: cast_optional_boolean(row["willing_to_relocate"]),
+          languages_spoken: normalize_string_list(row["languages_spoken"])
         )
+      end
+
+      # Preserves the tri-state the source has (true / false / not answered).
+      def self.cast_optional_boolean(value)
+        return nil if value.nil? || value.to_s.strip.empty?
+
+        BOOLEAN.cast(value)
+      end
+
+      # Postgres `character varying[]` arrives either as a Ruby Array (type-cast
+      # exec_query, and synthetic test rows) or as the raw braced literal
+      # `{English,"Nigerian Pidgin"}`. Both are reduced to a plain string array;
+      # anything else (nil, a scalar) becomes []. No element is interpreted here.
+      def self.normalize_string_list(value)
+        return value.map(&:to_s) if value.is_a?(Array)
+        return [] unless value.is_a?(String)
+
+        inner = value.strip.delete_prefix("{").delete_suffix("}")
+        return [] if inner.empty?
+
+        inner.scan(/"(?:[^"\\]|\\.)*"|[^,]+/).map do |token|
+          token = token.strip
+          token.start_with?('"') && token.end_with?('"') ? token[1..-2].gsub('\\"', '"') : token
+        end.reject(&:empty?)
       end
 
       def source_id = id.to_s
@@ -90,7 +134,10 @@ module Date9ja
           full_name, city, country_of_residence, profile_hidden,
           onboarding_completed_at, suspended_at, banned_at, deleted_at, discovery_restricted_at,
           preferred_age_min, preferred_age_max, relationship_intention,
-          wants_children, children_count
+          wants_children, children_count,
+          smoking, drinking, fitness, education, commitment_timeline,
+          marital_status, family_involvement_preference, occupation, body_type,
+          height, willing_to_relocate, languages_spoken.join(",")
         ].map(&:to_s).join("|")
         Digest::SHA256.hexdigest(material)[0, 32]
       end

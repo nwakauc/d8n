@@ -41,7 +41,9 @@ module Profiles
     # capabilities carry an explicit visibility so exposure is always deliberate.
     ENABLED_CAPABILITIES = [
       { key: "meeting_pace" },
-      { key: "education_level" },
+      # `only:` pins the offered set: Date9ja's contract-fidelity pass added
+      # `diploma` to the shared catalogue for its own use; HookUs is unchanged.
+      { key: "education_level", only: %w[ high_school vocational some_college undergraduate postgraduate doctorate other prefer_not_to_say ] },
       { key: "diet" },
       { key: "pets" },
       { key: "pet_preference" },
@@ -62,7 +64,8 @@ module Profiles
       { key: "religion", visibility: :owner_only },
       { key: "religion_importance", visibility: :owner_only },
       { key: "has_children", visibility: :owner_only },
-      { key: "wants_children", visibility: :owner_only },
+      { key: "wants_children", visibility: :owner_only,
+        only: %w[ yes maybe no open_to_partner_with_children prefer_not_to_say ] },
       # Intimacy preferences: shown only to an active, still-reachable Match.
       { key: "physical_affection", visibility: :matches_only },
       { key: "public_affection", visibility: :matches_only },
