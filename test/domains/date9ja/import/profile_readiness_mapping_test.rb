@@ -36,6 +36,22 @@ module Date9ja
         refute CountryMapping.call(nil).mapped?
       end
 
+      test "census-attested country names from the 2026-09-08 snapshot are mapped exactly" do
+        {
+          "Andorra" => "AD", "Angola" => "AO", "Afghanistan" => "AF", "Australia" => "AU",
+          "Botswana" => "BW", "Brazil" => "BR", "Equatorial   Guinea" => "GQ", "france" => "FR",
+          "Israel" => "IL", "Jamaica" => "JM", "Japan" => "JP", "Malawi" => "MW",
+          "new zealand" => "NZ", "Rwanda" => "RW", "Somalia" => "SO", "Uganda" => "UG"
+        }.each do |source, iso2|
+          assert_equal iso2, CountryMapping.call(source).country_code, "#{source} -> #{iso2}"
+        end
+
+        # Still deliberately unmapped: a subdivision and an apparent typo are not
+        # repaired — that would be a guess.
+        refute CountryMapping.call("California").mapped?
+        refute CountryMapping.call("nigeri").mapped?
+      end
+
       test "place resolution is exact and limited to canonical Nigerian places" do
         Geography::NigeriaCatalog.install!
         Geography::SouthAfricaCatalog.install!
