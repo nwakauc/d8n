@@ -10,7 +10,7 @@ module Profiles
       identity: %w[first_name last_name],
       profile: %w[
         display_name bio birthdate gender country_code city occupation height_cm
-        body_type languages_spoken smoking drinking fitness
+        body_type languages_spoken smoking drinking fitness is_nigerian state_of_origin nationality
       ],
       preference: %w[min_age max_age interested_in max_distance_km country relationship_intent]
     }.freeze

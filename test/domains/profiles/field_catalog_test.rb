@@ -108,6 +108,9 @@ module Profiles
       "children_count" => "Number of children", "height_cm" => "Height", "body_type" => "Body type",
       "languages" => "Languages", "languages_spoken" => "Languages (legacy)",
       "smoking" => "Smoking", "drinking" => "Drinking", "fitness" => "Fitness",
+      "is_nigerian" => "Nigerian identity", "state_of_origin" => "State of origin",
+      "nationality" => "Nationality", "ideal_partner_description" => "Ideal partner",
+      "willing_to_relocate" => "Willing to relocate", "relocation_preferences" => "Relocation destinations",
       "min_age" => "Minimum age", "max_age" => "Maximum age", "interested_in" => "Interested in",
       "max_distance_km" => "Maximum distance", "country" => "Preferred country",
       "relationship_intent" => "Relationship intent"
@@ -126,7 +129,10 @@ module Profiles
       # The split FieldPolicy hard-coded before Slice 2 derived it from here.
       # Sensitive-identity fields are owner_only by ceiling; exclude them here —
       # they have dedicated fail-closed coverage.
-      historical_owner_only = %w[birthdate company_name children_count]
+      historical_owner_only = %w[
+        birthdate company_name children_count is_nigerian state_of_origin nationality
+        willing_to_relocate relocation_preferences
+      ]
       profile_owner_only = FieldCatalog.for_group(:profile)
         .reject(&:sensitive_identity?).select(&:owner_only_ceiling?).map(&:key)
       assert_equal historical_owner_only.sort, profile_owner_only.sort
@@ -134,7 +140,7 @@ module Profiles
       historical_public = %w[
         display_name bio gender pronouns country_code city occupation job_title
         school_or_institution looking_for_text height_cm body_type languages
-        languages_spoken smoking drinking fitness
+        languages_spoken smoking drinking fitness ideal_partner_description
       ]
       profile_public = FieldCatalog.for_group(:profile).reject(&:owner_only_ceiling?).map(&:key)
       assert_equal historical_public.sort, profile_public.sort
@@ -164,6 +170,8 @@ module Profiles
       assert_equal "multiple", FieldCatalog.fetch("languages").cardinality
       assert_equal "multiple", FieldCatalog.fetch("interested_in").cardinality
       assert_equal "single", FieldCatalog.fetch("gender").cardinality
+      assert_equal :boolean, FieldCatalog.fetch("is_nigerian").data_type
+      assert_equal "boolean", FieldCatalog.fetch("is_nigerian").input_type
     end
 
     # ---- audience ceiling ---------------------------------------------------

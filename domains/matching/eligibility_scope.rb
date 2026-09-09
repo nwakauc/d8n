@@ -20,6 +20,7 @@ module Matching
       @viewer = viewer
       @viewer_preference = ProfilePreference.kept.find_by(profile: viewer)
       @location_cutoff = policy.location_max_age&.ago
+      @location_filtering = policy.location_filtering
     end
 
     def call
@@ -48,12 +49,18 @@ module Matching
     end
 
     def distance_scope(scope)
+      return scope unless policy_location_filtering?
+
       location = viewer_location
       return without_viewer_location(scope) if location.blank?
 
       scope = join_candidate_locations(scope)
       scope = within_viewer_distance(scope) if viewer_preference.max_distance_km.present?
       within_candidate_distance(scope)
+    end
+
+    def policy_location_filtering?
+      @location_filtering
     end
 
     def without_viewer_location(scope)

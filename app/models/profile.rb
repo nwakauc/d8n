@@ -71,6 +71,11 @@ class Profile < ApplicationRecord
   validates :gender, length: { maximum: catalog.max_length("gender") }, allow_blank: true
   validates :pronouns, length: { maximum: catalog.max_length("pronouns") }, allow_blank: true
   validates :city, length: { maximum: catalog.max_length("city") }, allow_blank: true
+  validates :state_of_origin, length: { maximum: catalog.max_length("state_of_origin") }, allow_blank: true
+  validates :nationality, format: { with: /\A[A-Z]{2}\z/ }, allow_blank: true
+  validates :ideal_partner_description, length: { maximum: catalog.max_length("ideal_partner_description") }, allow_blank: true
+  validate :relocation_preferences_are_valid
+  validate :configured_minimum_lengths
   validates :occupation, length: { maximum: catalog.max_length("occupation") }, allow_blank: true
   validates :job_title, length: { maximum: catalog.max_length("job_title") }, allow_blank: true
   validates :company_name, length: { maximum: catalog.max_length("company_name") }, allow_blank: true
@@ -139,6 +144,10 @@ class Profile < ApplicationRecord
   def normalize_profile_details
     self.country_code = country_code.to_s.strip.upcase.presence
     self.city = city.to_s.strip.presence
+    self.state_of_origin = state_of_origin.to_s.strip.presence
+    self.nationality = nationality.to_s.strip.upcase.presence
+    self.ideal_partner_description = ideal_partner_description.to_s.strip.presence
+    self.relocation_preferences = Array(relocation_preferences).filter_map { |value| value.to_s.strip.presence }.uniq
     self.occupation = occupation.to_s.strip.presence
     self.body_type = body_type.to_s.strip.presence
     self.pronouns = pronouns.to_s.strip.presence
@@ -152,6 +161,28 @@ class Profile < ApplicationRecord
     self.languages_spoken = languages_spoken.map do |value|
       value.is_a?(String) ? value.strip.presence : value
     end.compact.uniq
+  end
+
+  def relocation_preferences_are_valid
+    return if relocation_preferences.is_a?(Array) && relocation_preferences.size <= 10 && relocation_preferences.all? { |v| v.is_a?(String) && v.length <= 80 }
+
+    errors.add(:relocation_preferences, "must contain at most 10 destinations")
+  end
+
+  def configured_minimum_lengths
+    return if brand.blank?
+
+    brand.profile_completion_requirements.fetch("minimum_lengths", {}).each do |field, minimum|
+      next unless minimum.is_a?(Integer) && Profiles::FieldCatalog.defined?(field)
+
+      definition = Profiles::FieldCatalog.fetch(field)
+      next unless definition.group == :profile && definition.storage[:record] == :profile && has_attribute?(field)
+
+      value = self[field]
+      next if value.blank? || value.to_s.length >= minimum.to_i
+
+      errors.add(field.to_sym, "is too short (minimum is #{minimum} characters)")
+    end
   end
 
   # Only rewrite to canonical form when the input is structurally valid; leaving

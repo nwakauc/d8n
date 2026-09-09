@@ -18,6 +18,14 @@ module Matching
       assert_not policy.location_freshness_required?
     end
 
+    test "Date9ja does not use location or distance for eligibility" do
+      policy = D8n::Platform::Brands::Date9ja::ELIGIBILITY_POLICY
+
+      assert_equal Matching::EligibilityPolicy::NO_LOCATION, policy
+      assert_not policy.location_filtering
+      assert_nil policy.location_max_age
+    end
+
     test "brand surfaces and interactions share their configured policy" do
       hookus = Brand.new(slug: "hookus", name: "HookUs")
       dateza = Brand.new(slug: "dateza", name: "DateZA")

@@ -194,6 +194,42 @@ module Profiles
           "prefer_not_to_say" => "Prefer not to say"
         }
       },
+      "tribe" => {
+        label: "Tribe / ethnicity", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "igbo" => "Igbo", "yoruba" => "Yoruba", "hausa" => "Hausa", "fulani" => "Fulani",
+          "ijaw" => "Ijaw", "ibibio" => "Ibibio", "edo" => "Edo", "kanuri" => "Kanuri",
+          "other" => "Other", "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      "genotype" => {
+        label: "Genotype", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: { "aa" => "AA", "as" => "AS", "ss" => "SS", "ac" => "AC", "not_tested" => "Not tested" }
+      },
+      "family_involvement" => {
+        label: "Family involvement", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: { "must_approve" => "Family blessing matters", "blessing_matters" => "Involved, but the decision is ours", "later_when_serious" => "Tell them when serious", "my_decision_alone" => "Between two people" }
+      },
+      "faith_practice" => {
+        label: "Faith practice", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: { "central_daily" => "Central", "practice_regularly" => "Practised regularly", "practice_flexibly" => "Cultural more than practised", "not_a_factor" => "Not a factor" }
+      },
+      "money_providing" => {
+        label: "Money", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: { "both_one_purse" => "Everything joint", "joint_and_personal" => "Joint and personal", "split_bills" => "Split the bills", "earner_carries_more" => "Higher earner carries more" }
+      },
+      "settlement" => {
+        label: "Settlement", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: { "nigeria_staying_returning" => "Build at home", "diaspora_visiting_often" => "Abroad, visiting home", "open_to_relocate" => "Open to relocate", "abroad_home_eventually" => "Abroad now, home eventually" }
+      },
+      "children" => {
+        label: "Children", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: { "want_soon" => "Yes, soon", "want_no_rush" => "Yes, no rush", "open_either_way" => "Open to it", "dont_want" => "No" }
+      },
+      "conflict" => {
+        label: "Conflict", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: { "talk_now" => "Talk immediately", "cool_off_first" => "Cool off first", "trusted_mediator" => "Use a trusted mediator", "avoid_until_passes" => "Give it time" }
+      },
       "physical_affection" => {
         label: "Physical affection",
         cardinality: :single, max_selections: 1, visibility: :matches_only,

@@ -26,16 +26,27 @@ module Profiles
       assert @brand.valid?, @brand.errors.full_messages.to_sentence
       requirements = @brand.profile_completion_requirements
       assert_equal Date9jaProfileCatalog::REQUIRED_PROFILE_FIELDS, requirements.fetch("profile_fields")
-      assert_equal %w[photos location], requirements.fetch("collections")
+      assert_equal %w[photos], requirements.fetch("collections")
     end
 
-    test "models no sensitive field and keeps family fields owner-only" do
+    test "removes the obsolete Date9ja location completion requirement on refresh" do
+      Date9jaProfileCatalog.install!(brand: @brand)
+      stale = Date9jaProfileCatalog::REQUIREMENTS.deep_stringify_keys
+      stale["collections"] = %w[photos location]
+      @brand.update!(profile_requirements: stale)
+
       Date9jaProfileCatalog.install!(brand: @brand)
 
-      sensitive = %w[religion ethnicity tribe denomination preferred_tribes genotype religion_importance]
-      assert_empty(@brand.profile_option_groups.kept.pluck(:key) & sensitive)
+      assert_equal [ "photos" ], @brand.reload.profile_completion_requirements.fetch("collections")
+    end
 
-      %w[has_children wants_children].each do |key|
+    test "enables Date9ja cultural and compatibility capabilities owner-only" do
+      Date9jaProfileCatalog.install!(brand: @brand)
+
+      expected = %w[religion religion_importance tribe genotype family_involvement faith_practice money_providing settlement children conflict]
+      assert_equal expected.sort, (@brand.profile_option_groups.kept.pluck(:key) & expected).sort
+
+      (expected + %w[has_children wants_children]).each do |key|
         group = @brand.profile_option_groups.kept.find_by!(key:)
         assert_equal "owner_only", group.visibility
       end

@@ -27,13 +27,14 @@ module Brands
       assert brand.profile_option_groups.kept.exists?(key: "interests")
     end
 
-    test "does not model any sensitive Date9ja profile field" do
+    test "installs sensitive parity groups owner-only" do
       brand = Date9jaInstaller.call(hosts: [])
 
-      sensitive = %w[ religion religion_importance ethnicity tribe denomination preferred_tribes genotype ]
+      sensitive = %w[ religion religion_importance tribe genotype ]
       installed = brand.profile_option_groups.kept.pluck(:key)
 
-      assert_empty(installed & sensitive, "sensitive groups must not be installed: #{(installed & sensitive).inspect}")
+      assert_equal sensitive.sort, (installed & sensitive).sort
+      sensitive.each { |key| assert brand.profile_option_groups.kept.find_by!(key:).visibility_owner_only? }
       %w[ enabled_profile_fields profile_fields ].each do |bucket|
         assert_empty(brand.profile_completion_requirements.fetch(bucket) & sensitive)
       end
@@ -59,6 +60,18 @@ module Brands
       end
 
       assert Brand.kept.exists?(slug: "date9ja")
+    end
+
+    test "does not reset existing operator-owned brand state" do
+      brand = Date9jaInstaller.call(hosts: [])
+      brand.update!(status: :disabled, auth_methods: [ "email_password" ], profile_requirements: { "profile_fields" => [] })
+
+      Date9jaInstaller.call(hosts: [])
+
+      brand.reload
+      assert brand.disabled?
+      assert_equal [ "email_password" ], brand.auth_methods
+      assert_equal [], brand.profile_requirements.fetch("profile_fields")
     end
   end
 end

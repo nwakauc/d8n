@@ -32,6 +32,17 @@ if allowed_origins.any?
         methods: %i[ get post put patch delete options head ],
         credentials: true,
         max_age: 600
+
+      # Development/test Disk storage uses Active Storage's direct-upload
+      # route. Production disables these generic routes and uploads go straight
+      # to R2, so this additional cross-origin surface is local-only.
+      if Rails.env.development? || Rails.env.test?
+        resource "/rails/active_storage/*",
+          headers: %w[ Accept Content-Type Content-MD5 ],
+          methods: %i[ put options head ],
+          credentials: false,
+          max_age: 600
+      end
     end
   end
 end

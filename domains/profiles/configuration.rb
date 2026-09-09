@@ -30,6 +30,10 @@ module Profiles
           requirements.fetch("preference_fields")),
         collections: collections(requirements.fetch("collections")),
         option_groups: option_groups(requirements.fetch("option_groups")),
+        conditional_requirements: {
+          profile_fields: requirements.fetch("conditional_profile_fields", []),
+          option_groups: requirements.fetch("conditional_option_groups", [])
+        },
         prompts: prompts,
         openers: openers
       }
@@ -70,9 +74,14 @@ module Profiles
           cardinality: field.cardinality,
           input_type: field.input_type,
           visibility: field.owner_only_ceiling? ? "owner_only" : "public_profile",
-          options: field_options(field)
+          options: field_options(field),
+          minimum_length: requirements_minimum_length(field.key)
         }
       end
+    end
+
+    def requirements_minimum_length(field)
+      brand.profile_completion_requirements.fetch("minimum_lengths", {})[field]
     end
 
     def collections(required_keys)

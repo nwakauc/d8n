@@ -134,7 +134,20 @@ class ApplicationController < ActionController::API
     ActiveStorage::Current.url_options = {
       protocol: request.protocol,
       host: request.host,
-      port: request.optional_port
+      port: media_url_port
     }
+  end
+
+  # Next's local same-origin proxy forwards the Date9ja Host without the
+  # backend listener's port. Disk-service URLs must still point at Rails (3000),
+  # otherwise browsers attempt port 80 and the direct upload fails before it
+  # reaches Active Storage. Production/staging continue to use the request's
+  # externally visible port.
+  def media_url_port
+    return request.optional_port if request.optional_port.present?
+    return ENV["D8N_PUBLIC_PORT"].to_i if ENV["D8N_PUBLIC_PORT"].to_i.positive?
+    return 3000 if Rails.env.development? && request.host.end_with?(".localhost")
+
+    nil
   end
 end

@@ -13,7 +13,8 @@ class Date9jaProfileContractTest < ActionDispatch::IntegrationTest
   ENABLED_PROFILE = %w[
     display_name birthdate gender country_code city bio smoking drinking
     occupation job_title school_or_institution looking_for_text height_cm body_type
-    languages fitness
+    languages fitness is_nigerian state_of_origin nationality ideal_partner_description
+    willing_to_relocate relocation_preferences
   ].freeze
   ENABLED_IDENTITY = %w[first_name last_name].freeze
   ENABLED_PREFERENCE = %w[interested_in min_age max_age max_distance_km].freeze
@@ -47,7 +48,9 @@ class Date9jaProfileContractTest < ActionDispatch::IntegrationTest
   test "PATCH /api/v1/profile writes Date9ja-enabled canonical fields end to end" do
     patch "/api/v1/profile", headers: bearer, params: {
       display_name: "Ada N", bio: "Real profile.", country_code: "ng", city: "Lagos",
-      occupation: "Engineer", smoking: "never", drinking: "occasionally"
+      occupation: "Engineer", smoking: "never", drinking: "occasionally",
+      is_nigerian: false, nationality: "za", willing_to_relocate: true,
+      relocation_preferences: [ "Cape Town" ], ideal_partner_description: "Someone kind"
     }
     assert_response :success
 
@@ -58,11 +61,16 @@ class Date9jaProfileContractTest < ActionDispatch::IntegrationTest
     assert_equal "Lagos", profile.city
     assert_equal "Engineer", profile.occupation
     assert_equal "never", profile.smoking
+    assert_equal false, profile.is_nigerian
+    assert_equal "ZA", profile.nationality
+    assert_equal [ "Cape Town" ], profile.relocation_preferences
 
     body = JSON.parse(response.body).fetch("profile")
     assert_equal "Ada N", body.fetch("display_name")
     assert_equal "Engineer", body.fetch("occupation")
     assert_equal "never", body.fetch("smoking")
+    assert_equal false, body.fetch("is_nigerian")
+    assert_equal "ZA", body.fetch("nationality")
   end
 
   # 5 — a D8N-known but Date9ja-disabled NORMAL field is rejected.
@@ -106,8 +114,10 @@ class Date9jaProfileContractTest < ActionDispatch::IntegrationTest
   test "owner / public / detail serialization respect the Date9ja contract" do
     @user.update!(first_name: "Ada", last_name: "Nwosu")
     profile = Profiles::CurrentProfile.upsert!(user: @user, brand: @brand, attributes: {
-      display_name: "Ada", bio: "Hi", birthdate: 27.years.ago.to_date, gender: "woman",
-      country_code: "NG", city: "Abuja", occupation: "Doctor", smoking: "never", drinking: "never"
+      display_name: "Ada", bio: "A real biography", birthdate: 27.years.ago.to_date, gender: "woman",
+      country_code: "NG", city: "Abuja", occupation: "Doctor", smoking: "never", drinking: "never",
+      is_nigerian: true, state_of_origin: "Enugu", willing_to_relocate: false,
+      relocation_preferences: [], ideal_partner_description: "Someone kind"
     })
     viewer_user = User.create!
     viewer = Profile.create!(
@@ -122,6 +132,8 @@ class Date9jaProfileContractTest < ActionDispatch::IntegrationTest
     assert_equal "Abuja", owner[:city]
     assert_equal profile.birthdate.iso8601, owner[:birthdate]      # owner-only, enabled
     assert_equal "Ada", owner[:first_name]                          # identity, enabled
+    assert_equal true, owner[:is_nigerian]
+    assert_equal "Enugu", owner[:state_of_origin]
     (DISABLED_STANDARD + SENSITIVE).each { |f| refute owner.key?(f.to_sym), f }
 
     public_payload = Profiles::PublicSerializer.call(profile:)
@@ -129,6 +141,9 @@ class Date9jaProfileContractTest < ActionDispatch::IntegrationTest
     assert_equal "Doctor", public_payload[:occupation]
     refute public_payload.key?(:birthdate)                         # owner-only ceiling
     refute public_payload.key?(:first_name)
+    refute public_payload.key?(:is_nigerian)
+    refute public_payload.key?(:state_of_origin)
+    refute public_payload.key?(:willing_to_relocate)
     (DISABLED_STANDARD + SENSITIVE).each { |f| refute public_payload.key?(f.to_sym), f }
 
     detail = Profiles::DetailSerializer.call(profile:, viewer:)

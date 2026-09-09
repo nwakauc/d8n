@@ -36,7 +36,8 @@ module Profiles
     def call
       missing = missing_identity_fields + missing_profile_fields + missing_preference_fields + missing_collections +
         missing_option_groups
-      total = identity_fields.size + profile_fields.size + preference_fields.size + collections.size + option_groups.size
+      total = identity_fields.size + required_profile_fields.size + preference_fields.size + collections.size +
+        required_option_groups.size
       return Result.new(true, 100, [], sections) if total.zero?
 
       completed = total - missing.size
@@ -96,7 +97,32 @@ module Profiles
     end
 
     def missing_profile_fields
-      profile_fields.filter { |field| profile.public_send(field).blank? }.map(&:to_sym)
+      missing = required_profile_fields.filter { |field| !value_present?(profile[field]) }
+      minimum_lengths = requirements.fetch("minimum_lengths", {})
+      minimum_lengths.each do |field, minimum|
+        next unless safe_configured_profile_field?(field) && minimum.is_a?(Integer)
+
+        value = profile[field]
+        missing << field if value_present?(value) && value.to_s.length < minimum.to_i
+      end
+      missing.uniq.map(&:to_sym)
+    end
+
+    def required_profile_fields
+      (profile_fields + applicable_conditional_profile_fields).uniq
+    end
+
+    def applicable_conditional_profile_fields
+      Array(requirements["conditional_profile_fields"]).flat_map do |rule|
+        condition = rule.fetch("if", {})
+        next [] unless configured_condition_matches?(condition)
+
+        Array(rule["fields"]).select { |field| safe_configured_profile_field?(field) }
+      end
+    end
+
+    def value_present?(value)
+      value == false || value.present?
     end
 
     def missing_preference_fields
@@ -114,9 +140,39 @@ module Profiles
 
     def missing_option_groups
       selected_keys = profile.profile_option_selections.kept.joins(:profile_option_group)
-        .where(profile_option_groups: { key: option_groups }).distinct.pluck("profile_option_groups.key")
+        .where(profile_option_groups: { key: required_option_groups }).distinct.pluck("profile_option_groups.key")
 
-      (option_groups - selected_keys).map { |key| :"options.#{key}" }
+      required = required_option_groups
+      (required - selected_keys).map { |key| :"options.#{key}" }
+    end
+
+    def required_option_groups
+      (option_groups + conditional_option_groups).uniq
+    end
+
+    def conditional_option_groups
+      Array(requirements["conditional_option_groups"]).flat_map do |rule|
+        condition = rule.fetch("if", {})
+        configured_condition_matches?(condition) ? Array(rule["groups"]) : []
+      end
+    end
+
+    def configured_condition_matches?(condition)
+      condition.is_a?(Hash) && condition.present? && condition.all? do |field, expected|
+        safe_condition_field?(field) && profile[field] == expected
+      end
+    end
+
+    def safe_condition_field?(field)
+      safe_configured_profile_field?(field) && FieldCatalog.fetch(field).data_type == :boolean
+    end
+
+    def safe_configured_profile_field?(field)
+      key = field.to_s
+      return false unless FieldCatalog.defined?(key)
+
+      definition = FieldCatalog.fetch(key)
+      definition.group == :profile && definition.storage[:record] == :profile && profile.has_attribute?(key)
     end
 
     def requirements

@@ -1,5 +1,16 @@
 # Date9ja Parity Decision Queue
 
+## 2026-09-08 onboarding parity implementation note
+
+Date9ja's existing onboarding is now represented through shared D8N profile
+fields and controlled option groups. Faith, tribe, genotype, and compatibility
+answers are owner-only; they are not exposed in public profile serializers or
+enabled for other brands. Nigerian members require state of origin and tribe;
+non-Nigerian members require canonical ISO-2 nationality. Genotype remains
+optional. This records the implementation boundary requested for frontend
+parity; any future widening of visibility or matching use still requires an
+explicit product/privacy decision.
+
 This is the single queue for unresolved decisions. `CAPABILITY-PARITY.md` is authoritative for retained user capabilities and counts. Durable engineering decisions belong in `docs/adr/`; this queue records the decision needed and its effect.
 
 ## Product owner

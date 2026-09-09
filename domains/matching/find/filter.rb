@@ -60,7 +60,7 @@ module Matching
       private_class_method :apply_age
 
       def self.apply_distance(scope:, viewer:, eligibility_policy:, filter:)
-        return scope unless filter.max_distance_km
+        return scope unless filter.max_distance_km && eligibility_policy.location_filtering
 
         locations = viewer.profile_locations.kept
         if eligibility_policy.location_max_age

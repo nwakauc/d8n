@@ -741,7 +741,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_060000) do
     t.check_constraint "accuracy_meters >= 0 AND accuracy_meters <= 100000", name: "chk_profile_locations_accuracy"
     t.check_constraint "latitude >= '-90'::integer::numeric AND latitude <= 90::numeric", name: "chk_profile_locations_latitude"
     t.check_constraint "longitude >= '-180'::integer::numeric AND longitude <= 180::numeric", name: "chk_profile_locations_longitude"
-    t.check_constraint "source::text = ANY (ARRAY['device'::character varying, 'manual'::character varying, 'imported'::character varying, 'place'::character varying]::text[])", name: "chk_profile_locations_source"
+    t.check_constraint "source::text = ANY (ARRAY['device'::character varying::text, 'manual'::character varying::text, 'imported'::character varying::text, 'place'::character varying::text])", name: "chk_profile_locations_source"
   end
 
   create_table "profile_openers", force: :cascade do |t|

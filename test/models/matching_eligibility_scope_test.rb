@@ -77,6 +77,17 @@ module Matching
       assert_equal [ candidate.id ], eligible_scope.pluck(:id)
     end
 
+    test "Date9ja eligibility ignores coordinates and distance preferences" do
+      date9ja = Brand.create!(slug: "date9ja", name: "Date9ja")
+      viewer = create_profile(brand: date9ja, gender: "woman", age: 30,
+        interested_in: [ "man" ], min_age: 25, max_age: 40, max_distance_km: 1)
+      candidate = create_candidate(brand: date9ja, max_distance_km: 1_000)
+
+      assert_equal [ candidate.id ], EligibilityScope.call(
+        brand: date9ja, viewer:, policy: Matching::EligibilityPolicy::NO_LOCATION
+      ).pluck(:id)
+    end
+
     test "does not place precise coordinates in SQL text or bind logs" do
       @viewer.profile_preference.update!(max_distance_km: 20)
       create_location(@viewer, latitude: -33.9123456, longitude: 18.4987654)

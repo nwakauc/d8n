@@ -105,9 +105,9 @@ module D8n
         assert_equal %w[email_password phone_password], contract.auth_methods
         assert_equal Profiles::Date9jaProfileCatalog, contract.profile.catalog
         assert_equal "234", contract.phone_country_calling_code
-        assert_equal %w[NG], contract.place_country_codes
+        assert_empty contract.place_country_codes
         assert contract.capability_enabled?("profile.photos")
-        assert contract.capability_enabled?("profile.location.place_selection")
+        assert_not contract.capability_enabled?("profile.location.place_selection")
         assert contract.capability_enabled?("id.session.browser_persistence")
         assert contract.capability_enabled?("verify.contact.phone")
         assert contract.capability_enabled?("trust.report_evidence")
@@ -120,7 +120,7 @@ module D8n
         assert_nil contract.opener
         assert_nil contract.interaction.verification_requirement
         assert_equal :immediate, contract.media.initial_visibility
-        assert_equal Matching::EligibilityPolicy::PERSISTENT_LOCATION, contract.interaction.eligibility_policy
+        assert_equal Matching::EligibilityPolicy::NO_LOCATION, contract.interaction.eligibility_policy
       end
 
       test "Date9ja enables profile video with its legacy-compatible media policy" do

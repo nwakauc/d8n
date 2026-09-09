@@ -31,7 +31,7 @@ module Profiles
   # and controlled-vocabulary option groups (Profiles::CapabilityCatalog).
   module FieldCatalog
     GROUPS = %i[identity profile preference].freeze
-    DATA_TYPES = %i[string text date integer string_list structured_languages].freeze
+    DATA_TYPES = %i[string text date integer boolean string_list structured_languages].freeze
     # standard        — ordinary dating-presence signal
     # owner_private    — never shown to other members even if a brand tried
     #                    (raw birthdate, legal name, company, children count)
@@ -121,6 +121,7 @@ module Profiles
         when :text then "textarea"
         when :date then "date"
         when :integer then "integer"
+        when :boolean then "boolean"
         when :string_list then "string_list"
         when :structured_languages then "language_list"
         else "text"
@@ -185,6 +186,39 @@ module Profiles
         key: "city", group: :profile, label: "City",
         data_type: :string, storage: { record: :profile, column: :city },
         default_audience: :public, validation: { max_length: 120 }
+      ),
+      Field.new(
+        key: "is_nigerian", group: :profile, label: "Nigerian identity",
+        data_type: :boolean, storage: { record: :profile, column: :is_nigerian },
+        default_audience: :owner_only, validation: {}
+      ),
+      Field.new(
+        key: "state_of_origin", group: :profile, label: "State of origin",
+        data_type: :string, storage: { record: :profile, column: :state_of_origin },
+        default_audience: :owner_only, validation: { max_length: 80 }
+      ),
+      Field.new(
+        key: "nationality", group: :profile, label: "Nationality",
+        data_type: :string, storage: { record: :profile, column: :nationality },
+        default_audience: :owner_only, value_source: :iso_country_code,
+        validation: { format: /\A[A-Z]{2}\z/ }
+      ),
+      Field.new(
+        key: "ideal_partner_description", group: :profile, label: "Ideal partner",
+        data_type: :text, storage: { record: :profile, column: :ideal_partner_description },
+        default_audience: :public, validation: { max_length: 1_000 }, completion_requirable: false
+      ),
+      Field.new(
+        key: "willing_to_relocate", group: :profile, label: "Willing to relocate",
+        data_type: :boolean, storage: { record: :profile, column: :willing_to_relocate },
+        default_audience: :owner_only, validation: {}, completion_requirable: false
+      ),
+      Field.new(
+        key: "relocation_preferences", group: :profile, label: "Relocation destinations",
+        data_type: :string_list, cardinality: "multiple",
+        storage: { record: :profile, column: :relocation_preferences },
+        default_audience: :owner_only, validation: { list: { max_entries: 10, item_max_length: 80 } },
+        completion_requirable: false
       ),
       Field.new(
         key: "occupation", group: :profile, label: "Occupation",

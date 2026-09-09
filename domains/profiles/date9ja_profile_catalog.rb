@@ -4,12 +4,10 @@ module Profiles
   # only generic D8N capabilities (Profiles::CapabilityCatalog) with stable
   # semantics; it edits neither the generic catalogue nor another brand's.
   #
-  # SCOPE: this is the NON-SENSITIVE skeleton only. Date9ja's legacy sensitive
-  # profile fields — faith/religion, ethnicity, tribe, denomination, preferred
-  # tribes, and genotype — are deliberately excluded until the retention/option
-  # mapping and privacy architecture decisions in
-  # docs/migrations/date9ja-to-d8n/DECISIONS.md are resolved. Do not add them
-  # here without that approval.
+  # SCOPE: Date9ja onboarding parity fields and owner-only option groups
+  # (religion, tribe, genotype, compatibility answers) are enabled here.
+  # Denomination, preferred tribes, and culturally specific matching use remain
+  # deferred per docs/migrations/date9ja-to-d8n/DECISIONS.md.
   #
   # It defines onboarding/completion data, not compatibility weights or matching
   # behaviour. Sensitive values are owner-only unless explicitly widened here.
@@ -45,6 +43,16 @@ module Profiles
       { key: "relationship_intent", cardinality: :single, max_selections: 1, only: RELATIONSHIP_INTENTS },
       { key: "has_children", visibility: :owner_only },
       { key: "wants_children", visibility: :owner_only },
+      { key: "religion", visibility: :owner_only },
+      { key: "religion_importance", visibility: :owner_only },
+      { key: "tribe", visibility: :owner_only },
+      { key: "genotype", visibility: :owner_only },
+      { key: "family_involvement", visibility: :owner_only },
+      { key: "faith_practice", visibility: :owner_only },
+      { key: "money_providing", visibility: :owner_only },
+      { key: "settlement", visibility: :owner_only },
+      { key: "children", visibility: :owner_only },
+      { key: "conflict", visibility: :owner_only },
       { key: "meeting_pace", only: %w[ chat_first video_call_first few_days meet_soon go_with_the_flow ] },
       { key: "education_level" },
       { key: "social_style" },
@@ -85,11 +93,12 @@ module Profiles
     # brands' catalogues are untouched, and the shared FieldCatalog still owns
     # what these fields mean and how they validate.
     REQUIRED_PROFILE_FIELDS = %w[
-      display_name birthdate gender country_code city bio
+      display_name birthdate gender country_code city bio is_nigerian
     ].freeze
     OPTIONAL_PROFILE_FIELDS = %w[
       smoking drinking occupation job_title school_or_institution looking_for_text
-      height_cm body_type languages fitness
+      height_cm body_type languages fitness state_of_origin nationality
+      ideal_partner_description willing_to_relocate relocation_preferences
     ].freeze
     # The ENABLED set and its order are the brand's public contract and did not
     # change when smoking/drinking stopped being publication gates; only the
@@ -97,13 +106,15 @@ module Profiles
     ENABLED_PROFILE_FIELDS = %w[
       display_name birthdate gender country_code city bio smoking drinking
       occupation job_title school_or_institution looking_for_text height_cm
-      body_type languages fitness
+      body_type languages fitness is_nigerian
+      state_of_origin nationality ideal_partner_description willing_to_relocate relocation_preferences
     ].freeze
     REQUIRED_PREFERENCE_FIELDS = %w[ interested_in min_age max_age ].freeze
     # Enabled but not required — see REQUIRED_PROFILE_FIELDS above.
     ENABLED_PREFERENCE_FIELDS = %w[ interested_in min_age max_age max_distance_km ].freeze
     REQUIRED_OPTION_GROUPS = %w[
-      relationship_intent has_children wants_children
+      relationship_intent has_children wants_children religion family_involvement faith_practice
+      money_providing settlement children conflict
     ].freeze
     # Installed and offered, but never a publication gate: no legacy source
     # exists, so requiring it would block every migrated member forever.
@@ -124,8 +135,18 @@ module Profiles
       enabled_profile_fields: ENABLED_PROFILE_FIELDS,
       preference_fields: REQUIRED_PREFERENCE_FIELDS,
       enabled_preference_fields: ENABLED_PREFERENCE_FIELDS,
-      collections: %w[ photos location ],
+      # Date9ja asks for country and city as profile fields. It does not use
+      # device coordinates, distance filtering, or a required ProfileLocation.
+      collections: %w[ photos ],
       option_groups: REQUIRED_OPTION_GROUPS,
+      minimum_lengths: { "bio" => 10 },
+      conditional_profile_fields: [
+        { "if" => { "is_nigerian" => true }, "fields" => [ "state_of_origin" ] },
+        { "if" => { "is_nigerian" => false }, "fields" => [ "nationality" ] }
+      ],
+      conditional_option_groups: [
+        { "if" => { "is_nigerian" => true }, "groups" => [ "tribe" ] }
+      ],
       rich_profile_sections: RICH_PROFILE_SECTIONS
     }.freeze
 
@@ -141,6 +162,9 @@ module Profiles
 
     def install!
       Brand.transaction do
+        configured = brand.profile_requirements.deep_stringify_keys
+        fresh_contract = brand.profile_option_groups.kept.none? && !configured.key?("enabled_profile_fields")
+        install_requirements = configured.blank? || configured == Brand::DEFAULT_PROFILE_REQUIREMENTS || fresh_contract
         ENABLED_CAPABILITIES.each_with_index do |capability, position|
           CapabilityCatalog.enable_option_capability!(brand:, position:, **capability)
         end
@@ -149,10 +173,15 @@ module Profiles
         )
         CapabilityCatalog.enable_prompts!(brand:, keys: ENABLED_PROMPTS)
         retire_unconfigured_interest_options!
-        brand.update!(
-          profile_requirements: REQUIREMENTS,
-          auth_methods: AUTH_METHODS
-        )
+        if install_requirements
+          brand.update!(profile_requirements: REQUIREMENTS)
+        elsif configured.fetch("collections", []).include?("location")
+          # Older Date9ja installs treated ProfileLocation as a publication
+          # requirement. Remove only that obsolete requirement while preserving
+          # any operator-managed changes to the rest of the contract.
+          brand.update!(profile_requirements: configured.merge("collections" => [ "photos" ]))
+        end
+        brand.update!(auth_methods: AUTH_METHODS) if brand.auth_methods.blank?
       end
 
       brand

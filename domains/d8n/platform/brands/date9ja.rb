@@ -41,7 +41,6 @@ module D8n
           profile.interests
           profile.languages
           profile.location
-          profile.location.place_selection
           profile.photos
           profile.video
           profile.completion
@@ -84,12 +83,10 @@ module D8n
           notify.push
         ].freeze
 
-        # Date9ja models a member's location as a chosen city/area that stays
-        # valid for matching until they change it, not a live freshness signal —
-        # the same product shape as DateZA, so it reuses the shared persistent
-        # location eligibility policy. This is configuration, not Date9ja
-        # discovery logic (which is a separate remediation slice).
-        ELIGIBILITY_POLICY = Matching::EligibilityPolicy::PERSISTENT_LOCATION
+        # Date9ja's matching product uses country/city profile fields and does
+        # not apply coordinate or distance eligibility. This is configuration,
+        # not a Date9ja-specific discovery implementation.
+        ELIGIBILITY_POLICY = Matching::EligibilityPolicy::NO_LOCATION
 
         def self.contract(brand:)
           BrandContract.new(
@@ -98,7 +95,9 @@ module D8n
             profile: BrandContract::ProfileConfiguration.new(
               catalog: Profiles::Date9jaProfileCatalog
             ),
-            place_country_codes: %w[ NG ],
+            # Date9ja stores the selected country/city as profile fields; it
+            # does not use the canonical Place/ProfileLocation selector.
+            place_country_codes: [],
             phone_country_calling_code: "234",
             interaction: BrandContract::InteractionConfiguration.new(
               eligibility_policy: ELIGIBILITY_POLICY,

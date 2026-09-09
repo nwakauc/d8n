@@ -20,7 +20,9 @@ module Brands
     def call
       Brand.transaction do
         brand = Brand.kept.find_or_initialize_by(slug: BRAND_SLUG)
-        brand.assign_attributes(name: BRAND_NAME, status: :active)
+        if brand.new_record?
+          brand.assign_attributes(name: BRAND_NAME, status: :active)
+        end
         brand.save!
         Profiles::Date9jaProfileCatalog.install!(brand:)
         hosts.each { |host| install_host!(brand:, host:) }
