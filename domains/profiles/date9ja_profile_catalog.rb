@@ -60,6 +60,10 @@ module Profiles
       { key: "family_involvement_level", visibility: :owner_only },
       { key: "commitment_timeline" },
       { key: "marital_status", visibility: :owner_only },
+      # Lossless homes for the legacy free-text arrays. Collected and preserved,
+      # never a publication gate.
+      { key: "relationship_values", visibility: :owner_only },
+      { key: "dealbreakers", visibility: :owner_only },
       { key: "religion", visibility: :owner_only },
       { key: "religion_importance", visibility: :owner_only },
       { key: "tribe", visibility: :owner_only },

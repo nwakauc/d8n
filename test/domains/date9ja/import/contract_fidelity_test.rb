@@ -100,6 +100,50 @@ module Date9ja
         assert_equal %w[NG GH], profile_for(1).reload.profile_preference.preferred_country_codes
       end
 
+      def selection_codes(id, group_key)
+        group = @brand.profile_option_groups.kept.find_by!(key: group_key)
+        ProfileOptionSelection.kept.where(profile: profile_for(id), profile_option_group: group)
+          .joins(:profile_option).pluck("profile_options.code").sort
+      end
+
+      test "interests / relationship_values / dealbreakers map to curated multi-selections" do
+        run_all([ row(id: 1,
+          interests: [ "Afrobeats", "Football", "Cooking" ],
+          relationship_values: [ "Honesty", "Family", "Ambition" ],
+          dealbreakers: [ "Smoking", "Long distance" ]) ])
+
+        assert_equal %w[afrobeats cooking football], selection_codes(1, "interests")
+        assert_equal %w[ambition family honesty], selection_codes(1, "relationship_values")
+        assert_equal %w[long_distance smoking], selection_codes(1, "dealbreakers")
+      end
+
+      test "an unmappable taxonomy element is quarantined, never guessed" do
+        result = run_all([ row(id: 1, interests: [ "Afrobeats", "underwater basket weaving" ]) ])
+        assert_equal %w[afrobeats], selection_codes(1, "interests")
+        assert_equal 1, result.reconciliation.to_h.dig("measures", "interests_mapped")
+      end
+
+      test "a rerun does not overwrite taxonomy selections the member edited" do
+        rows = [ row(id: 1, interests: [ "Football" ]) ]
+        run_all(rows)
+        group = @brand.profile_option_groups.kept.find_by!(key: "interests")
+        ProfileOptionSelection.kept.where(profile: profile_for(1), profile_option_group: group).delete_all
+        gym = group.profile_options.kept.find_by!(code: "gym")
+        ProfileOptionSelection.create!(profile: profile_for(1), user_id: profile_for(1).user_id,
+          brand_id: @brand.id, profile_option_group: group, profile_option: gym)
+
+        run_all(rows)
+
+        assert_equal %w[gym], selection_codes(1, "interests")
+      end
+
+      test "a migrated member with no taxonomy values still publishes and records nothing" do
+        result = run_all([ row(id: 1, interests: [], relationship_values: [], dealbreakers: []) ])
+        assert_equal 1, result.reconciliation.count(:ready)
+        assert_equal 0, result.reconciliation.to_h.dig("measures", "interests_mapped")
+        assert_empty selection_codes(1, "relationship_values")
+      end
+
       test "a rerun does not overwrite relocation_preferences the member edited" do
         rows = [ row(id: 1, relocation_preferences: [ "Lagos" ]) ]
         run_all(rows)

@@ -304,6 +304,38 @@ module Profiles
           "low" => "Low", "medium" => "Medium", "high" => "High",
           "prefer_not_to_say" => "Prefer not to say"
         }
+      },
+      # What a member values most in a relationship — a curated multi-select.
+      # The lossless D8N home for Date9ja's `users.relationship_values` array.
+      # Owner-only by default (it is a personal statement); a brand may widen.
+      "relationship_values" => {
+        label: "What matters most to you in a relationship?",
+        cardinality: :multiple, max_selections: 10, visibility: :owner_only,
+        options: {
+          "honesty" => "Honesty", "loyalty" => "Loyalty", "trust" => "Trust",
+          "communication" => "Communication", "respect" => "Respect",
+          "faith" => "Shared faith", "family" => "Family", "ambition" => "Ambition",
+          "independence" => "Independence", "growth" => "Growth", "kindness" => "Kindness",
+          "humour" => "Humour", "adventure" => "Adventure", "stability" => "Stability",
+          "generosity" => "Generosity", "emotional_openness" => "Emotional openness"
+        }
+      },
+      # Hard dealbreakers — a curated multi-select kept LOSSLESS (every value is a
+      # distinct option, never collapsed into one prompt). The D8N home for
+      # Date9ja's `users.dealbreakers` array. Owner-only; a brand may widen.
+      "dealbreakers" => {
+        label: "Dealbreakers",
+        cardinality: :multiple, max_selections: 12, visibility: :owner_only,
+        options: {
+          "smoking" => "Smoking", "heavy_drinking" => "Heavy drinking", "drugs" => "Drugs",
+          "wants_children" => "Wants children", "does_not_want_children" => "Doesn't want children",
+          "already_has_children" => "Already has children", "long_distance" => "Long distance",
+          "different_faith" => "Different faith", "no_ambition" => "No ambition",
+          "poor_communication" => "Poor communication", "dishonesty" => "Dishonesty",
+          "jealousy" => "Jealousy", "different_politics" => "Different politics",
+          "not_financially_stable" => "Not financially stable",
+          "against_marriage" => "Not open to marriage", "poor_hygiene" => "Poor hygiene"
+        }
       }
     }.freeze
 

@@ -44,6 +44,17 @@ module Date9ja
         end
       end
 
+      test "crosses the curated free-text taxonomy arrays for the taxonomy-preservation slice" do
+        # interests / relationship_values / dealbreakers are non-sensitive member
+        # values with lossless D8N destinations (curated option groups). Not
+        # sensitive/gated; element values are sanitizer-redacted.
+        %w[interests relationship_values dealbreakers].each do |column|
+          assert_includes UserSource::SELECTED_COLUMNS, column
+          assert_includes UserRecord.members.map(&:to_s), column
+          assert_empty([ column ] & Date9ja::Import::FieldMapping::SENSITIVE_DENYLIST)
+        end
+      end
+
       test "selects the narrowly required legacy name for readiness without logging it" do
         assert_includes UserSource::SELECTED_COLUMNS, "full_name"
         assert_includes UserRecord.members.map(&:to_s), "full_name"

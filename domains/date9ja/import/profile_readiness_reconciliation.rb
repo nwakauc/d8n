@@ -18,6 +18,9 @@ module Date9ja
         enrichment_values_mapped enrichment_values_preserved enrichment_values_unresolved
         languages_mapped languages_unresolved
         relocation_preferences_mapped relocation_preferences_unresolved
+        interests_mapped interests_unresolved
+        relationship_values_mapped relationship_values_unresolved
+        dealbreakers_mapped dealbreakers_unresolved
       ].freeze
 
       def initialize

@@ -52,6 +52,45 @@ module Date9ja
         refute CountryMapping.call("nigeri").mapped?
       end
 
+      test "interest mapping is explicit, order-preserving, and quarantines the unknown" do
+        out = InterestMapping.call([ "Afro Beats", "Soccer", "reading", "quantum basket weaving" ])
+        assert_equal :partial, out.status
+        assert_equal %w[afrobeats football reading], out.codes
+
+        assert InterestMapping.call([]).absent?
+        assert InterestMapping.call([ "quantum basket weaving" ]).unmapped?
+        assert_empty InterestMapping.call([ "quantum basket weaving" ]).codes
+      end
+
+      test "relationship value mapping is explicit and fails closed" do
+        out = RelationshipValueMapping.call([ "Honesty", "sense of humour", "vibes" ])
+        assert_equal :partial, out.status
+        assert_equal %w[honesty humour], out.codes
+        assert RelationshipValueMapping.call([ "vibes" ]).unmapped?
+        assert RelationshipValueMapping.call(nil).absent?
+      end
+
+      test "dealbreaker mapping is lossless per element and fails closed" do
+        out = DealbreakerMapping.call([ "Smoking", "doesn't want kids", "long distance", "bad vibes" ])
+        assert_equal :partial, out.status
+        assert_equal %w[smoking does_not_want_children long_distance], out.codes
+        assert DealbreakerMapping.call([ "bad vibes" ]).unmapped?
+        assert DealbreakerMapping.call([]).absent?
+      end
+
+      test "curated mappings only ever emit codes their D8N option group defines" do
+        {
+          InterestMapping => Profiles::CapabilityCatalog::INTERESTS.fetch(:options).map { |o| o.fetch(:code) },
+          RelationshipValueMapping =>
+            Profiles::CapabilityCatalog::OPTION_CAPABILITIES.fetch("relationship_values").fetch(:options).keys,
+          DealbreakerMapping =>
+            Profiles::CapabilityCatalog::OPTION_CAPABILITIES.fetch("dealbreakers").fetch(:options).keys
+        }.each do |mapping, catalogue_codes|
+          emitted = mapping::ALIASES.values.uniq
+          assert_empty(emitted - catalogue_codes, "#{mapping} emits a code its option group does not define")
+        end
+      end
+
       test "place resolution is exact and limited to canonical Nigerian places" do
         Geography::NigeriaCatalog.install!
         Geography::SouthAfricaCatalog.install!

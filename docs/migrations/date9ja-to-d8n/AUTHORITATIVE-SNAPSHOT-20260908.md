@@ -209,9 +209,9 @@ uncontrolled strings.
 | Education | Option supported | None | SUPPORTED BUT NOT MIGRATED | P1 | Explicit five-code mapping |
 | Family involvement | Option supported at D8N HEAD | None | SUPPORTED BUT NOT MIGRATED | P1 | Explicit three-code mapping |
 | Languages | Structured scalar supported | None | SUPPORTED BUT NOT MIGRATED | P1 | Normalize/quarantine unknown strings |
-| Interests | Curated options supported | None | SUPPORTED BUT NOT MIGRATED | P1 | Map controlled subset; quarantine free text |
-| Relationship values | No canonical destination | None | NO CANONICAL DESTINATION | P2 | Define capability before import |
-| Dealbreakers | Prompt exists, no lossless array destination | None | NO CANONICAL DESTINATION | P1 | Do not collapse arrays into one prompt silently |
+| Interests | Curated `interests` group | InterestMapping (explicit, quarantines free text) | MIGRATED (element values pending sanitizer review) | — | Done — controlled subset mapped, unknown quarantined |
+| Relationship values | New `relationship_values` capability (2026-09-09) | RelationshipValueMapping (explicit, fail-closed) | MIGRATED (element values pending sanitizer review) | — | Done — reusable owner-only multi-select |
+| Dealbreakers | New `dealbreakers` capability (2026-09-09) | DealbreakerMapping (explicit, lossless per element) | MIGRATED (element values pending sanitizer review) | — | Done — every value a distinct option, never collapsed |
 | Preferred countries | `profile_preferences.preferred_country_codes` (added 2026-09-09) | Imported via CountryMapping allowlist | MIGRATED (element values pending sanitizer review) | — | Done — closed multi-country ISO store, never a gate |
 | Relocation willingness/preferences | Boolean + `profiles.relocation_preferences` array | Boolean + array both imported (2026-09-09) | MIGRATED (array element values pending sanitizer review) | — | Done — boolean tri-state + normalized free-text array |
 | Discovery restriction | Platform safety concepts exist | Not imported | SUPPORTED BUT NOT MIGRATED | P0 | Fail closed until explicit state mapping exists |

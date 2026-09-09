@@ -31,7 +31,13 @@ module Date9ja
       # slice. Flat legacy string arrays -- `preferred_countries` decoded via
       # Date9ja::Import::CountryMapping, `relocation_preferences` carried as
       # normalized free text. Neither is a sensitive column.
-      :preferred_countries, :relocation_preferences
+      :preferred_countries, :relocation_preferences,
+      # Curated free-text taxonomy arrays -- mapped to D8N option codes via the
+      # explicit Date9ja::Import::{Interest,RelationshipValue,Dealbreaker}Mapping
+      # tables (fail closed / quarantine on an unknown element). Not sensitive
+      # columns; element values are sanitizer-redacted so only synthetic/pristine
+      # data exercises the mapping.
+      :interests, :relationship_values, :dealbreakers
     ) do
       BOOLEAN = ActiveModel::Type::Boolean.new
 
@@ -80,7 +86,10 @@ module Date9ja
           willing_to_relocate: cast_optional_boolean(row["willing_to_relocate"]),
           languages_spoken: normalize_string_list(row["languages_spoken"]),
           preferred_countries: normalize_string_list(row["preferred_countries"]),
-          relocation_preferences: normalize_string_list(row["relocation_preferences"])
+          relocation_preferences: normalize_string_list(row["relocation_preferences"]),
+          interests: normalize_string_list(row["interests"]),
+          relationship_values: normalize_string_list(row["relationship_values"]),
+          dealbreakers: normalize_string_list(row["dealbreakers"])
         )
       end
 
@@ -145,7 +154,8 @@ module Date9ja
           smoking, drinking, fitness, education, commitment_timeline,
           marital_status, family_involvement_preference, occupation, body_type,
           height, willing_to_relocate, languages_spoken.join(","),
-          relocation_preferences.join(",")
+          relocation_preferences.join(","), interests.join(","),
+          relationship_values.join(","), dealbreakers.join(",")
         ].map(&:to_s).join("|")
         Digest::SHA256.hexdigest(material)[0, 32]
       end

@@ -24,6 +24,7 @@ module Date9ja
         smoking drinking fitness education commitment_timeline marital_status
         family_involvement_preference occupation body_type height
         willing_to_relocate languages_spoken preferred_countries relocation_preferences
+        interests relationship_values dealbreakers
       ].freeze
 
       def initialize(rows: nil, connection: nil, verify_schema: true)

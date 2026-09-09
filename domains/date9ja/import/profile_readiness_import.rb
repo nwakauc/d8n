@@ -115,6 +115,7 @@ module Date9ja
           apply_names!(profile.user, record, applied_fields:)
           apply_profile_scalars!(profile, record, applied_fields:)
           apply_enrichment_scalars!(profile, record, applied_fields:)
+          apply_curated_taxonomies!(profile, record, applied_fields:)
           apply_location!(profile, applied_fields:)
 
           completion = Profiles::Completion.call(profile:)
@@ -325,6 +326,52 @@ module Date9ja
           reconciliation.measure!(:relocation_preferences_mapped)
         elsif Array(record.relocation_preferences).any?
           reconciliation.measure!(:relocation_preferences_unresolved)
+        end
+      end
+
+      # Legacy free-text taxonomy arrays -> D8N curated multi-select option
+      # groups, through the explicit mapping tables (fail closed / quarantine on
+      # an unrecognised element — never approximated). Gap-fill only: a group
+      # that already carries any kept selection (a member's or a prior run's) is
+      # left untouched, and a group this importer filled that was later cleared
+      # is not refilled (tracked via applied_fields). None is a publication gate.
+      CURATED_TAXONOMIES = {
+        "interests" => InterestMapping,
+        "relationship_values" => RelationshipValueMapping,
+        "dealbreakers" => DealbreakerMapping
+      }.freeze
+
+      def apply_curated_taxonomies!(profile, record, applied_fields:)
+        CURATED_TAXONOMIES.each do |group_key, mapping|
+          next if applied_fields.include?(group_key)
+
+          group = ProfileOptionGroup.kept.find_by(brand:, key: group_key)
+          next if group.nil?
+          next if ProfileOptionSelection.kept.exists?(profile:, profile_option_group: group)
+
+          source_values = Array(record.public_send(group_key))
+          outcome = mapping.call(source_values)
+
+          if outcome.codes.any?
+            write_multi_selection!(profile, group, outcome.codes)
+            applied_fields << group_key
+            reconciliation.measure!(:"#{group_key}_mapped")
+          elsif source_values.any?
+            reconciliation.measure!(:"#{group_key}_unresolved")
+          end
+        end
+      end
+
+      def write_multi_selection!(profile, group, codes)
+        options = group.profile_options.kept.where(code: codes).index_by(&:code)
+        codes.first(group.max_selections).each do |code|
+          option = options[code]
+          next if option.nil?
+
+          ProfileOptionSelection.create!(
+            profile:, user_id: profile.user_id, brand_id: brand.id,
+            profile_option_group: group, profile_option: option
+          )
         end
       end
 

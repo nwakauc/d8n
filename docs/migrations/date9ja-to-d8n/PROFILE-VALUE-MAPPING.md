@@ -53,13 +53,28 @@
 > (`d8n_date9ja_rehearsal_cf_20260909`, dropped).
 > Sanitizer redacts `occupation` and `languages_spoken`, so those two are
 > verified by unit test + census, not by the sanitized rehearsal.
-> **Still out of scope (privacy, sanitizer-redacted, E-5 review outstanding):**
-> element-level import of `interests`, `relationship_values`, `dealbreakers`.
-> Their D8N destinations are the next increment (interests taxonomy exists;
-> `relationship_values` needs a capability; `dealbreakers` needs a lossless
-> array destination) — building the destination is not blocked by E-5, only the
-> reading of member text is. `preferred_countries` / `relocation_preferences`
-> destinations + importers are **DONE** (2026-09-09 follow-up slice above).
+> **interests / relationship_values / dealbreakers (2026-09-09, follow-up slice).**
+> All three now have a lossless D8N home and an importer:
+> - `interests` → existing curated `interests` group.
+> - `relationship_values` → new reusable `Profiles::CapabilityCatalog`
+>   `relationship_values` multi-select (16 codes, owner-only).
+> - `dealbreakers` → new reusable `dealbreakers` multi-select (16 codes,
+>   owner-only) — LOSSLESS: every value is a distinct option, never collapsed
+>   into the single `dealbreaker` prompt.
+>
+> Each maps through an explicit `Date9ja::Import::{Interest,RelationshipValue,
+> Dealbreaker}Mapping` table (code + label + everyday synonyms), fail-closed:
+> an unrecognised element is quarantined and noted, never approximated.
+> `ProfileReadinessImport#apply_curated_taxonomies!` writes the multi-selections,
+> gap-fill only, never a publication gate. The alias tables are SEEDED only —
+> the exhaustive vocabulary review (E-4/E-5) that extends them is still blocked
+> on the sanitizer classification of the element values, which stay REDACTED, so
+> these paths are exercised by unit test + synthetic data, not the rehearsal.
+> Date9ja enables all three; DateZA/HookUs do not.
+>
+> **Nothing on the Date9ja `users` profile/preference surface is now left
+> without a D8N destination.** Remaining work on these three is purely the
+> element-vocabulary review, which is a privacy decision, not an engineering gap.
 
 **Authority.** This is the working contract for **Pass 2** of the Date9ja profile &
 preference migration: how each legacy `users` value becomes a D8N value. It is
