@@ -297,9 +297,35 @@ module Date9ja
         end
 
         apply_languages!(profile, record, applied_fields:, attrs:)
+        apply_relocation_preferences!(profile, record, applied_fields:, attrs:)
 
         applied_fields.uniq!
         profile.update!(attrs) if attrs.any?
+      end
+
+      # Legacy `users.relocation_preferences` is a flat array of user-typed
+      # place strings, separate from the `willing_to_relocate` boolean. It maps
+      # to `profiles.relocation_preferences` (Profiles::FieldCatalog string_list,
+      # <=10 entries, <=80 chars each). Carried as normalized free text — never
+      # geocoded or coerced. Gap-fill only.
+      RELOCATION_PREFERENCE_MAX_ENTRIES = 10
+      RELOCATION_PREFERENCE_MAX_LENGTH = 80
+
+      def apply_relocation_preferences!(profile, record, applied_fields:, attrs:)
+        return if profile.relocation_preferences.present? || applied_fields.include?("relocation_preferences")
+
+        normalized = Array(record.relocation_preferences)
+          .filter_map { |value| FieldMapping.clamp(value.to_s.gsub(/\s+/, " "), RELOCATION_PREFERENCE_MAX_LENGTH) }
+          .uniq
+          .first(RELOCATION_PREFERENCE_MAX_ENTRIES)
+
+        if normalized.any?
+          attrs[:relocation_preferences] = normalized
+          applied_fields << "relocation_preferences"
+          reconciliation.measure!(:relocation_preferences_mapped)
+        elsif Array(record.relocation_preferences).any?
+          reconciliation.measure!(:relocation_preferences_unresolved)
+        end
       end
 
       def apply_languages!(profile, record, applied_fields:, attrs:)

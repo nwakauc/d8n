@@ -33,6 +33,17 @@ module Date9ja
         assert_empty([ "languages_spoken" ] & Date9ja::Import::FieldMapping::SENSITIVE_DENYLIST)
       end
 
+      test "crosses the multi-value residence-preference arrays for the preferred-countries slice" do
+        # `preferred_countries` (multi-country residence preference) and
+        # `relocation_preferences` (relocation destinations) are non-sensitive
+        # member values with lossless D8N destinations. Not sensitive/gated.
+        %w[preferred_countries relocation_preferences].each do |column|
+          assert_includes UserSource::SELECTED_COLUMNS, column
+          assert_includes UserRecord.members.map(&:to_s), column
+          assert_empty([ column ] & Date9ja::Import::FieldMapping::SENSITIVE_DENYLIST)
+        end
+      end
+
       test "selects the narrowly required legacy name for readiness without logging it" do
         assert_includes UserSource::SELECTED_COLUMNS, "full_name"
         assert_includes UserRecord.members.map(&:to_s), "full_name"

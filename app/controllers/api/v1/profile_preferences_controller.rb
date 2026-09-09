@@ -37,9 +37,16 @@ class Api::V1::ProfilePreferencesController < ApplicationController
   # Profiles::Configuration advertises to the client.
   def preference_params
     filters = field_policy.writable_preference_fields.map do |field|
-      field == "interested_in" ? { interested_in: [] } : field.to_sym
+      list_preference_field?(field) ? { field.to_sym => [] } : field.to_sym
     end
     params.permit(*filters)
+  end
+
+  # A multi-value preference scalar (interested_in, preferred_country_codes) is
+  # permitted as an array; a plain scalar as a symbol.
+  def list_preference_field?(field)
+    Profiles::FieldCatalog.defined?(field) &&
+      Profiles::FieldCatalog.fetch(field).data_type == :string_list
   end
 
   def preference_payload(preference)

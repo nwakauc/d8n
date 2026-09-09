@@ -17,8 +17,10 @@ class Date9jaProfileContractTest < ActionDispatch::IntegrationTest
     willing_to_relocate relocation_preferences
   ].freeze
   ENABLED_IDENTITY = %w[first_name last_name].freeze
-  ENABLED_PREFERENCE = %w[interested_in min_age max_age max_distance_km].freeze
-  # Standard canonical fields Date9ja deliberately does NOT enable.
+  ENABLED_PREFERENCE = %w[interested_in min_age max_age max_distance_km preferred_country_codes].freeze
+  # Standard canonical fields Date9ja deliberately does NOT enable. `country` is
+  # the single-country preference; Date9ja uses the multi-country
+  # `preferred_country_codes` instead.
   DISABLED_STANDARD = %w[pronouns company_name children_count languages_spoken country relationship_intent].freeze
   SENSITIVE = %w[tribe ethnicity].freeze
 

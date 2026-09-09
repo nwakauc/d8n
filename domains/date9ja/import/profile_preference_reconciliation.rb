@@ -67,6 +67,9 @@ module Date9ja
         marital_status_unmapped
         education_level_absent
         education_level_unmapped
+        preferred_countries_absent
+        preferred_countries_partial
+        preferred_countries_unmapped
       ].freeze
 
       def initialize

@@ -27,6 +27,7 @@ class ProfilePreference < ApplicationRecord
   validate :age_range_is_ordered
   validate :profile_matches_scope
   validate :interested_in_is_array
+  validate :preferred_country_codes_are_valid
 
   before_validation :normalize_preferences
 
@@ -61,13 +62,44 @@ class ProfilePreference < ApplicationRecord
     end
   end
 
+  # A MULTI-country residence preference, distinct from the scalar `country`.
+  # Each element is an ISO-3166 alpha-2 code; shape and limits mirror
+  # `interested_in` (Profiles::FieldCatalog "preferred_country_codes").
+  def preferred_country_codes_are_valid
+    unless preferred_country_codes.is_a?(Array)
+      errors.add(:preferred_country_codes, "must be an array")
+      return
+    end
+
+    limits = Profiles::FieldCatalog.list_limits("preferred_country_codes")
+    if preferred_country_codes.size > limits.fetch(:max_entries)
+      errors.add(:preferred_country_codes, "cannot have more than #{limits.fetch(:max_entries)} entries")
+    end
+    if preferred_country_codes.any? { |value| !value.is_a?(String) || !value.match?(/\A[A-Z]{2}\z/) }
+      errors.add(:preferred_country_codes, "contains an invalid country code")
+    end
+  end
+
   def normalize_preferences
     self.country = country.to_s.strip.upcase.presence
     self.relationship_intent = relationship_intent.to_s.strip.presence
+    normalize_interested_in
+    normalize_preferred_country_codes
+  end
+
+  def normalize_interested_in
     return unless interested_in.is_a?(Array)
 
     self.interested_in = interested_in.map do |value|
       value.is_a?(String) ? value.strip.presence : value
+    end.compact.uniq
+  end
+
+  def normalize_preferred_country_codes
+    return unless preferred_country_codes.is_a?(Array)
+
+    self.preferred_country_codes = preferred_country_codes.map do |value|
+      value.is_a?(String) ? value.strip.upcase.presence : value
     end.compact.uniq
   end
 end

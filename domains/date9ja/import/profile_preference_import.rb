@@ -205,7 +205,39 @@ module Date9ja
       # --- preference --------------------------------------------------------
 
       def preference_attributes(record)
-        { interested_in: interested_in_for(record) }.merge(age_range_for(record))
+        { interested_in: interested_in_for(record), preferred_country_codes: preferred_country_codes_for(record) }
+          .merge(age_range_for(record))
+      end
+
+      # Legacy `users.preferred_countries` is a flat array of user-typed country
+      # strings — the multi-country residence preference. Each element is decoded
+      # through the same closed CountryMapping allowlist the identity/readiness
+      # passes use for `country_of_residence`; an element it does not recognise
+      # is dropped (never guessed), and the outcome is recorded as a note.
+      def preferred_country_codes_for(record)
+        values = Array(record.preferred_countries)
+        if values.empty?
+          reconciliation.note!("preferred_countries_absent")
+          return []
+        end
+
+        codes = []
+        unmapped = false
+        values.each do |value|
+          outcome = CountryMapping.call(value)
+          if outcome.mapped?
+            codes << outcome.country_code unless codes.include?(outcome.country_code)
+          else
+            unmapped = true
+          end
+        end
+
+        if codes.empty?
+          reconciliation.note!("preferred_countries_unmapped")
+        elsif unmapped
+          reconciliation.note!("preferred_countries_partial")
+        end
+        codes
       end
 
       def interested_in_for(record)
@@ -279,6 +311,10 @@ module Date9ja
         if preference.min_age.nil? && preference.max_age.nil?
           range = age_range_for(record)
           attrs.merge!(range) if range[:min_age] || range[:max_age]
+        end
+        if preference.preferred_country_codes.blank?
+          codes = preferred_country_codes_for(record)
+          attrs[:preferred_country_codes] = codes if codes.present?
         end
         preference.update!(attrs) if attrs.any?
       end
@@ -357,7 +393,8 @@ module Date9ja
           record.preferred_distance_km, record.relationship_intention,
           record.wants_children, record.children_count,
           record.family_involvement_preference, record.commitment_timeline,
-          record.marital_status, record.education
+          record.marital_status, record.education,
+          Array(record.preferred_countries).join(",")
         ].map(&:to_s).join("|")
         Digest::SHA256.hexdigest(material)[0, 32]
       end

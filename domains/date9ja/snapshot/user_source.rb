@@ -23,7 +23,7 @@ module Date9ja
         relationship_intention wants_children children_count
         smoking drinking fitness education commitment_timeline marital_status
         family_involvement_preference occupation body_type height
-        willing_to_relocate languages_spoken
+        willing_to_relocate languages_spoken preferred_countries relocation_preferences
       ].freeze
 
       def initialize(rows: nil, connection: nil, verify_schema: true)

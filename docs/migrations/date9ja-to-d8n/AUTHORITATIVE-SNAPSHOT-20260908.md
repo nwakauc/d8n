@@ -212,8 +212,8 @@ uncontrolled strings.
 | Interests | Curated options supported | None | SUPPORTED BUT NOT MIGRATED | P1 | Map controlled subset; quarantine free text |
 | Relationship values | No canonical destination | None | NO CANONICAL DESTINATION | P2 | Define capability before import |
 | Dealbreakers | Prompt exists, no lossless array destination | None | NO CANONICAL DESTINATION | P1 | Do not collapse arrays into one prompt silently |
-| Preferred countries | Preference concept not imported | None | SUPPORTED BUT NOT MIGRATED | P1 | Define canonical multi-country storage |
-| Relocation willingness/preferences | Scalars now supported | None | SUPPORTED BUT NOT MIGRATED | P1 | Preserve boolean and normalized array |
+| Preferred countries | `profile_preferences.preferred_country_codes` (added 2026-09-09) | Imported via CountryMapping allowlist | MIGRATED (element values pending sanitizer review) | — | Done — closed multi-country ISO store, never a gate |
+| Relocation willingness/preferences | Boolean + `profiles.relocation_preferences` array | Boolean + array both imported (2026-09-09) | MIGRATED (array element values pending sanitizer review) | — | Done — boolean tri-state + normalized free-text array |
 | Discovery restriction | Platform safety concepts exist | Not imported | SUPPORTED BUT NOT MIGRATED | P0 | Fail closed until explicit state mapping exists |
 | Identity correction state | No equivalent workflow proven | Snapshot columns absent | UNKNOWN / REQUIRES DECISION | P0 for cutover | Re-evaluate against final cutover snapshot |
 | Verification/trust | Domains exist | Contact verification only in identity importer | PARTIALLY/LOSSILY MIGRATED | P0 | Complete no-downgrade migration/reconciliation |

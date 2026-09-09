@@ -90,6 +90,59 @@ module Date9ja
         assert result.reconciliation.balanced?
       end
 
+      # --- preferred_countries (multi-country residence preference) ---------
+
+      test "preserves preferred_countries as decoded ISO codes on the preference" do
+        import([ row(id: 1, preferred_countries: [ "Nigeria", "United Kingdom", "canada" ]) ])
+
+        assert_equal %w[NG GB CA], preference_for(1).preferred_country_codes
+      end
+
+      test "an unrecognised preferred_countries element is dropped, not guessed" do
+        result = import([ row(id: 1, preferred_countries: [ "Nigeria", "Wakanda" ]) ])
+
+        assert_equal %w[NG], preference_for(1).preferred_country_codes
+        assert_equal 1, result.reconciliation.note_count("preferred_countries_partial")
+      end
+
+      test "preferred_countries with no recognisable element maps to nothing and is noted" do
+        result = import([ row(id: 1, preferred_countries: [ "Wakanda" ]) ])
+
+        assert_empty preference_for(1).preferred_country_codes
+        assert_equal 1, result.reconciliation.note_count("preferred_countries_unmapped")
+      end
+
+      test "absent preferred_countries is recorded as a note, never fabricated" do
+        result = import([ row(id: 1, preferred_countries: []) ])
+
+        assert_empty preference_for(1).preferred_country_codes
+        assert_equal 1, result.reconciliation.note_count("preferred_countries_absent")
+      end
+
+      test "a rerun fills a preferred_country_codes gap but never overwrites a member's list" do
+        import([ row(id: 1, preferred_countries: [ "Nigeria" ]) ])
+        preference_for(1).update!(preferred_country_codes: %w[US])
+
+        ProfilePreferenceImport.call(
+          brand: @brand,
+          source: Snapshot::UserSource.new(rows: [ row(id: 1, preferred_countries: [ "Nigeria" ]) ])
+        )
+
+        assert_equal %w[US], preference_for(1).reload.preferred_country_codes
+      end
+
+      test "a rerun backfills preferred_country_codes a prior run left empty" do
+        import([ row(id: 1, preferred_countries: []) ])
+        assert_empty preference_for(1).preferred_country_codes
+
+        ProfilePreferenceImport.call(
+          brand: @brand,
+          source: Snapshot::UserSource.new(rows: [ row(id: 1, preferred_countries: [ "Ghana" ]) ])
+        )
+
+        assert_equal %w[GH], preference_for(1).reload.preferred_country_codes
+      end
+
       test "decodes the legacy gender code the identity slice left in place" do
         # Simulate the state the VERIFIED identity rehearsal actually produced.
         rows = [ row(id: 1, gender: 0) ]

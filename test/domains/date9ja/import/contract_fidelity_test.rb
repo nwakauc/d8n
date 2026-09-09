@@ -90,6 +90,26 @@ module Date9ja
         assert(profile_for(1).languages.all? { |entry| entry["proficiency"].nil? && !entry["primary"] })
       end
 
+      test "relocation_preferences array is carried as normalized free text" do
+        run_all([ row(id: 1, relocation_preferences: [ "  Lagos ", "Abuja", "Lagos" ]) ])
+        assert_equal [ "Lagos", "Abuja" ], profile_for(1).reload.relocation_preferences
+      end
+
+      test "preferred_countries decodes to ISO codes on the preference" do
+        run_all([ row(id: 1, preferred_countries: [ "Nigeria", "Ghana" ]) ])
+        assert_equal %w[NG GH], profile_for(1).reload.profile_preference.preferred_country_codes
+      end
+
+      test "a rerun does not overwrite relocation_preferences the member edited" do
+        rows = [ row(id: 1, relocation_preferences: [ "Lagos" ]) ]
+        run_all(rows)
+        profile_for(1).reload.update!(relocation_preferences: [ "Cape Town" ])
+
+        run_all(rows)
+
+        assert_equal [ "Cape Town" ], profile_for(1).reload.relocation_preferences
+      end
+
       test "a rerun does not overwrite a value the member changed after migration" do
         rows = [ row(id: 1, smoking: 0, body_type: "athletic") ]
         run_all(rows)

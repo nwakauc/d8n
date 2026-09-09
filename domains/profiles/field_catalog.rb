@@ -362,6 +362,18 @@ module Profiles
         default_audience: :owner_only, value_source: :iso_country_code,
         validation: { max_length: 2, normalize: :upcase }
       ),
+      # An ordered MULTI-country residence preference — the lossless destination
+      # for Date9ja's `users.preferred_countries`. Distinct from the scalar
+      # `country` (a single "show me people in X"): this is "any of these".
+      # Each element is an ISO-3166 alpha-2 code; shape mirrors `interested_in`.
+      Field.new(
+        key: "preferred_country_codes", group: :preference, label: "Preferred countries",
+        data_type: :string_list, cardinality: "multiple",
+        storage: { record: :profile_preference, column: :preferred_country_codes },
+        default_audience: :owner_only, value_source: :iso_country_code,
+        validation: { list: { max_entries: 20, item_max_length: 2 } },
+        bespoke_invariant: "preferred_country_codes_are_valid", completion_requirable: false
+      ),
       Field.new(
         key: "relationship_intent", group: :preference, label: "Relationship intent",
         data_type: :string, storage: { record: :profile_preference, column: :relationship_intent },

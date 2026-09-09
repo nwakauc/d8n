@@ -83,6 +83,33 @@ class ProfilePreferenceTest < ActiveSupport::TestCase
     assert_includes preference.errors[:interested_in], "cannot have more than 10 entries"
   end
 
+  test "normalizes, dedupes and validates preferred_country_codes" do
+    brand, user, profile = profile_setup
+    preference = ProfilePreference.new(
+      brand:, user:, profile:, interested_in: [], preferred_country_codes: [ " ng ", "NG", "gb" ]
+    )
+
+    assert preference.valid?, preference.errors.full_messages.to_sentence
+    assert_equal %w[NG GB], preference.preferred_country_codes
+
+    preference.preferred_country_codes = [ "Nigeria" ]
+    assert_not preference.valid?
+    assert_includes preference.errors[:preferred_country_codes], "contains an invalid country code"
+
+    preference.preferred_country_codes =
+      %w[NG GB US CA GH ZA KE IE DE AE FR JP BR AU NZ RW SO UG MW AO AF]
+    preference.valid?
+    assert_includes preference.errors[:preferred_country_codes], "cannot have more than 20 entries"
+  end
+
+  test "requires preferred_country_codes to be an array" do
+    brand, user, profile = profile_setup
+    preference = ProfilePreference.new(brand:, user:, profile:, interested_in: [], preferred_country_codes: "NG")
+
+    assert_not preference.valid?
+    assert_includes preference.errors[:preferred_country_codes], "must be an array"
+  end
+
   private
 
   def profile_setup(slug: "hookus", user: User.create!)

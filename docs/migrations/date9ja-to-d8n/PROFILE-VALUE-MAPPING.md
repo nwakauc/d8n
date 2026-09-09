@@ -34,14 +34,32 @@
 >   `profiles.languages` (code only, per E-3). Unknown names (incl. "Pidgin",
 >   which the D8N taxonomy has no code for) stay unmapped, never approximated.
 >
+> **preferred_countries / relocation_preferences (2026-09-09, follow-up slice).**
+> `preferred_countries` (multi-country residence preference, 84 rows) had no
+> lossless D8N home — only the scalar `profile_preference.country`. Added
+> `profile_preferences.preferred_country_codes` (`Profiles::FieldCatalog`
+> string_list, ISO-3166 alpha-2, ≤20, owner-only, never a gate), enabled for
+> Date9ja. `ProfilePreferenceImport` decodes each element through the closed
+> `CountryMapping` allowlist (unrecognised elements dropped, never guessed;
+> outcome noted). `relocation_preferences` (355 rows) already had a destination
+> (`profiles.relocation_preferences`); `ProfileReadinessImport` now gap-fills it
+> as normalized free text. Both gap-fill only; neither survives a member/operator
+> edit. Element values are sanitizer-redacted (`{}`) so both are exercised by
+> unit test + pristine census, not the sanitized rehearsal.
+>
 > Other brands unchanged: DateZA/HookUs pin `wants_children` / `education_level`
-> with `only:`. No new value is a Date9ja publication gate — **534/534 discovery
-> parity re-proved** in rehearsal (`d8n_date9ja_rehearsal_cf_20260909`, dropped).
+> with `only:` and do not enable `preferred_country_codes`. No new value is a
+> Date9ja publication gate — **534/534 discovery parity re-proved** in rehearsal
+> (`d8n_date9ja_rehearsal_cf_20260909`, dropped).
 > Sanitizer redacts `occupation` and `languages_spoken`, so those two are
 > verified by unit test + census, not by the sanitized rehearsal.
 > **Still out of scope (privacy, sanitizer-redacted, E-5 review outstanding):**
-> `interests`, `relationship_values`, `dealbreakers`. **Concrete path, next
-> increment:** `preferred_countries` (multi-country preference store).
+> element-level import of `interests`, `relationship_values`, `dealbreakers`.
+> Their D8N destinations are the next increment (interests taxonomy exists;
+> `relationship_values` needs a capability; `dealbreakers` needs a lossless
+> array destination) — building the destination is not blocked by E-5, only the
+> reading of member text is. `preferred_countries` / `relocation_preferences`
+> destinations + importers are **DONE** (2026-09-09 follow-up slice above).
 
 **Authority.** This is the working contract for **Pass 2** of the Date9ja profile &
 preference migration: how each legacy `users` value becomes a D8N value. It is

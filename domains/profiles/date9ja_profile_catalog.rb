@@ -145,7 +145,12 @@ module Profiles
     # Matching::EligibilityPolicy::LIQUIDITY_FIRST.
     REQUIRED_PREFERENCE_FIELDS = %w[ interested_in ].freeze
     # Enabled but not required — see REQUIRED_PROFILE_FIELDS above.
-    ENABLED_PREFERENCE_FIELDS = %w[ interested_in min_age max_age max_distance_km ].freeze
+    # `preferred_country_codes` is the lossless home for legacy
+    # `users.preferred_countries` (multi-country residence preference); it is
+    # collected and preserved but never a publication or discovery gate.
+    ENABLED_PREFERENCE_FIELDS = %w[
+      interested_in min_age max_age max_distance_km preferred_country_codes
+    ].freeze
     REQUIRED_OPTION_GROUPS = %w[
       relationship_intent has_children wants_children religion family_involvement faith_practice
       money_providing settlement children conflict

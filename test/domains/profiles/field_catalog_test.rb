@@ -113,6 +113,7 @@ module Profiles
       "willing_to_relocate" => "Willing to relocate", "relocation_preferences" => "Relocation destinations",
       "min_age" => "Minimum age", "max_age" => "Maximum age", "interested_in" => "Interested in",
       "max_distance_km" => "Maximum distance", "country" => "Preferred country",
+      "preferred_country_codes" => "Preferred countries",
       "relationship_intent" => "Relationship intent"
     }.freeze
 

@@ -17,6 +17,7 @@ module Date9ja
         ineligible_suppression_failed
         enrichment_values_mapped enrichment_values_preserved enrichment_values_unresolved
         languages_mapped languages_unresolved
+        relocation_preferences_mapped relocation_preferences_unresolved
       ].freeze
 
       def initialize
