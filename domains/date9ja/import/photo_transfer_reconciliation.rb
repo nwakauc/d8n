@@ -6,16 +6,23 @@ module Date9ja
     # (MEDIA-TRANSFER.md §15). Every source Photo row gets exactly one terminal
     # disposition; `photos_considered == sum(dispositions)` always holds.
     #
-    # Every non-terminal-success disposition is ALSO counted as
-    # `unexplained_failure`; cutover requires `unexplained_failures == 0`.
-    # A reviewed-exception workflow is NOT implemented in this build — the
-    # `reviewed_exceptions` measure is present for the cutover-gate formula and
-    # stays 0.
+    # A non-success disposition is counted as `unexplained_failure` UNLESS it is
+    # an expected, fully-explained outcome (`owner_not_imported` — the photo
+    # belongs to a source account that was deliberately not migrated, e.g. a
+    # soft-deleted or seed account, so there is no destination profile;
+    # `explicitly_skipped` — an operator exclusion). Cutover requires
+    # `unexplained_failures == 0`. A reviewed-exception workflow is NOT
+    # implemented in this build — the `reviewed_exceptions` measure is present
+    # for the cutover-gate formula and stays 0.
     #
     # `to_h` is counts + reason codes + aggregate measures only — no storage key,
     # filename, checksum value, email, name, or any per-row id.
     class PhotoTransferReconciliation
       SUCCESS_DISPOSITIONS = %i[transferred already_transferred].freeze
+
+      # Expected, fully-explained non-success outcomes — not a migration defect,
+      # so they do not count toward `unexplained_failures` / block cutover.
+      EXPECTED_DISPOSITIONS = %i[owner_not_imported explicitly_skipped].freeze
 
       DISPOSITIONS = %i[
         transferred
@@ -86,7 +93,9 @@ module Date9ja
 
         bump(name)
         note!(reason) if reason
-        measure!(:unexplained_failures) unless SUCCESS_DISPOSITIONS.include?(name)
+        unless SUCCESS_DISPOSITIONS.include?(name) || EXPECTED_DISPOSITIONS.include?(name)
+          measure!(:unexplained_failures)
+        end
       end
 
       def note!(reason_code)

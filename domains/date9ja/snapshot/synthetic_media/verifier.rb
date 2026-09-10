@@ -47,6 +47,10 @@ module Date9ja
         # Only these two columns may differ between the parent artifact and
         # media_v2, and only on the authorized Photo blob rows.
         MUTABLE_COLUMNS = %w[byte_size checksum].freeze
+        # Historical default for the 2026-09-02/03 snapshot. Newer snapshots
+        # carry a different Photo-blob count; when the caller passes nil the
+        # expected count is taken from the generator's own manifest instead,
+        # which check 16 independently ties back to the media_v2 DB.
         EXPECTED_AUTHORIZED_COUNT = 279
 
         FORBIDDEN_TOKENS = [
@@ -56,14 +60,14 @@ module Date9ja
 
         def initialize(media_v2_connection:, parent_connection:, corpus_dir:, manifest:,
           second_corpus_dir: nil, image_processor: Media::ImageProcessor,
-          expected_object_count: EXPECTED_AUTHORIZED_COUNT)
+          expected_object_count: nil)
           @v2 = media_v2_connection
           @parent = parent_connection
           @corpus_dir = File.expand_path(corpus_dir)
           @manifest = manifest
           @second_corpus_dir = second_corpus_dir && File.expand_path(second_corpus_dir)
           @image_processor = image_processor
-          @expected_object_count = expected_object_count
+          @expected_object_count = expected_object_count || manifest.fetch("object_count")
           @checks = []
         end
 

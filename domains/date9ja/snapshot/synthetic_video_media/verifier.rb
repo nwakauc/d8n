@@ -47,7 +47,9 @@ module Date9ja
         SQL
 
         MUTABLE_COLUMNS = %w[byte_size checksum].freeze
-        # The sanitized census: 35 ProfileVideo records (26 mp4 + 9 mov).
+        # Historical default for the earlier synthetic census (26 mp4 + 9 mov).
+        # When the caller passes nil the expected count comes from the
+        # generator's own manifest, which check 25/26 tie back to the media_v3 DB.
         EXPECTED_AUTHORIZED_COUNT = 35
         DURATION_TOLERANCE_SECONDS = 0.75
 
@@ -82,13 +84,13 @@ module Date9ja
         ].freeze
 
         def initialize(media_v3_connection:, parent_connection:, corpus_dir:, manifest:,
-          second_corpus_dir: nil, expected_object_count: EXPECTED_AUTHORIZED_COUNT)
+          second_corpus_dir: nil, expected_object_count: nil)
           @v3 = media_v3_connection
           @parent = parent_connection
           @corpus_dir = File.expand_path(corpus_dir)
           @manifest = manifest
           @second_corpus_dir = second_corpus_dir && File.expand_path(second_corpus_dir)
-          @expected_object_count = expected_object_count
+          @expected_object_count = expected_object_count || manifest.fetch("object_count")
           @checks = []
         end
 

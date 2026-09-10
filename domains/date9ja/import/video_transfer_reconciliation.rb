@@ -22,6 +22,10 @@ module Date9ja
         destination_adopted already_destination_adopted ready already_ready
       ].freeze
 
+      # Expected, fully-explained non-success outcomes (owner deliberately not
+      # migrated / operator exclusion) — not a defect, do not block cutover.
+      EXPECTED_DISPOSITIONS = %i[owner_not_imported explicitly_skipped].freeze
+
       DISPOSITIONS = %i[
         destination_adopted
         already_destination_adopted
@@ -116,7 +120,9 @@ module Date9ja
 
         bump(name)
         note!(reason) if reason
-        measure!(:unexplained_failures) unless SUCCESS_DISPOSITIONS.include?(name)
+        unless SUCCESS_DISPOSITIONS.include?(name) || EXPECTED_DISPOSITIONS.include?(name)
+          measure!(:unexplained_failures)
+        end
       end
 
       def note!(reason_code)

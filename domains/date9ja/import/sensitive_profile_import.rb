@@ -147,6 +147,7 @@ module Date9ja
 
           outcome = mapping.call(source_value)
           unless outcome.mapped?
+            preserve_raw_value!(profile, column, source_value)
             reconciliation.note!("#{column}_unmapped")
             next
           end
@@ -228,6 +229,7 @@ module Date9ja
             end
           end
           unless outcome.mapped?
+            preserve_raw_value!(profile, group_key, source_value) unless group_key == "genotype"
             reconciliation.note!("#{group_key}_unmapped")
             next
           end
@@ -246,11 +248,24 @@ module Date9ja
       end
 
       def preserve_unclassified_genotype!(profile, value)
-        metadata = profile.metadata.is_a?(Hash) ? profile.metadata : {}
-        return if metadata.key?("date9ja_genotype_raw")
+        preserve_raw_value!(profile, "genotype", value.to_s)
+      end
 
-        profile.update!(metadata: metadata.merge("date9ja_genotype_raw" => value.to_s))
-        reconciliation.note!("genotype_unclassified_preserved")
+      # Losslessness backstop: a sensitive value Date9ja stores that has no
+      # reviewed D8N code is never dropped. It is kept verbatim in an owner-only
+      # `profile.metadata["date9ja_<field>_raw"]` key (gap-fill, never
+      # overwritten, never widened, never serialized to other members) so the
+      # member's own answer survives cutover and a later vocabulary review can
+      # classify it. Mirrors the genotype path, generalized to every field.
+      def preserve_raw_value!(profile, field, value)
+        return if value.blank?
+
+        key = "date9ja_#{field}_raw"
+        metadata = profile.metadata.is_a?(Hash) ? profile.metadata : {}
+        return if metadata.key?(key)
+
+        profile.update!(metadata: metadata.merge(key => value))
+        reconciliation.note!("#{field}_raw_preserved")
       end
 
       # --- matching preferences (preferred_attributes hash) --------------
@@ -274,13 +289,7 @@ module Date9ja
 
           outcome = SensitiveVocabularies::PREFERRED.fetch(key).call_many(values)
           if outcome.codes.empty?
-            if key == "genotype"
-              metadata = profile.metadata.is_a?(Hash) ? profile.metadata : {}
-              unless metadata.key?("date9ja_preferred_genotype_raw")
-                profile.update!(metadata: metadata.merge("date9ja_preferred_genotype_raw" => values.map(&:to_s)))
-                reconciliation.note!("preferred_genotype_unclassified_preserved")
-              end
-            end
+            preserve_raw_value!(profile, "preferred_#{plural(key)}", values.map(&:to_s))
             reconciliation.note!("preferred_#{plural(key)}_unmapped")
             next
           end

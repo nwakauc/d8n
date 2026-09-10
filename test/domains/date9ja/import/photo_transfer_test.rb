@@ -151,13 +151,16 @@ module Date9ja
         assert_equal blobs_before, ActiveStorage::Blob.count
       end
 
-      test "owner not imported: no ProfilePhoto, evidence retained" do
+      test "owner not imported: no ProfilePhoto, evidence retained, expected outcome does not block cutover" do
         source = build_corpus([ { user_id: 99 } ])
         result = run_transfer(source)
 
         assert_equal 1, result.reconciliation.count(:owner_not_imported)
         assert_equal 0, ProfilePhoto.count
-        refute result.reconciliation.cutover_ready?
+        # the photo of a deliberately non-migrated account (soft-deleted / seed)
+        # has no destination — that is correct, not an unexplained failure
+        assert_equal 0, result.reconciliation.measure(:unexplained_failures)
+        assert result.reconciliation.cutover_ready?
       end
 
       test "multiple primary for one owner: quarantined, never guessed" do

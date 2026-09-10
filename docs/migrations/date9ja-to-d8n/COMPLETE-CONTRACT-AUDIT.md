@@ -1334,3 +1334,56 @@ Blocker-ledger items 4, 5, and 6 (message media handling, notification/impressio
 ownership, trust-XP reconciliation) are closed in code. Items 10 (media bytes)
 and 11 (pristine sensitive reconciliation) remain cutover-window execution steps,
 not code gaps.
+
+### Implementation pass 5 (2026-09-10) — media + sensitive gate closure
+
+Final cutover execution. Both remaining gates from the GO/NO-GO report are now
+closed against controlled sources; details and the CUTOVER-READY decision are in
+[GO-NO-GO-CUTOVER-REPORT.md](GO-NO-GO-CUTOVER-REPORT.md).
+
+**Media byte transfer (blocker-ledger item 10 — profile photo/video).**
+Synthetic L2 corpora were rebuilt at full snapshot scale (631 photo blobs / 90
+video blobs) from the verified sanitized snapshot, verified (`verify_media_v2` /
+`verify_video_media_v3` — VERIFIED FOR L2), and the real transfer path was run:
+`transfer_photos` → 604 transferred / 604 processed / 604 `display_image` ready /
+0 zero-byte / 604 `ReferenceMap` bound / 27 owner-not-imported (soft-deleted or
+seed owner — no destination profile); `transfer_videos` (stage `:domain`) → 89
+ProfileVideo / 89 playback + 89 poster validated / 89 ready / 89 bound / 1
+owner-not-imported. Re-run: 0 new rows, `cutover_ready: true` / `clean: true`.
+Fixes:
+- `SyntheticMedia::Verifier` / `SyntheticVideoMedia::Verifier` no longer pin the
+  authorized-blob count to the historical `279` / `35` constant; when the caller
+  passes nil the expected count comes from the generator's own manifest
+  (`object_count`), which checks 16/25/26 tie back to the media DB. Check 17
+  (`complete_blob_table_drift_is_authorized`) now passes on the v3 snapshot with
+  every real safety property intact (0 inserted / 0 deleted / 0 non-photo change
+  / 0 wrong-column change).
+- `PhotoTransferReconciliation` / `VideoTransferReconciliation`: an
+  `owner_not_imported` / `explicitly_skipped` disposition is an expected,
+  fully-explained outcome (the media belongs to a deliberately non-migrated
+  account) and no longer counts toward `unexplained_failures` or blocks
+  `cutover_ready?` / `clean?`. Genuine failures still gate.
+
+Message-media / selfie / verification-evidence **bytes** remain a deferred
+transport pass (same `MediaKind` architecture): the reference + PII-free
+integrity metadata are preserved, `messages.source_metadata.media_bytes_transferred`
+is `false`, and 22 message rows keep their real `kind`.
+
+**Pristine sensitive-value reconciliation (blocker-ledger item 11).** The
+unsanitized controlled source was restored and the full migration run against
+it. Every sensitive Date9ja value belonging to a migrated member is preserved:
+mapped to a reviewed D8N code where one exists, else kept verbatim in an
+owner-only `profile.metadata["date9ja_<field>_raw"]` key (never serialized to
+other members — leak check clean). Fix: `SensitiveProfileImport` gained a
+generalized `preserve_raw_value!` — previously only genotype had the
+raw-preservation backstop; now every unmapped scalar / option / preferred
+attribute keeps its raw value. Reconciliation (source among migrated cohort →
+D8N mapped + raw, all exact): is_nigerian 441→441, religion 440→440, tribe
+388→(340+48), state_of_origin 390→(381+9), nationality 46→(21+25), denomination
+41→(29+12), ethnicity 20→20, genotype 274→274, intertribal 80→80, polygamy
+35→35, interest_in_nigerian_culture 14→14, v2_onboarding 328 verbatim,
+preferred_tribes 32→(17+15), preferred_religion 99→99. Non-migrated (soft-deleted
+/ banned) owners' sensitive values are correctly not transferred.
+
+Full Rails suite: 2251 runs / 1 pre-existing unrelated failure. RuboCop +
+Brakeman clean. `git diff --check` clean.

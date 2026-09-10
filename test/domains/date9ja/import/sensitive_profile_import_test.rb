@@ -95,17 +95,29 @@ module Date9ja
         assert result.reconciliation.balanced?
       end
 
-      test "an unrecognised sensitive value is quarantined and noted, never guessed" do
+      test "an unrecognised sensitive value is quarantined, noted, and kept verbatim owner-only, never guessed" do
         result = run_sensitive(
           [ base_row(id: 1) ],
           [ { id: 1, tribe: "Martian", state_of_origin: "Atlantis", religion: nil } ]
         )
 
+        # never guessed into a destination code
         assert_empty selection(1, "tribe")
         assert_nil profile_for(1).reload.state_of_origin
         assert_equal 1, result.reconciliation.note_count("tribe_unmapped")
         assert_equal 1, result.reconciliation.note_count("state_of_origin_unmapped")
         assert_equal 1, result.reconciliation.note_count("religion_absent")
+
+        # but never lost: raw value kept in owner-only profile metadata
+        meta = profile_for(1).reload.metadata
+        assert_equal "Martian", meta["date9ja_tribe_raw"]
+        assert_equal "Atlantis", meta["date9ja_state_of_origin_raw"]
+        assert_equal 1, result.reconciliation.note_count("tribe_raw_preserved")
+        assert_equal 1, result.reconciliation.note_count("state_of_origin_raw_preserved")
+
+        # rerun does not duplicate or overwrite
+        run_sensitive([ base_row(id: 1) ], [ { id: 1, tribe: "Martian", state_of_origin: "Atlantis" } ])
+        assert_equal "Martian", profile_for(1).reload.metadata["date9ja_tribe_raw"]
       end
 
       test "gap-fill only: a member's own sensitive value survives a rerun" do

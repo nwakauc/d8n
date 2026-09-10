@@ -29,7 +29,11 @@ module Date9ja
       # Per field: _absent (member never answered), _unmapped (real value, no
       # reviewed D8N destination code yet — quarantined), _mapped (written),
       # _preserved (a member/operator/earlier value already held — left alone).
-      NOTE_CODES = FIELDS.flat_map { |f| %W[#{f}_absent #{f}_unmapped #{f}_mapped #{f}_preserved #{f}_partial] }.freeze
+      # `_raw_preserved`: a real value with no reviewed D8N code, kept verbatim
+      # in owner-only `profile.metadata` so nothing is lost at cutover.
+      NOTE_CODES = FIELDS.flat_map do |f|
+        %W[#{f}_absent #{f}_unmapped #{f}_mapped #{f}_preserved #{f}_partial #{f}_raw_preserved]
+      end.freeze
 
       def initialize
         @counts = Hash.new(0)
