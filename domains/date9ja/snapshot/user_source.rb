@@ -17,7 +17,7 @@ module Date9ja
       SELECTED_COLUMNS = %w[
         id public_id email phone encrypted_password confirmed_at phone_verified_at
         created_at deleted_at suspended_at banned_at discovery_restricted_at profile_hidden
-        onboarding_completed_at date_of_birth gender full_name display_name city
+        onboarding_completed_at seed_account date_of_birth gender full_name display_name city
         country_of_residence about_me ideal_partner_description
         looking_for preferred_age_min preferred_age_max preferred_distance_km
         relationship_intention wants_children children_count

@@ -1275,25 +1275,22 @@ WITH census(ord, section, measure, source_count, note) AS (
                     ELSE 'OTHER'
                   END b, count(*) c FROM users GROUP BY 1) t)),
   (324, 'sensitive', 'users.ethnicity ALLOWLISTED to D8N ethnicity codes (unknown -> OTHER)',
-        (SELECT count(*) FROM users WHERE ethnicity IS NOT NULL AND btrim(ethnicity) <> ''),
+        (SELECT count(*) FROM users WHERE ethnicity IS NOT NULL),
         (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
            SELECT CASE
-                    WHEN ethnicity IS NULL OR btrim(ethnicity) = '' THEN 'NULL'
-                    WHEN lower(btrim(ethnicity)) IN ('igbo','ibo','yoruba','hausa','fulani','ijaw',
-                         'ibibio','edo','bini','kanuri','tiv','nupe','igala','efik','urhobo',
-                         'itsekiri','annang','mixed','mixed race') THEN 'allowlist_hit'
+                    WHEN ethnicity IS NULL THEN 'NULL'
+                    WHEN ethnicity BETWEEN 0 AND 9 THEN 'allowlist_hit'
                     ELSE 'OTHER'
                   END b, count(*) c FROM users GROUP BY 1) t)),
   (325, 'sensitive', 'users.religion ALLOWLISTED to D8N religion codes (unknown -> OTHER)',
-        (SELECT count(*) FROM users WHERE religion IS NOT NULL AND btrim(religion) <> ''),
+        (SELECT count(*) FROM users WHERE religion IS NOT NULL),
         (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
            SELECT CASE
-                    WHEN religion IS NULL OR btrim(religion) = '' THEN 'NULL'
-                    WHEN lower(btrim(religion)) IN ('christian','christianity','catholic','protestant','pentecostal') THEN 'christian'
-                    WHEN lower(btrim(religion)) IN ('muslim','islam','islamic') THEN 'muslim'
-                    WHEN lower(btrim(religion)) IN ('traditional','african traditional','spiritual') THEN 'spiritual'
-                    WHEN lower(btrim(religion)) IN ('hindu','hinduism','buddhist','buddhism','jewish','judaism',
-                         'sikh','sikhism','agnostic','atheist','none') THEN 'allowlist_other_faith'
+                    WHEN religion IS NULL THEN 'NULL'
+                    WHEN religion = 0 THEN 'christian'
+                    WHEN religion = 1 THEN 'muslim'
+                    WHEN religion = 2 THEN 'spiritual'
+                    WHEN religion = 3 THEN 'other'
                     ELSE 'OTHER'
                   END b, count(*) c FROM users GROUP BY 1) t)),
   (326, 'sensitive', 'users.denomination ALLOWLISTED to D8N denomination codes (unknown -> OTHER)',
@@ -1309,12 +1306,13 @@ WITH census(ord, section, measure, source_count, note) AS (
                     ELSE 'OTHER'
                   END b, count(*) c FROM users GROUP BY 1) t)),
   (327, 'sensitive', 'users.genotype ALLOWLISTED to haemoglobin genotypes (health data; unknown -> OTHER)',
-        (SELECT count(*) FROM users WHERE genotype IS NOT NULL AND btrim(genotype) <> ''),
+        (SELECT count(*) FROM users WHERE NULLIF(btrim(v2_onboarding_answers ->> 'genotype'), '') IS NOT NULL),
         (SELECT string_agg(b || ':' || c, ' ' ORDER BY b) FROM (
            SELECT CASE
-                    WHEN genotype IS NULL OR btrim(genotype) = '' THEN 'NULL'
-                    WHEN upper(btrim(genotype)) IN ('AA','AS','SS','AC','SC','CC') THEN upper(btrim(genotype))
-                    WHEN lower(btrim(genotype)) IN ('not tested','unknown','dont know') THEN 'not_tested'
+                    WHEN NULLIF(btrim(v2_onboarding_answers ->> 'genotype'), '') IS NULL THEN 'NULL'
+                    WHEN upper(btrim(v2_onboarding_answers ->> 'genotype')) IN ('AA','AS','SS','AC','SC','CC')
+                      THEN upper(btrim(v2_onboarding_answers ->> 'genotype'))
+                    WHEN lower(btrim(v2_onboarding_answers ->> 'genotype')) IN ('not tested','unknown','dont know') THEN 'not_tested'
                     ELSE 'OTHER'
                   END b, count(*) c FROM users GROUP BY 1) t)),
   (328, 'sensitive', 'users.intertribal_marriage_openness / polygamy_openness bounded distributions',
@@ -1344,10 +1342,7 @@ WITH census(ord, section, measure, source_count, note) AS (
              || ' distinct_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(preferred_religion) e) || ']'
              || ' tribes[nonempty:' || count(*) FILTER (WHERE cardinality(preferred_tribes) > 0)
              || ' distinct_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(preferred_tribes) e) || ']'
-             || ' ethnicity[nonempty:' || count(*) FILTER (WHERE cardinality(preferred_ethnicity) > 0)
-             || ' distinct_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(preferred_ethnicity) e) || ']'
-             || ' genotype[nonempty:' || count(*) FILTER (WHERE cardinality(preferred_genotype) > 0)
-             || ' distinct_elems:' || (SELECT count(DISTINCT e) FROM users, unnest(preferred_genotype) e) || ']'
+             || ' ethnicity[HEAD/source absent] genotype[HEAD/source absent]'
            FROM users)),
 
   -- ---- authoritative readiness / liquidity impact (2026-09-08) ---------
@@ -1415,33 +1410,38 @@ WITH census(ord, section, measure, source_count, note) AS (
   (308, 'readiness', 'body type presence',
         (SELECT count(*) FROM users WHERE body_type IS NOT NULL AND btrim(body_type) <> ''),
         'free text; values never emitted here'),
-  (309, 'readiness', 'source-safety eligible market population',
+  (309, 'readiness', 'source-production discovery-eligible market population',
         (SELECT count(*) FROM users WHERE deleted_at IS NULL AND banned_at IS NULL AND suspended_at IS NULL
           AND profile_hidden = false AND discovery_restricted_at IS NULL
+          AND seed_account = false
           AND gender IN (0,1) AND looking_for IN (0,1)),
-        'liquidity-first base; age/location/completion intentionally not applied'),
-  (310, 'readiness', 'source-safety eligible excluded by complete-age requirement',
+        'authoritative production base; seed accounts excluded; age/location/completion intentionally not applied'),
+  (310, 'readiness', 'source-production eligible excluded by complete-age requirement',
         (SELECT count(*) FROM users WHERE deleted_at IS NULL AND banned_at IS NULL AND suspended_at IS NULL
           AND profile_hidden = false AND discovery_restricted_at IS NULL
+          AND seed_account = false
           AND gender IN (0,1) AND looking_for IN (0,1)
           AND (preferred_age_min BETWEEN 18 AND 120 AND preferred_age_max BETWEEN 18 AND 120
                AND preferred_age_min <= preferred_age_max) IS NOT TRUE),
         'impact only; approved Date9ja policy does not make age a hard gate'),
-  (311, 'readiness', 'source-safety eligible missing city or country',
+  (311, 'readiness', 'source-production eligible missing city or country',
         (SELECT count(*) FROM users WHERE deleted_at IS NULL AND banned_at IS NULL AND suspended_at IS NULL
           AND profile_hidden = false AND discovery_restricted_at IS NULL
+          AND seed_account = false
           AND gender IN (0,1) AND looking_for IN (0,1)
           AND (btrim(country_of_residence) = '' OR city IS NULL OR btrim(city) = '')),
         'impact only; approved Date9ja policy does not make location a hard discovery gate'),
-  (312, 'readiness', 'source-safety eligible without any non-rejected photo',
+  (312, 'readiness', 'source-production eligible without any non-rejected photo',
         (SELECT count(*) FROM users u WHERE deleted_at IS NULL AND banned_at IS NULL AND suspended_at IS NULL
           AND profile_hidden = false AND discovery_restricted_at IS NULL
+          AND seed_account = false
           AND gender IN (0,1) AND looking_for IN (0,1)
           AND NOT EXISTS (SELECT 1 FROM photos p WHERE p.user_id=u.id AND p.moderation_status <> 2)),
         'Date9ja shows a placeholder; D8N publication currently requires a photo'),
-  (313, 'readiness', 'source-safety eligible satisfying current D8N source-data gates',
+  (313, 'readiness', 'source-production eligible satisfying current D8N source-data gates',
         (SELECT count(*) FROM users u WHERE deleted_at IS NULL AND banned_at IS NULL AND suspended_at IS NULL
           AND profile_hidden = false AND discovery_restricted_at IS NULL
+          AND seed_account = false
           AND gender IN (0,1) AND looking_for IN (0,1)
           AND array_length(regexp_split_to_array(btrim(full_name), '\s+'),1)=2
           AND btrim(display_name) <> '' AND date_of_birth <= DATE '2008-09-08'

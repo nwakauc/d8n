@@ -109,6 +109,7 @@ module Date9ja
         scalars = apply_is_nigerian!(profile, record)
         scalars += apply_scalar_mappings!(profile, record)
         scalars += apply_free_text!(profile, record)
+        scalars += apply_v2_onboarding_answers!(profile, record)
         selections = apply_option_groups!(profile, record)
         prefs = apply_preferred_attributes!(profile, record)
         { scalars_written: scalars, option_selections_created: selections, preference_attributes_written: prefs }
@@ -174,6 +175,33 @@ module Date9ja
         1
       end
 
+      # The non-genotype V2 onboarding questionnaire answers (faith_practice,
+      # family_involvement, language_at_home, settlement, money_providing,
+      # children, lifestyle, conflict, custom_religion, ...). Curated D8N option
+      # semantics for each question are a later product decision; until then the
+      # answers are preserved verbatim in an owner-only profile metadata key so
+      # nothing is lost at cutover. Gap-fill: never overwrite an existing copy.
+      V2_ONBOARDING_METADATA_KEY = "date9ja_v2_onboarding"
+
+      def apply_v2_onboarding_answers!(profile, record)
+        answers = record.v2_onboarding_answers
+        answers = {} unless answers.is_a?(Hash)
+        if answers.empty?
+          reconciliation.note!("v2_onboarding_answers_absent")
+          return 0
+        end
+
+        metadata = profile.metadata.is_a?(Hash) ? profile.metadata : {}
+        if metadata.key?(V2_ONBOARDING_METADATA_KEY)
+          reconciliation.note!("v2_onboarding_answers_preserved")
+          return 0
+        end
+
+        profile.update!(metadata: metadata.merge(V2_ONBOARDING_METADATA_KEY => answers.transform_keys(&:to_s)))
+        reconciliation.note!("v2_onboarding_answers_mapped")
+        1
+      end
+
       # --- option groups (single-select) ----------------------------------
 
       def apply_option_groups!(profile, record)
@@ -194,6 +222,12 @@ module Date9ja
             next
           end
           unless outcome.mapped?
+            if group_key == "genotype" && outcome.unmapped? && source_value.present?
+              preserve_unclassified_genotype!(profile, source_value)
+              outcome = ControlledVocabularyMapping::Outcome.new(status: :mapped, code: "other")
+            end
+          end
+          unless outcome.mapped?
             reconciliation.note!("#{group_key}_unmapped")
             next
           end
@@ -209,6 +243,14 @@ module Date9ja
           created += 1
         end
         created
+      end
+
+      def preserve_unclassified_genotype!(profile, value)
+        metadata = profile.metadata.is_a?(Hash) ? profile.metadata : {}
+        return if metadata.key?("date9ja_genotype_raw")
+
+        profile.update!(metadata: metadata.merge("date9ja_genotype_raw" => value.to_s))
+        reconciliation.note!("genotype_unclassified_preserved")
       end
 
       # --- matching preferences (preferred_attributes hash) --------------
@@ -232,6 +274,13 @@ module Date9ja
 
           outcome = SensitiveVocabularies::PREFERRED.fetch(key).call_many(values)
           if outcome.codes.empty?
+            if key == "genotype"
+              metadata = profile.metadata.is_a?(Hash) ? profile.metadata : {}
+              unless metadata.key?("date9ja_preferred_genotype_raw")
+                profile.update!(metadata: metadata.merge("date9ja_preferred_genotype_raw" => values.map(&:to_s)))
+                reconciliation.note!("preferred_genotype_unclassified_preserved")
+              end
+            end
             reconciliation.note!("preferred_#{plural(key)}_unmapped")
             next
           end

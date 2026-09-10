@@ -377,4 +377,88 @@ namespace :date9ja do
   ensure
     Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
   end
+
+  desc "Rehearsal: import the retained Date9ja SOCIAL GRAPH / message history (likes, passes, " \
+       "matches, conversations, messages, blocks, reports) against a restored scratch snapshot. " \
+       "Run AFTER date9ja:import_identity. Historical rows only — no runtime notifications, quota, " \
+       "or current timestamps. Prints a PII-free counts/reasons JSON."
+  task import_historical_graph: :environment do
+    require "json"
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+    connection = Date9ja::Snapshot::Connection.connect!
+    source = Date9ja::Snapshot::HistoricalGraphSource.new(connection: connection)
+
+    result = Date9ja::Import::HistoricalGraphImport.call(brand:, source:)
+    puts JSON.pretty_generate("counts" => result.counts, "reasons" => result.reasons)
+  ensure
+    Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
+  end
+
+  desc "Rehearsal: import the Date9ja VERIFICATION / RealMe assurance history (verification_checks, " \
+       "verification_events, legacy selfie_verifications) into private VerificationAssertion rows. " \
+       "Run AFTER date9ja:import_identity. No evidence bytes, no public serializer exposure. " \
+       "Prints a PII-free JSON tally."
+  task import_verification: :environment do
+    require "json"
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+    connection = Date9ja::Snapshot::Connection.connect!
+
+    read = ->(table, cols) {
+      present = connection.exec_query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = '#{table}'"
+      ).rows.flatten
+      selected = cols & present
+      selected.empty? ? [] : connection.exec_query("SELECT #{selected.join(', ')} FROM #{table} ORDER BY id").to_a
+    }
+
+    result = Date9ja::Import::VerificationImport.call(
+      brand:,
+      checks: read.call("verification_checks",
+        %w[id user_id kind check_type status submitted_at reviewed_at reviewer_id tier]),
+      events: read.call("verification_events", %w[id user_id kind status created_at]),
+      selfies: read.call("selfie_verifications", %w[id user_id status submitted_at reviewed_at])
+    )
+    puts JSON.pretty_generate("imported" => result.imported, "skipped" => result.skipped, "failed" => result.failed)
+  ensure
+    Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
+  end
+
+  desc "Rehearsal: import every retained Date9ja OPERATIONAL / MEMBER-VISIBLE history table that has " \
+       "no dedicated D8N runtime aggregate (profile views, daily introductions, explore impressions, " \
+       "notifications + deliveries, push tokens, Aunty Phobie history, community content/moderation, " \
+       "trust ledgers, audit logs, exit attempts, feedback, persona, daily-life, tracked contacts/" \
+       "notes) plus message reactions and the founding-member / premium / trust-XP entitlement " \
+       "columns. Run AFTER date9ja:import_identity and date9ja:import_historical_graph. Prints a " \
+       "PII-free per-entity reconciliation JSON."
+  task import_extended_history: :environment do
+    require "json"
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+    connection = Date9ja::Snapshot::Connection.connect!
+    source = Date9ja::Snapshot::ExtendedHistorySource.new(connection: connection)
+
+    result = Date9ja::Import::ExtendedHistoryImport.call(brand:, source:)
+    puts JSON.pretty_generate(result.reconciliation.to_h)
+  ensure
+    Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
+  end
+
+  desc "Rehearsal: preserve Date9ja LIFECYCLE / MODERATION context — soft-deleted members become " \
+       "identity_tombstone ledger rows (no D8N User resurrected), retained members carrying a " \
+       "suspension / ban / discovery restriction get a moderation_state row with reason/note/actor/" \
+       "timestamps. Run AFTER date9ja:import_identity. Prints a PII-free reconciliation JSON."
+  task import_lifecycle: :environment do
+    require "json"
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+    connection = Date9ja::Snapshot::Connection.connect!
+    source = Date9ja::Snapshot::LifecycleSource.new(connection: connection)
+
+    result = Date9ja::Import::LifecycleImport.call(brand:, source:)
+    puts JSON.pretty_generate(result.reconciliation.to_h)
+  ensure
+    Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
+  end
 end

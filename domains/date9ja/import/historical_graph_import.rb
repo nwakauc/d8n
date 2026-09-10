@@ -20,14 +20,22 @@ module Date9ja
       end
       Result = Data.define(:counts, :reasons)
 
-      def self.call(brand:, source:, importer_version: IMPORTER_VERSION)
-        new(brand:, source:, importer_version:).call
+      def self.call(brand:, source:, importer_version: IMPORTER_VERSION, excluded_source_ids: nil)
+        new(brand:, source:, importer_version:, excluded_source_ids:).call
       end
 
-      def initialize(brand:, source:, importer_version:)
+      def initialize(brand:, source:, importer_version:, excluded_source_ids: nil)
         @brand = brand
         @source = source.is_a?(Hash) ? Source.new(**Source.empty.to_h.merge(source.symbolize_keys)) : source
         @version = importer_version
+        # Date9ja source USER ids (== profile source ids) that must never appear
+        # on a migrated relationship. Production discovery excludes seed/demo
+        # accounts (§5), so a like/match/message that touches one is dropped
+        # here with an explicit reason rather than silently over-imported.
+        # The set is taken from the source adapter when it can supply it.
+        supplied = excluded_source_ids
+        supplied ||= source.excluded_participant_ids if source.respond_to?(:excluded_participant_ids)
+        @excluded = Array(supplied).map(&:to_s).to_set
         @counts = Hash.new(0)
         @reasons = Hash.new(0)
       end
@@ -148,10 +156,15 @@ module Date9ja
         raise MissingParticipant unless conversation && sender
         source_id = integer_source_id!(value(row, :id), "invalid_source_message_id")
         body = value(row, :body)
-        message_type = value(row, :message_type) || value(row, :kind)
-        raise UnsupportedRow, "unsupported_message_type" if message_type.present? && message_type.to_s.downcase != "text"
-        raise UnsupportedRow, "invalid_message_body" if body.blank?
+        message_type = (value(row, :message_type) || value(row, :kind) || "text").to_s.downcase
+        kind = Message.kinds.key?(message_type) ? message_type : { "super_like" => "text" }.fetch(message_type, nil)
+        raise UnsupportedRow, "unsupported_message_type" if kind.nil?
+        raise UnsupportedRow, "invalid_message_body" if body.blank? && value(row, :attachment_reference).blank?
         record = Message.new(brand:, conversation:, sender_profile: sender, body:,
+          kind:, reply_to_message: resolve(:message, value(row, :reply_to_id)),
+          read_at: value(row, :read_at), edited_at: value(row, :edited_at),
+          source_media_reference: value(row, :attachment_reference),
+          source_metadata: { "source_kind" => message_type }.compact,
           created_at: timestamp(row), updated_at: timestamp(row), deleted_at: value(row, :deleted_at))
         record.save!
         bind!(record, :message, row)
@@ -196,6 +209,8 @@ module Date9ja
       end
 
       def resolve_profile(source_id)
+        raise UnsupportedRow, "seed_linked_participant" if source_id.present? && @excluded.include?(source_id.to_s)
+
         resolve(:profile, source_id)
       end
 

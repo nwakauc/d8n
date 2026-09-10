@@ -52,6 +52,22 @@ module Date9ja
         refute CountryMapping.call("nigeri").mapped?
       end
 
+      test "the complete ISO 3166-1 name domain maps even for values absent from the snapshot" do
+        {
+          "Portugal" => "PT", "Norway" => "NO", "Singapore" => "SG", "Trinidad and Tobago" => "TT",
+          "Cote d'Ivoire" => "CI", "Ivory Coast" => "CI", "South Korea" => "KR",
+          "Russian Federation" => "RU", "Viet Nam" => "VN", "Czechia" => "CZ", "Eswatini" => "SZ",
+          "the Netherlands" => "NL"
+        }.each do |source, iso2|
+          assert_equal iso2, CountryMapping.call(source).country_code, "#{source} -> #{iso2}"
+        end
+
+        # Curated code aliases and bare abbreviations keep their existing behaviour.
+        assert_equal "GB", CountryMapping.call("uk").country_code
+        refute CountryMapping.call("UAE").mapped?
+        refute CountryMapping.call("Wakanda").mapped?
+      end
+
       test "interest mapping is explicit, order-preserving, and quarantines the unknown" do
         out = InterestMapping.call([ "Afro Beats", "Soccer", "reading", "quantum basket weaving" ])
         assert_equal :partial, out.status
@@ -105,6 +121,9 @@ module Date9ja
         assert_equal "christian", SensitiveVocabularies::RELIGION.call("Catholic").code
         assert_equal "as", SensitiveVocabularies::GENOTYPE.call("AS").code
         assert_equal "not_open", SensitiveVocabularies::POLYGAMY_OPENNESS.call("no").code
+        assert_equal "christian", SensitiveVocabularies::RELIGION.call(0).code
+        assert_equal "white_european", SensitiveVocabularies::ETHNICITY.call(1).code
+        assert_equal "already_in_one", SensitiveVocabularies::POLYGAMY_OPENNESS.call(2).code
         assert SensitiveVocabularies::TRIBE.call("Klingon").unmapped?
         assert SensitiveVocabularies::TRIBE.call(nil).absent?
       end

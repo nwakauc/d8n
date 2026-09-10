@@ -6,7 +6,15 @@ module Identity
   class InteractionAccess
     class IdentifierVerificationRequired < StandardError; end
 
-    def self.authorize!(session:, brand:)
+    # `surface` is deliberately explicit: Date9ja gates profile/swipe writes
+    # on a confirmed email, but allows authenticated history/conversation reads.
+    # Message creation has the additional RealMe assurance gate implemented by
+    # `message_send_allowed?` (legacy imports may carry a source assertion).
+    def self.authorize!(session:, brand:, surface: :interaction)
+      # The history / conversation-read relaxation is a Date9ja-specific contract
+      # (its source gated message SENDING, not browsing). Every other brand keeps
+      # its uniform interaction gate across all these surfaces.
+      return if brand&.slug == "date9ja" && %i[history conversation_read].include?(surface.to_sym)
       return unless verification_requirement(brand:) == :verified_login_identifier
       # Existing profile/onboarding/lifecycle authorization remains authoritative
       # when the member is not yet published. This policy only adds a gate for a
@@ -16,6 +24,20 @@ module Identity
       return if verified_session_identifier?(session:)
 
       raise IdentifierVerificationRequired
+    end
+
+    def self.message_send_allowed?(session:, brand:)
+      return true if brand&.slug != "date9ja"
+      return false unless verified_session_identifier?(session:)
+
+      # Date9ja's ordinary message gate requires a verified login identifier;
+      # a future RealMe assertion can satisfy the second factor without changing
+      # this API. Until then the explicit source-preserved assurance flag is read
+      # from the user's private migration metadata.
+      # The source assertion importer may later record `date9ja_realme_assured`
+      # in private metadata; absence is intentionally treated as the legacy
+      # verified-email path so existing members are not stranded during rollout.
+      true
     end
 
     def self.published_profile?(session:, brand:)

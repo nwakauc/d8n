@@ -29,8 +29,13 @@ module Migration
       "Match" => :brand_owned,
       "Conversation" => :brand_owned,
       "Message" => :brand_owned,
+      "MessageReaction" => :brand_owned,
       "ProfileBlock" => :brand_owned,
-      "Report" => :brand_owned
+      "Report" => :brand_owned,
+      # Verification assurance history and the catch-all legacy operational /
+      # member-visible history ledger (extended-history + lifecycle slices).
+      "VerificationAssertion" => :brand_owned,
+      "Date9jaHistoryRecord" => :brand_owned
     }.freeze
 
     def self.known?(type)

@@ -7,7 +7,14 @@ class Api::V1::InteractionController < ApplicationController
   private
 
   def authorize_interaction_access!
-    Identity::InteractionAccess.authorize!(session: Current.session, brand: Current.brand)
+    surface = if is_a?(Api::V1::MessagesController) && action_name == "index"
+      :history
+    elsif is_a?(Api::V1::ConversationsController)
+      :conversation_read
+    else
+      :interaction
+    end
+    Identity::InteractionAccess.authorize!(session: Current.session, brand: Current.brand, surface:)
   rescue Identity::InteractionAccess::IdentifierVerificationRequired
     render json: { error: "identifier_verification_required" }, status: :forbidden
   end

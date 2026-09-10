@@ -12,6 +12,7 @@ module Date9ja
       :id, :public_id, :email, :phone, :encrypted_password,
       :confirmed_at, :phone_verified_at, :created_at, :deleted_at,
       :suspended_at, :banned_at, :discovery_restricted_at, :profile_hidden, :onboarding_completed_at,
+      :seed_account,
       :date_of_birth, :gender, :full_name, :display_name, :city, :country_of_residence,
       :about_me, :ideal_partner_description,
       # Preference / option-group inputs, added with the profile & preference
@@ -58,6 +59,7 @@ module Date9ja
           discovery_restricted_at: row["discovery_restricted_at"],
           profile_hidden: BOOLEAN.cast(row["profile_hidden"]) || false,
           onboarding_completed_at: row["onboarding_completed_at"],
+          seed_account: BOOLEAN.cast(row["seed_account"]) || false,
           date_of_birth: row["date_of_birth"],
           gender: row["gender"],
           full_name: row["full_name"],
@@ -131,6 +133,8 @@ module Date9ja
       # so a restricted member is imported but never published — fail closed.
       def discovery_restricted? = discovery_restricted_at.present?
 
+      def seed_account? = seed_account
+
       # Change-detection fingerprint for LegacyReference.source_fingerprint.
       # Deliberately excludes email/phone/free-text so nothing identifying is
       # written to the D8N database in plaintext.
@@ -148,7 +152,7 @@ module Date9ja
       def readiness_fingerprint
         material = [
           full_name, city, country_of_residence, profile_hidden,
-          onboarding_completed_at, suspended_at, banned_at, deleted_at, discovery_restricted_at,
+          onboarding_completed_at, suspended_at, banned_at, deleted_at, discovery_restricted_at, seed_account,
           preferred_age_min, preferred_age_max, relationship_intention,
           wants_children, children_count,
           smoking, drinking, fitness, education, commitment_timeline,

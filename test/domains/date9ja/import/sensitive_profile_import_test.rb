@@ -9,6 +9,22 @@ module Date9ja
     # denomination / genotype / state_of_origin / nationality / is_nigerian /
     # openness flags / matching-preference arrays / interest_in_nigerian_culture.
     class SensitiveProfileImportTest < ActiveSupport::TestCase
+      test "snapshot SQL reads genotype from its real JSON source and invents no source columns" do
+        connection = Object.new
+        query = nil
+        connection.define_singleton_method(:exec_query) do |sql|
+          query = sql
+          Struct.new(:to_a).new([])
+        end
+
+        Snapshot::SensitiveUserSource.new(connection:, verify_schema: false).to_a
+
+        assert_includes query, "v2_onboarding_answers ->> 'genotype' AS genotype"
+        assert_includes query, "NULL::character varying[] AS preferred_ethnicity"
+        assert_includes query, "NULL::character varying[] AS preferred_genotype"
+        refute_includes query, "denomination, genotype,"
+      end
+
       setup do
         @brand = Brands::Date9jaInstaller.call
         Geography::NigeriaCatalog.install!
@@ -123,6 +139,34 @@ module Date9ja
         assert_equal 0, result.reconciliation.to_h.dig("created", "option_selections_created")
         assert_equal 1, result.reconciliation.count(:imported)
         assert_equal 1, result.reconciliation.note_count("religion_absent")
+      end
+
+      test "non-genotype V2 onboarding answers are preserved verbatim in owner-only profile metadata" do
+        result = run_sensitive(
+          [ base_row(id: 1) ],
+          [ { id: 1, genotype: "AA",
+              v2_onboarding_answers: {
+                "faith_practice" => "devout", "family_involvement" => "high",
+                "language_at_home" => "yoruba", "settlement" => "lagos",
+                "money_providing" => "shared", "children" => "wants_more",
+                "lifestyle" => "quiet", "conflict" => "talk_it_out",
+                "custom_religion" => "", "genotype" => "AA"
+              } } ]
+        )
+
+        stored = profile_for(1).reload.metadata["date9ja_v2_onboarding"]
+        assert_equal "devout", stored["faith_practice"]
+        assert_equal "talk_it_out", stored["conflict"]
+        assert_not stored.key?("genotype"), "genotype must not be duplicated into the metadata blob"
+        assert_equal 1, result.reconciliation.note_count("v2_onboarding_answers_mapped")
+
+        # Rerun is gap-fill: the existing copy is left untouched.
+        rerun = SensitiveProfileImport.call(
+          brand: @brand,
+          source: Snapshot::SensitiveUserSource.new(rows: [ { id: 1, v2_onboarding_answers: { "faith_practice" => "changed" } } ])
+        )
+        assert_equal "devout", profile_for(1).reload.metadata.dig("date9ja_v2_onboarding", "faith_practice")
+        assert_equal 1, rerun.reconciliation.note_count("v2_onboarding_answers_preserved")
       end
 
       test "a soft-deleted or banned source row is skipped" do

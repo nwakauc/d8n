@@ -23,6 +23,7 @@ module Date9ja
         tribe ethnicity religion denomination genotype
         intertribal_marriage_openness polygamy_openness
         preferred_religion preferred_tribes preferred_ethnicity preferred_genotype
+        v2_onboarding_answers
       ].freeze
 
       # Per field: _absent (member never answered), _unmapped (real value, no

@@ -250,6 +250,9 @@ module Profiles
         options: {
           "igbo" => "Igbo", "yoruba" => "Yoruba", "hausa" => "Hausa", "fulani" => "Fulani",
           "ijaw" => "Ijaw", "ibibio" => "Ibibio", "edo" => "Edo", "kanuri" => "Kanuri",
+          "tiv" => "Tiv", "efik" => "Efik", "nupe" => "Nupe", "urhobo" => "Urhobo",
+          "itsekiri" => "Itsekiri", "igala" => "Igala", "idoma" => "Idoma", "ebira" => "Ebira",
+          "annang" => "Annang", "ogoni" => "Ogoni", "ekoi" => "Ekoi", "jukun" => "Jukun",
           "other" => "Other", "prefer_not_to_say" => "Prefer not to say"
         }
       },
@@ -260,7 +263,7 @@ module Profiles
         label: "Genotype", cardinality: :single, max_selections: 1, visibility: :owner_only,
         options: {
           "aa" => "AA", "as" => "AS", "ss" => "SS", "ac" => "AC", "sc" => "SC", "cc" => "CC",
-          "not_tested" => "Not tested", "prefer_not_to_say" => "Prefer not to say"
+          "not_tested" => "Not tested", "other" => "Other", "prefer_not_to_say" => "Prefer not to say"
         }
       },
       # A self-identified ethnicity, distinct from `tribe` (Date9ja stores both
@@ -272,7 +275,12 @@ module Profiles
           "ijaw" => "Ijaw", "ibibio" => "Ibibio", "edo" => "Edo", "kanuri" => "Kanuri",
           "tiv" => "Tiv", "nupe" => "Nupe", "igala" => "Igala", "efik" => "Efik",
           "urhobo" => "Urhobo", "itsekiri" => "Itsekiri", "annang" => "Annang",
-          "mixed" => "Mixed", "other" => "Other", "prefer_not_to_say" => "Prefer not to say"
+          "mixed" => "Mixed", "other" => "Other", "prefer_not_to_say" => "Prefer not to say",
+          # Date9ja's authoritative enum also contains broad identity values.
+          # They remain distinct; no source value is folded into a tribe code.
+          "black" => "Black", "white_european" => "White European", "asian" => "Asian",
+          "hispanic_latino" => "Hispanic / Latino", "middle_eastern" => "Middle Eastern",
+          "white" => "White", "european" => "European"
         }
       },
       # Religious denomination. Flat vocabulary (matches how the single legacy
@@ -303,6 +311,7 @@ module Profiles
         cardinality: :single, max_selections: 1, visibility: :owner_only,
         options: {
           "open" => "Open", "not_open" => "Not open", "depends" => "Depends",
+          "already_in_one" => "Already in a polygamous arrangement",
           "prefer_not_to_say" => "Prefer not to say"
         }
       },

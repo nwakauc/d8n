@@ -39,6 +39,33 @@ module Date9ja
         assert_equal 2, second.counts.fetch("messages.already_imported")
       end
 
+      test "drops relationship rows that touch a seed/demo account" do
+        result = HistoricalGraphImport.call(
+          brand: @brand,
+          excluded_source_ids: [ "b" ],
+          source: HistoricalGraphImport::Source.new(
+            likes: [
+              { id: 70, liker_profile_id: "a", liked_profile_id: "b", created_at: 2.days.ago },
+              { id: 71, liker_profile_id: "b", liked_profile_id: "a", created_at: 2.days.ago }
+            ],
+            passes: [], matches: [], conversations: [], messages: [], blocks: [], reports: []
+          )
+        )
+        assert_equal 0, Like.count
+        assert_equal 2, result.counts.fetch("likes.skipped")
+        assert_equal 2, result.reasons.fetch("likes.seed_linked_participant")
+      end
+
+      test "the snapshot adapter supplies seed participant ids from the users table" do
+        adapter = Date9ja::Snapshot::HistoricalGraphSource.new(rows: {
+          excluded_participant_ids: [ "b" ],
+          likes: [ { id: 72, liker_id: "a", liked_id: "b", created_at: 1.day.ago } ],
+          matches: [], messages: [], blocks: [], reports: []
+        })
+        result = HistoricalGraphImport.call(brand: @brand, source: adapter)
+        assert_equal 1, result.reasons.fetch("likes.seed_linked_participant")
+      end
+
       test "skips rows whose participants were not migrated" do
         result = HistoricalGraphImport.call(
           brand: @brand,
@@ -66,7 +93,7 @@ module Date9ja
         assert_equal "kept", Message.find_by!(body: "kept").body
       end
 
-      test "keeps distinct reports distinct and quarantines non-text or untimestamped messages" do
+      test "keeps distinct reports distinct, preserves non-text message kind, and quarantines untimestamped messages" do
         rows = [
           { id: 31, reporter_profile_id: "a", reported_profile_id: "b", target_type: :message, target_id: 100, reason: :spam, created_at: 2.days.ago },
           { id: 32, reporter_profile_id: "a", reported_profile_id: "b", target_type: :message, target_id: 101, reason: :harassment, created_at: 1.day.ago }
@@ -74,12 +101,14 @@ module Date9ja
         result = HistoricalGraphImport.call(brand: @brand, source: HistoricalGraphImport::Source.new(
           likes: [], passes: [], matches: [ { id: 50, profile_a_id: "a", profile_b_id: "b", created_at: 2.days.ago } ],
           conversations: [ { id: "date9ja-match:50:conversation", match_id: "50", created_at: 2.days.ago } ], messages: [
-            { id: 40, conversation_id: "date9ja-match:50:conversation", sender_profile_id: "a", body: "caption", message_type: "image", created_at: 1.day.ago },
+            { id: 40, conversation_id: "date9ja-match:50:conversation", sender_profile_id: "a", body: "caption", message_type: "image", attachment_reference: "date9ja-msg:40", created_at: 1.day.ago },
             { id: 41, conversation_id: "date9ja-match:50:conversation", sender_profile_id: "a", body: "text" }
           ], blocks: [], reports: rows))
         assert_equal 2, Report.count
         assert_equal 2, LegacyReference.where(source_entity: "report").count
-        assert_equal 1, result.reasons.fetch("messages.unsupported_message_type")
+        image = Message.find_by!(body: "caption")
+        assert image.kind_image?
+        assert_equal "date9ja-msg:40", image.source_media_reference
         assert_equal 1, result.reasons.fetch("messages.missing_created_at")
       end
 

@@ -266,6 +266,19 @@ module Date9ja
         assert_includes Migration::ProfileReadiness.find_by!(profile:).reason_codes, "source_discovery_restricted"
       end
 
+      test "a production seed account is imported for reconciliation but never published" do
+        source_row = row(id: 1, seed_account: true)
+        import_identity_and_preferences([ source_row ])
+
+        result = readiness([ source_row ], publication_policy: :publish_visible_onboarded)
+
+        assert_equal 1, result.reconciliation.count(:intentionally_hidden)
+        profile = profile_for(1).reload
+        assert profile.draft?
+        assert profile.hidden?
+        assert_includes Migration::ProfileReadiness.find_by!(profile:).reason_codes, "source_seed_account"
+      end
+
       test "a source member discovery-restricted after an earlier publish is withdrawn" do
         source_row = row(id: 1)
         import_identity_and_preferences([ source_row ])

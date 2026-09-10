@@ -299,9 +299,26 @@ module Date9ja
 
         apply_languages!(profile, record, applied_fields:, attrs:)
         apply_relocation_preferences!(profile, record, applied_fields:, attrs:)
+        preserve_legacy_arrays!(profile, record, attrs:)
 
         applied_fields.uniq!
         profile.update!(attrs) if attrs.any?
+      end
+
+      # Date9ja arrays are member-authored and intentionally open-ended. Curated
+      # option mappings remain useful for product filtering, but unknown values
+      # must not disappear. Keep an owner-only exact copy in profile metadata so
+      # every source element survives without widening the public profile schema.
+      def preserve_legacy_arrays!(profile, record, attrs:)
+        keys = %w[interests relationship_values dealbreakers languages_spoken]
+        raw = keys.each_with_object({}) do |key, result|
+          values = Array(record.public_send(key))
+          result[key] = values if values.any?
+        end
+        return if raw.empty?
+
+        existing = profile.metadata.is_a?(Hash) ? profile.metadata : {}
+        attrs[:metadata] = existing.merge("date9ja_legacy_arrays" => raw)
       end
 
       # Legacy `users.relocation_preferences` is a flat array of user-typed
@@ -502,6 +519,7 @@ module Date9ja
         end
         return [ :intentionally_hidden, [ "source_discovery_restricted" ] ] if record.discovery_restricted?
         return [ :intentionally_hidden, [ "legacy_profile_hidden" ] ] if record.profile_hidden
+        return [ :intentionally_hidden, [ "source_seed_account" ] ] if record.seed_account?
 
         unless profile.user.active? && profile.brand_membership.active?
           return [ :intentionally_hidden, [ "destination_unavailable" ] ]
@@ -514,10 +532,9 @@ module Date9ja
           return [ :ready, [ "native_visibility_preserved" ] ]
         end
 
-        # Date9ja's own discovery predicate (`index_users_on_discovery_eligible`:
-        # not deleted/banned/suspended/discovery_restricted and profile_hidden =
-        # false) does NOT require `onboarding_completed_at`. A member Date9ja
-        # shows in discovery is shown on D8N.
+        # Date9ja's production discovery predicate does NOT require
+        # `onboarding_completed_at`, but it does exclude seed/demo accounts in
+        # production. A member Date9ja shows in discovery is shown on D8N.
         [ :ready, [] ]
       end
 

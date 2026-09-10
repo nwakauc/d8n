@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_09_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_10_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -270,6 +270,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_140000) do
     t.index ["user_id"], name: "index_credentials_on_user_id"
   end
 
+  create_table "date9ja_history_records", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "occurred_at"
+    t.jsonb "payload", default: {}, null: false
+    t.bigint "profile_id"
+    t.string "record_type", null: false
+    t.datetime "redacted_at"
+    t.string "source_entity", null: false
+    t.string "source_id", null: false
+    t.string "status"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["brand_id", "record_type", "occurred_at"], name: "idx_date9ja_history_records_timeline"
+    t.index ["brand_id", "source_entity", "source_id"], name: "idx_date9ja_history_records_source", unique: true
+    t.index ["brand_id"], name: "index_date9ja_history_records_on_brand_id"
+    t.index ["profile_id"], name: "index_date9ja_history_records_on_profile_id"
+    t.index ["user_id"], name: "index_date9ja_history_records_on_user_id"
+  end
+
   create_table "device_registrations", force: :cascade do |t|
     t.bigint "brand_id", null: false
     t.bigint "brand_membership_id", null: false
@@ -485,19 +505,39 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_140000) do
     t.index ["public_id"], name: "index_message_attachments_on_public_id", unique: true
   end
 
+  create_table "message_reactions", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.string "emoji", null: false
+    t.bigint "message_id", null: false
+    t.bigint "reactor_profile_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id"], name: "index_message_reactions_on_brand_id"
+    t.index ["message_id", "reactor_profile_id", "emoji"], name: "idx_message_reactions_unique", unique: true
+    t.index ["message_id"], name: "index_message_reactions_on_message_id"
+    t.index ["reactor_profile_id"], name: "index_message_reactions_on_reactor_profile_id"
+  end
+
   create_table "messages", force: :cascade do |t|
     t.text "body"
     t.bigint "brand_id", null: false
     t.bigint "conversation_id", null: false
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
+    t.datetime "edited_at"
+    t.integer "kind", default: 0, null: false
     t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.datetime "read_at"
     t.jsonb "reply_snapshot", default: {}, null: false
     t.bigint "reply_to_message_id"
     t.bigint "sender_profile_id", null: false
+    t.string "source_media_reference"
+    t.jsonb "source_metadata", default: {}, null: false
     t.datetime "updated_at", null: false
     t.index ["brand_id"], name: "index_messages_on_brand_id"
     t.index ["conversation_id", "created_at", "id"], name: "idx_messages_conversation_cursor", where: "(deleted_at IS NULL)"
+    t.index ["conversation_id", "created_at", "id"], name: "idx_messages_history_cursor"
     t.index ["conversation_id"], name: "index_messages_on_conversation_id"
     t.index ["id", "brand_id"], name: "idx_messages_on_id_brand", unique: true
     t.index ["public_id"], name: "index_messages_on_public_id", unique: true
@@ -1075,10 +1115,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_140000) do
     t.datetime "deleted_at"
     t.string "first_name", limit: 100
     t.string "last_name", limit: 100
+    t.jsonb "metadata", default: {}, null: false
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index "lower((first_name)::text)", name: "index_users_on_lower_first_name"
     t.index "lower((last_name)::text)", name: "index_users_on_lower_last_name"
+  end
+
+  create_table "verification_assertions", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.string "check_type", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "evidence", default: {}, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.bigint "profile_id"
+    t.datetime "reviewed_at"
+    t.string "reviewer_source_id"
+    t.string "source_id", null: false
+    t.string "source_type", null: false
+    t.string "status", null: false
+    t.datetime "submitted_at"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["brand_id", "source_type", "source_id"], name: "idx_verification_assertions_source", unique: true
+    t.index ["brand_id", "user_id", "source_type", "check_type"], name: "idx_verification_assertions_lookup"
+    t.index ["brand_id"], name: "index_verification_assertions_on_brand_id"
+    t.index ["profile_id"], name: "index_verification_assertions_on_profile_id"
+    t.index ["user_id"], name: "index_verification_assertions_on_user_id"
   end
 
   add_foreign_key "account_closures", "brand_memberships"
@@ -1119,6 +1182,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_140000) do
   add_foreign_key "credential_password_hashes", "credentials", column: ["credential_id", "credential_kind"], primary_key: ["id", "kind"], name: "fk_password_hash_credential_kind"
   add_foreign_key "credentials", "identity_identifiers"
   add_foreign_key "credentials", "users"
+  add_foreign_key "date9ja_history_records", "brands"
+  add_foreign_key "date9ja_history_records", "profiles"
+  add_foreign_key "date9ja_history_records", "users"
   add_foreign_key "device_registrations", "brand_memberships"
   add_foreign_key "device_registrations", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_device_registrations_membership_owner"
   add_foreign_key "device_registrations", "brands"
@@ -1152,6 +1218,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_140000) do
   add_foreign_key "matches", "profiles", column: ["profile_b_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_matches_profile_b_tenant"
   add_foreign_key "message_attachments", "brands"
   add_foreign_key "message_attachments", "messages", column: ["message_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_message_attachments_message_tenant"
+  add_foreign_key "message_reactions", "brands"
+  add_foreign_key "message_reactions", "messages"
+  add_foreign_key "message_reactions", "profiles", column: "reactor_profile_id"
   add_foreign_key "messages", "brands"
   add_foreign_key "messages", "conversations", column: ["conversation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_conversation_tenant"
   add_foreign_key "messages", "messages", column: ["reply_to_message_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_reply_to_message_tenant"
@@ -1235,4 +1304,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_140000) do
   add_foreign_key "sessions", "brands"
   add_foreign_key "sessions", "credentials"
   add_foreign_key "sessions", "users"
+  add_foreign_key "verification_assertions", "brands"
+  add_foreign_key "verification_assertions", "profiles"
+  add_foreign_key "verification_assertions", "users"
 end

@@ -1,19 +1,21 @@
 # frozen_string_literal: true
 
 require "digest"
+require "json"
 
 module Date9ja
   module Snapshot
     # One Date9ja `users` row reduced to the sensitive identity / culture /
     # health-adjacent columns. Read only by `SensitiveProfileImport` through
-    # `SensitiveUserSource`. Values are legacy strings / string arrays / an
-    # integer-or-boolean openness flag — decoded by the explicit
+    # `SensitiveUserSource`. Values are legacy strings, integer enum codes,
+    # string arrays, or a boolean openness flag — decoded by the explicit
     # Date9ja::Import mapping tables, never interpreted here.
     SensitiveUserRecord = Data.define(
       :id, :deleted_at, :banned_at,
       :is_nigerian, :state_of_origin, :nationality, :tribe, :ethnicity, :religion, :denomination,
       :genotype, :intertribal_marriage_openness, :polygamy_openness, :interest_in_nigerian_culture,
-      :preferred_religion, :preferred_tribes, :preferred_ethnicity, :preferred_genotype
+      :preferred_religion, :preferred_tribes, :preferred_ethnicity, :preferred_genotype,
+      :v2_onboarding_answers
     ) do
       def self.from_raw(raw)
         row = raw.transform_keys(&:to_s)
@@ -35,8 +37,30 @@ module Date9ja
           preferred_religion: normalize_string_list(row["preferred_religion"]),
           preferred_tribes: normalize_string_list(row["preferred_tribes"]),
           preferred_ethnicity: normalize_string_list(row["preferred_ethnicity"]),
-          preferred_genotype: normalize_string_list(row["preferred_genotype"])
+          preferred_genotype: normalize_string_list(row["preferred_genotype"]),
+          v2_onboarding_answers: parse_object(row["v2_onboarding_answers"])
         )
+      end
+
+      # The `v2_onboarding_answers - 'genotype'` projection arrives as a JSON
+      # string (or already-parsed Hash on the array-backed test source). Only a
+      # flat object of scalar answers is kept; anything else becomes {}.
+      def self.parse_object(value)
+        parsed = value.is_a?(String) ? safe_json(value) : value
+        return {} unless parsed.is_a?(Hash)
+
+        parsed.each_with_object({}) do |(key, answer), result|
+          next if key.to_s == "genotype" # its own gated destination + DPIA review
+          next if answer.is_a?(Hash) || answer.is_a?(Array)
+
+          result[key.to_s] = answer
+        end
+      end
+
+      def self.safe_json(text)
+        JSON.parse(text)
+      rescue JSON::ParserError
+        nil
       end
 
       def self.presence(value)
@@ -78,7 +102,8 @@ module Date9ja
           genotype, intertribal_marriage_openness, polygamy_openness,
           interest_in_nigerian_culture,
           preferred_religion.join(","), preferred_tribes.join(","),
-          preferred_ethnicity.join(","), preferred_genotype.join(",")
+          preferred_ethnicity.join(","), preferred_genotype.join(","),
+          v2_onboarding_answers.sort.to_h.to_s
         ].map(&:to_s).join("|")
         Digest::SHA256.hexdigest(material)[0, 32]
       end

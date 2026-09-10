@@ -9,11 +9,14 @@ class Message < ApplicationRecord
   belongs_to :sender_profile, class_name: "Profile"
   belongs_to :reply_to_message, class_name: "Message", optional: true
 
+  enum :kind, { text: 0, voice: 1, image: 2, video: 3 }, prefix: true
+
   # Ordered by default so eager-loaded association access (Messaging::MessageList,
   # Messaging::MessageSerializer) never re-queries just to sort — deleted
   # attachments stay in this association (shown as a "removed" state in the
   # transcript, not hidden), so this is deliberately NOT scoped to `kept`.
   has_many :message_attachments, -> { order(:position, :id) }, dependent: :restrict_with_exception
+  has_many :message_reactions, dependent: :destroy
 
   scope :kept, -> { where(deleted_at: nil) }
 
@@ -55,7 +58,7 @@ class Message < ApplicationRecord
   # rather than a query, so this works before the attachments themselves have
   # been saved.
   def body_or_attachment_present
-    return if body.present? || message_attachments.size.positive?
+    return if body.present? || message_attachments.size.positive? || source_media_reference.present?
 
     errors.add(:base, "message must have a body or at least one attachment")
   end

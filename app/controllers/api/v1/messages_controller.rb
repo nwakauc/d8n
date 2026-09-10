@@ -27,6 +27,9 @@ class Api::V1::MessagesController < Api::V1::InteractionController
   end
 
   def create
+    unless Identity::InteractionAccess.message_send_allowed?(session: Current.session, brand: Current.brand)
+      return render json: { error: "realme_verification_required" }, status: :forbidden
+    end
     authorize_media_capability! if attachment_uploads_present?
 
     result = Messaging::SendMessage.call(

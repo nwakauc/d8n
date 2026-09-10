@@ -39,11 +39,18 @@ module Date9ja
         "new zealand" => "NZ", "rwanda" => "RW", "somalia" => "SO", "uganda" => "UG"
       }.freeze
 
+      # The curated ALIASES (code forms like `uk`/`usa` and census-attested
+      # spellings) win; the complete ISO 3166-1 name table backfills every other
+      # correctly-spelled country name so an unobserved-but-valid value is not
+      # dropped (audit blocker ledger item 8). Still a closed, exact table — no
+      # typo repair, no subdivision inference.
+      RESOLVED = IsoCountryAliases::NAMES.merge(ALIASES).freeze
+
       module_function
 
       def call(value)
         normalized = value.to_s.strip.downcase.gsub(/\s+/, " ")
-        code = ALIASES[normalized]
+        code = RESOLVED[normalized]
         return Outcome.new(status: :unmapped, country_code: nil) if code.nil?
         unless code.match?(Profiles::FieldCatalog.format_pattern("country_code"))
           return Outcome.new(status: :unmapped, country_code: nil)

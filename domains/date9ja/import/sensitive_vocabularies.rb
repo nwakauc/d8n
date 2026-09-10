@@ -25,6 +25,9 @@ module Date9ja
           "igbo" => "igbo", "ibo" => "igbo", "yoruba" => "yoruba", "hausa" => "hausa",
           "fulani" => "fulani", "hausa fulani" => "fulani", "ijaw" => "ijaw", "izon" => "ijaw",
           "ibibio" => "ibibio", "edo" => "edo", "bini" => "edo", "kanuri" => "kanuri",
+          "tiv" => "tiv", "efik" => "efik", "nupe" => "nupe", "urhobo" => "urhobo",
+          "itsekiri" => "itsekiri", "igala" => "igala", "idoma" => "idoma", "ebira" => "ebira",
+          "annang" => "annang", "ogoni" => "ogoni", "ekoi" => "ekoi", "jukun" => "jukun",
           "other" => "other", "prefer not to say" => "prefer_not_to_say", "none" => "prefer_not_to_say"
         }
       )
@@ -37,7 +40,12 @@ module Date9ja
           "kanuri" => "kanuri", "tiv" => "tiv", "nupe" => "nupe", "igala" => "igala",
           "efik" => "efik", "urhobo" => "urhobo", "itsekiri" => "itsekiri", "annang" => "annang",
           "mixed" => "mixed", "mixed race" => "mixed", "other" => "other",
-          "prefer not to say" => "prefer_not_to_say"
+          "prefer not to say" => "prefer_not_to_say",
+          # Date9ja stores this field as an integer enum. Preserve every
+          # source meaning exactly; do not reinterpret these as Nigerian tribes.
+          "0" => "black", "1" => "white_european", "2" => "asian",
+          "3" => "hispanic_latino", "4" => "middle_eastern", "5" => "mixed",
+          "6" => "other", "7" => "prefer_not_to_say", "8" => "white", "9" => "european"
         }
       )
 
@@ -51,7 +59,9 @@ module Date9ja
           "jewish" => "jewish", "judaism" => "jewish", "sikh" => "sikh", "sikhism" => "sikh",
           "traditional" => "spiritual", "african traditional" => "spiritual", "spiritual" => "spiritual",
           "agnostic" => "agnostic", "atheist" => "atheist", "none" => "atheist",
-          "other" => "other", "prefer not to say" => "prefer_not_to_say"
+          "other" => "other", "prefer not to say" => "prefer_not_to_say",
+          # Date9ja enum: christian=0, muslim=1, traditional=2, other=3.
+          "0" => "christian", "1" => "muslim", "2" => "spiritual", "3" => "other"
         }
       )
 
@@ -73,6 +83,7 @@ module Date9ja
         valid_codes: -> { option_codes("genotype") },
         aliases: {
           "aa" => "aa", "as" => "as", "ss" => "ss", "ac" => "ac", "sc" => "sc", "cc" => "cc",
+          "other" => "other",
           "not tested" => "not_tested", "unknown" => "not_tested", "dont know" => "not_tested",
           "prefer not to say" => "prefer_not_to_say"
         }
@@ -89,7 +100,8 @@ module Date9ja
         valid_codes: -> { option_codes("intertribal_marriage_openness") }, aliases: OPENNESS_ALIASES
       )
       POLYGAMY_OPENNESS = ControlledVocabularyMapping.new(
-        valid_codes: -> { option_codes("polygamy_openness") }, aliases: OPENNESS_ALIASES
+        valid_codes: -> { option_codes("polygamy_openness") },
+        aliases: OPENNESS_ALIASES.merge("2" => "already_in_one")
       )
 
       # Matching-preference arrays -> ProfilePreference#preferred_attributes.
