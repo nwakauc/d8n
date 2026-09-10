@@ -1285,3 +1285,52 @@ Defects raised against pass 2 are now fixed:
 
 `db/schema.rb` is regenerated only after `db:migrate` succeeds locally; it is
 part of the changeset because the additive migrations are.
+
+### Implementation pass 4 (2026-09-10) — closure + fresh full rehearsal
+
+Migration-closure pass. A fresh restore + sanitize + verify (0 violations) of
+the authoritative `e1770ef…` snapshot was run through every importer in order,
+then re-run for idempotency. Full findings and the GO/NO-GO decision are in
+[GO-NO-GO-CUTOVER-REPORT.md](GO-NO-GO-CUTOVER-REPORT.md). Verdict: **GO**,
+conditional on the cutover-window media byte transfer and pristine
+sensitive-value reconciliation.
+
+Demonstrated blockers found on the rehearsal and fixed with tests:
+
+- **Media messages were silently dropped.** Date9ja stores message media as an
+  Active Storage attachment, not an inline column, so 22 image/video messages
+  (4 with reactions) failed `invalid_message_body`. `HistoricalGraphSource`
+  now joins the blob and emits a PII-free reference (`date9ja-blob:<id>` plus
+  checksum/size/content-type); the message imports with its real `kind` and
+  `source_metadata.media_bytes_transferred=false`. Rehearsal: 1588/1590
+  messages, 22/22 media, 22/22 reactions.
+- **Report category mis-decoded.** `Report.category` (fake_profile=0, scam=1,
+  harassment=2, inappropriate=3, other=4) was decoded to strings that are not
+  D8N `Report.reason` values — 3 of 5 dropped, the other 2 filed as `open`
+  (phantom queue for resolved tickets). Now an exact decode
+  (`inappropriate→inappropriate_content`, `scam→other` with the integer kept in
+  `evidence.source_category`); `resolved_at` ⇒ `dismissed` with
+  `evidence.source_resolution`. Rehearsal: 5/5, 0 open.
+- **Extended-history schema drift.** The per-entity column config assumed names
+  the v3 schema does not use (`explore_impressions.user_id`,
+  `notifications.user_id`, `notification_deliveries` owner, `trust_events` kind,
+  counterparty columns, etc.), silently dropping 35k+ rows under a false
+  `owner_not_migrated` reason. Column maps corrected; new
+  `ExtendedHistorySource::SchemaDrift` fails loud on a missing configured
+  owner/counterparty column. Rehearsal: 45,658 imported, 0 failed.
+- **`trust_xp_delta` false 5,000.** The points sum counted all events while the
+  entitlement sum counted migrated users only. Points are now scoped to the
+  migrated cohort; delta = 0.
+- **`User#public_id` crash** in lifecycle moderation-state import — resolve the
+  actor's brand `Profile` instead.
+
+Idempotency proven (every importer re-run: 0 new rows, 0 failures). End-to-end:
+484 published, 81 reciprocal candidates for a sample viewer, 0 cross-brand leak,
+0 resurrected users, 0 runtime entitlement grants. Full suite 2251 runs / 1
+pre-existing unrelated failure (DateZA welcome-email `href`). RuboCop + Brakeman
+clean.
+
+Blocker-ledger items 4, 5, and 6 (message media handling, notification/impression
+ownership, trust-XP reconciliation) are closed in code. Items 10 (media bytes)
+and 11 (pristine sensitive reconciliation) remain cutover-window execution steps,
+not code gaps.

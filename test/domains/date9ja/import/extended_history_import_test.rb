@@ -16,7 +16,7 @@ module Date9ja
       test "routes operational history to the ledger, is idempotent, and filters sensitive keys" do
         source = Snapshot::ExtendedHistorySource.new(rows: {
           profile_views: [ { id: 10, viewer_id: 1, viewed_id: 2, created_at: 2.days.ago } ],
-          notifications: [ { id: 11, user_id: 2, kind: "match", title: "New match", read_at: nil,
+          notifications: [ { id: 11, recipient_id: 2, kind: "match", notifiable_type: "Match", read_at: nil,
                              auth_token: "SECRET", created_at: 1.day.ago } ],
           push_tokens: [ { id: 12, user_id: 1, platform: "ios", device_token: "abc", created_at: 3.days.ago } ],
           aunty_phobie_conversations: [ { id: 13, user_id: 1, status: "open", created_at: 4.days.ago } ],
@@ -86,7 +86,7 @@ module Date9ja
       test "links both sides of a two-party row and binds the ledger record" do
         source = Snapshot::ExtendedHistorySource.new(rows: {
           profile_views: [ { id: 40, viewer_id: 1, viewed_id: 2, created_at: 1.day.ago } ],
-          daily_introductions: [ { id: 41, user_id: 1, introduced_user_id: 999, status: "sent", created_at: 1.day.ago } ]
+          daily_introductions: [ { id: 41, user_id: 1, candidate_id: 999, created_at: 1.day.ago } ]
         })
         ExtendedHistoryImport.call(brand: @brand, source:)
 

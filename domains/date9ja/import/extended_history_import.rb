@@ -172,6 +172,13 @@ module Date9ja
       def accumulate_trust_points(entity, row)
         return unless entity == :trust_events
 
+        # Scope the points sum to the migrated cohort so it is comparable to
+        # entitlement_trust_xp_total, which only sums migrated users. Events
+        # owned by a non-migrated (e.g. soft-deleted or seed) account are
+        # excluded from both sides.
+        owner_key = row[:__owner_key]
+        return if owner_key && resolve(:user, row[owner_key]).nil?
+
         reconciliation.add_metric(:trust_event_points_total, row[:points].to_i)
       end
 

@@ -62,10 +62,11 @@ module Date9ja
         end
         occurred_at = row[:banned_at] || row[:suspended_at] || row[:discovery_restricted_at]
         actor = resolve_user(row[:discovery_restricted_by_id])
+        actor_profile = actor && Profile.find_by(user: actor, brand: @brand)
         upsert(:moderation_state, row, MODERATION_KEYS, status:, occurred_at:,
           extra: {
             "restricting_actor_present" => actor.present?,
-            "restricting_actor_ref" => actor&.public_id
+            "restricting_actor_ref" => actor_profile&.public_id
           }.compact)
       end
 

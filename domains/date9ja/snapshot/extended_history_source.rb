@@ -14,6 +14,8 @@ module Date9ja
     # a new column importable. Rows are returned as symbol-keyed hashes sorted by
     # primary key, so a re-run yields the identical sequence.
     class ExtendedHistorySource
+      SchemaDrift = Class.new(StandardError)
+
       # entity => { table:, columns: [...], owner: <fk column resolving the D8N
       # user/profile>, occurred_at: <timestamp column>, status: <status column> }
       ENTITIES = {
@@ -23,29 +25,29 @@ module Date9ja
           occurred_at: "created_at"
         },
         daily_introductions: {
-          table: "daily_introductions", owner: "user_id", counterparty: "introduced_user_id",
-          columns: %w[id user_id introduced_user_id status opener_sent_at replied_at
-                      reply_unlocked_at created_at updated_at],
-          occurred_at: "created_at", status: "status"
+          table: "daily_introductions", owner: "user_id", counterparty: "candidate_id",
+          columns: %w[id user_id candidate_id introduction_date position
+                      compatibility_score created_at updated_at],
+          occurred_at: "created_at"
         },
         explore_impressions: {
-          table: "explore_impressions", owner: "user_id", counterparty: "shown_user_id",
-          columns: %w[id user_id shown_user_id source created_at],
+          table: "explore_impressions", owner: "viewer_id", counterparty: "candidate_id",
+          columns: %w[id viewer_id candidate_id last_shown_at created_at updated_at],
           occurred_at: "created_at"
         },
         notifications: {
-          table: "notifications", owner: "user_id",
-          columns: %w[id user_id kind title body read_at data created_at updated_at],
+          table: "notifications", owner: "recipient_id",
+          columns: %w[id recipient_id actor_id notifiable_type notifiable_id kind read_at created_at updated_at],
           occurred_at: "created_at"
         },
         notification_deliveries: {
-          table: "notification_deliveries", owner: "user_id",
-          columns: %w[id notification_id user_id channel status provider error created_at updated_at],
+          table: "notification_deliveries", owner: nil,
+          columns: %w[id notification_id channel status attempts delivered_at created_at updated_at],
           occurred_at: "created_at", status: "status"
         },
         push_tokens: {
           table: "push_tokens", owner: "user_id",
-          columns: %w[id user_id platform enabled last_used_at created_at updated_at],
+          columns: %w[id user_id platform device_name last_registered_at disabled_at created_at updated_at],
           occurred_at: "created_at"
         },
         aunty_phobie_conversations: {
@@ -80,8 +82,8 @@ module Date9ja
           occurred_at: "created_at"
         },
         community_events: {
-          table: "community_events", owner: "host_id",
-          columns: %w[id host_id title status starts_at ends_at created_at updated_at],
+          table: "community_events", owner: "user_id",
+          columns: %w[id user_id status starts_at published_at created_at updated_at],
           occurred_at: "created_at", status: "status"
         },
         community_event_rsvps: {
@@ -91,7 +93,7 @@ module Date9ja
         },
         community_remarks: {
           table: "community_remarks", owner: "user_id",
-          columns: %w[id user_id remarkable_type remarkable_id status created_at updated_at],
+          columns: %w[id user_id community_event_id community_story_id status created_at updated_at],
           occurred_at: "created_at", status: "status"
         },
         community_stories: {
@@ -101,19 +103,18 @@ module Date9ja
         },
         community_reports: {
           table: "community_reports", owner: "reporter_id",
-          columns: %w[id reporter_id reportable_type reportable_id reason status
-                      resolved_at resolver_id created_at updated_at],
+          columns: %w[id reporter_id category status reviewed_by_id reviewed_at created_at updated_at],
           occurred_at: "created_at", status: "status"
         },
         trust_events: {
           table: "trust_events", owner: "user_id",
-          columns: %w[id user_id kind points source_type source_id created_at updated_at],
+          columns: %w[id user_id event_type points source_type source_id created_at updated_at],
           occurred_at: "created_at"
         },
         trust_adjustments: {
           table: "trust_adjustments", owner: "user_id",
-          columns: %w[id user_id actor_id kind points reason status created_at updated_at],
-          occurred_at: "created_at", status: "status"
+          columns: %w[id user_id actor_id points reason_code appeal_status resolved_at created_at updated_at],
+          occurred_at: "created_at", status: "appeal_status"
         },
         audit_logs: {
           table: "audit_logs", owner: "target_user_id",
@@ -122,37 +123,39 @@ module Date9ja
         },
         exit_attempts: {
           table: "exit_attempts", owner: "user_id",
-          columns: %w[id user_id reason step status resolved_at created_at updated_at],
-          occurred_at: "created_at", status: "status"
+          columns: %w[id user_id reason_code intervention outcome retention_action resolved_at created_at updated_at],
+          occurred_at: "created_at", status: "outcome"
         },
         feedback_items: {
           table: "feedback_items", owner: "user_id",
           columns: %w[id user_id category reviewed_at created_at updated_at],
           occurred_at: "created_at"
         },
+        # personas / daily_life_entries hold sensitive free text; only the
+        # existence + timing skeleton is preserved (never the body columns).
         personas: {
           table: "personas", owner: "user_id",
-          columns: %w[id user_id name status created_at updated_at],
-          occurred_at: "created_at", status: "status"
+          columns: %w[id user_id tone created_at updated_at],
+          occurred_at: "created_at"
         },
         daily_life_entries: {
           table: "daily_life_entries", owner: "user_id",
-          columns: %w[id user_id prompt_key status created_at updated_at],
-          occurred_at: "created_at", status: "status"
+          columns: %w[id user_id entry_date focus_tag created_at updated_at],
+          occurred_at: "created_at"
         },
         tracked_contacts: {
-          table: "tracked_contacts", owner: "user_id", counterparty: "tracked_user_id",
-          columns: %w[id user_id tracked_user_id status label created_at updated_at],
+          table: "tracked_contacts", owner: "user_id", counterparty: "matched_user_id",
+          columns: %w[id user_id matched_user_id status created_at updated_at],
           occurred_at: "created_at", status: "status"
         },
         tracked_contact_notes: {
-          table: "tracked_contact_notes", owner: "user_id",
-          columns: %w[id user_id tracked_contact_id created_at updated_at],
+          table: "tracked_contact_notes", owner: nil,
+          columns: %w[id tracked_contact_id category created_at updated_at],
           occurred_at: "created_at"
         },
         message_reactions: {
           table: "message_reactions", owner: "user_id",
-          columns: %w[id message_id user_id emoji reaction created_at updated_at],
+          columns: %w[id message_id user_id emoji created_at updated_at],
           occurred_at: "created_at"
         }
       }.freeze
@@ -203,6 +206,19 @@ module Date9ja
         present = @connection.exec_query(
           "SELECT column_name FROM information_schema.columns WHERE table_name = '#{table}'"
         ).rows.flatten
+        return [] if present.empty?
+
+        # Fail loud on schema drift: a configured owner / counterparty column
+        # that no longer exists would otherwise silently resolve to nil and
+        # every row would be dropped under a misleading "owner_not_migrated"
+        # reason code. A genuinely ownerless child entity uses `owner: nil`.
+        [ :owner, :counterparty ].each do |role|
+          column = config[role]
+          next if column.nil? || present.include?(column)
+
+          raise SchemaDrift, "#{table}.#{column} (#{role}) is absent from the snapshot schema"
+        end
+
         selected = config.fetch(:columns) & present
         return [] if selected.empty? || !present.include?("id")
 

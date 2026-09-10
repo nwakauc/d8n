@@ -96,20 +96,34 @@ module Date9ja
       test "keeps distinct reports distinct, preserves non-text message kind, and quarantines untimestamped messages" do
         rows = [
           { id: 31, reporter_profile_id: "a", reported_profile_id: "b", target_type: :message, target_id: 100, reason: :spam, created_at: 2.days.ago },
-          { id: 32, reporter_profile_id: "a", reported_profile_id: "b", target_type: :message, target_id: 101, reason: :harassment, created_at: 1.day.ago }
+          { id: 32, reporter_profile_id: "a", reported_profile_id: "b", target_type: :message, target_id: 101, reason: :harassment,
+            resolved_at: 12.hours.ago, source_category: 3, created_at: 1.day.ago }
         ]
         result = HistoricalGraphImport.call(brand: @brand, source: HistoricalGraphImport::Source.new(
           likes: [], passes: [], matches: [ { id: 50, profile_a_id: "a", profile_b_id: "b", created_at: 2.days.ago } ],
           conversations: [ { id: "date9ja-match:50:conversation", match_id: "50", created_at: 2.days.ago } ], messages: [
             { id: 40, conversation_id: "date9ja-match:50:conversation", sender_profile_id: "a", body: "caption", message_type: "image", attachment_reference: "date9ja-msg:40", created_at: 1.day.ago },
-            { id: 41, conversation_id: "date9ja-match:50:conversation", sender_profile_id: "a", body: "text" }
+            { id: 41, conversation_id: "date9ja-match:50:conversation", sender_profile_id: "a", body: "text" },
+            { id: 42, conversation_id: "date9ja-match:50:conversation", sender_profile_id: "a", body: nil,
+              message_type: "video", attachment_reference: "date9ja-blob:9",
+              attachment_checksum: "zzz", attachment_content_type: "video/mp4", created_at: 1.day.ago }
           ], blocks: [], reports: rows))
         assert_equal 2, Report.count
         assert_equal 2, LegacyReference.where(source_entity: "report").count
+        resolved = Report.find_by!(reason: :harassment)
+        assert resolved.status_dismissed?, "a Date9ja resolved report must not land as open moderation work"
+        assert_equal 3, resolved.evidence.fetch("source_category")
+        assert_equal "resolved_outcome_unknown", resolved.evidence.fetch("source_resolution")
+        assert Report.find_by!(reason: :spam).status_open?
         image = Message.find_by!(body: "caption")
         assert image.kind_image?
         assert_equal "date9ja-msg:40", image.source_media_reference
         assert_equal 1, result.reasons.fetch("messages.missing_created_at")
+        blank_media = Message.find_by!(source_media_reference: "date9ja-blob:9")
+        assert blank_media.kind_video?
+        assert_nil blank_media.body
+        assert_equal false, blank_media.source_metadata.fetch("media_bytes_transferred")
+        assert_equal "zzz", blank_media.source_metadata.fetch("media_checksum")
       end
 
       test "preserves native unmatch, unblock, and post-import message state on rerun" do

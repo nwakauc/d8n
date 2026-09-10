@@ -164,7 +164,13 @@ module Date9ja
           kind:, reply_to_message: resolve(:message, value(row, :reply_to_id)),
           read_at: value(row, :read_at), edited_at: value(row, :edited_at),
           source_media_reference: value(row, :attachment_reference),
-          source_metadata: { "source_kind" => message_type }.compact,
+          source_metadata: {
+            "source_kind" => message_type,
+            "media_checksum" => value(row, :attachment_checksum),
+            "media_byte_size" => value(row, :attachment_byte_size),
+            "media_content_type" => value(row, :attachment_content_type),
+            "media_bytes_transferred" => (false if value(row, :attachment_reference).present?)
+          }.compact,
           created_at: timestamp(row), updated_at: timestamp(row), deleted_at: value(row, :deleted_at))
         record.save!
         bind!(record, :message, row)
@@ -192,9 +198,20 @@ module Date9ja
         raise UnsupportedRow, "unsupported_report_target" unless Report.target_types.key?(target_type.to_s)
         reason = value(row, :reason).presence || :other
         raise UnsupportedRow, "unsupported_report_reason" unless Report.reasons.key?(reason.to_s)
+        resolved_at = value(row, :resolved_at)
+        status = if value(row, :status).present? then value(row, :status)
+        elsif resolved_at.present? then :dismissed # Date9ja terminal "resolved"; outcome not recorded in source
+        else :open
+        end
+        evidence = {
+          "source_system" => "date9ja",
+          "source_category" => value(row, :source_category),
+          "source_resolved_at" => resolved_at&.then { |v| v.respond_to?(:iso8601) ? v.iso8601 : v.to_s },
+          "source_resolution" => ("resolved_outcome_unknown" if resolved_at.present?)
+        }.compact
         attrs = { brand:, reporter_profile: reporter, reported_profile: reported,
                   target_type:, target_id: value(row, :target_id), reason:,
-                  status: value(row, :status).presence || :open, note: nil, evidence: {} }
+                  status:, note: nil, evidence: }
         record = Report.new(attrs.merge(created_at: timestamp(row), updated_at: timestamp(row)))
         record.save!
         bind!(record, :report, row)
