@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-10
 **Branch:** `date9ja-parity`
-**Commit tested:** `0208846` (+ working-tree closure fixes, see §Changes)
+**Commit tested:** `9903c8a` (closure fixes) on `0208846` (committed migration code)
 **Mode:** Final cutover execution — close the two remaining gates, run the full
 migration from committed code, reconcile, decide.
 
