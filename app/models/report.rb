@@ -39,7 +39,14 @@ class Report < ApplicationRecord
     message: 1,
     profile_media: 2,
     hook: 3,
-    conversation: 4
+    conversation: 4,
+    community_question: 5,
+    community_answer: 6,
+    community_event: 7,
+    community_story: 8,
+    community_circle: 9,
+    community_post: 10,
+    community_comment: 11
   }, prefix: :target
 
   # Administrative review lifecycle. `open` until an admin triages it. Only one

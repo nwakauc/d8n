@@ -30,10 +30,11 @@ module Profiles
       assert_equal 10, configuration.fetch(:profile_fields).find { |field| field.fetch(:key) == "bio" }
         .fetch(:minimum_length)
       groups = configuration.fetch(:option_groups).index_by { |group| group.fetch(:key) }
-      %w[religion religion_importance tribe genotype].each do |key|
+      %w[religion religion_importance tribe].each do |key|
         assert_includes groups, key
         assert_equal "owner_only", groups.fetch(key).fetch(:visibility)
       end
+      assert_equal "public_profile", groups.fetch("genotype").fetch(:visibility)
       COMPATIBILITY_OPTIONS.each do |key, options|
         assert_equal options, groups.fetch(key).fetch(:options).pluck(:code)
         assert_equal "owner_only", groups.fetch(key).fetch(:visibility)
@@ -100,8 +101,10 @@ module Profiles
       payloads.each do |payload|
         profile_payload = payload[:profile] || payload
         sensitive = profile_payload.fetch(:options, {}).keys.map(&:to_s) &
-          (%w[religion religion_importance tribe genotype] + COMPATIBILITY_OPTIONS.keys)
+          (%w[religion religion_importance tribe] + COMPATIBILITY_OPTIONS.keys)
         assert_empty sensitive
+        genotype = profile_payload.fetch(:options, {})["genotype"] || profile_payload.fetch(:options, {})[:genotype]
+        assert_equal [ "aa" ], genotype
       end
     end
 

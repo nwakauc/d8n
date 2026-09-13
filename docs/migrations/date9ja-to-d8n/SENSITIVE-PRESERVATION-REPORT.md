@@ -26,7 +26,7 @@ defines.
 | `ethnicity` | new `ethnicity` option group | single-select | owner-only | DESTROY → NULL | `SensitiveVocabularies::ETHNICITY` | **DESTINATION READY + IMPORTER WIRED**; census 324 + R1 review |
 | `religion` | `religion` option group | single-select | owner-only | DESTROY → NULL | `SensitiveVocabularies::RELIGION` | **DESTINATION READY + IMPORTER WIRED**; census 325 + R1 review |
 | `denomination` | new `denomination` option group (flat) | single-select | owner-only | DESTROY → NULL | `SensitiveVocabularies::DENOMINATION` | **DESTINATION READY + IMPORTER WIRED**; census 326 + R1 review |
-| `genotype` | `genotype` option group | single-select | owner-only, never public, not in matching, never logged with identity | DESTROY → NULL | `SensitiveVocabularies::GENOTYPE` (haemoglobin genotypes) | **DESTINATION READY + IMPORTER WIRED**; census 327 + **security/DPIA sign-off on genotype at rest** |
+| `genotype` | `genotype` option group | single-select | Date9ja potential-match visibility + `date9ja_v1` critical check; never logged with identity | DESTROY → NULL | `SensitiveVocabularies::GENOTYPE` (haemoglobin genotypes) | **DESTINATION READY + IMPORTER WIRED**; census 327 + **security/DPIA sign-off on storage and disclosure** |
 | `intertribal_marriage_openness` | new option group | single-select | owner-only | DESTROY → NULL | `open/not_open/depends` tri-state | **DESTINATION READY + IMPORTER WIRED**; census 328 |
 | `polygamy_openness` | new option group | single-select | owner-only | DESTROY → NULL | same tri-state | **DESTINATION READY + IMPORTER WIRED**; census 328 |
 | `interest_in_nigerian_culture` | `profiles.interest_in_nigerian_culture` | text(1000) | owner-only | REDACT `[redacted]` | free text | **DESTINATION READY + IMPORTER WIRED**; census 329 (shape) + free-text privacy review |
@@ -46,18 +46,25 @@ defines.
   nothing new (idempotent by construction, no marker needed).
 - **Fail closed.** Every vocabulary is an explicit allowlist; an unrecognised
   value is quarantined and noted (`*_unmapped`), never approximated.
-- **No exposure widening.** Every destination is owner-only. `genotype` is never
-  placed in a public field and never logged alongside member identity.
+- **Explicit, bounded exposure.** Every destination except Date9ja genotype is
+  owner-only. `genotype` is shown only through eligible Date9ja profile surfaces,
+  is deliberately placed in that brand's public option payload, and is never
+  logged alongside member identity.
 - **Privacy-safe classification.** `source_census.sql` measures 320-330 emit only
   aggregate counts — a per-column allowlist-hit vs OTHER split — with no
   member-entered string ever emitted. This is the review input that decides
   whether each column can be reclassified REDACT/DESTROY → PRESERVE.
 
-## Discovery / publication invariant
+## Completion / publication / discovery behavior
 
-Unchanged. None of these fields is a completion, publication, or discovery gate
-(they are all in `OPTIONAL_*` / not in `REQUIRED_*` for Date9ja). **534 source
-discoverable → 534 D8N published/visible** is unaffected.
+Genotype remains optional and is not a completion or publication gate. Missing,
+not-tested, and prefer-not-to-say answers therefore do not reduce migration
+readiness or block discovery; compatibility reports `not_assessed`. When both
+members have supported known values, `date9ja_v1` derives a separate critical
+check, and a calculable HbSS, HbSC, or HbCC inherited-disease outcome is withheld
+from curated daily introductions. The migration's **534 source discoverable → 534
+D8N published/visible** invariant is unaffected because this does not change
+profile publication state.
 
 ## Blocker
 
@@ -71,9 +78,10 @@ and a wired importer. The exact data that cannot yet be safely classified:
    `source_census.sql` measures 280-282 and 320-330 against a **pristine**
    snapshot and reviewing the allowlist-hit vs OTHER split (`SANITIZATION-CONTRACT`
    R1/R2/R3, E-4/E-5). This is a privacy-safe extraction step.
-2. **Genotype at rest**: additionally needs a security/DPIA sign-off on whether
-   an owner-only column is sufficient or encryption-at-rest is required. This is
-   a security review, not a product-scope decision.
+2. **Genotype storage and disclosure**: additionally needs a security/DPIA
+   sign-off covering encryption-at-rest, consent notice, and disclosure to
+   eligible potential matches. This is a security/privacy review, not a product-
+   scope decision.
 
 Once (1) lands, `SensitiveProfileImport` migrates every reviewed value with no
 further code change.

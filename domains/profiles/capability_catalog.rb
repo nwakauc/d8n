@@ -257,9 +257,9 @@ module Profiles
         }
       },
       "genotype" => {
-        # Health-adjacent. Owner-only, never public, never a completion gate; a
-        # brand opts in explicitly (Date9ja does). Conservative superset of the
-        # haemoglobin genotypes; refine against Date9ja source when available.
+        # Health-adjacent and owner-only by default, never a completion gate. A
+        # brand must opt in explicitly; Date9ja widens this to potential-match
+        # visibility for its separately reported compatibility critical check.
         label: "Genotype", cardinality: :single, max_selections: 1, visibility: :owner_only,
         options: {
           "aa" => "AA", "as" => "AS", "ss" => "SS", "ac" => "AC", "sc" => "SC", "cc" => "CC",

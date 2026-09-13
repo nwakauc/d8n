@@ -38,6 +38,46 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "hookups" ], profile.fetch("options").fetch("intents")
   end
 
+  test "viewer_interaction defaults to no like/pass when the viewer has done neither" do
+    target = create_candidate
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    assert_response :success
+    interaction = JSON.parse(response.body).fetch("profile").fetch("viewer_interaction")
+    assert_equal({ "liked" => false, "kind" => nil, "passed" => false }, interaction)
+  end
+
+  test "viewer_interaction reports an existing plain like" do
+    target = create_candidate
+    Like.create!(brand: @brand, liker_profile: @viewer, liked_profile: target, kind: :like)
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    interaction = JSON.parse(response.body).fetch("profile").fetch("viewer_interaction")
+    assert_equal({ "liked" => true, "kind" => "like", "passed" => false }, interaction)
+  end
+
+  test "viewer_interaction reports an existing super_like distinctly from a plain like" do
+    target = create_candidate
+    Like.create!(brand: @brand, liker_profile: @viewer, liked_profile: target, kind: :super_like)
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    interaction = JSON.parse(response.body).fetch("profile").fetch("viewer_interaction")
+    assert_equal({ "liked" => true, "kind" => "super_like", "passed" => false }, interaction)
+  end
+
+  test "viewer_interaction reports an existing pass" do
+    target = create_candidate
+    ProfilePass.create!(brand: @brand, passer_profile: @viewer, passed_profile: target)
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    interaction = JSON.parse(response.body).fetch("profile").fetch("viewer_interaction")
+    assert_equal({ "liked" => false, "kind" => nil, "passed" => true }, interaction)
+  end
+
   test "response uses the public profile id and never internal identifiers or a compatibility payload" do
     target = create_candidate(display_name: "Sam")
 
@@ -320,10 +360,11 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     # Budget guards against an N+1 that scales with photos/options. The viewer
-    # status fields (verified, presence, viewer + candidate location) and the
-    # viewer-relative hook state (matches/outgoing/incoming/likes) each add a
-    # small *fixed* number of queries that does not grow with either.
-    assert_operator select_count, :<, 30
+    # status fields (verified, presence, viewer + candidate location), the
+    # viewer-relative hook state (matches/outgoing/incoming/likes), and
+    # viewer_interaction (existing like + pass lookup) each add a small
+    # *fixed* number of queries that does not grow with either.
+    assert_operator select_count, :<, 32
   end
 
   # Centerpiece: B is discoverable by A and directly retrievable; once B blocks A
@@ -455,7 +496,8 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     viewer = create_profile(brand:, gender: "woman", age: 30, interested_in: [ "man" ], min_age: 25, max_age: 40)
     target = create_profile(brand:, gender: "man", age: 31, interested_in: [ "woman" ], min_age: 25, max_age: 40, display_name: "Ade")
     video = attach_ready_video(target)
-    # Date9ja gates interaction (profile detail included) on a verified login identifier.
+    # Date9ja profile detail is available without contact confirmation; this
+    # verified fixture simply mirrors an ordinary established member.
     viewer_identifier = IdentityIdentifier.create!(
       user: viewer.user, kind: :email, normalized_value: "viewer@example.com", verified_at: Time.current
     )

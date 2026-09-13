@@ -39,8 +39,8 @@ class Api::V1::Date9jaHistoricalConversationJourneyTest < ActionDispatch::Integr
       assert_equal 2, result.counts.fetch("messages.imported")
     end
 
-    @alice_token, = Session.issue!(brand: @brand, user: @alice.user, credential: verified_credential(@alice.user, "alice@example.test"))
-    @bob_token, = Session.issue!(brand: @brand, user: @bob.user, credential: verified_credential(@bob.user, "bob@example.test"))
+    @alice_token, = Session.issue!(brand: @brand, user: @alice.user, credential: realme_ready_credential(@alice.user, "alice@example.test", "+2348020000001"))
+    @bob_token, = Session.issue!(brand: @brand, user: @bob.user, credential: realme_ready_credential(@bob.user, "bob@example.test", "+2348020000002"))
     host! "date9ja.test"
   end
 
@@ -132,11 +132,11 @@ class Api::V1::Date9jaHistoricalConversationJourneyTest < ActionDispatch::Integr
     profile
   end
 
-  # Date9ja gates interaction (not visibility) on a verified login identifier.
-  def verified_credential(user, email)
+  def realme_ready_credential(user, email, phone)
     identifier = IdentityIdentifier.create!(
       user:, kind: :email, normalized_value: email, verified_at: Time.current
     )
+    IdentityIdentifier.create!(user:, kind: :phone, normalized_value: phone, verified_at: Time.current)
     Credential.create!(user:, identity_identifier: identifier, kind: :password, status: :active)
   end
 

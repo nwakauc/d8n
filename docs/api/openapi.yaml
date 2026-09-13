@@ -51,6 +51,15 @@ info:
       `dateza.welcome`; product email is asynchronous. Device/push storage and a
       provider boundary exist, but device-registration API and a production push
       provider remain gated.
+    - **Available foundation:** D8N AI provides a brand-scoped dating-assistant
+      transcript with an explicitly configured provider. It sends only the
+      member's assistant prompts and prior assistant transcript; it does not
+      automatically provide profiles, member-to-member messages, media,
+      identifiers, location, or verification evidence to the provider.
+    - **Available foundation:** Date9ja Community provides moderated questions
+      and answers, text stories, events with capacity-safe RSVP, and approved
+      membership-only Circles. Weekly answer selection, votes, legacy remarks,
+      Community media, notifications, and historical import remain parity work.
     - **Planned (no consumer product endpoints yet):** RealMe verification,
       Billing, and Analytics.
 
@@ -80,6 +89,8 @@ tags:
   - name: Profile
   - name: Matching
   - name: Messaging
+  - name: Community
+  - name: AI
   - name: Notifications
   - name: Trust
   - name: Hooks
@@ -717,12 +728,15 @@ paths:
     post:
       operationId: requestIdentifierVerification
       tags: [Authentication]
-      summary: Request a post-signup phone or email verification code
+      summary: Request a post-signup contact-verification code
       description: |
         Requires a brand-bound bearer session. The code is sent only to an
         unverified identifier already owned by the current user. The generic
         success response does not reveal whether that identifier exists or is
         already verified, and requesting a code never creates account state.
+        The selected identifier kind must be enabled by the current brand:
+        Date9ja currently enables email only and returns
+        `404 capability_not_configured` for phone.
       requestBody:
         required: true
         content:
@@ -738,6 +752,12 @@ paths:
                 $ref: "#/components/schemas/VerificationDeliveryResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: The requested contact-verification kind is disabled for this brand (`capability_not_configured`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "422":
           $ref: "#/components/responses/InvalidInput"
         "429":
@@ -760,11 +780,12 @@ paths:
     patch:
       operationId: verifyIdentifier
       tags: [Authentication]
-      summary: Verify the current user's phone or email identifier
+      summary: Verify the current user's contact identifier
       description: |
         Consumes a purpose-bound code and marks only the current user's matching
         identifier verified. This endpoint never issues a session or creates a
-        user, credential, membership, or profile.
+        user, credential, membership, or profile. The identifier kind must be
+        enabled by the current brand; Date9ja currently enables email only.
       requestBody:
         required: true
         content:
@@ -780,6 +801,12 @@ paths:
                 $ref: "#/components/schemas/IdentifierVerificationResponse"
         "401":
           description: Session or verification code is unavailable or invalid (`verification_code_invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The requested contact-verification kind is disabled for this brand (`capability_not_configured`).
           content:
             application/json:
               schema:
@@ -1661,6 +1688,558 @@ paths:
           $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/ValidationFailed"
+  /api/v1/community/questions:
+    get:
+      operationId: listCommunityQuestions
+      tags: [Community]
+      summary: List approved current-brand questions
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createCommunityQuestion
+      tags: [Community]
+      summary: Submit a question for moderation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommunityQuestionWrite" }
+      responses:
+        "201": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/InvalidInput" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/community/me/submissions:
+    get:
+      operationId: listMyCommunitySubmissions
+      tags: [Community]
+      summary: List the current member's kept submissions, including pending items
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/community/questions/{question_id}:
+    parameters:
+      - $ref: "#/components/parameters/CommunityQuestionId"
+    patch:
+      operationId: updateCommunityQuestion
+      tags: [Community]
+      summary: Edit an owned question; approved content returns to pending review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommunityQuestionWrite" }
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/InvalidInput" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+    delete:
+      operationId: deleteCommunityQuestion
+      tags: [Community]
+      summary: Soft-delete an owned question
+      responses:
+        "204": { description: Question was soft-deleted. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/community/questions/{question_id}/answers:
+    parameters:
+      - $ref: "#/components/parameters/CommunityQuestionId"
+    get:
+      operationId: listCommunityAnswers
+      tags: [Community]
+      summary: List approved answers to an approved question
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createCommunityAnswer
+      tags: [Community]
+      summary: Submit an answer during the question's answer window
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommunityAnswerWrite" }
+      responses:
+        "201": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/InvalidInput" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/community/events:
+    get:
+      operationId: listCommunityEvents
+      tags: [Community]
+      summary: List approved upcoming current-brand events
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createCommunityEvent
+      tags: [Community]
+      summary: Submit an event for moderation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommunityEventWrite" }
+      responses:
+        "201": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/InvalidInput" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/community/events/{event_id}:
+    parameters:
+      - $ref: "#/components/parameters/CommunityEventId"
+    patch:
+      operationId: updateCommunityEvent
+      tags: [Community]
+      summary: Edit an owned event; approved content returns to pending review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommunityEventWrite" }
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/InvalidInput" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+    delete:
+      operationId: deleteCommunityEvent
+      tags: [Community]
+      summary: Soft-delete an owned event
+      responses:
+        "204": { description: Event was soft-deleted. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/community/events/{event_id}/rsvp:
+    parameters:
+      - $ref: "#/components/parameters/CommunityEventId"
+    post:
+      operationId: createCommunityEventRsvp
+      tags: [Community]
+      summary: Idempotently RSVP to an approved event
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "201": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+    delete:
+      operationId: cancelCommunityEventRsvp
+      tags: [Community]
+      summary: Idempotently cancel the current member's RSVP
+      responses:
+        "204": { description: RSVP is no longer attending. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/community/events/{event_id}/attendees:
+    get:
+      operationId: listCommunityEventAttendees
+      tags: [Community]
+      summary: List attendees for the current member's event
+      description: The RSVP roster is private to the organizer; other members receive the same neutral not-found response as an unavailable event.
+      parameters:
+        - $ref: "#/components/parameters/CommunityEventId"
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/community/stories:
+    get:
+      operationId: listCommunityStories
+      tags: [Community]
+      summary: List approved current-brand stories
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createCommunityStory
+      tags: [Community]
+      summary: Submit a text story for moderation
+      description: Video remains unavailable until the Media-owned Community upload and delivery boundary ships.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommunityStoryWrite" }
+      responses:
+        "201": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/InvalidInput" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/community/stories/{story_id}:
+    parameters:
+      - $ref: "#/components/parameters/CommunityStoryId"
+    patch:
+      operationId: updateCommunityStory
+      tags: [Community]
+      summary: Edit an owned story; approved content returns to pending review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommunityStoryWrite" }
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/InvalidInput" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+    delete:
+      operationId: deleteCommunityStory
+      tags: [Community]
+      summary: Soft-delete an owned story
+      responses:
+        "204": { description: Story was soft-deleted. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/community/circles:
+    get:
+      operationId: listCommunityCircles
+      tags: [Community]
+      summary: List approved current-brand Circles
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createCommunityCircle
+      tags: [Community]
+      summary: Submit a Circle for moderation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommunityCircleWrite" }
+      responses:
+        "201": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/InvalidInput" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/community/circles/{circle_id}:
+    parameters:
+      - $ref: "#/components/parameters/CommunityCircleId"
+    patch:
+      operationId: updateCommunityCircle
+      tags: [Community]
+      summary: Edit an owned Circle; approved content returns to pending review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommunityCircleWrite" }
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/InvalidInput" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+    delete:
+      operationId: deleteCommunityCircle
+      tags: [Community]
+      summary: Soft-delete an owned Circle
+      responses:
+        "204": { description: Circle was soft-deleted. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/community/circles/{circle_id}/membership:
+    parameters:
+      - $ref: "#/components/parameters/CommunityCircleId"
+    post:
+      operationId: joinCommunityCircle
+      tags: [Community]
+      summary: Idempotently join an approved Circle
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "201": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+    delete:
+      operationId: leaveCommunityCircle
+      tags: [Community]
+      summary: Idempotently leave an approved Circle
+      responses:
+        "204": { description: Membership is no longer active. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/community/circles/{circle_id}/posts:
+    parameters:
+      - $ref: "#/components/parameters/CommunityCircleId"
+    get:
+      operationId: listCommunityCirclePosts
+      tags: [Community]
+      summary: List posts in a Circle the current member has joined
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createCommunityCirclePost
+      tags: [Community]
+      summary: Create a post in a Circle the current member has joined
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommunityBodyWrite" }
+      responses:
+        "201": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/InvalidInput" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/community/posts/{post_id}/comments:
+    parameters:
+      - $ref: "#/components/parameters/CommunityPostId"
+    get:
+      operationId: listCommunityPostComments
+      tags: [Community]
+      summary: List comments when the current member belongs to the post's Circle
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createCommunityPostComment
+      tags: [Community]
+      summary: Comment when the current member belongs to the post's Circle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommunityBodyWrite" }
+      responses:
+        "201": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/InvalidInput" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/admin/community/{type}:
+    get:
+      operationId: listPendingCommunitySubmissions
+      tags: [Community]
+      summary: List up to 100 pending current-brand submissions of one type
+      description: Requires verified admin MFA and `admin.community.read`.
+      parameters:
+        - $ref: "#/components/parameters/CommunityModerationType"
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/AdminForbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/InvalidInput" }
+  /api/v1/admin/community/{type}/{id}:
+    patch:
+      operationId: moderateCommunitySubmission
+      tags: [Community]
+      summary: Approve, reject, or hide a current-brand Community submission
+      description: Requires verified admin MFA and `admin.community.moderate`; a real transition creates a content-free security audit event.
+      parameters:
+        - $ref: "#/components/parameters/CommunityModerationType"
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommunityModerationWrite" }
+      responses:
+        "200": { $ref: "#/components/responses/CommunitySuccess" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/AdminForbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/InvalidInput" }
+  /api/v1/ai/assistants/{assistant_key}/conversations:
+    get:
+      operationId: listAiAssistantConversations
+      tags: [AI]
+      summary: List the current member's prior AI conversations, newest first
+      parameters:
+        - $ref: "#/components/parameters/AiAssistantKey"
+      responses:
+        "200":
+          description: Prior conversations only; an empty list means start a fresh chat.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiConversationListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: createAiAssistantConversation
+      tags: [AI]
+      summary: Start a fresh private AI conversation
+      parameters:
+        - $ref: "#/components/parameters/AiAssistantKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiAssistantLanguageRequest"
+      responses:
+        "201":
+          description: Empty conversation created; send the selected topic as its first message.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiConversationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+  /api/v1/ai/assistants/{assistant_key}/conversations/{conversation_id}:
+    patch:
+      operationId: updateAiAssistantLanguage
+      tags: [AI]
+      summary: Set the member's preferred AI assistant language
+      parameters:
+        - $ref: "#/components/parameters/AiAssistantKey"
+        - $ref: "#/components/parameters/AiConversationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiAssistantLanguageRequest"
+      responses:
+        "200":
+          description: The private conversation preference was updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiConversationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          description: Unsupported language (`invalid_language`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      operationId: getAiAssistantConversation
+      tags: [AI]
+      summary: Get the current member's private D8N AI assistant conversation
+      description: |
+        Returns only the authenticated member's conversation for the resolved
+        brand. `dating_assistant` is the currently available assistant. Reading
+        or creating a conversation does not call an AI provider. Assistant
+        transcripts are private operational records and are removed from product
+        access when the member leaves the brand.
+      parameters:
+        - $ref: "#/components/parameters/AiAssistantKey"
+        - $ref: "#/components/parameters/AiConversationId"
+      responses:
+        "200":
+          description: Private assistant conversation for the current brand membership.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiConversationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: The resolved brand does not enable the assistant (`assistant_not_configured`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The authenticated membership is no longer usable (`assistant_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/ai/assistants/{assistant_key}/conversations/{conversation_id}/messages:
+    post:
+      operationId: sendAiAssistantMessage
+      tags: [AI]
+      summary: Send a private free-text prompt to a configured D8N AI assistant
+      description: |
+        `dating_assistant` accepts a non-blank message of up to 4,000 characters.
+        For Date9ja, the provider also receives a safe snapshot of the member's
+        own profile/preferences and today's already-allocated introductions with
+        public compatibility data. It never receives member-to-member messages,
+        media URLs, identifiers, precise location, hidden fields, Trust, or
+        verification evidence. The
+        optional `client_message_id` is an idempotency key scoped to this private
+        conversation. If a provider outage happens after the prompt is saved,
+        retry the same key to resume it without duplicating the prompt.
+
+        Safety-language detection returns immediate safety guidance without a
+        provider call. It is not an emergency service, automated moderation, or
+        a promise of human follow-up.
+      parameters:
+        - $ref: "#/components/parameters/AiAssistantKey"
+        - $ref: "#/components/parameters/AiConversationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiAssistantMessageRequest"
+      responses:
+        "200":
+          description: Idempotent replay or resumed previously persisted prompt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiAssistantMessageResponse"
+        "201":
+          description: Prompt and assistant response were persisted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiAssistantMessageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: The resolved brand does not enable the assistant (`assistant_not_configured`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Prompt is missing, blank, or longer than 4,000 characters (`invalid_message`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          description: Provider is disabled, unavailable, or misconfigured (`assistant_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/discovery:
     get:
       operationId: getDiscovery
@@ -1687,6 +2266,13 @@ paths:
         `next_cursor: null` and `selection` metadata. `count` is the number
         currently safe to return, so it may be below the original allocation.
         There is intentionally no `remaining` consumption counter.
+
+        For Date9ja, omitting `mode` returns the newest eligible Explore page
+        with pair-specific `date9ja_v1` compatibility. Its curated-daily mode
+        returns a stable allocation of up to 10 compatibility-ranked profiles.
+        A known calculable HbSS, HbSC, or HbCC inherited-disease outcome is
+        withheld from that curated allocation; missing/not-tested/prefer-not-to-
+        say genotype passes through as `not_assessed`.
 
         A HookUs `next_cursor` encodes the mode and every active facet, so a
         later page cannot switch strategy or silently drop/change a filter:
@@ -1806,7 +2392,7 @@ paths:
 
         The response extends the safe public profile shape used by discovery with
         prompts, categorized interests, explicit contact-verification state, and
-        DateZA's existing pair compatibility payload where configured.
+        the brand's pair compatibility payload where configured (DateZA or Date9ja).
         Compatibility is presentation-only here and does not change eligibility
         or matching semantics. `photos` are safe, EXIF-stripped display derivatives
         with short-lived signed URLs, in deterministic position order; raw
@@ -1925,6 +2511,16 @@ paths:
       summary: Idempotently like an eligible public profile
       parameters:
         - $ref: "#/components/parameters/PublicProfileId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kind:
+                  $ref: "#/components/schemas/LikeKind"
+                  description: Defaults to `like` when omitted.
       responses:
         "429":
           $ref: "#/components/responses/RateLimited"
@@ -1944,6 +2540,12 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/InteractionForbidden"
+        "422":
+          description: "`kind` was present but not one of `LikeKind`'s values."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: >-
             The resolved database brand has no production contract
@@ -2879,6 +3481,16 @@ paths:
         and must be non-blank and at most 2000 characters; Unicode/emoji is
         preserved. Content never enters logs. Beta accepts at-least-once client
         sends (no idempotency key), so a retried request creates a second message.
+
+        Date9ja applies its progressive RealMe policy at this higher-trust
+        boundary only. Discovery, profile detail, likes, passes, matches,
+        conversation creation, and message history remain available without
+        contact verification. Sending requires an approved Date9ja
+        selfie/video/liveness/government-ID assertion. Date9ja phone
+        verification is disabled, so phone and verified email do not qualify.
+        This is an
+        authorization capability; no private evidence or cross-brand assertion
+        is exposed.
       parameters:
         - $ref: "#/components/parameters/PublicConversationId"
       requestBody:
@@ -2899,7 +3511,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/InteractionForbidden"
+          $ref: "#/components/responses/MessageSendForbidden"
         "404":
           description: >-
             The resolved database brand has no production contract
@@ -2964,7 +3576,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/InteractionForbidden"
+          $ref: "#/components/responses/MessageSendForbidden"
         "404":
           description: >-
             The resolved database brand has no production contract
@@ -4200,6 +4812,50 @@ components:
       name: d8n_web_session
       description: Host-only HttpOnly brand-bound browser session credential.
   parameters:
+    CommunityQuestionId:
+      name: question_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CommunityEventId:
+      name: event_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CommunityStoryId:
+      name: story_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CommunityCircleId:
+      name: circle_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CommunityPostId:
+      name: post_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CommunityModerationType:
+      name: type
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [questions, answers, events, stories, circles]
+    AiConversationId:
+      name: conversation_id
+      in: path
+      required: true
+      schema: { type: integer }
+    AiAssistantKey:
+      name: assistant_key
+      in: path
+      required: true
+      description: Server-defined assistant capability key; currently `dating_assistant`.
+      schema:
+        $ref: "#/components/schemas/AiAssistantKey"
     DiscoveryMode:
       name: mode
       in: query
@@ -4568,6 +5224,13 @@ components:
         type: string
         enum: [active, reverted]
   responses:
+    CommunitySuccess:
+      description: Explicit current-brand Community payload; moderation-only fields are never included on public reads.
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
     Unauthorized:
       description: Missing, invalid, expired, revoked, or wrong-brand session. Cookie bootstrap may return `session_expired` or `session_revoked`; other cases return `unauthorized`.
       content:
@@ -4586,6 +5249,20 @@ components:
         login session has not been verified (`identifier_verification_required`).
         Existing profile, membership, and lifecycle authorization errors remain
         distinct. This DateZA-only rule does not change HookUs authorization.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    MessageSendForbidden:
+      description: >-
+        DateZA's ordinary interaction rule may return
+        `identifier_verification_required`. Date9ja message sending and message-
+        media upload intent, when that capability is enabled, return
+        `realme_verification_required` until the
+        caller has a verified phone or an approved, same-brand RealMe assertion;
+        verified email alone does not satisfy that requirement. Existing
+        profile, membership, participant, block, and lifecycle errors remain
+        distinct.
       content:
         application/json:
           schema:
@@ -4719,6 +5396,129 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    CommunityBodyWrite:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 4000 }
+    CommunityQuestionWrite:
+      type: object
+      properties:
+        category:
+          type: string
+          enum: [dating, marriage, long_distance, family, talking_stage, red_flags, other]
+        body: { type: string, minLength: 1, maxLength: 2000 }
+        anonymous: { type: boolean, default: true }
+    CommunityAnswerWrite:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 2000 }
+        anonymous: { type: boolean, default: false }
+    CommunityEventWrite:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, minLength: 1, maxLength: 2000 }
+        city: { type: string, minLength: 1, maxLength: 100 }
+        venue: { type: [string, "null"] }
+        starts_at: { type: string, format: date-time }
+        capacity: { type: [integer, "null"], minimum: 1 }
+    CommunityStoryWrite:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        body: { type: string, minLength: 1, maxLength: 3000 }
+        content_type: { type: string, enum: [text] }
+    CommunityCircleWrite:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, minLength: 1, maxLength: 2000 }
+        category: { type: string, minLength: 1, maxLength: 80 }
+    CommunityModerationWrite:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [approved, rejected, hidden] }
+        moderation_note: { type: [string, "null"], maxLength: 2000 }
+    AiAssistantKey:
+      type: string
+      enum: [dating_assistant]
+    AiAssistantMessageRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        client_message_id:
+          type: string
+          maxLength: 180
+          description: Client-generated idempotency key scoped to this assistant conversation.
+        language:
+          $ref: "#/components/schemas/AiAssistantLanguage"
+          description: Optional persisted language preference applied before this reply.
+    AiAssistantLanguageRequest:
+      type: object
+      required: [language]
+      properties:
+        language:
+          $ref: "#/components/schemas/AiAssistantLanguage"
+    AiAssistantLanguage:
+      type: string
+      enum: [english, pidgin, igbo, yoruba, hausa, french]
+    AiMessage:
+      type: object
+      required: [id, role, content, created_at]
+      properties:
+        id: { type: integer }
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string }
+        created_at: { type: string, format: date-time }
+    AiConversation:
+      type: object
+      required: [id, assistant_key, language, status, safety_status, last_message_at, messages]
+      properties:
+        id: { type: integer }
+        assistant_key: { $ref: "#/components/schemas/AiAssistantKey" }
+        language: { $ref: "#/components/schemas/AiAssistantLanguage" }
+        status: { type: string, enum: [active, archived] }
+        safety_status: { type: string, enum: [none, attention] }
+        last_message_at: { type: [string, "null"], format: date-time }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/AiMessage" }
+    AiConversationSummary:
+      type: object
+      required: [id, assistant_key, language, last_message_at, preview]
+      properties:
+        id: { type: integer }
+        assistant_key: { $ref: "#/components/schemas/AiAssistantKey" }
+        language: { $ref: "#/components/schemas/AiAssistantLanguage" }
+        last_message_at: { type: [string, "null"], format: date-time }
+        preview: { type: string }
+    AiConversationListResponse:
+      type: object
+      required: [conversations]
+      properties:
+        conversations:
+          type: array
+          items: { $ref: "#/components/schemas/AiConversationSummary" }
+    AiConversationResponse:
+      type: object
+      required: [conversation]
+      properties:
+        conversation: { $ref: "#/components/schemas/AiConversation" }
+    AiAssistantMessageResponse:
+      type: object
+      required: [conversation, created]
+      properties:
+        conversation: { $ref: "#/components/schemas/AiConversation" }
+        created:
+          type: boolean
+          description: True only when this request created the member prompt; false for an idempotent replay or resume.
     HqProductIntelligenceStage:
       type: object
       required: [id, definition, status, unit, limitations]
@@ -5964,6 +6764,19 @@ components:
             endpoint this ALSO includes matches_only groups when an active Match
             exists. company_name and owner-only groups are never included.
           $ref: "#/components/schemas/ProfileOptionSelections"
+        has_video_intro:
+          type: boolean
+          description: >-
+            True only when this brand's introduction video is currently
+            deliverable to the requesting member. Card surfaces expose this
+            capability signal without a playback URL; fetch profile detail for
+            short-lived signed playback/poster URLs.
+        video_intro_duration_seconds:
+          type: [integer, "null"]
+          minimum: 1
+          description: >-
+            Duration of the currently deliverable introduction video, or null
+            when no card-visible video exists.
     Compatibility:
       type: object
       required: [score, confidence, reasons]
@@ -6026,6 +6839,81 @@ components:
               - compatible_planning_style
               - similar_travel_style
               - compatible_diet
+    Date9jaCompatibility:
+      type: object
+      description: |
+        Pair-specific deterministic Date9ja compatibility. `score` is null when
+        there is not enough comparable relationship input; that is not a zero
+        score. The hemoglobin-genotype check is reported separately and is
+        never counted inside the percentage. Missing, not-tested, and
+        prefer-not-to-say answers produce `not_assessed` and do not block the
+        pair. Genotype values and derived probabilities are self-reported
+        screening information, not a diagnosis or medical advice.
+      required: [score, confidence, confidence_level, version, reasons, critical_checks]
+      properties:
+        score:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 100
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        confidence_level:
+          type: string
+          enum: [low, medium, high]
+        version:
+          type: string
+          enum: [date9ja_v1]
+        reasons:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+            enum:
+              - aligned_faith_outlook
+              - culturally_compatible
+              - compatible_settlement_plans
+              - aligned_relationship_goals
+              - mutual_age_fit
+              - compatible_commitment_timing
+              - aligned_family_plans
+              - compatible_money_expectations
+              - compatible_conflict_styles
+        critical_checks:
+          type: object
+          required: [hemoglobin_genotype]
+          properties:
+            hemoglobin_genotype:
+              $ref: "#/components/schemas/HemoglobinGenotypeCompatibilityCheck"
+    HemoglobinGenotypeCompatibilityCheck:
+      type: object
+      required: [status, evidence_level]
+      properties:
+        status:
+          type: string
+          enum:
+            - not_assessed
+            - clinical_review_required
+            - elevated_sickle_cell_risk
+            - other_hemoglobin_risk
+            - no_elevated_risk_identified
+        evidence_level:
+          type: string
+          enum: [incomplete, self_reported]
+        sickle_cell_disease_probability:
+          type: number
+          minimum: 0
+          maximum: 1
+        other_hemoglobin_disease_probability:
+          type: number
+          minimum: 0
+          maximum: 1
+    PairCompatibility:
+      description: Compatibility payload for a brand with a configured pair strategy.
+      oneOf:
+        - $ref: "#/components/schemas/DatezaCompatibility"
+        - $ref: "#/components/schemas/Date9jaCompatibility"
     ProfileStatus:
       type: object
       description: |
@@ -6105,6 +6993,15 @@ components:
           properties:
             compatibility:
               $ref: "#/components/schemas/Compatibility"
+    PairDiscoveryProfile:
+      allOf:
+        - $ref: "#/components/schemas/PublicProfile"
+        - $ref: "#/components/schemas/ProfileStatus"
+        - type: object
+          required: [compatibility]
+          properties:
+            compatibility:
+              $ref: "#/components/schemas/PairCompatibility"
     DailyDiscoveryProfile:
       allOf:
         - $ref: "#/components/schemas/PublicProfile"
@@ -6113,7 +7010,7 @@ components:
           required: [compatibility]
           properties:
             compatibility:
-              $ref: "#/components/schemas/DatezaCompatibility"
+              $ref: "#/components/schemas/PairCompatibility"
     DailySelectionMetadata:
       type: object
       required: [allocation_date, daily_limit, count, finalized, refreshes_at]
@@ -6146,6 +7043,7 @@ components:
           items:
             oneOf:
               - $ref: "#/components/schemas/DiscoveryProfile"
+              - $ref: "#/components/schemas/PairDiscoveryProfile"
               - $ref: "#/components/schemas/DailyDiscoveryProfile"
         next_cursor:
           type: [string, "null"]
@@ -6214,12 +7112,12 @@ components:
       description: |
         The rich single-profile view (GET /profiles/:id): the public profile with
         viewer-relative status, detail-only sections, explicit contact verification,
-        and DateZA compatibility where configured. matches_only option groups appear
+        and pair compatibility where configured. matches_only option groups appear
         under `options` only when an active Match exists.
       allOf:
         - $ref: "#/components/schemas/ProfileWithStatus"
         - type: object
-          required: [prompts, interests, verification]
+          required: [prompts, interests, verification, viewer_interaction]
           properties:
             prompts:
               type: array
@@ -6233,7 +7131,9 @@ components:
             verification:
               $ref: "#/components/schemas/ContactVerification"
             compatibility:
-              $ref: "#/components/schemas/DatezaCompatibility"
+              $ref: "#/components/schemas/PairCompatibility"
+            viewer_interaction:
+              $ref: "#/components/schemas/ViewerInteraction"
             video:
               description: >-
                 The member's introduction video (ADR 0023). Present only for
@@ -6246,6 +7146,26 @@ components:
               oneOf:
                 - type: "null"
                 - $ref: "#/components/schemas/PublicProfileVideo"
+    ViewerInteraction:
+      type: object
+      description: >-
+        Whether the requesting member has already liked/super-liked or passed
+        this profile, so a profile page opened after that action was already
+        taken (from Introductions, Explore, or Likes) can render the same
+        "already decided" state instead of re-offering Pass/Like/Super Like as
+        if nothing happened. Repeating the action anyway is harmless — Like and
+        Pass are idempotent — this field exists purely for UI accuracy.
+      required: [liked, kind, passed]
+      properties:
+        liked:
+          type: boolean
+        kind:
+          description: The kind of the viewer's existing like, or null if `liked` is false.
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/LikeKind"
+        passed:
+          type: boolean
     PublicProfileVideo:
       type: object
       description: >-
@@ -6752,12 +7672,23 @@ components:
                   type: array
                   items:
                     type: string
+    LikeKind:
+      type: string
+      enum: [like, super_like]
+      description: >-
+        `super_like` is a real, distinctly-persisted Like row (D8N's internal
+        `hook` enum value) — it counts as a regular like for matching/
+        eligibility purposes (same idempotency, same reciprocal-match logic),
+        it is simply flagged so a viewer's incoming/outgoing like lists can
+        tell it apart.
     LikeResponse:
       type: object
-      required: [liked, matched, match_id, created]
+      required: [liked, kind, matched, match_id, created]
       properties:
         liked:
           const: true
+        kind:
+          $ref: "#/components/schemas/LikeKind"
         matched:
           type: boolean
         match_id:
@@ -6772,18 +7703,20 @@ components:
         - type: object
           properties:
             compatibility:
-              $ref: "#/components/schemas/DatezaCompatibility"
+              $ref: "#/components/schemas/PairCompatibility"
               description: >-
                 Present only for brands with a pair compatibility strategy
-                configured (DateZA today). Omitted entirely — not null — for
+                configured (DateZA and Date9ja). Omitted entirely — not null — for
                 brands without one (HookUs).
     LikeListItem:
       type: object
-      required: [liked_at, profile]
+      required: [liked_at, kind, profile]
       properties:
         liked_at:
           type: string
           format: date-time
+        kind:
+          $ref: "#/components/schemas/LikeKind"
         profile:
           $ref: "#/components/schemas/LikeProfile"
     LikeListResponse:
@@ -6850,11 +7783,13 @@ components:
       type: string
       description: |
         The kind of thing being reported. `profile` reports a person; `message`,
-        `profile_media`, and `hook` each report one specific piece of content;
-        `conversation` reports the interaction as a whole for pattern-level harm
-        no single message captures. New types are added as the underlying
-        features ship.
-      enum: [profile, message, profile_media, hook, conversation]
+        `profile_media`, `hook`, and `community_*` values each report one
+        specific piece of content; `conversation` reports the interaction as a
+        whole for pattern-level harm no single message captures.
+      enum:
+        [profile, message, profile_media, hook, conversation, community_question,
+         community_answer, community_event, community_story, community_circle,
+         community_post, community_comment]
     ReportRequest:
       type: object
       required: [reason]

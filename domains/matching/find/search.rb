@@ -105,7 +105,8 @@ module Matching
         scope.includes(
           :brand,
           { profile_option_selections: [ :profile_option, :profile_option_group ] },
-          { profile_photos: { display_image_attachment: :blob } }
+          { profile_photos: { display_image_attachment: :blob } },
+          { profile_video: [ { playback_attachment: :blob }, { poster_attachment: :blob } ] }
         )
       end
 

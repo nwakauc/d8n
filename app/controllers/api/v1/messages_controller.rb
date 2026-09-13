@@ -1,6 +1,7 @@
 class Api::V1::MessagesController < Api::V1::InteractionController
   requires_platform_capability "chat.message.text"
 
+  before_action :authorize_message_send_access!, only: :create
   before_action -> { enforce_rate_limit!(:send_message) }, only: :create
   before_action -> { enforce_rate_limit!(:chat_media_attach) }, only: :create, if: :attachment_uploads_present?
   before_action :set_active_storage_url_options, only: %i[index create]
@@ -27,9 +28,6 @@ class Api::V1::MessagesController < Api::V1::InteractionController
   end
 
   def create
-    unless Identity::InteractionAccess.message_send_allowed?(session: Current.session, brand: Current.brand)
-      return render json: { error: "realme_verification_required" }, status: :forbidden
-    end
     authorize_media_capability! if attachment_uploads_present?
 
     result = Messaging::SendMessage.call(

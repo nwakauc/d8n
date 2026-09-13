@@ -6,15 +6,9 @@ module Identity
   class InteractionAccess
     class IdentifierVerificationRequired < StandardError; end
 
-    # `surface` is deliberately explicit: Date9ja gates profile/swipe writes
-    # on a confirmed email, but allows authenticated history/conversation reads.
-    # Message creation has the additional RealMe assurance gate implemented by
-    # `message_send_allowed?` (legacy imports may carry a source assertion).
+    REALME_ASSERTION_TYPES = %w[selfie video liveness government_id gov_id].freeze
+
     def self.authorize!(session:, brand:, surface: :interaction)
-      # The history / conversation-read relaxation is a Date9ja-specific contract
-      # (its source gated message SENDING, not browsing). Every other brand keeps
-      # its uniform interaction gate across all these surfaces.
-      return if brand&.slug == "date9ja" && %i[history conversation_read].include?(surface.to_sym)
       return unless verification_requirement(brand:) == :verified_login_identifier
       # Existing profile/onboarding/lifecycle authorization remains authoritative
       # when the member is not yet published. This policy only adds a gate for a
@@ -27,17 +21,10 @@ module Identity
     end
 
     def self.message_send_allowed?(session:, brand:)
-      return true if brand&.slug != "date9ja"
-      return false unless verified_session_identifier?(session:)
+      return true unless message_send_verification_requirement(brand:) == :verified_realme_method
+      return false if session.blank? || brand.blank?
 
-      # Date9ja's ordinary message gate requires a verified login identifier;
-      # a future RealMe assertion can satisfy the second factor without changing
-      # this API. Until then the explicit source-preserved assurance flag is read
-      # from the user's private migration metadata.
-      # The source assertion importer may later record `date9ja_realme_assured`
-      # in private metadata; absence is intentionally treated as the legacy
-      # verified-email path so existing members are not stranded during rollout.
-      true
+      verified_phone?(session:, brand:) || approved_realme_assertion?(session:, brand:)
     end
 
     def self.published_profile?(session:, brand:)
@@ -56,11 +43,49 @@ module Identity
     end
     private_class_method :verified_session_identifier?
 
+    def self.verified_phone?(session:, brand:)
+      return false unless phone_verification_enabled?(brand:)
+
+      IdentityIdentifier.kept.phone.where(user_id: session.user_id).where.not(verified_at: nil).exists?
+    end
+    private_class_method :verified_phone?
+
+    def self.approved_realme_assertion?(session:, brand:)
+      VerificationAssertion.where(
+        brand_id: brand.id,
+        user_id: session.user_id,
+        status: "approved",
+        check_type: realme_assertion_types(brand:)
+      ).exists?
+    end
+    private_class_method :approved_realme_assertion?
+
+    def self.realme_assertion_types(brand:)
+      return REALME_ASSERTION_TYPES unless phone_verification_enabled?(brand:)
+
+      [ "phone", *REALME_ASSERTION_TYPES ]
+    end
+    private_class_method :realme_assertion_types
+
+    def self.phone_verification_enabled?(brand:)
+      D8n::Platform::BrandRegistry.fetch(brand:).capability_enabled?("verify.contact.phone")
+    rescue D8n::Platform::BrandRegistry::UnsupportedBrand
+      false
+    end
+    private_class_method :phone_verification_enabled?
+
     def self.verification_requirement(brand:)
       D8n::Platform::BrandRegistry.fetch(brand:).interaction.verification_requirement
     rescue D8n::Platform::BrandRegistry::UnsupportedBrand
       nil
     end
     private_class_method :verification_requirement
+
+    def self.message_send_verification_requirement(brand:)
+      D8n::Platform::BrandRegistry.fetch(brand:).interaction.message_send_verification_requirement
+    rescue D8n::Platform::BrandRegistry::UnsupportedBrand
+      nil
+    end
+    private_class_method :message_send_verification_requirement
   end
 end

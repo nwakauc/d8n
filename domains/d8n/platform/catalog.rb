@@ -13,6 +13,7 @@ module D8n
         Capabilities::Notify,
         Capabilities::Pay,
         Capabilities::Ai,
+        Capabilities::Community,
         Capabilities::Insights,
         Capabilities::Admin
       ].freeze

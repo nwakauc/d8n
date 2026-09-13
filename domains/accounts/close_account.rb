@@ -30,6 +30,7 @@ module Accounts
 
         profile = brand.profiles.kept.lock.find_by(user:)
         close_profile!(profile) if profile.present?
+        discard_ai_conversations!(membership:, now: Time.current)
         revoke_sessions(user:, brand:)
         revoke_devices(user:, brand:, now: Time.current)
         # Tombstone brand participation via `left` (not soft-delete): every auth and
@@ -77,6 +78,14 @@ module Accounts
         .update_all(deleted_at: now, updated_at: now)
     end
     private_class_method :discard_interactions
+
+    # Assistant transcripts are private, brand-owned operational records. They
+    # are not shared evidence like member-to-member messages, so a member leaving
+    # a brand removes them from product access and future provider context.
+    def self.discard_ai_conversations!(membership:, now:)
+      AiConversation.kept.where(brand_membership: membership).update_all(deleted_at: now, updated_at: now)
+    end
+    private_class_method :discard_ai_conversations!
 
     def self.revoke_sessions(user:, brand:)
       Session.active.where(user:, brand:).find_each do |session|

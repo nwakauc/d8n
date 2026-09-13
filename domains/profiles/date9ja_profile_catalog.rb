@@ -11,6 +11,9 @@ module Profiles
   #
   # It defines onboarding/completion data, not compatibility weights or matching
   # behaviour. Sensitive values are owner-only unless explicitly widened here.
+  # Genotype is the deliberate exception: Date9ja shows the member-selected
+  # value to an eligible profile viewer because inherited-blood-condition
+  # compatibility is the stated purpose for collecting it.
   class Date9jaProfileCatalog
     # Date9ja is a relationship/marriage-leaning Nigerian product; the curated
     # intents reflect that without copying DateZA's or HookUs's copy.
@@ -67,7 +70,10 @@ module Profiles
       { key: "religion", visibility: :owner_only },
       { key: "religion_importance", visibility: :owner_only },
       { key: "tribe", visibility: :owner_only },
-      { key: "genotype", visibility: :owner_only },
+      {
+        key: "genotype", visibility: :public_profile,
+        label: "Genotype (shown to potential matches for compatibility)"
+      },
       # Remaining sensitive Date9ja identity/culture concepts — lossless homes,
       # owner-only, collected and preserved, never a publication gate.
       { key: "ethnicity", visibility: :owner_only },
@@ -178,8 +184,9 @@ module Profiles
     # visible on D8N — exactly as they were on Date9ja. Date9ja never gated
     # visibility on a bio, a photo, a resolved city, a cultural answer, a
     # surname, or a verified email/phone; neither does D8N for that member.
-    # Being seen (not interacting — see `verification_requirement`) is what drives
-    # the member back to finish verification and enrich their profile.
+    # Progressive nudges, rather than publication or ordinary-interaction walls,
+    # drive the member back to confirm contact details and complete RealMe.
+    # Message sending is the separate higher-trust boundary.
     #
     # So for a migration-origin profile the ONLY publication gates are the
     # reciprocal-matching essentials that every non-deleted source row already

@@ -20,7 +20,14 @@ module Trust
       "message" => MessageTarget,
       "profile_media" => MediaTarget,
       "hook" => HookTarget,
-      "conversation" => ConversationTarget
+      "conversation" => ConversationTarget,
+      "community_question" => CommunityTarget.for("community_question"),
+      "community_answer" => CommunityTarget.for("community_answer"),
+      "community_event" => CommunityTarget.for("community_event"),
+      "community_story" => CommunityTarget.for("community_story"),
+      "community_circle" => CommunityTarget.for("community_circle"),
+      "community_post" => CommunityTarget.for("community_post"),
+      "community_comment" => CommunityTarget.for("community_comment")
     }.freeze
 
     def self.resolver_for(target_type)

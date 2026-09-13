@@ -54,6 +54,21 @@ class CorsTest < ActionDispatch::IntegrationTest
     assert_equal "true", response.headers["Access-Control-Allow-Credentials"]
   end
 
+  test "permits the Date9ja development origin to upload directly to local disk storage" do
+    options "/rails/active_storage/disk/signed-upload-token", headers: {
+      "Origin" => "http://localhost:3200",
+      "Access-Control-Request-Method" => "PUT",
+      "Access-Control-Request-Headers" => "content-type,content-md5"
+    }
+
+    assert_response :ok
+    assert_equal "http://localhost:3200", response.headers["Access-Control-Allow-Origin"]
+    assert_includes response.headers.fetch("Access-Control-Allow-Methods"), "PUT"
+    assert_includes response.headers.fetch("Access-Control-Allow-Headers").downcase, "content-type"
+    assert_includes response.headers.fetch("Access-Control-Allow-Headers").downcase, "content-md5"
+    assert_nil response.headers["Access-Control-Allow-Credentials"]
+  end
+
   test "does not grant cross-origin access to an unconfigured origin" do
     options "/api/v1/auth/methods", headers: {
       "Origin" => "https://attacker.example",

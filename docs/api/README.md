@@ -41,8 +41,10 @@ the API root (`GET /`) and the summary at the top of `openapi.yaml`.
 | --- | --- | --- |
 | Identity | Available | Phone/email + password register, login, password and login-email change, recovery, brand-bound session, identifier verification, reversible account deactivation/reactivation, and brand-membership closure. |
 | Profiles | Available | Profile, configuration, options, preferences, location, publication. |
-| Matching | Available | HookUs cursor Discovery, DateZA stable daily Discovery, and DateZA Find are live on shared eligibility. Both DateZA surfaces use deterministic `dateza_v1` compatibility while retaining separate persistence and budgets. |
+| Matching | Available | HookUs cursor Discovery, DateZA stable daily Discovery/Find, and Date9ja Explore/daily introductions are live on shared eligibility. DateZA uses deterministic `dateza_v1`; Date9ja uses `date9ja_v1` with a separate hemoglobin-genotype critical check. |
 | Messaging | Preview | Match-gated plain-text messages and history exist. Client idempotency, receipts, realtime and message media remain future work. |
+| Community | Available foundation | Date9ja has brand-scoped moderated questions/answers, text stories, events/RSVPs, and approved Circles. Weekly answer selection, Community video, legacy votes/remarks, notifications, and historical import remain separate parity work. |
+| D8N AI | Available foundation | Brand-scoped `dating_assistant` private chat is available. The configured provider receives only assistant prompts and bounded prior assistant transcript — never automatic profile, member-message, media, identifier, location, or verification context. |
 | Trust | Preview | Blocking, profile/content reporting, brand-scoped report review and suspension exist. DateZA public Trust standing is not implemented. |
 | Media | Available foundation | Brand-scoped direct upload, safe re-encoding, short-lived signed owner/public delivery, ordering/primary semantics, limits, deletion/purge, and audited approve/reject transitions are implemented. Provider automation, appeals, and an admin UI remain future work. |
 | Verification | Planned | RealMe identity/selfie verification has no endpoints yet. Identifier verification is an Identity capability, not RealMe. |
@@ -53,6 +55,78 @@ the API root (`GET /`) and the summary at the top of `openapi.yaml`.
 Every path in `openapi.yaml` is implemented; the "Preview" and "In development"
 notes above describe deliberate scope limits, not missing documentation. Do not
 build UI against a domain marked Planned — those endpoints do not exist yet.
+
+### D8N AI
+
+The first D8N AI surface is intentionally narrow:
+
+```txt
+GET  /api/v1/ai/assistants/dating_assistant/conversations
+POST /api/v1/ai/assistants/dating_assistant/conversations
+GET  /api/v1/ai/assistants/dating_assistant/conversations/:conversation_id
+POST /api/v1/ai/assistants/dating_assistant/conversations/:conversation_id/messages
+```
+
+It is authenticated, brand-bound, capability-gated, rate-limited, and private to
+the current membership. Listing never creates or reopens a chat; it returns prior
+conversations newest-first. Create an empty conversation for New Chat or a topic
+chip, then send `{ "message": "...", "client_message_id": "..." }` to that
+conversation's message URL; the optional client id makes a retry idempotent. A `503 assistant_unavailable`
+means the provider is disabled, misconfigured, or temporarily unavailable. D8N
+stores the prompt so retrying the same client id resumes it without creating a
+second prompt.
+
+Configure the initial Date9ja-compatible adapter with
+`D8N_AI_PROVIDER=openai`, `D8N_AI_OPENAI_API_KEY`, and optionally
+`D8N_AI_OPENAI_MODEL`. Leaving the provider unset disables outbound generation
+while keeping the API contract intact. Provider selection is deployment
+configuration, never client input. New provider adapters implement the same
+D8N AI boundary; clients do not change endpoints or persisted conversation data.
+Development and test load these values from the untracked `.env` file; restart
+Rails after changing it. Production receives them through its deployment
+environment rather than a checked-in environment file.
+
+### Community
+
+Community is enabled explicitly by the resolved brand contract; route presence
+does not enable it. Date9ja currently enables `community.read`,
+`community.participation`, and `community.moderation`. Other brands return
+`404 community_not_configured` unless they deliberately adopt the capability.
+
+Questions, answers, events, stories, and Circles are current-brand records owned
+by a current-brand `Profile`. New submissions return `201` with owner-visible
+`status: pending`; public lists expose only kept, approved records with a real
+`published_at`. `GET /api/v1/community/me/submissions` is the explicit owner
+path for retrieving pending or rejected work. An edit to approved public content
+returns it to pending moderation. Deletes are soft deletes.
+
+Community writes share an authenticated abuse ceiling and can return
+`429 rate_limited`. Validation failures return `422
+community_validation_failed`; inaccessible, deleted, foreign-brand, and
+unauthorized owner/member resources share `404 community_resource_unavailable`.
+Story submissions accept `content_type: text` only. Community story video stays
+disabled until its Media-owned private upload and delivery path exists.
+
+Event RSVPs are idempotent and serialized on the event row so capacity cannot be
+oversold by concurrent requests. The RSVP count is public, but
+`GET /api/v1/community/events/:event_id/attendees` is private to the organizer.
+Circle posts and comments require an active membership; leaving a Circle removes
+that access without deleting the historical membership row.
+
+Moderation uses the existing brand-scoped admin session and MFA boundary plus
+dedicated `admin.community.read` and `admin.community.moderate` permissions.
+`GET /api/v1/admin/community/:type` returns a bounded pending queue and `PATCH
+/api/v1/admin/community/:type/:id` applies approve/reject/hide transitions. Real
+transitions write a content-free `admin.community_moderated` security event;
+moderation notes and reviewer identity never enter public payloads.
+
+Visible Community content is reportable through the existing `POST
+/api/v1/reports` endpoint with `target_type` values `community_question`,
+`community_answer`, `community_event`, `community_story`, `community_circle`,
+`community_post`, or `community_comment`. Circle content is reportable only by a
+current Circle member. The reporter and responsible profile are derived
+server-side, and the retained evidence snapshot excludes moderation notes and
+private profile data.
 
 ## Brand And Tenant Context
 
@@ -272,6 +346,16 @@ the documented reason codes to client-localized copy. Compatibility calculation
 does not create a Find exposure and must not be used as Trust, safety, RealMe, or
 popularity state. See [`../dateza/COMPATIBILITY_V1.md`](../dateza/COMPATIBILITY_V1.md).
 
+Date9ja Explore and daily-introduction profiles also carry pair-specific
+`compatibility`, but use `version: "date9ja_v1"`. Its `score` may be null when
+there is too little shared relationship input, while `critical_checks` remains
+present. In particular, `critical_checks.hemoglobin_genotype.status` is
+`not_assessed` when either member did not answer, selected not tested, or chose
+prefer-not-to-say. That state passes through and is not a blocker; clients must
+not relabel it as safe. Known values can produce a separately displayed risk
+status and probability. See
+[`../date9ja/COMPATIBILITY_V1.md`](../date9ja/COMPATIBILITY_V1.md).
+
 Find returns only safe public profile data. Exact coordinates, owner-only
 answers, moderation/risk state, raw media, and other-brand profiles are absent.
 The generic HTTP throttle is only abuse protection; it does not implement or
@@ -305,6 +389,35 @@ normal validation failures. Send the member through the existing
 HookUs is not subject to this DateZA rule. Account/profile editing and safety
 controls (block, unblock, and report) remain available because they are not
 dating interactions.
+
+### Date9ja progressive RealMe gate
+
+Date9ja does not require email or phone confirmation for onboarding,
+discovery, profile detail, Likes, Passes, matching, conversation creation, or
+message-history reads. Clients should keep confirmation and RealMe prompts
+visible progressively instead of redirecting those actions into a verification
+wall.
+
+The hard boundary is `POST /api/v1/conversations/:conversation_id/messages`.
+If Date9ja later enables chat-media upload intent, that pre-send operation uses
+the same requirement. Sending is allowed only with an approved,
+Date9ja-scoped selfie/video/liveness/government-ID `VerificationAssertion`.
+Date9ja's `verify.contact.phone` capability is disabled, so neither a verified
+phone nor an imported phone assertion qualifies. A verified email alone does not
+qualify. Failure is stable:
+
+```http
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+
+{"error":"realme_verification_required"}
+```
+
+This result communicates an authorization capability only. It must not expose
+which private method or evidence exists. The current `/me` identifier state is
+contact-control state, not a complete RealMe contract; until live RealMe status
+endpoints exist, clients must not present phone or email confirmation as Date9ja
+RealMe completion.
 
 ### Hook brand capabilities
 
@@ -402,8 +515,11 @@ Password login never silently joins an existing D8N identity to another brand.
 Registration is the explicit current-brand join for a new identity; a future
 existing-identity brand-join flow remains separate.
 
-After signup, an authenticated user may optionally verify the phone or email
-already attached to the account:
+After signup, an authenticated user may optionally verify a contact identifier
+enabled by the current brand. HookUs currently supports phone and email; Date9ja
+currently supports email only, while its phone-verification capability is
+disabled pending sustainable SMS economics. A Date9ja phone request returns
+`404 capability_not_configured` and never dispatches an SMS:
 
 ```sh
 curl -i -X POST https://hookus.example.com/api/v1/auth/verification \
@@ -729,9 +845,12 @@ The body extends the same safe public shape as a discovery entry — public id,
 display name, derived age, bio, coarse location, work/education, languages,
 lifestyle fields, deterministically ordered safe photos, and public option groups
 — with prompts, categorized interests, and explicit
-`verification.contact.verified`. DateZA detail also includes its existing
-compatibility payload; calculating it for detail does not change eligibility or
-matching behavior. No email, phone, credentials, internal ids, coordinates, raw
+`verification.contact.verified`. DateZA and Date9ja detail include their
+configured pair-compatibility payloads; calculating one for detail does not
+change eligibility or matching behavior. Date9ja also exposes the member's
+self-reported genotype in public options so an eligible potential match can see
+the source answer behind the critical check. No email, phone, credentials,
+internal ids, coordinates, raw
 media, storage keys, provider data, or identity-verification assertion is exposed.
 
 DateZA keeps `company_name`, `has_children`, `wants_children`, `religion`, and
@@ -750,7 +869,12 @@ way — returns a single neutral `404` `profile_unavailable` and never reveals w
 
 ## Pagination
 
-Discovery and match-list cursors are opaque, signed, brand-bound values. Send `next_cursor` back unchanged as `cursor`. Do not decode it, persist assumptions about its contents, or reuse it across brands.
+Discovery, likes (incoming/outgoing), and match-list cursors are opaque, signed,
+brand-bound values. Send `next_cursor` back unchanged as `cursor`. Do not decode
+it, persist assumptions about its contents, or reuse it across brands. These
+three relationship lists currently have one server-defined order: newest first
+(`created_at DESC`, with a stable public-id tie-breaker); there is no `sort`
+parameter yet.
 
 ```sh
 curl 'https://hookus.example.com/api/v1/discovery?limit=20&cursor=OPAQUE_CURSOR' \
@@ -763,7 +887,14 @@ curl 'https://hookus.example.com/api/v1/discovery?limit=20&cursor=OPAQUE_CURSOR'
 - Public discovery returns derived age, never birthdate.
 - Precise coordinates are write-only through the profile-location API and are never returned.
 - Compatibility reasons are strategy-owned bounded codes. HookUs currently returns `shared_intent`, `similar_vibe`, and `mutual_age_fit` only.
-- Date9ja production discovery remains disabled until its migration, matching, and sensitive-data decisions are approved.
+- Date9ja discovery, Introductions, Likes, matches, and other public cards may
+  include `has_video_intro` and `video_intro_duration_seconds` when a safe video
+  is deliverable. Cards never include a playback URL; profile detail is the
+  signed-URL playback surface.
+- Date9ja genotype is optional and visible only on eligible Date9ja profile
+  surfaces. Missing/not-tested/prefer-not-to-say passes as `not_assessed`; never
+  present that as medically safe. Production import of real values still needs
+  the documented pristine-source census and security/DPIA approval.
 
 ## Errors And Retries
 

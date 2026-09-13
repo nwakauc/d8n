@@ -10,14 +10,16 @@ module Date9ja
     # Governing rule: sensitivity governs HOW, not WHETHER. Every one of these
     # has a D8N destination (Profiles::CapabilityCatalog option group,
     # Profiles::FieldCatalog scalar, or ProfilePreference#preferred_attributes),
-    # all owner-only.
+    # owner-only except Date9ja's explicitly compatibility-visible genotype.
     #
     # WHAT IT NEVER DOES.
     #   * Never invents a value. A field the member did not answer stays unset;
     #     a legacy value with no reviewed D8N code stays unset (quarantined).
     #     Both are recorded as reconciliation notes.
     #   * Never overwrites a member/operator/earlier value. Gap-fill only.
-    #   * Never widens exposure — every destination is owner-only.
+    #   * Never widens exposure beyond the Date9ja catalogue policy. Genotype
+    #     is public to potential matches there; all other sensitive groups stay
+    #     owner-only.
     #   * Never logs a raw member value. Evidence is a PII-free fingerprint.
     #
     # It reads through the dedicated `SensitiveUserSource` (the ONLY adapter for

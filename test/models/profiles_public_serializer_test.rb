@@ -31,5 +31,51 @@ module Profiles
       assert_not payload.key?(:latitude)
       assert_not payload.key?(:longitude)
     end
+
+    test "Date9ja cards advertise only a deliverable intro-video signal" do
+      brand = Brand.create!(slug: "date9ja", name: "Date9ja")
+      Date9jaProfileCatalog.install!(brand:)
+      user = User.create!
+      membership = BrandMembership.create!(brand:, user:)
+      profile = Profile.create!(
+        brand:, user:, brand_membership: membership, display_name: "Ada", birthdate: 25.years.ago.to_date
+      )
+      video = ProfileVideo.new(
+        profile:, user:, brand:, status: :approved, visibility: :visible,
+        processing_state: :ready, duration_seconds: 22, processed_at: Time.current
+      )
+      video.video.attach(io: StringIO.new("raw"), filename: "intro.mp4", content_type: "video/mp4")
+      video.playback.attach(io: StringIO.new("play"), filename: "playback.mp4", content_type: "video/mp4")
+      video.poster.attach(io: StringIO.new("poster"), filename: "poster.jpg", content_type: "image/jpeg")
+      video.save!
+
+      payload = PublicSerializer.call(profile: profile.reload)
+
+      assert_equal true, payload.fetch(:has_video_intro)
+      assert_equal 22, payload.fetch(:video_intro_duration_seconds)
+      assert_not payload.key?(:playback_url)
+      assert_not payload.key?(:poster_url)
+    end
+
+    test "Date9ja cards fail closed for an incomplete intro video" do
+      brand = Brand.create!(slug: "date9ja", name: "Date9ja")
+      Date9jaProfileCatalog.install!(brand:)
+      user = User.create!
+      membership = BrandMembership.create!(brand:, user:)
+      profile = Profile.create!(
+        brand:, user:, brand_membership: membership, display_name: "Ada", birthdate: 25.years.ago.to_date
+      )
+      video = ProfileVideo.new(
+        profile:, user:, brand:, status: :approved, visibility: :visible,
+        processing_state: :pending, duration_seconds: 22
+      )
+      video.video.attach(io: StringIO.new("raw"), filename: "intro.mp4", content_type: "video/mp4")
+      video.save!
+
+      payload = PublicSerializer.call(profile: profile.reload)
+
+      assert_equal false, payload.fetch(:has_video_intro)
+      assert_nil payload.fetch(:video_intro_duration_seconds)
+    end
   end
 end

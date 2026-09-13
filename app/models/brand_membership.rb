@@ -9,6 +9,7 @@ class BrandMembership < ApplicationRecord
   has_many :notifications, dependent: :restrict_with_exception
   has_many :notification_preferences, dependent: :restrict_with_exception
   has_many :device_registrations, dependent: :restrict_with_exception
+  has_many :ai_conversations, dependent: :restrict_with_exception
 
   # `suspended` is moderation-only (Admin::SuspendProfile/ReinstateProfile, tied to
   # an AccountEnforcement record). `deactivated` is the distinct self-service,

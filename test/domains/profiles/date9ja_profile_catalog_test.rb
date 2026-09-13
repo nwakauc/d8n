@@ -40,16 +40,17 @@ module Profiles
       assert_equal [ "photos" ], @brand.reload.profile_completion_requirements.fetch("collections")
     end
 
-    test "enables Date9ja cultural and compatibility capabilities owner-only" do
+    test "enables Date9ja cultural capabilities with compatibility-visible genotype" do
       Date9jaProfileCatalog.install!(brand: @brand)
 
       expected = %w[religion religion_importance tribe genotype family_involvement faith_practice money_providing settlement children conflict]
       assert_equal expected.sort, (@brand.profile_option_groups.kept.pluck(:key) & expected).sort
 
-      (expected + %w[has_children wants_children]).each do |key|
+      (expected.excluding("genotype") + %w[has_children wants_children]).each do |key|
         group = @brand.profile_option_groups.kept.find_by!(key:)
         assert_equal "owner_only", group.visibility
       end
+      assert_equal "public_profile", @brand.profile_option_groups.kept.find_by!(key: "genotype").visibility
     end
 
     test "curates the interests taxonomy down to the Date9ja subset" do

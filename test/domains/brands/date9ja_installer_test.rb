@@ -27,14 +27,17 @@ module Brands
       assert brand.profile_option_groups.kept.exists?(key: "interests")
     end
 
-    test "installs sensitive parity groups owner-only" do
+    test "installs sensitive parity groups with compatibility-visible genotype" do
       brand = Date9jaInstaller.call(hosts: [])
 
       sensitive = %w[ religion religion_importance tribe genotype ]
       installed = brand.profile_option_groups.kept.pluck(:key)
 
       assert_equal sensitive.sort, (installed & sensitive).sort
-      sensitive.each { |key| assert brand.profile_option_groups.kept.find_by!(key:).visibility_owner_only? }
+      sensitive.excluding("genotype").each do |key|
+        assert brand.profile_option_groups.kept.find_by!(key:).visibility_owner_only?
+      end
+      assert brand.profile_option_groups.kept.find_by!(key: "genotype").visibility_public_profile?
       %w[ enabled_profile_fields profile_fields ].each do |bucket|
         assert_empty(brand.profile_completion_requirements.fetch(bucket) & sensitive)
       end

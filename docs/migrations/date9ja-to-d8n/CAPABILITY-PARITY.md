@@ -1,10 +1,12 @@
 # Date9ja Capability Parity Matrix
 
-> Current execution note (2026-09-08): Date9ja onboarding parity is **IMPLEMENTED / SELF-VERIFIED** in the shared profile contract. The server-driven configuration now includes the conditional Nigerian background path, owner-only faith/tribe/genotype capabilities, six compatibility answer groups, relocation fields, and the legacy bio minimum. Date9ja uses country/city profile fields only; it does not require a device `ProfileLocation` or distance filtering. No other brand receives these requirements; the Date9ja frontend and real-corpus value rehearsal remain deferred.
+> Current execution note (updated 2026-09-12): Date9ja onboarding parity is **IMPLEMENTED / SELF-VERIFIED** in the shared profile contract. The server-driven configuration includes the conditional Nigerian background path, owner-only faith/tribe capabilities, optional potential-match-visible genotype, six compatibility answer groups, relocation fields, and the legacy bio minimum. `date9ja_v1` now scores relationship compatibility and reports genotype as a separate critical check; unknown/not-tested answers pass as `not_assessed`. Date9ja uses country/city profile fields only; it does not require a device `ProfileLocation` or distance filtering. No other brand receives these requirements; the Date9ja frontend and real-corpus value rehearsal remain deferred.
 
 > Current execution note (2026-09-07): Date9ja Core Dating Loop is **IMPLEMENTED / SELF-VERIFIED** through shared D8N browse discovery, reciprocal eligibility, likes, passes, mutual matches, conversations, and text messages. The Date9ja contract enables only the browse surface (`discovery.find`); daily-batch/feed semantics, opener, historical graph migration, and frontend parity remain separate work. This runtime enablement is not independent review, parity acceptance, or production cutover.
 
 > Current execution note (2026-09-08): Historical Date9ja graph/state import is **IMPLEMENTED / SELF-VERIFIED** for deterministic Date9ja-shaped fixtures through the snapshot normalizer and canonical likes, passes, matches, conversations, text messages, blocks, and reports. The historical HTTP journey is fixture-proven end to end through the normal Date9ja runtime (migrated match, conversation, ordered historical messages, a new native message, and the peer's read), with a post-native rerun preserving native state. Historical profile views, reply/read/edit fidelity, non-text message content, and corpus-scale reconciliation remain deferred; real sanitized-corpus rehearsal is pending and production is untouched. This is not a production migration, parity acceptance, or cutover readiness.
+
+> Current execution note (2026-09-12): Date9ja progressive RealMe authorization is **IMPLEMENTED / SELF-VERIFIED** at the shared brand-policy boundary (ADR 0031). Contact confirmation no longer blocks the dating loop through matching or history. Ordinary message send requires a verified phone or an approved same-brand non-email assurance assertion; verified email alone does not qualify. A future message-media upload intent uses the same rule if that capability is enabled. No schema migration is introduced. Final production verification import/reconciliation and live selfie/video/ID flows remain separate gates.
 
 Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, notifications, Action Cable channels, and D8N routes/domains. This document is the single source of truth for the normalized retained user-capability inventory and its status totals. A capability is not expendable because D8N does not support it today. **Full retained Date9ja feature parity is a production cutover requirement.**
 
@@ -85,14 +87,14 @@ Every shipped/reachable Date9ja user-facing capability is inside the parity bar 
 | Verification events/history | Checks/events/evidence retention | No equivalent full history | MISSING | Verification | Yes | Yes | Yes | Yes |
 | Trust XP/score | Trust score endpoint, ledger, adjustments | No equivalent persisted trust capability | MISSING | Trust & Safety | Yes | Yes | Yes | Yes |
 | Moderation/publication | Admin flags, photo review, suspensions/bans | Profile/photo moderation and enforcements | PARTIAL | Trust & Safety | Yes | Yes | Yes | Yes |
-| Community questions | Browse/create questions and report | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
-| Community answers | Browse/create answers and report | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
+| Community questions | Browse/create questions and report | Shared brand-scoped submit/moderate/browse/edit/delete/report foundation | PARTIAL | Community | Yes | Yes | Yes | Yes |
+| Community answers | Browse/create answers and report | Shared brand-scoped submit/moderate/browse/report foundation | PARTIAL | Community | Yes | Yes | Yes | Yes |
 | Community answer votes | Vote/unvote answers | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
-| Community events | Browse/create events and remarks | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
-| Community event RSVP/attendees | RSVP and attendee visibility | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
-| Community stories | Browse/create stories and report | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
+| Community events | Browse/create events and remarks | Shared moderated events exist; legacy remarks remain missing | PARTIAL | Community | Yes | Yes | Yes | Yes |
+| Community event RSVP/attendees | RSVP and attendee visibility | Capacity-safe RSVP and organizer-only attendee roster | PARTIAL | Community | Yes | Yes | Yes | Yes |
+| Community stories | Browse/create stories and report | Shared moderated text stories exist; video/media remains gated | PARTIAL | Community | Yes | Yes | Yes | Yes |
 | Community story remarks | Browse/create remarks and report | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
-| Community moderation | Admin review/risk flags/reports | No D8N community moderation | MISSING | Community/Trust & Safety | Yes | Yes | Yes | Yes |
+| Community moderation | Admin review/risk flags/reports | Brand-scoped MFA review queue, audited decisions, and Trust reports; automated risk flags remain missing | PARTIAL | Community/Trust & Safety | Yes | Yes | Yes | Yes |
 | Dating Hub batches | CRUD dating-workflow batches | No D8N equivalent | MISSING | Engagement | Yes | Yes | Yes | Yes |
 | Dating Hub tracked contacts | Matched and external contact tracking | No D8N equivalent | MISSING | Engagement | Yes | Yes | Yes | Yes |
 | Dating Hub contact notes | Notes attached to tracked contacts | No D8N equivalent | MISSING | Engagement | Yes | Yes | Yes | Yes |
@@ -115,14 +117,15 @@ Every shipped/reachable Date9ja user-facing capability is inside the parity bar 
 | Status | Count |
 |---|---:|
 | PARITY | 1 |
-| PARTIAL | 42 |
-| MISSING | 40 |
+| PARTIAL | 48 |
+| MISSING | 34 |
 | DIFFERENT SEMANTICS | 11 |
 | LEGACY/UNUSED | 0 |
 | NEEDS PRODUCT DECISION | 1 |
 | **Total** | **95** |
 
 Delta log: Profile video MISSING → PARTIAL (2026-09-02) — shared `media.profile_video.*` capability built (ADR 0023); owner CRUD + processing only; not PARITY until the importer, media reconciliation, and the acceptance journey pass.
+Delta log: Six Community rows MISSING → PARTIAL (2026-09-13) — shared brand-scoped records, explicit read/participation/moderation capabilities, pending-only publication, owner workflows, capacity-safe RSVP/private roster, Circle membership, dedicated MFA admin permissions/audit, database tenant FKs, and Trust report targets are implemented and request-tested. Votes, event/story remarks, story media, notification delivery, historical import, risk automation, frontend compatibility, and parity acceptance remain open.
 Delta log: Migrated profile readiness IMPLEMENTED / SELF-VERIFIED (2026-09-07) — a migration-only pass now records one PII-free disposition per eligible source member (`ready`, `intentionally_hidden`, `remediation_required`, `failed`) with multiple reason codes, preserves native/member/operator data on rerun, maps only exact two-token names and reviewed country aliases, creates only exact canonical Nigerian Place selections through the shared location service, leaves missing ages and unresolved options for remediation, and proves canonical completion/publication/eligibility in representative integration tests. D-8 auto-publication remains open and the default is classify-only; sanitized 280-member rehearsal is pending because the source snapshot connection is unavailable. Profile onboarding/completion/location/publication rows remain PARTIAL/DIFFERENT until that rehearsal, member remediation UX, and parity acceptance.
 Delta log: Profile video public delivery wired (2026-09-02) — `Profiles::DetailSerializer` now exposes a `video` payload on `GET /api/v1/profiles/{id}` for brands that enable `profile.video` (Date9ja), re-authorized per read via `Profiles::VideoLibrary` + `Media::VideoPolicy` (ADR 0011). Codex-reviewed 2026-09-02 (VERIFIED) with a `ProfileVideo.brand_id == Profile.brand_id` defence-in-depth guard added. Still PARTIAL — legacy video importer, migrated-media reconciliation, sanitized snapshot, and the frontend/API + parity acceptance journeys remain (see `SNAPSHOT-RUNBOOK.md`).
 

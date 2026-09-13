@@ -20,6 +20,10 @@ module D8n
       # Interaction requires a verified login identifier (see `interaction`
       # below); visibility/publication does not.
       module Date9ja
+        # Phone contact verification is deliberately disabled for Date9ja (no
+        # `verify.contact.phone` entry below). The shared D8N capability
+        # remains available to brands that need it; re-enable this entry when
+        # its provider economics justify SMS again.
         CAPABILITIES = %w[
           id.registration
           id.authentication.email_password
@@ -49,6 +53,7 @@ module D8n
           profile.publication
           profile.visibility
           discovery.surface.browse
+          discovery.surface.daily_batch
           discovery.exposure
           discovery.cursor
           match.eligibility
@@ -61,8 +66,11 @@ module D8n
           match.relationship.unmatch
           chat.conversation
           chat.message.text
+          ai.dating_assistant
+          community.read
+          community.participation
+          community.moderation
           verify.contact.email
-          verify.contact.phone
           trust.block
           trust.report
           trust.report_evidence
@@ -94,6 +102,21 @@ module D8n
         # safety invariant still apply. Other brands are unaffected.
         ELIGIBILITY_POLICY = Matching::EligibilityPolicy::LIQUIDITY_FIRST
 
+        # "Today's introductions" — up to `daily_limit` distinct candidates per
+        # member per day, frozen at first request so the order stays stable
+        # across the day and is topped back up (never silently shrinks) as the
+        # member likes/passes through it. Same proven engine as DateZA's
+        # curated Discover surface (Matching::StableDailySelection /
+        # StableDailyAllocationPolicy) — this is brand-contract configuration,
+        # not a new discovery implementation. Date9ja's versioned strategy
+        # ranks the bounded eligible pool by relationship compatibility and
+        # applies its separately reported hemoglobin-genotype critical check.
+        CURATED_DAILY_ALLOCATION = StableDailyAllocationPolicy.new(
+          key: "date9ja_daily_v1",
+          daily_limit: 10,
+          time_zone: "Africa/Lagos"
+        )
+
         def self.contract(brand:)
           BrandContract.new(
             brand:,
@@ -108,13 +131,16 @@ module D8n
             interaction: BrandContract::InteractionConfiguration.new(
               eligibility_policy: ELIGIBILITY_POLICY,
               compatibility_strategy: Matching::Strategies::Date9jaContract,
-              # Market-driven policy (2026-09-09): an unverified member is fully
-              # visible (they publish on finishing onboarding, verified or not),
-              # but cannot act — like, pass, open a profile, hook, or message —
-              # until the identifier they logged in with is verified. Being seen
-              # is what pulls them back to verify. Enforced by
-              # Identity::InteractionAccess for the published-member case only.
-              verification_requirement: :verified_login_identifier
+              # Progressive verification policy (2026-09-12): contact
+              # confirmation never blocks discovery, profile detail, likes,
+              # passes, matching, or chat history. Sending a message is the
+              # higher-trust boundary and requires one approved RealMe method.
+              # Today that means an approved imported selfie/video/liveness/
+              # government-ID assertion. Phone is not a configured Date9ja
+              # RealMe method while SMS verification is disabled; verified email
+              # alone deliberately does not qualify.
+              verification_requirement: nil,
+              message_send_verification_requirement: :verified_realme_method
             ),
             media: BrandContract::MediaConfiguration.new(
               photo_policy: Media::PhotoPolicy,
@@ -158,11 +184,22 @@ module D8n
                 strategy: Matching::Strategies::Date9jaContract,
                 eligibility_policy: ELIGIBILITY_POLICY,
                 error_code: :find_not_configured
+              ),
+              # "Today's introductions" (Introductions page). Explore keeps
+              # using plain browse (discovery.find) above.
+              DiscoverySurface.new(
+                key: "discovery.curated_daily",
+                delivery_type: :daily_batch,
+                strategy: Matching::Strategies::Date9jaContract,
+                eligibility_policy: ELIGIBILITY_POLICY,
+                allocation: CURATED_DAILY_ALLOCATION,
+                error_code: :matching_not_configured
               )
             ],
             default_discovery_surface: "discovery.find",
             error_codes: {
-              "discovery.find" => :find_not_configured
+              "discovery.find" => :find_not_configured,
+              "discovery.curated_daily" => :matching_not_configured
             }
           )
         end

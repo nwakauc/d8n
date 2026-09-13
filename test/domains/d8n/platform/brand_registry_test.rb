@@ -81,6 +81,7 @@ module D8n
         assert_equal "Africa/Johannesburg", curated.allocation.time_zone
         assert_equal "discovery.curated_daily", contract.default_discovery_surface_key
         assert_equal :verified_login_identifier, contract.interaction.verification_requirement
+        assert_nil contract.interaction.message_send_verification_requirement
         assert_equal :immediate, contract.media.initial_visibility
         assert_equal %w[membership_registered like_received match_created opener_received message_received].sort,
           contract.notifications.event_types.sort
@@ -109,16 +110,19 @@ module D8n
         assert contract.capability_enabled?("profile.photos")
         assert_not contract.capability_enabled?("profile.location.place_selection")
         assert contract.capability_enabled?("id.session.browser_persistence")
-        assert contract.capability_enabled?("verify.contact.phone")
+        assert_not contract.capability_enabled?("verify.contact.phone")
         assert contract.capability_enabled?("trust.report_evidence")
         assert_not contract.capability_enabled?("discovery.surface.feed")
         assert contract.capability_enabled?("discovery.surface.browse")
+        assert contract.capability_enabled?("discovery.surface.daily_batch")
         assert contract.capability_enabled?("match.interaction.like")
         assert contract.capability_enabled?("chat.conversation")
         assert_not contract.capability_enabled?("match.opener")
-        assert_equal [ "discovery.find" ], contract.discovery_surfaces.keys
+        assert_equal [ "discovery.find", "discovery.curated_daily" ], contract.discovery_surfaces.keys
+        assert_equal "discovery.find", contract.default_discovery_surface_key
         assert_nil contract.opener
-        assert_equal :verified_login_identifier, contract.interaction.verification_requirement
+        assert_nil contract.interaction.verification_requirement
+        assert_equal :verified_realme_method, contract.interaction.message_send_verification_requirement
         assert_equal :immediate, contract.media.initial_visibility
         assert_equal Matching::EligibilityPolicy::LIQUIDITY_FIRST, contract.interaction.eligibility_policy
       end

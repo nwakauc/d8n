@@ -1051,8 +1051,9 @@ reconciled only in the controlled production-classified pass.
 
 The ordinary `UserSource`/`FieldMapping` path still cannot read sensitive
 Date9ja fields. The separate `SensitiveUserSource` selects an explicit minimal
-projection and the `SensitiveProfileImport` only gap-fills owner-only scalar or
-option destinations. Unknown values fail closed. This audit corrected that
+projection and the `SensitiveProfileImport` only gap-fills catalog-authorized
+scalar or option destinations. Those destinations remain owner-only except for
+Date9ja's explicitly potential-match-visible genotype. Unknown values fail closed. This audit corrected that
 adapter to read genotype from the actual JSON source and to stop selecting two
 columns that never existed.
 
@@ -1067,17 +1068,20 @@ Pristine aggregate classification:
 | ethnicity | 21 present; every integer is a valid Date9ja enum | destination ready after exact enum fix |
 | religion | 469 present (394 Christian, 49 Muslim, 12 traditional/spiritual, 14 other) | destination ready after exact enum fix |
 | denomination | 43 present; 22 allowlisted, 21 other | destination ready; sanitizer destroys |
-| genotype JSON answer | 299 present: AA 194, AC 1, AS 31, SS 1, not-tested 7, unclassified `OTHER` 65 | owner-only option plus exact raw-value preservation |
+| genotype JSON answer | 299 present: AA 194, AC 1, AS 31, SS 1, not-tested 7, unclassified `OTHER` 65 | optional Date9ja potential-match-visible option; recognized values feed `date9ja_v1`; exact unclassified raw values stay private |
 | intertribal openness | false 34, true 48, null 502 | destination ready; sanitizer destroys |
 | polygamy openness | code 0: 34, code 1: 4, null 546 | destination ready; code 2 also represented |
 
-Genotype is imported owner-only. Unclassified values are retained verbatim in
-private metadata and represented by the `other` option; they are never used for
-discovery, matching, or public serialization.
+Recognized genotype is imported into Date9ja's potential-match-visible option
+and used by the separate `date9ja_v1` critical check. Missing/not-tested values
+pass as `not_assessed`. Unclassified raw values remain private and are never
+guessed into a calculable genotype; an explicit supported `other` selection
+produces `clinical_review_required` rather than a medical conclusion.
 
 The sanitized rehearsal cannot validate raw genotype values because the
-sanitizer intentionally removes them; pristine/cutover validation must verify
-the owner-only option and raw-value metadata path.
+sanitizer intentionally removes them; the final pristine/cutover validation
+must rerun measure 327 and verify both the bounded potential-match option and
+private raw-value quarantine path.
 
 ## 13. Importer architecture and rerun contract
 
@@ -1183,10 +1187,13 @@ closure evidence.
 The following contract gaps have now been implemented in D8N (migration files
 are additive and have not touched production):
 
-- interaction authorization is action-scoped: profile/swipe writes retain the
-  confirmed-email gate while history and conversation reads are participant
-  authenticated; message history retains source kind, read/edit/delete, reply,
-  and media-reference state;
+- interaction authorization is action-scoped (amended 2026-09-12 by ADR 0031):
+  Date9ja contact confirmation does not gate profile/swipe writes, matching,
+  conversations, or history; message history retains source kind,
+  read/edit/delete, reply, and media-reference state; ordinary message send and
+  requires a verified phone or approved same-brand
+  phone/selfie/video/liveness/government-ID assertion, never verified email
+  alone; a future Date9ja message-media intent uses the same policy if enabled;
 - Date9ja integer enum values are decoded before graph import (likes,
   messages, reports), with `super_like` retained as an alias of D8N `hook`;
 - verification assertions now have a private, brand-scoped destination and an

@@ -14,7 +14,7 @@ module Profiles
         id: profile.public_id,
         photos: public_photos,
         options: public_options
-      }.merge(public_profile_fields).merge(derived_public_fields)
+      }.merge(public_profile_fields).merge(derived_public_fields).merge(video_card_fields)
     end
 
     private
@@ -43,6 +43,23 @@ module Profiles
         fields[:location] = location
       end
       fields
+    end
+
+    # Card surfaces advertise only that a safe introduction video exists and
+    # its duration. Playback and poster URLs remain detail-only, short-lived
+    # capabilities (ADR 0023 / ADR 0011). Unsafe or incomplete videos fail closed.
+    def video_card_fields
+      return {} unless Media::VideoPolicy.enabled?(brand: profile.brand)
+
+      video = if profile.association(:profile_video).loaded?
+        profile.profile_video
+      else
+        ProfileVideo.kept.find_by(profile:)
+      end
+      deliverable = video&.brand_id == profile.brand_id &&
+        video.deliverable? && Media::VideoPolicy.publication_eligible?(video:)
+
+      { has_video_intro: deliverable, video_intro_duration_seconds: deliverable ? video.duration_seconds : nil }
     end
 
     # Safe, approximate location metadata only — never raw coordinates. The

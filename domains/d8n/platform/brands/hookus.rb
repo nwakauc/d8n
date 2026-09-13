@@ -50,6 +50,7 @@ module D8n
           chat.conversation
           chat.message.text
           chat.message.media
+          ai.dating_assistant
           trust.block
           trust.report
           trust.report_evidence

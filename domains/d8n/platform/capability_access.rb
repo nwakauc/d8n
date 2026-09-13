@@ -12,7 +12,11 @@ module D8n
         "match.hook_tonight" => :hook_tonight_not_configured,
         "chat.conversation" => :messaging_not_configured,
         "chat.message.text" => :messaging_not_configured,
-        "chat.message.media" => :messaging_not_configured
+        "chat.message.media" => :messaging_not_configured,
+        "ai.dating_assistant" => :assistant_not_configured,
+        "community.read" => :community_not_configured,
+        "community.participation" => :community_not_configured,
+        "community.moderation" => :community_not_configured
       }.freeze
 
       class NotConfigured < StandardError

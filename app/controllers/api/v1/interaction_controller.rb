@@ -18,4 +18,10 @@ class Api::V1::InteractionController < ApplicationController
   rescue Identity::InteractionAccess::IdentifierVerificationRequired
     render json: { error: "identifier_verification_required" }, status: :forbidden
   end
+
+  def authorize_message_send_access!
+    return if Identity::InteractionAccess.message_send_allowed?(session: Current.session, brand: Current.brand)
+
+    render json: { error: "realme_verification_required" }, status: :forbidden
+  end
 end

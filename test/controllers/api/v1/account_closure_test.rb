@@ -120,6 +120,18 @@ class Api::V1::AccountClosureTest < ActionDispatch::IntegrationTest
     assert_predicate photo, :hidden?
   end
 
+  test "assistant transcripts are discarded with the current brand membership" do
+    conversation = AiConversation.create!(brand: @brand, brand_membership: @sam.brand_membership,
+      assistant_key: "dating_assistant")
+    conversation.ai_messages.create!(role: :user, content: "Private assistant prompt")
+
+    close(@sam_token)
+
+    assert conversation.reload.deleted_at.present?
+    assert_empty AiConversation.kept.where(brand_membership: @sam.brand_membership)
+    assert_equal 1, conversation.ai_messages.count
+  end
+
   test "safety and identity records survive closure" do
     report = Report.create!(brand: @brand, reporter_profile: @ada, reported_profile: @sam, reason: :harassment)
     incoming_block = ProfileBlock.create!(brand: @brand, blocker_profile: @ada, blocked_profile: @sam)

@@ -2,7 +2,8 @@
 
 ## Status
 
-**Accepted** (2026-09-02, independent review) — architecture only; implementation remains gated as stated below. Product owner has decided all shipped/reachable
+**Accepted** (2026-09-02, independent review; Date9ja interaction policy amended
+by ADR 0031 on 2026-09-12) — architecture only; implementation remains gated as stated below. Product owner has decided all shipped/reachable
 Date9ja verification capabilities are retained parity. Extends ADR 0011 (the
 verification-assertion boundary, still unbuilt). Establishes the `Verification`
 domain and the evidence model needed to preserve existing Date9ja verification
@@ -48,11 +49,11 @@ D8N Verification
 `VerificationCheck` belongs to a **platform `User`**, not a brand profile
 (matching ADR 0011: an assertion is about the person). A brand contract declares
 which checks it offers, how they roll up into a user-visible badge/tier, and
-which product actions (if any) they gate. **No new gate is invented** — Date9ja's
-only established gate today is `verified_login_identifier` on interaction
-(already in the DateZA contract shape); Date9ja's `verification_tier` is
-presentation, not a hard gate, and migrates as such unless the product owner
-states otherwise.
+which product actions (if any) they gate. **No new gate is invented.** ADR 0031
+records the later product decision for Date9ja: no general contact-verification
+interaction wall, with an approved RealMe method required only for message send.
+Date9ja's `verification_tier` remains presentation rather than the authorization
+source; the gate evaluates the underlying approved assertion or verified phone.
 
 ### Evidence is separate, minimized, and retention-bounded
 

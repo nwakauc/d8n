@@ -4,7 +4,7 @@ module D8n
   module Platform
     class CatalogTest < ActiveSupport::TestCase
       EXPECTED_NAMESPACES = %w[
-        admin ai chat discovery id insights match media notify pay profile trust verify
+        admin ai chat community discovery id insights match media notify pay profile trust verify
       ].freeze
 
       test "catalogues every canonical D8N capability namespace" do

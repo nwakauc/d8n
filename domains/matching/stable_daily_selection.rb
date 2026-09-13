@@ -41,6 +41,7 @@ module Matching
         membership.lock!
         viewer = current_viewer!
         allocation = find_or_create_allocation!(membership:, viewer:)
+        refresh_strategy_candidates!(allocation:, viewer:)
         top_up!(allocation:, viewer:)
         result = deliver(allocation:, viewer:)
       end
@@ -91,7 +92,8 @@ module Matching
     # member may see in one day.
     def top_up!(allocation:, viewer:)
       already_assigned_ids = allocation.allocation_candidates.pluck(:candidate_profile_id)
-      live_count = candidate_scope(viewer:).where(id: already_assigned_ids).count
+      active_assigned_ids = allocation.allocation_candidates.kept.pluck(:candidate_profile_id)
+      live_count = candidate_scope(viewer:).where(id: active_assigned_ids).count
       needed = allocation.daily_limit - live_count
       return unless needed.positive?
 
@@ -103,6 +105,29 @@ module Matching
 
       next_position = allocation.allocation_candidates.maximum(:position).to_i + 1
       append_candidates!(allocation:, ranked_candidates:, starting_position: next_position)
+    end
+
+    def refresh_strategy_candidates!(allocation:, viewer:)
+      return unless surface.strategy.respond_to?(:refresh_daily_candidate)
+
+      items = allocation.allocation_candidates.kept.includes(
+        candidate_profile: [
+          :profile_preference,
+          { profile_option_selections: [ :profile_option, :profile_option_group ] },
+          { profile_video: [ { playback_attachment: :blob }, { poster_attachment: :blob } ] }
+        ]
+      )
+      items.each do |item|
+        payload = surface.strategy.refresh_daily_candidate(
+          brand:, viewer:, candidate: item.candidate_profile,
+          eligibility_policy: surface.eligibility_policy
+        )
+        if payload
+          item.update!(ranking_payload: payload)
+        else
+          item.update!(deleted_at: now)
+        end
+      end
     end
 
     def append_candidates!(allocation:, ranked_candidates:, starting_position:)
@@ -125,7 +150,8 @@ module Matching
         candidate_profile: [
           :brand,
           { profile_option_selections: [ :profile_option, :profile_option_group ] },
-          { profile_photos: { display_image_attachment: :blob } }
+          { profile_photos: { display_image_attachment: :blob } },
+          { profile_video: [ { playback_attachment: :blob }, { poster_attachment: :blob } ] }
         ]
       ).to_a
       currently_eligible_ids = candidate_scope(viewer:)

@@ -15,6 +15,8 @@ module Admin
     ENFORCEMENTS_REINSTATE = "admin.enforcements.reinstate"
     ENFORCEMENTS_OVERRIDE = "admin.enforcements.override"
     PROFILE_PHOTOS_MODERATE = "admin.profile_photos.moderate"
+    COMMUNITY_READ = "admin.community.read"
+    COMMUNITY_MODERATE = "admin.community.moderate"
     OPERATORS_READ = "admin.operators.read"
     OPERATORS_MANAGE = "admin.operators.manage"
     BRAND_OPERATIONS = "admin.brand_operations.manage"
@@ -30,7 +32,9 @@ module Admin
       REPORTS_READ,
       REPORTS_MODERATE,
       ENFORCEMENTS_MANAGE,
-      PROFILE_PHOTOS_MODERATE
+      PROFILE_PHOTOS_MODERATE,
+      COMMUNITY_READ,
+      COMMUNITY_MODERATE
     ].freeze
 
     ALL = (CURRENT_OPERATIONAL + [

@@ -27,7 +27,10 @@ module Matching
 
     def call
       viewer = ProfileParticipant.match_member!(user:, brand:)
-      scope = Like.kept.kind_like.where(brand:, liker_profile: viewer)
+      # Every Like kind (plain like, super_like/hook) is an actionable
+      # outgoing interest — only Date9ja's DateZA-copy email presenter needs
+      # to distinguish them, not this read surface.
+      scope = Like.kept.where(brand:, liker_profile: viewer)
         .where(liked_profile_id: VisibilityScope.call(brand:, viewer:).select(:id))
         .where.not(liked_profile_id: matched_profile_ids(viewer))
         .joins(:liked_profile)
@@ -37,7 +40,8 @@ module Matching
         liked_profile: [
           :brand,
           { profile_option_selections: [ :profile_option, :profile_option_group ] },
-          { profile_photos: { display_image_attachment: :blob } }
+          { profile_photos: { display_image_attachment: :blob } },
+          { profile_video: [ { playback_attachment: :blob }, { poster_attachment: :blob } ] }
         ]
       ).limit(limit + 1).to_a
       has_more = likes.length > limit

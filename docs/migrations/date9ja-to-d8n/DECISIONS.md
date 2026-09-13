@@ -3,13 +3,21 @@
 ## 2026-09-08 onboarding parity implementation note
 
 Date9ja's existing onboarding is now represented through shared D8N profile
-fields and controlled option groups. Faith, tribe, genotype, and compatibility
-answers are owner-only; they are not exposed in public profile serializers or
-enabled for other brands. Nigerian members require state of origin and tribe;
-non-Nigerian members require canonical ISO-2 nationality. Genotype remains
-optional. This records the implementation boundary requested for frontend
-parity; any future widening of visibility or matching use still requires an
-explicit product/privacy decision.
+fields and controlled option groups. Faith, tribe, and compatibility answers
+remain owner-only and are not enabled for other brands. Nigerian members
+require state of origin and tribe; non-Nigerian members require canonical ISO-2
+nationality. Genotype remains optional.
+
+## 2026-09-12 genotype compatibility decision
+
+For Date9ja only, a member's self-reported hemoglobin genotype is visible to
+eligible potential matches and feeds the versioned `date9ja_v1` compatibility
+critical check. It is outside the weighted percentage: when both answers are
+known, the pair receives a separately named inherited-risk status; when either
+answer is absent, not tested, or prefer-not-to-say, the result is `not_assessed`
+and does not block the pair. The UI must never label `not_assessed` as safe and
+must identify this as screening information rather than diagnosis or medical
+advice.
 
 This is the single queue for unresolved decisions. `CAPABILITY-PARITY.md` is authoritative for retained user capabilities and counts. Durable engineering decisions belong in `docs/adr/`; this queue records the decision needed and its effect.
 
@@ -21,8 +29,8 @@ This is the single queue for unresolved decisions. `CAPABILITY-PARITY.md` is aut
 | Retain ethnicity | Sensitive field may affect display, matching, and migration | Profiles | No longer a product blocker | Owner-only option group | **DESTINATION READY — BLOCKED ONLY BY PRIVACY-SAFE SOURCE CLASSIFICATION.** `ethnicity` option group live (owner-only), Date9ja-enabled; `SensitiveVocabularies::ETHNICITY` wired. Real values need census measure 324 on pristine + R1 review. |
 | Retain denomination | Sensitive field may affect display, matching, and migration | Profiles | No longer a product blocker | Owner-only option group; flat vocabulary (matches the single legacy column) | **DESTINATION READY — BLOCKED ONLY BY PRIVACY-SAFE SOURCE CLASSIFICATION.** `denomination` option group live (owner-only, flat), Date9ja-enabled; `SensitiveVocabularies::DENOMINATION` wired. Real values need census measure 326 on pristine + R1 review. |
 | Retain preferred tribes | Matching preference affects recommendations | Matching/Profiles | No longer a product blocker | `ProfilePreference#preferred_attributes` (owner-only) | **DESTINATION READY — BLOCKED ONLY BY PRIVACY-SAFE SOURCE CLASSIFICATION.** Generic owner-only `preferred_attributes` store (`{religion,tribe,ethnicity,genotype}` codes) live; `SensitiveProfileImport` maps each array through the same reviewed vocabulary. `preferred_religion` / `preferred_ethnicity` / `preferred_genotype` covered by the same store. Real values need census measure 330 on pristine + R1 review. |
-| Retain genotype | Sensitive health-adjacent data requires explicit purpose and consent | Profiles/Trust | No longer a product blocker | Owner-only option group; never public; not in matching | **DESTINATION READY — BLOCKED ONLY BY PRIVACY-SAFE SOURCE CLASSIFICATION.** `genotype` option group live (owner-only, haemoglobin genotypes), Date9ja-enabled; `SensitiveVocabularies::GENOTYPE` wired; never placed in a public field, never logged with identity. Real values need census measure 327 on pristine + a security/DPIA review of storing haemoglobin genotype at rest. |
-| Exact verification gates | Determines publication, interaction, and badge behavior | Verification/Trust | Yes | Preserve current gates; staged step-up; approved strengthening | Awaiting Uchechi |
+| Retain genotype | Sensitive health-adjacent data requires explicit purpose and consent | Profiles/Matching/Trust | No longer a product blocker | Date9ja potential-match visibility plus a separate compatibility critical check | **DESTINATION READY — BLOCKED ONLY BY MIGRATION PRIVACY/SECURITY GATES.** `genotype` is optional, Date9ja-only, visible in eligible public-profile payloads, and consumed by `date9ja_v1`; unknown/not-tested/prefer-not-to-say passes as `not_assessed`. `SensitiveProfileImport` is wired fail-closed and never logs the raw value with identity. Real values still require census measure 327 on a pristine snapshot plus security/DPIA sign-off for storage and potential-match disclosure. |
+| Exact verification gates | Determines publication, interaction, and badge behavior | Verification/Trust | Yes | Preserve current gates; staged step-up; approved strengthening | **RESOLVED 2026-09-12 — progressive RealMe (ADR 0031): no contact-verification wall for onboarding, discovery, profiles, Likes/Passes, matching, conversation creation, or history. Message send requires a verified phone or approved same-brand phone/selfie/video/liveness/government-ID assertion; verified email alone does not qualify. A future Date9ja message-media intent uses the same rule if that capability is enabled.** |
 | Approved photo publication | Prevents surprise hiding or re-review loops | Media/Moderation | Yes | Preserve approved state; review exceptions; full re-review | **RESOLVED — preserve legacy behaviour: pending photos visible, rejected excluded (`:immediate` policy). Applies to profile video too (ADR 0023).** |
 | Profile video retained | Introduction video is parity | Media | Yes | Retain as shared Media capability | **RESOLVED — retain; ADR 0023; implemented this batch pending review** |
 | Legacy `Photo.is_primary` → D8N ordering | D8N `ProfilePhoto` has `position` but no `is_primary` | Media | Yes (pass 2) | Drop primary; primary→position 0; keep source order | **RESOLVED (2026-09-03) — primary→destination `position 0`, remaining photos keep relative source order behind it; zero primaries → deterministic source order (position 0 = effective primary); multiple primaries for one retained profile → FAIL CLOSED / quarantine for product review, never arbitrary. Pass 1 only measures the three cases. ADR 0027.** |
@@ -56,10 +64,10 @@ This is the single queue for unresolved decisions. `CAPABILITY-PARITY.md` is aut
 | Profile video / media boundary | Retained parity; must be a shared Media capability, not a Date9ja fork | Profile-video implementation — **ADR 0023 (Proposed); model + pipeline + Date9ja contract implemented this batch pending review** |
 | Entitlement preservation model | Existing founding/premium rights must survive cutover without new commercial behaviour | Entitlement implementation `SPECIFIED` — **architecture specified in ADR 0026 (Proposed)** |
 | Engagement/profile-view domain boundary | Avoids duplicate history and notification semantics | Engagement implementation `SPECIFIED` |
-| Community shared-capability boundary | Community is in parity but must not become a Date9ja fork | Community implementation `SPECIFIED` |
+| Community shared-capability boundary | Community is in parity but must not become a Date9ja fork | Shared foundation `IMPLEMENTED / SELF_VERIFIED` under ADR 0033; votes, remarks, media, notifications, import, risk automation, and parity acceptance remain open |
 | Dating Hub primitive decomposition and ownership | Prevents copying the legacy monolith | Dating Hub implementation `SPECIFIED` |
 | Trust ledger and derived reputation architecture | Separates auditable events from user-visible status | Trust implementation `SPECIFIED` — **architecture specified in ADR 0025 (Proposed); "User-visible trust score/history" product row still gates presentation** |
-| Genotype privacy/model architecture | Determines whether data is modelled, encrypted, or excluded | Any genotype modelling/import — **DESTINATION READY (slice 10, 2026-09-09): owner-only `genotype` option group, never public, never in matching, never logged with identity; `SensitiveProfileImport` wired fail-closed. Still needs a security/DPIA sign-off on storing haemoglobin genotype at rest (encryption-at-rest vs. plain owner-only column) before real values are imported — that is the only remaining gate, and it is a security review, not a product-scope decision.** |
+| Genotype privacy/model architecture | Determines whether data is modelled, encrypted, or excluded | Any real genotype import — **DESTINATION READY (updated 2026-09-12):** Date9ja potential-match visibility and `date9ja_v1` critical-check use are approved and implemented; missing values pass as `not_assessed`. `SensitiveProfileImport` remains fail-closed and PII-safe in logs. Before real values are imported, complete the pristine-snapshot census and security/DPIA review covering storage, consent notice, and disclosure to eligible potential matches. No destination schema migration is required. |
 | Canonical scalar profile field catalogue and brand-scoped write/serialization enforcement | Prevents a Date9ja profile subsystem and per-brand field-registry drift; blocks writable Date9ja profiles until resolved | Writable Date9ja profiles — **RESOLVED (2026-09-05) — implemented as `Profiles::FieldCatalog`; ADR 0030 Accepted. Date9ja proven as a full explicit consumer with zero new production code (`STATUS.md`). Does not resolve the sensitive-field product decisions above.** |
 | Legacy operational mapping to D8N HQ | Ensures safe administration before legacy retirement | Legacy admin retirement |
 | External legacy reference map (source↔destination binding, immutability, tenant safety) | Deterministic idempotent spine for every importer slice | Wave A slice 2 — **ADR 0022 accepted by independent review; product-owner acknowledgment recorded by normal ADR workflow** |
@@ -144,11 +152,11 @@ Source-visible but never-onboarded members remain
 These are independent of the sensitive-field rows above (tribe / ethnicity /
 denomination / genotype / state_of_origin / nationality / is_nigerian /
 preferred_tribes / preferred_religion / …). As of slice 10 (2026-09-09) every
-one of those has a live owner-only D8N destination and a wired, fail-closed
-`SensitiveProfileImport`; none is "Awaiting Uchechi" for the *concept*. The only
+one of those has a live D8N destination (owner-only except Date9ja genotype) and
+a wired, fail-closed `SensitiveProfileImport`; none is "Awaiting Uchechi" for the *concept*. The only
 remaining gate is the privacy-safe source classification (`source_census.sql`
 measures 320-330 on a pristine snapshot + `SANITIZATION-CONTRACT` R1 review),
-plus a security/DPIA sign-off specific to genotype at rest.
+plus a security/DPIA sign-off specific to genotype storage and potential-match disclosure.
 
 ## Mixed
 

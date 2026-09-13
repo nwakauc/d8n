@@ -1,16 +1,24 @@
 require "test_helper"
 
-# Date9ja market-driven policy (2026-09-09): a member is fully visible the moment
-# they finish onboarding — verified email/phone or not — but cannot ACT (view a
-# profile, like, pass, hook, message) until the identifier they logged in with is
-# verified. Being seen is what pulls them back to verify.
+# Date9ja progressive-verification policy (2026-09-12): contact confirmation is
+# never a wall around discovery, profile detail, likes, passes, matching, or chat
+# history. Message sending is the higher-trust boundary. An approved non-phone
+# RealMe assertion unlocks it; verified email and phone do not.
 class Api::V1::Date9jaInteractionVerificationTest < ActionDispatch::IntegrationTest
   setup do
     @brand = Brands::Date9jaInstaller.call(hosts: [ "date9ja.test" ])
     Geography::NigeriaCatalog.install!
 
     @viewer = create_date9ja_profile(first_name: "Chidi", gender: "man", interested_in: [ "woman" ])
-    @target = create_date9ja_profile(first_name: "Ada", gender: "woman", interested_in: [ "man" ])
+    @detail_target = create_date9ja_profile(first_name: "Ada", gender: "woman", interested_in: [ "man" ])
+    @like_target = create_date9ja_profile(first_name: "Amara", gender: "woman", interested_in: [ "man" ])
+    @pass_target = create_date9ja_profile(first_name: "Ngozi", gender: "woman", interested_in: [ "man" ])
+    @matched_target = create_date9ja_profile(first_name: "Ife", gender: "woman", interested_in: [ "man" ])
+    profile_a_id, profile_b_id = Match.canonical_pair(@viewer.id, @matched_target.id)
+    @match = Match.create!(brand: @brand, profile_a_id:, profile_b_id:)
+    @conversation = Messaging::StartConversation.call(
+      user: @viewer.user, brand: @brand, match_public_id: @match.public_id
+    ).conversation
 
     @viewer_identifier = IdentityIdentifier.create!(
       user: @viewer.user, kind: :email, normalized_value: "chidi@example.test"
@@ -29,44 +37,136 @@ class Api::V1::Date9jaInteractionVerificationTest < ActionDispatch::IntegrationT
 
     get "/api/v1/discovery", headers: bearer_headers(@token)
     assert_response :success
-    assert_includes JSON.parse(response.body).fetch("profiles").pluck("id"), @target.public_id
+    assert_includes JSON.parse(response.body).fetch("profiles").pluck("id"), @detail_target.public_id
   end
 
-  test "an unverified member cannot open a profile, like, pass, or message" do
-    get "/api/v1/profiles/#{@target.public_id}", headers: bearer_headers(@token)
-    assert_verification_required
-
-    assert_no_difference -> { Like.count } do
-      post "/api/v1/profiles/#{@target.public_id}/likes", headers: bearer_headers(@token)
-    end
-    assert_verification_required
-
-    assert_no_difference -> { ProfilePass.count } do
-      post "/api/v1/profiles/#{@target.public_id}/pass", headers: bearer_headers(@token)
-    end
-    assert_verification_required
-
-    get "/api/v1/matches", headers: bearer_headers(@token)
-    assert_verification_required
-  end
-
-  test "verifying the login identifier unlocks interaction" do
-    @viewer_identifier.update!(verified_at: Time.current)
-
-    get "/api/v1/profiles/#{@target.public_id}", headers: bearer_headers(@token)
+  test "an unverified member can open profiles like pass match and read conversations" do
+    get "/api/v1/profiles/#{@detail_target.public_id}", headers: bearer_headers(@token)
     assert_response :success
 
     assert_difference -> { Like.count }, 1 do
-      post "/api/v1/profiles/#{@target.public_id}/likes", headers: bearer_headers(@token)
+      post "/api/v1/profiles/#{@like_target.public_id}/likes", headers: bearer_headers(@token)
     end
     assert_response :created
+
+    assert_difference -> { ProfilePass.count }, 1 do
+      post "/api/v1/profiles/#{@pass_target.public_id}/pass", headers: bearer_headers(@token)
+    end
+    assert_response :created
+
+    get "/api/v1/matches", headers: bearer_headers(@token)
+    assert_response :success
+
+    get "/api/v1/conversations", headers: bearer_headers(@token)
+    assert_response :success
+
+    get "/api/v1/conversations/#{@conversation.public_id}/messages", headers: bearer_headers(@token)
+    assert_response :success
+  end
+
+  test "an unverified member cannot send a message" do
+    assert_no_difference -> { Message.count } do
+      post_message("This must not persist")
+    end
+
+    assert_realme_required
+  end
+
+  test "verifying an email still does not unlock message sending" do
+    @viewer_identifier.update!(verified_at: Time.current)
+
+    assert_no_difference -> { Message.count } do
+      post_message("Email is not RealMe")
+    end
+
+    assert_realme_required
+  end
+
+  test "a verified phone does not unlock message sending while Date9ja phone verification is disabled" do
+    IdentityIdentifier.create!(
+      user: @viewer.user, kind: :phone, normalized_value: "+234 801 234 5678", verified_at: Time.current
+    )
+
+    assert_no_difference -> { Message.count } do
+      post_message("Phone verification is disabled")
+    end
+
+    assert_realme_required
+  end
+
+  test "an imported phone assertion does not unlock message sending while Date9ja phone verification is disabled" do
+    VerificationAssertion.create!(
+      brand: @brand,
+      user: @viewer.user,
+      source_type: "verification_check",
+      source_id: "legacy-phone-1",
+      check_type: "phone",
+      status: "approved"
+    )
+
+    assert_no_difference -> { Message.count } do
+      post_message("Imported phone verification is disabled")
+    end
+
+    assert_realme_required
+  end
+
+  test "Date9ja does not issue phone verification challenges" do
+    assert_no_difference -> { OtpChallenge.count } do
+      post "/api/v1/auth/verification", headers: bearer_headers(@token), params: { kind: "phone" }
+    end
+
+    assert_response :not_found
+    assert_equal({ "error" => "capability_not_configured" }, JSON.parse(response.body))
+  end
+
+  test "an approved imported RealMe assertion unlocks message sending" do
+    VerificationAssertion.create!(
+      brand: @brand,
+      user: @viewer.user,
+      source_type: "verification_check",
+      source_id: "legacy-selfie-1",
+      check_type: "selfie",
+      status: "approved"
+    )
+
+    assert_difference -> { Message.count }, 1 do
+      post_message("Selfie approved")
+    end
+
+    assert_response :created
+  end
+
+  test "another user's verified phone and a rejected assertion do not unlock sending" do
+    IdentityIdentifier.create!(
+      user: @matched_target.user, kind: :phone, normalized_value: "+234 809 876 5432", verified_at: Time.current
+    )
+    VerificationAssertion.create!(
+      brand: @brand,
+      user: @viewer.user,
+      source_type: "verification_check",
+      source_id: "legacy-video-1",
+      check_type: "video",
+      status: "rejected"
+    )
+
+    assert_no_difference -> { Message.count } do
+      post_message("Still blocked")
+    end
+
+    assert_realme_required
   end
 
   private
 
-  def assert_verification_required
+  def assert_realme_required
     assert_response :forbidden
-    assert_equal({ "error" => "identifier_verification_required" }, JSON.parse(response.body))
+    assert_equal({ "error" => "realme_verification_required" }, JSON.parse(response.body))
+  end
+
+  def post_message(body)
+    post "/api/v1/conversations/#{@conversation.public_id}/messages",
+      headers: bearer_headers(@token), params: { body: }
   end
 
   # A migrated Date9ja member: the migration completion contract only needs a

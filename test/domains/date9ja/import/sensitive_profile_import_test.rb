@@ -64,7 +64,7 @@ module Date9ja
           .joins(:profile_option).pluck("profile_options.code")
       end
 
-      test "preserves scalars, option groups and matching preferences, all owner-only" do
+      test "preserves scalars, option groups and matching preferences" do
         result = run_sensitive(
           [ base_row(id: 1) ],
           [ { id: 1, is_nigerian: true, state_of_origin: "Imo", nationality: "Nigeria",
@@ -93,6 +93,20 @@ module Date9ja
 
         assert_equal 1, result.reconciliation.count(:imported)
         assert result.reconciliation.balanced?
+      end
+
+      test "imported genotype is consumed by Date9ja compatibility" do
+        run_sensitive(
+          [ base_row(id: 1), base_row(id: 2, gender: 1, looking_for: 0) ],
+          [ { id: 1, genotype: "AS" }, { id: 2, genotype: "AS" } ]
+        )
+
+        check = Matching::Strategies::Date9jaContract.for_visible_pair(
+          brand: @brand, viewer: profile_for(1), candidate: profile_for(2)
+        ).critical_checks.fetch(:hemoglobin_genotype)
+
+        assert_equal "elevated_sickle_cell_risk", check.fetch(:status)
+        assert_equal 0.25, check.fetch(:sickle_cell_disease_probability)
       end
 
       test "an unrecognised sensitive value is quarantined, noted, and kept verbatim owner-only, never guessed" do
@@ -191,12 +205,13 @@ module Date9ja
         assert result.reconciliation.balanced?
       end
 
-      test "every sensitive destination stays owner-only" do
-        %w[tribe ethnicity religion denomination genotype
+      test "sensitive destinations stay owner-only except Date9ja's compatibility-visible genotype" do
+        %w[tribe ethnicity religion denomination
            intertribal_marriage_openness polygamy_openness].each do |key|
           group = @brand.profile_option_groups.kept.find_by!(key:)
           assert_equal "owner_only", group.visibility, key
         end
+        assert_equal "public_profile", @brand.profile_option_groups.kept.find_by!(key: "genotype").visibility
         assert_equal :owner_only, Profiles::FieldCatalog.fetch("interest_in_nigerian_culture").default_audience
       end
     end

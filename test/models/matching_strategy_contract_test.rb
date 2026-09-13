@@ -66,7 +66,7 @@ module Matching
 
       assert_equal [ candidates[2].id, candidates[1].id ], first_page.pluck(:id)
       assert_equal [ candidates[0].id ], second_page.pluck(:id)
-      assert_equal({ score: 0, confidence: 0.0, reasons: [] }, strategy.compatibility(profile: first_page.first))
+      assert_nil strategy.compatibility(profile: first_page.first)
     end
 
     test "binds contract cursors to Date9ja and its strategy key" do

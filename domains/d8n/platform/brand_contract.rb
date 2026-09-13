@@ -8,7 +8,21 @@ module D8n
           super(catalog:, detail_decorators: Array(detail_decorators).freeze)
         end
       end
-      InteractionConfiguration = Data.define(:eligibility_policy, :compatibility_strategy, :verification_requirement)
+      InteractionConfiguration = Data.define(
+        :eligibility_policy,
+        :compatibility_strategy,
+        :verification_requirement,
+        :message_send_verification_requirement
+      ) do
+        def initialize(
+          eligibility_policy:,
+          compatibility_strategy:,
+          verification_requirement: nil,
+          message_send_verification_requirement: nil
+        )
+          super
+        end
+      end
       # Optional profile-video policy (ADR 0023). Absent (`video: nil`) means the
       # brand does not offer profile video.
       VideoConfiguration = Data.define(:policy, :initial_visibility, :max_duration_seconds, :max_byte_size)
@@ -149,6 +163,12 @@ module D8n
         raise ArgumentError, "interaction configuration is required" unless interaction.is_a?(InteractionConfiguration)
         unless interaction.eligibility_policy.is_a?(Matching::EligibilityPolicy)
           raise ArgumentError, "interaction eligibility policy is required"
+        end
+        unless [ nil, :verified_login_identifier ].include?(interaction.verification_requirement)
+          raise ArgumentError, "unsupported interaction verification requirement"
+        end
+        unless [ nil, :verified_realme_method ].include?(interaction.message_send_verification_requirement)
+          raise ArgumentError, "unsupported message-send verification requirement"
         end
         raise ArgumentError, "media configuration is required" unless media.is_a?(MediaConfiguration)
         unless media.photo_policy.respond_to?(:initial_state) && media.photo_policy.respond_to?(:max_count) &&

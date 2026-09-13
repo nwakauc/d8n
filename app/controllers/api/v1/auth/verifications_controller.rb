@@ -1,5 +1,7 @@
 class Api::V1::Auth::VerificationsController < ApplicationController
   before_action :authenticate_user!
+  requires_platform_contract
+  before_action :authorize_verification_capability!
 
   def create
     result = Identity::VerificationRequester.call(
@@ -48,6 +50,21 @@ class Api::V1::Auth::VerificationsController < ApplicationController
 
   def verification_params
     params.permit(:kind, :code)
+  end
+
+  def authorize_verification_capability!
+    capability = {
+      "email" => "verify.contact.email",
+      "phone" => "verify.contact.phone"
+    }.fetch(verification_params[:kind], nil)
+    return if capability.nil?
+
+    D8n::Platform::CapabilityAccess.authorize!(
+      contract: Current.platform_contract,
+      capability:
+    )
+  rescue D8n::Platform::CapabilityAccess::NotConfigured => e
+    render json: { error: e.code }, status: :not_found
   end
 
   def render_request_error(result)
