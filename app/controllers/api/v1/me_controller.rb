@@ -23,6 +23,7 @@ class Api::V1::MeController < ApplicationController
       identifier: identifier_payload(verification),
       verification_required: verification.present? && !verification.verified,
       verification: verification_payload(verification),
+      realme_assertions: realme_assertions_payload,
       # Always "active": SessionAuthenticator only authenticates sessions backed
       # by an active BrandMembership, so a deactivated or deleted account can
       # never reach this action in the first place. The client observes
@@ -79,6 +80,17 @@ class Api::V1::MeController < ApplicationController
       resend_available_in: verification.resend_available_in,
       expires_at: verification.expires_at&.iso8601
     }
+  end
+
+  def realme_assertions_payload
+    Identity::RealmeAssertions.call(user: Current.user, brand: Current.brand).map do |entry|
+      {
+        check_type: entry.check_type,
+        status: entry.status,
+        submitted_at: entry.submitted_at&.iso8601,
+        reviewed_at: entry.reviewed_at&.iso8601
+      }
+    end
   end
 
   def confirmed?

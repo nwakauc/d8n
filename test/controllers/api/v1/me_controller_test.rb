@@ -29,6 +29,7 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
     assert_nil response_body.fetch("identifier")
     assert_equal false, response_body.fetch("verification_required")
     assert_nil response_body.fetch("verification")
+    assert_equal [], response_body.fetch("realme_assertions")
     assert Session.find(session.id).last_used_at > session.last_used_at
     assert_equal "active", response_body.fetch("account_status")
     assert_equal(
@@ -66,6 +67,23 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
     assert_equal challenge.expires_at.iso8601, body.dig("verification", "expires_at")
     assert_not_includes response.body, identifier.normalized_value
     assert challenge.reload.delivery_code.present?
+  end
+
+  test "surfaces approved RealMe assertions" do
+    token, = Session.issue!(brand: @brand, user: @user)
+    VerificationAssertion.create!(
+      brand: @brand, user: @user, source_type: "verification_check", source_id: "s1",
+      check_type: "selfie", status: "approved"
+    )
+
+    get "/api/v1/me", headers: bearer_headers(token)
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal(
+      [ { "check_type" => "selfie", "status" => "approved", "submitted_at" => nil, "reviewed_at" => nil } ],
+      body.fetch("realme_assertions")
+    )
   end
 
   test "rejects expired sessions" do
