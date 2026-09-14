@@ -35,7 +35,11 @@ module Migration
       # Verification assurance history and the catch-all legacy operational /
       # member-visible history ledger (extended-history + lifecycle slices).
       "VerificationAssertion" => :brand_owned,
-      "Date9jaHistoryRecord" => :brand_owned
+      "Date9jaHistoryRecord" => :brand_owned,
+      # Trust ledger (ADR 0025) — re-projected from the already-imported
+      # Date9jaHistoryRecord rows above, not from the legacy DB directly.
+      "TrustEvent" => :brand_owned,
+      "TrustAdjustment" => :brand_owned
     }.freeze
 
     def self.known?(type)

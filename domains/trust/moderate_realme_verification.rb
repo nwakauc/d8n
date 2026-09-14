@@ -36,11 +36,26 @@ module Trust
           metadata:
         )
         record_audit!(admin_user:, brand:, assertion:, decision: target)
+        award_trust!(assertion) if target == "approved"
         transitioned = true
       end
 
       Result.new(assertion:, transitioned:)
     end
+
+    # Live trust award (ADR 0025 / Trust::Date9jaSchedule) — identical points
+    # to Date9ja's own `Realme::VerificationCheckService#award_trust_for_approval!`.
+    def self.award_trust!(assertion)
+      schedule = Trust::Date9jaSchedule.for_realme_check(assertion.check_type)
+      return if schedule.blank?
+
+      Trust::AwardEvent.call(
+        user: assertion.user, brand: assertion.brand,
+        event_type: schedule.fetch(:event_type), points: schedule.fetch(:points),
+        idempotency_key: "realme:#{assertion.id}:approved", source: assertion
+      )
+    end
+    private_class_method :award_trust!
 
     Result = Data.define(:assertion, :transitioned)
 

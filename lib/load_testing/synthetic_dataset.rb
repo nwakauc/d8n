@@ -622,6 +622,11 @@ module LoadTesting
       NotificationPreference.where(user_id: user_ids).delete_all
       DeviceRegistration.where(user_id: user_ids).delete_all
       SecurityEvent.where(user_id: user_ids).delete_all
+      # Live trust awards (ADR 0025) reference the profile with a restricting
+      # FK — created during create_activity!'s discovery-loop actions (photo
+      # approval, profile completion, etc.) — so they must clear before Profile.
+      TrustEvent.where(user_id: user_ids).delete_all
+      TrustAdjustment.where(user_id: user_ids).delete_all
       AuthAttempt.where(user_id: user_ids).or(AuthAttempt.where(credential_id: credential_ids))
         .or(AuthAttempt.where(identity_identifier_id: identifier_ids))
         .or(AuthAttempt.where("identifier LIKE ?", synthetic_email)).delete_all

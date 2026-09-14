@@ -95,6 +95,8 @@ Rails.application.routes.draw do
         delete "profiles/:profile_id/suspension" => "suspensions#destroy"
         post "profiles/:profile_id/ban" => "suspensions#create", defaults: { kind: "ban" }
         delete "profiles/:profile_id/ban" => "suspensions#destroy"
+        get "profiles/:profile_id/trust_adjustments" => "trust_adjustments#index"
+        post "profiles/:profile_id/trust_adjustments" => "trust_adjustments#create"
       end
       # HQ: unified company command centre backend (docs/FOUNDER-HQ/D8N-HQ/).
       # Never a normal consumer API -- authorized identically to the admin
@@ -127,6 +129,7 @@ Rails.application.routes.draw do
         get "members/:lookup/enforcements" => "members#enforcements", constraints: { lookup: /[^\/]+/ }
         get "members/:lookup/discovery_diagnostic" => "members#discovery_diagnostic", constraints: { lookup: /[^\/]+/ }
       end
+      get "trust_score" => "trust_scores#show"
       get "profile" => "profile#show"
       patch "profile" => "profile#update"
       post "profile/publication" => "profile_publications#create"

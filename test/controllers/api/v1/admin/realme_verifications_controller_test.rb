@@ -48,6 +48,15 @@ class Api::V1::Admin::RealmeVerificationsControllerTest < ActionDispatch::Integr
     assert_equal "approved", @assertion.reload.status
     assert @assertion.reviewed_at.present?
     assert_equal "d8n_admin:#{@admin.id}", @assertion.reviewer_source_id
+    assert_equal 100, TrustEvent.find_by(brand: @brand, user: @profile.user, event_type: "realme_selfie_approved").points
+  end
+
+  test "does not award trust points for a rejection" do
+    patch "/api/v1/admin/realme_verifications/#{@assertion.id}", headers: bearer_headers(@token),
+      params: { status: "rejected" }
+
+    assert_response :success
+    assert_nil TrustEvent.find_by(brand: @brand, user: @profile.user, event_type: "realme_selfie_approved")
   end
 
   test "supports resubmission_requested as a distinct decision from rejected" do

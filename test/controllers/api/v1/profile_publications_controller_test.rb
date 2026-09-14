@@ -39,6 +39,19 @@ class Api::V1::ProfilePublicationsControllerTest < ActionDispatch::IntegrationTe
     payload = JSON.parse(response.body).fetch("profile")
     assert_equal "active", payload.fetch("status")
     assert_equal "visible", payload.fetch("visibility")
+    assert_equal 110, TrustEvent.find_by(brand: @brand, user: @user, event_type: "profile_completed").points
+    assert_equal 40, TrustEvent.find_by(brand: @brand, user: @user, event_type: "compatibility_completed").points
+  end
+
+  test "republishing an already-published profile does not double-award trust points" do
+    complete_profile
+    post "/api/v1/profile/publication", headers: bearer_headers(@token)
+    delete "/api/v1/profile/publication", headers: bearer_headers(@token)
+
+    post "/api/v1/profile/publication", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert_equal 1, TrustEvent.where(brand: @brand, user: @user, event_type: "profile_completed").count
   end
 
   test "deactivates and hides a published profile idempotently" do

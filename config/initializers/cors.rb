@@ -3,6 +3,7 @@ default_origins = if Rails.env.development? || Rails.env.test?
     http://localhost:3001
     http://127.0.0.1:3001
     http://localhost:3200
+    http://date9ja.localhost:3200
     http://localhost:5173
     https://dateza.vercel.app
   ]

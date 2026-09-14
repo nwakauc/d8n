@@ -16,6 +16,7 @@ module Admin
     ENFORCEMENTS_OVERRIDE = "admin.enforcements.override"
     PROFILE_PHOTOS_MODERATE = "admin.profile_photos.moderate"
     REALME_VERIFICATIONS_MODERATE = "admin.realme_verifications.moderate"
+    TRUST_ADJUSTMENTS_MANAGE = "admin.trust_adjustments.manage"
     COMMUNITY_READ = "admin.community.read"
     COMMUNITY_MODERATE = "admin.community.moderate"
     OPERATORS_READ = "admin.operators.read"
@@ -44,6 +45,10 @@ module Admin
       ENFORCEMENTS_CREATE,
       ENFORCEMENTS_REINSTATE,
       ENFORCEMENTS_OVERRIDE,
+      # Deliberately not in CURRENT_OPERATIONAL/"moderator" — docking trust
+      # points is a step above ordinary content moderation, so it stays
+      # opt-in per role (trust_safety below, plus founder/super_admin here).
+      TRUST_ADJUSTMENTS_MANAGE,
       OPERATORS_READ,
       OPERATORS_MANAGE,
       BRAND_OPERATIONS,
@@ -66,7 +71,7 @@ module Admin
         MEMBER_SENSITIVE_READ, MEMBER_SECURITY_READ,
         TRUST_SAFETY_READ, REPORTS_READ, REPORTS_MODERATE,
         ENFORCEMENTS_MANAGE, ENFORCEMENTS_READ, ENFORCEMENTS_CREATE,
-        PROFILE_PHOTOS_MODERATE, REALME_VERIFICATIONS_MODERATE,
+        PROFILE_PHOTOS_MODERATE, REALME_VERIFICATIONS_MODERATE, TRUST_ADJUSTMENTS_MANAGE,
         SECURITY_ALERTS_READ
       ],
       "support" => [ MEMBER_SENSITIVE_READ, DISCOVERY_DIAGNOSTICS_READ ],

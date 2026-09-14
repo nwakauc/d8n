@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_14_050000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_14_060000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1029,7 +1029,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_050000) do
     t.check_constraint "accuracy_meters >= 0 AND accuracy_meters <= 100000", name: "chk_profile_locations_accuracy"
     t.check_constraint "latitude >= '-90'::integer::numeric AND latitude <= 90::numeric", name: "chk_profile_locations_latitude"
     t.check_constraint "longitude >= '-180'::integer::numeric AND longitude <= 180::numeric", name: "chk_profile_locations_longitude"
-    t.check_constraint "source::text = ANY (ARRAY['device'::character varying::text, 'manual'::character varying::text, 'imported'::character varying::text, 'place'::character varying::text])", name: "chk_profile_locations_source"
+    t.check_constraint "source::text = ANY (ARRAY['device'::character varying, 'manual'::character varying, 'imported'::character varying, 'place'::character varying]::text[])", name: "chk_profile_locations_source"
   end
 
   create_table "profile_openers", force: :cascade do |t|
@@ -1359,6 +1359,48 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_050000) do
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
+  create_table "trust_adjustments", force: :cascade do |t|
+    t.bigint "actor_admin_user_id"
+    t.string "appeal_status", default: "not_requested", null: false
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.string "idempotency_key", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "occurred_at", null: false
+    t.integer "points", null: false
+    t.string "reason_code", null: false
+    t.datetime "resolved_at"
+    t.bigint "resolved_by_admin_user_id"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["actor_admin_user_id"], name: "index_trust_adjustments_on_actor_admin_user_id"
+    t.index ["brand_id", "idempotency_key"], name: "idx_trust_adjustments_idempotency", unique: true
+    t.index ["brand_id", "user_id"], name: "idx_trust_adjustments_lookup"
+    t.index ["brand_id"], name: "index_trust_adjustments_on_brand_id"
+    t.index ["resolved_by_admin_user_id"], name: "index_trust_adjustments_on_resolved_by_admin_user_id"
+    t.index ["user_id"], name: "index_trust_adjustments_on_user_id"
+  end
+
+  create_table "trust_events", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.string "event_type", null: false
+    t.string "idempotency_key", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "occurred_at", null: false
+    t.integer "points", null: false
+    t.bigint "profile_id"
+    t.string "source_id"
+    t.string "source_type"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["brand_id", "idempotency_key"], name: "idx_trust_events_idempotency", unique: true
+    t.index ["brand_id", "user_id"], name: "idx_trust_events_lookup"
+    t.index ["brand_id"], name: "index_trust_events_on_brand_id"
+    t.index ["profile_id"], name: "index_trust_events_on_profile_id"
+    t.index ["user_id"], name: "index_trust_events_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
@@ -1602,6 +1644,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_050000) do
   add_foreign_key "sessions", "brands"
   add_foreign_key "sessions", "credentials"
   add_foreign_key "sessions", "users"
+  add_foreign_key "trust_adjustments", "admin_users", column: "actor_admin_user_id"
+  add_foreign_key "trust_adjustments", "admin_users", column: "resolved_by_admin_user_id"
+  add_foreign_key "trust_adjustments", "brands"
+  add_foreign_key "trust_adjustments", "users"
+  add_foreign_key "trust_events", "brands"
+  add_foreign_key "trust_events", "profiles"
+  add_foreign_key "trust_events", "users"
   add_foreign_key "verification_assertions", "brands"
   add_foreign_key "verification_assertions", "profiles"
   add_foreign_key "verification_assertions", "users"

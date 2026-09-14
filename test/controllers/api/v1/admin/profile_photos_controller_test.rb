@@ -83,6 +83,10 @@ class Api::V1::Admin::ProfilePhotosControllerTest < ActionDispatch::IntegrationT
     assert_equal @photo.public_id, event.metadata.fetch("profile_photo_id")
     assert_equal "approved", event.metadata.fetch("decision")
     assert_equal "manual_moderation_decision", event.metadata.fetch("reason_code")
+
+    trust_event = TrustEvent.find_by(brand: @brand, user: @photo.user, event_type: "profile_photo_approved")
+    assert_equal 25, trust_event.points, "position 0 is the primary photo"
+    assert_equal true, trust_event.metadata.fetch("primary")
   end
 
   test "rejection withdraws a visible pending DateZA photo and unpublishes a profile that loses photo eligibility" do
