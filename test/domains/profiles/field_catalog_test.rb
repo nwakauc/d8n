@@ -110,6 +110,7 @@ module Profiles
       "smoking" => "Smoking", "drinking" => "Drinking", "fitness" => "Fitness",
       "is_nigerian" => "Nigerian identity", "state_of_origin" => "State of origin",
       "nationality" => "Nationality", "ideal_partner_description" => "Ideal partner",
+      "faith_family_expectations" => "Faith and family expectations",
       "willing_to_relocate" => "Willing to relocate", "relocation_preferences" => "Relocation destinations",
       "interest_in_nigerian_culture" => "Interest in Nigerian culture",
       "min_age" => "Minimum age", "max_age" => "Maximum age", "interested_in" => "Interested in",
@@ -134,6 +135,7 @@ module Profiles
       historical_owner_only = %w[
         birthdate company_name children_count is_nigerian state_of_origin nationality
         willing_to_relocate relocation_preferences interest_in_nigerian_culture
+        faith_family_expectations
       ]
       profile_owner_only = FieldCatalog.for_group(:profile)
         .reject(&:sensitive_identity?).select(&:owner_only_ceiling?).map(&:key)

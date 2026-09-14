@@ -142,6 +142,17 @@ module Media
         )
       end
 
+      # Key for the untouched original of a RealMe verification submission
+      # (selfie/liveness-video/government-ID). Scoped under the submitting
+      # user, not any profile — this evidence is admin-review-only and never
+      # attached to (or delivered from) the public profile object graph.
+      def realme_evidence_original(brand:, user:, check_type:, content_type:, object_uuid: SecureRandom.uuid)
+        join(
+          "brands", brand.slug, "users", user.id, "realme", check_type.to_s, object_uuid,
+          "original.#{extension_for(content_type)}"
+        )
+      end
+
       def extension_for(content_type)
         EXTENSIONS.fetch(content_type.to_s, DEFAULT_EXTENSION)
       end

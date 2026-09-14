@@ -209,6 +209,12 @@ module Profiles
         default_audience: :public, validation: { max_length: 1_000 }, completion_requirable: false
       ),
       Field.new(
+        key: "faith_family_expectations", group: :profile, label: "Faith and family expectations",
+        data_type: :text, storage: { record: :profile, column: :faith_family_expectations },
+        sensitivity: :owner_private, default_audience: :owner_only,
+        validation: { max_length: 300 }, completion_requirable: false
+      ),
+      Field.new(
         key: "willing_to_relocate", group: :profile, label: "Willing to relocate",
         data_type: :boolean, storage: { record: :profile, column: :willing_to_relocate },
         default_audience: :owner_only, validation: {}, completion_requirable: false

@@ -137,6 +137,14 @@ class Api::V1::Date9jaHistoricalConversationJourneyTest < ActionDispatch::Integr
       user:, kind: :email, normalized_value: email, verified_at: Time.current
     )
     IdentityIdentifier.create!(user:, kind: :phone, normalized_value: phone, verified_at: Time.current)
+    # Date9ja's message-send gate (ADR 0031) is phone-blind — phone
+    # verification is disabled for this brand — so an approved RealMe
+    # assertion (ADR 0032) is what actually satisfies it, not the verified
+    # phone identifier above.
+    VerificationAssertion.create!(
+      brand: @brand, user:, source_type: "verification_check", source_id: SecureRandom.uuid,
+      check_type: "selfie", status: "approved"
+    )
     Credential.create!(user:, identity_identifier: identifier, kind: :password, status: :active)
   end
 

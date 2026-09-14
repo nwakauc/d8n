@@ -89,6 +89,8 @@ Rails.application.routes.draw do
         patch "reports/:id" => "reports#update"
         get "profile_photos" => "profile_photos#index"
         patch "profile_photos/:id" => "profile_photos#update"
+        get "realme_verifications" => "realme_verifications#index"
+        patch "realme_verifications/:id" => "realme_verifications#update"
         post "profiles/:profile_id/suspension" => "suspensions#create"
         delete "profiles/:profile_id/suspension" => "suspensions#destroy"
         post "profiles/:profile_id/ban" => "suspensions#create", defaults: { kind: "ban" }
@@ -144,6 +146,8 @@ Rails.application.routes.draw do
       get "profile/photos" => "profile_photos#index"
       post "profile/photos/uploads" => "profile_photos#create_upload"
       post "profile/photos" => "profile_photos#create"
+      post "realme_verifications/uploads" => "realme_verifications#create_upload"
+      post "realme_verifications" => "realme_verifications#create"
       put "profile/photos/order" => "profile_photos#reorder"
       delete "profile/photos/:id" => "profile_photos#destroy"
       get "profile/video" => "profile_videos#show"
@@ -165,6 +169,9 @@ Rails.application.routes.draw do
       post "auth/verification" => "auth/verifications#create"
       patch "auth/verification" => "auth/verifications#update"
       delete "auth/session" => "auth/sessions#destroy"
+      get "sessions" => "sessions#index"
+      delete "sessions/:id" => "sessions#destroy"
+      get "security/events" => "security_events#index"
     end
   end
 

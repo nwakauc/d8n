@@ -143,7 +143,7 @@ module Profiles
       smoking drinking occupation job_title school_or_institution looking_for_text
       height_cm body_type languages fitness state_of_origin nationality
       ideal_partner_description willing_to_relocate relocation_preferences
-      interest_in_nigerian_culture
+      interest_in_nigerian_culture faith_family_expectations
     ].freeze
     # The ENABLED set and its order are the brand's public contract and did not
     # change when smoking/drinking stopped being publication gates; only the
@@ -153,7 +153,7 @@ module Profiles
       occupation job_title school_or_institution looking_for_text height_cm
       body_type languages fitness is_nigerian
       state_of_origin nationality ideal_partner_description willing_to_relocate relocation_preferences
-      interest_in_nigerian_culture
+      interest_in_nigerian_culture faith_family_expectations
     ].freeze
     # Liquidity-first discovery policy: only orientation (`interested_in`) gates
     # publication. `min_age`/`max_age` stay enabled and editable (and are

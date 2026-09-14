@@ -24,6 +24,7 @@ class Api::V1::MeController < ApplicationController
       verification_required: verification.present? && !verification.verified,
       verification: verification_payload(verification),
       realme_assertions: realme_assertions_payload,
+      realme_badge: Identity::RealmeBadge.call(user: Current.user, brand: Current.brand),
       # Always "active": SessionAuthenticator only authenticates sessions backed
       # by an active BrandMembership, so a deactivated or deleted account can
       # never reach this action in the first place. The client observes

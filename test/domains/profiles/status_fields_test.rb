@@ -26,6 +26,33 @@ class Profiles::StatusFieldsTest < ActiveSupport::TestCase
     assert_not status.fetch(unverified.id).fetch(:verified)
   end
 
+  test "flags realme_badge only when email is confirmed and all three checks are approved" do
+    badged = build_profile
+    IdentityIdentifier.create!(user: badged.user, kind: :email, normalized_value: "b@example.com", verified_at: Time.current)
+    %w[selfie video government_id].each_with_index do |check_type, i|
+      VerificationAssertion.create!(
+        brand: @brand, user: badged.user, source_type: "member_submission", source_id: "s#{i}",
+        check_type:, status: "approved"
+      )
+    end
+
+    missing_id_check = build_profile
+    IdentityIdentifier.create!(user: missing_id_check.user, kind: :email, normalized_value: "m@example.com", verified_at: Time.current)
+    VerificationAssertion.create!(
+      brand: @brand, user: missing_id_check.user, source_type: "member_submission", source_id: "m1",
+      check_type: "selfie", status: "approved"
+    )
+    VerificationAssertion.create!(
+      brand: @brand, user: missing_id_check.user, source_type: "member_submission", source_id: "m2",
+      check_type: "video", status: "approved"
+    )
+
+    status = status_fields(viewer: @viewer, profiles: [ badged, missing_id_check ])
+
+    assert status.fetch(badged.id).fetch(:realme_badge)
+    assert_not status.fetch(missing_id_check.id).fetch(:realme_badge)
+  end
+
   test "marks online within the window and reports last_active_at" do
     online = build_profile
     session = Session.issue!(brand: @brand, user: online.user).last

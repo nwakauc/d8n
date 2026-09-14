@@ -10,7 +10,7 @@ module Identity
       "government_id" => %w[government_id gov_id]
     }.freeze
 
-    STATUSES = %w[approved pending rejected].freeze
+    STATUSES = %w[approved pending rejected resubmission_requested].freeze
 
     Entry = Data.define(:check_type, :status, :submitted_at, :reviewed_at)
 

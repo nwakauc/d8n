@@ -360,11 +360,11 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     # Budget guards against an N+1 that scales with photos/options. The viewer
-    # status fields (verified, presence, viewer + candidate location), the
-    # viewer-relative hook state (matches/outgoing/incoming/likes), and
-    # viewer_interaction (existing like + pass lookup) each add a small
-    # *fixed* number of queries that does not grow with either.
-    assert_operator select_count, :<, 32
+    # status fields (verified, realme_badge, presence, viewer + candidate
+    # location), the viewer-relative hook state (matches/outgoing/incoming/
+    # likes), and viewer_interaction (existing like + pass lookup) each add a
+    # small *fixed* number of queries that does not grow with either.
+    assert_operator select_count, :<, 34
   end
 
   # Centerpiece: B is discoverable by A and directly retrievable; once B blocks A

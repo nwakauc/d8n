@@ -30,6 +30,7 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, response_body.fetch("verification_required")
     assert_nil response_body.fetch("verification")
     assert_equal [], response_body.fetch("realme_assertions")
+    assert_equal false, response_body.fetch("realme_badge")
     assert Session.find(session.id).last_used_at > session.last_used_at
     assert_equal "active", response_body.fetch("account_status")
     assert_equal(
@@ -84,6 +85,23 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
       [ { "check_type" => "selfie", "status" => "approved", "submitted_at" => nil, "reviewed_at" => nil } ],
       body.fetch("realme_assertions")
     )
+    assert_equal false, body.fetch("realme_badge")
+  end
+
+  test "surfaces the realme_badge once email is confirmed and all three checks are approved" do
+    token, = Session.issue!(brand: @brand, user: @user)
+    IdentityIdentifier.create!(user: @user, kind: :email, normalized_value: "ada@example.com", verified_at: Time.current)
+    %w[selfie video government_id].each_with_index do |check_type, i|
+      VerificationAssertion.create!(
+        brand: @brand, user: @user, source_type: "member_submission", source_id: "s#{i}",
+        check_type:, status: "approved"
+      )
+    end
+
+    get "/api/v1/me", headers: bearer_headers(token)
+
+    assert_response :success
+    assert_equal true, JSON.parse(response.body).fetch("realme_badge")
   end
 
   test "rejects expired sessions" do

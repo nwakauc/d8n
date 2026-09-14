@@ -15,6 +15,7 @@ module Admin
     ENFORCEMENTS_REINSTATE = "admin.enforcements.reinstate"
     ENFORCEMENTS_OVERRIDE = "admin.enforcements.override"
     PROFILE_PHOTOS_MODERATE = "admin.profile_photos.moderate"
+    REALME_VERIFICATIONS_MODERATE = "admin.realme_verifications.moderate"
     COMMUNITY_READ = "admin.community.read"
     COMMUNITY_MODERATE = "admin.community.moderate"
     OPERATORS_READ = "admin.operators.read"
@@ -33,6 +34,7 @@ module Admin
       REPORTS_MODERATE,
       ENFORCEMENTS_MANAGE,
       PROFILE_PHOTOS_MODERATE,
+      REALME_VERIFICATIONS_MODERATE,
       COMMUNITY_READ,
       COMMUNITY_MODERATE
     ].freeze
@@ -64,7 +66,7 @@ module Admin
         MEMBER_SENSITIVE_READ, MEMBER_SECURITY_READ,
         TRUST_SAFETY_READ, REPORTS_READ, REPORTS_MODERATE,
         ENFORCEMENTS_MANAGE, ENFORCEMENTS_READ, ENFORCEMENTS_CREATE,
-        PROFILE_PHOTOS_MODERATE,
+        PROFILE_PHOTOS_MODERATE, REALME_VERIFICATIONS_MODERATE,
         SECURITY_ALERTS_READ
       ],
       "support" => [ MEMBER_SENSITIVE_READ, DISCOVERY_DIAGNOSTICS_READ ],

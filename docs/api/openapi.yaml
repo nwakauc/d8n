@@ -842,6 +842,87 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/CsrfRejected"
+  /api/v1/sessions:
+    get:
+      operationId: listMySessions
+      tags: [Authentication]
+      summary: List the current member's own active sessions for this brand
+      description: |
+        Self-service device list, newest-active first. Distinct from
+        `DELETE /api/v1/auth/session` (revokes only the caller's current
+        session as part of logout).
+      responses:
+        "200":
+          description: The member's active sessions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sessions]
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MemberSession"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/sessions/{id}:
+    delete:
+      operationId: revokeMySession
+      tags: [Authentication]
+      summary: Revoke one of the current member's other active sessions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Session revoked.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: No such session for this member/brand (`session_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: That id is the caller's own current session — use `DELETE /api/v1/auth/session` instead (`current_session`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/security/events:
+    get:
+      operationId: listMySecurityEvents
+      tags: [Authentication]
+      summary: The current member's own recent account-security activity
+      description: |
+        Self-service equivalent of the HQ admin security-event read
+        (`GET /api/v1/hq/members/{lookup}/security_events`), scoped to the
+        caller and filtered to an allowlist of member-relevant event types
+        (`auth.*`, `account.*`). `metadata` is never exposed — see
+        `Accounts::MemberSecurityEvents`.
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        "200":
+          description: A page of the member's own security events, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events]
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MemberSecurityEvent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/me:
     get:
       operationId: getCurrentIdentity
@@ -5992,6 +6073,41 @@ components:
           type: string
           enum: [browser]
           description: Omit for bearer mode. Use `browser` for an HttpOnly cookie without a bearer secret in JSON.
+    MemberSession:
+      type: object
+      required: [id, device_name, user_agent, ip_address, last_used_at, created_at, current]
+      properties:
+        id:
+          type: integer
+        device_name:
+          type: [string, "null"]
+        user_agent:
+          type: [string, "null"]
+        ip_address:
+          type: [string, "null"]
+        last_used_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+    MemberSecurityEvent:
+      type: object
+      required: [id, event_type, occurred_at, ip_address, user_agent]
+      properties:
+        id:
+          type: integer
+        event_type:
+          type: string
+        occurred_at:
+          type: string
+          format: date-time
+        ip_address:
+          type: [string, "null"]
+        user_agent:
+          type: [string, "null"]
     PasswordChangeRequest:
       type: object
       required: [current_password, password, password_confirmation]
@@ -6492,6 +6608,10 @@ components:
         ideal_partner_description:
           type: [string, "null"]
           maxLength: 1000
+        faith_family_expectations:
+          type: [string, "null"]
+          maxLength: 300
+          description: Owner-only Date9ja personal statement on faith/family expectations.
         willing_to_relocate:
           type: [boolean, "null"]
           description: Owner-only Date9ja relocation preference.

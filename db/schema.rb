@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_13_061000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_14_050000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1029,7 +1029,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_061000) do
     t.check_constraint "accuracy_meters >= 0 AND accuracy_meters <= 100000", name: "chk_profile_locations_accuracy"
     t.check_constraint "latitude >= '-90'::integer::numeric AND latitude <= 90::numeric", name: "chk_profile_locations_latitude"
     t.check_constraint "longitude >= '-180'::integer::numeric AND longitude <= 180::numeric", name: "chk_profile_locations_longitude"
-    t.check_constraint "source::text = ANY (ARRAY['device'::character varying, 'manual'::character varying, 'imported'::character varying, 'place'::character varying]::text[])", name: "chk_profile_locations_source"
+    t.check_constraint "source::text = ANY (ARRAY['device'::character varying::text, 'manual'::character varying::text, 'imported'::character varying::text, 'place'::character varying::text])", name: "chk_profile_locations_source"
   end
 
   create_table "profile_openers", force: :cascade do |t|
@@ -1240,6 +1240,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_061000) do
     t.datetime "deleted_at"
     t.string "display_name"
     t.string "drinking", limit: 32
+    t.text "faith_family_expectations"
     t.string "fitness", limit: 32
     t.string "gender"
     t.integer "height_cm"

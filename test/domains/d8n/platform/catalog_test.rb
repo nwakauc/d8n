@@ -42,7 +42,8 @@ module D8n
           pay.payment
           ai.matchmaker
           insights.marketplace_health
-          verify.identity.selfie
+          verify.identity.face_match
+          verify.level
           chat.realtime
           chat.voice
           chat.video

@@ -66,6 +66,45 @@ module Profiles
       selections.each { |key, codes| assert_equal codes.first, persisted.fetch(key.to_s) }
     end
 
+    test "owner can write and read the Settings-surfaced scalar and option fields" do
+      patch "/api/v1/profile", headers: bearer, params: {
+        display_name: "Ada", bio: "A real biography",
+        faith_family_expectations: "Shared faith matters to me."
+      }
+      assert_response :success
+      assert_equal "Shared faith matters to me.",
+        JSON.parse(response.body).dig("profile", "faith_family_expectations")
+
+      selections = {
+        education_level: [ "undergraduate" ], social_style: [ "ambivert" ],
+        communication_style: [ "voice_notes" ], meeting_pace: [ "few_days" ],
+        relationship_values: %w[honesty family], marital_status: [ "single" ],
+        has_children: [ "no" ], wants_children: [ "yes" ],
+        commitment_timeline: [ "within_1_year" ], interests: %w[afrobeats hiking]
+      }
+      patch "/api/v1/profile/options", headers: bearer, params: { selections: }
+      assert_response :success
+      body_options = JSON.parse(response.body).dig("profile", "options")
+      selections.each { |key, codes| assert_equal codes.sort, body_options.fetch(key.to_s).sort }
+
+      persisted = Profile.find_by!(brand: @brand, user: @user)
+      assert_equal "Shared faith matters to me.", persisted.faith_family_expectations
+      grouped = persisted.profile_option_selections.kept
+        .includes(:profile_option, :profile_option_group)
+        .group_by { |selection| selection.profile_option_group.key }
+        .transform_values { |sels| sels.map { |s| s.profile_option.code } }
+      selections.each { |key, codes| assert_equal codes.sort, grouped.fetch(key.to_s).sort }
+    end
+
+    test "meeting_pace excludes the same-day option Date9ja does not enable" do
+      Configuration.call(brand: @brand).fetch(:option_groups)
+        .find { |group| group.fetch(:key) == "meeting_pace" }
+        .fetch(:options).pluck(:code).tap do |codes|
+          assert_equal %w[chat_first video_call_first few_days meet_soon go_with_the_flow], codes
+          assert_not_includes codes, "same_day_if_vibe_is_right"
+        end
+    end
+
     test "owner-only answers stay out of public discovery match detail and conversation payloads" do
       profile = create_profile(user: @user, membership: @membership, display_name: "Ada", gender: "woman")
       OptionSelections.replace!(profile:, selections: {
