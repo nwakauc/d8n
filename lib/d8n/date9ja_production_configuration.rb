@@ -56,13 +56,18 @@ module D8n
     attr_reader :environment, :storage_service_checker
 
     def validate_topology(errors)
-      api_host = environment["DATE9JA_API_HOST"].to_s.strip.downcase
+      # DATE9JA_API_HOST may list more than one hostname (comma-separated) --
+      # e.g. a temporary founder-acceptance host alongside the final canonical
+      # host during the window before DNS is cut over. brands:ensure_date9ja
+      # maps every listed host to the same Date9ja BrandDomain.
+      api_hosts = csv("DATE9JA_API_HOST").map(&:downcase)
       allowed_hosts = csv("D8N_ALLOWED_HOSTS").map(&:downcase)
       cors_origins = csv("D8N_CORS_ORIGINS")
       app_url = environment["D8N_DATE9JA_APP_URL"].to_s.strip
 
-      errors << "DATE9JA_API_HOST must be a hostname without scheme, port, or path" unless valid_hostname?(api_host)
-      errors << "D8N_ALLOWED_HOSTS must include DATE9JA_API_HOST" unless allowed_hosts.include?(api_host)
+      errors << "DATE9JA_API_HOST must be at least one hostname" if api_hosts.empty?
+      errors << "DATE9JA_API_HOST must contain only hostnames without scheme, port, or path" unless api_hosts.all? { |host| valid_hostname?(host) }
+      errors << "D8N_ALLOWED_HOSTS must include every DATE9JA_API_HOST entry" unless (api_hosts - allowed_hosts).empty?
       errors << "D8N_ALLOWED_HOSTS must contain only exact hostnames" unless allowed_hosts.all? { |host| valid_hostname?(host) }
       errors << "D8N_CORS_ORIGINS must not contain wildcards" if cors_origins.any? { |origin| origin.include?("*") }
       errors << "D8N_DATE9JA_APP_URL must be an HTTPS origin" unless https_origin?(app_url)

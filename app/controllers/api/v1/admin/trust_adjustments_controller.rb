@@ -5,13 +5,16 @@ module Api
       # automatic negative scoring anywhere in this system — same as Date9ja
       # — every deduction is a deliberate admin action with its own reason.
       class TrustAdjustmentsController < BaseController
-        requires_admin_capability ::Admin::Capabilities::TRUST_ADJUSTMENTS_MANAGE
+        requires_admin_capability ::Admin::Capabilities::TRUST_ADJUSTMENTS_MANAGE, only: %i[index create]
+        requires_admin_capability ::Admin::Capabilities::TRUST_ADJUSTMENTS_REVERSE, only: :reverse
 
         CODE_STATUS = {
           invalid_adjustment_points: :unprocessable_entity,
           reason_code_required: :unprocessable_entity,
           idempotency_key_required: :unprocessable_entity,
-          user_unavailable: :not_found
+          user_unavailable: :not_found,
+          adjustment_unavailable: :not_found,
+          invalid_reason: :unprocessable_entity
         }.freeze
         QUEUE_LIMIT = 100
 
@@ -35,6 +38,19 @@ module Api
         rescue ActiveRecord::RecordNotFound
           render json: { error: "user_unavailable" }, status: :not_found
         rescue Trust::RecordAdjustment::Error => e
+          render json: { error: e.code }, status: CODE_STATUS.fetch(e.code)
+        end
+
+        def reverse
+          adjustment = Trust::ReverseAdjustment.call(
+            admin_user: Current.admin_user, brand: Current.brand,
+            trust_adjustment_id: params[:id], reason: params[:reason]
+          )
+
+          render json: { trust_adjustment: payload(adjustment) }
+        rescue ActiveRecord::RecordNotFound
+          render json: { error: "user_unavailable" }, status: :not_found
+        rescue Trust::ReverseAdjustment::Error => e
           render json: { error: e.code }, status: CODE_STATUS.fetch(e.code)
         end
 

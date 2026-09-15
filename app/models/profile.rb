@@ -5,6 +5,7 @@ class Profile < ApplicationRecord
   belongs_to :user
   belongs_to :brand
   belongs_to :brand_membership
+  belongs_to :discovery_restricted_by_admin_user, class_name: "AdminUser", optional: true
 
   has_one :profile_preference, dependent: :restrict_with_exception
   # The single live introduction video (ADR 0023). Scoped to kept rows so it

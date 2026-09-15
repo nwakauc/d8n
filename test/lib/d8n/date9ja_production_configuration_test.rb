@@ -38,12 +38,37 @@ module D8n
         )
       end
 
-      assert_includes error.message, "D8N_ALLOWED_HOSTS must include DATE9JA_API_HOST"
+      assert_includes error.message, "D8N_ALLOWED_HOSTS must include every DATE9JA_API_HOST entry"
       assert_includes error.message, "D8N_CORS_ORIGINS must not contain wildcards"
       assert_includes error.message, "D8N_CORS_ORIGINS must include D8N_DATE9JA_APP_URL"
       assert_includes error.message, "D8N_DATE9JA_EMAIL_FROM must be a non-placeholder email sender"
       assert_includes error.message, "D8N_QUEUE_DATABASE_NAME must be separate"
       assert_includes error.message, "Active Storage service r2_date9ja_production is not configured"
+    end
+
+    test "accepts multiple comma-separated DATE9JA_API_HOST entries, e.g. a temporary acceptance host alongside the canonical host" do
+      environment = complete_environment.merge(
+        "DATE9JA_API_HOST" => "date9ja-api.d8n.tech,api.date9ja.love",
+        "D8N_ALLOWED_HOSTS" => "api.d8n.tech,dateza-api.d8n.tech,api.date9ja.love,date9ja-api.d8n.tech"
+      )
+
+      assert Date9jaProductionConfiguration.validate!(
+        environment:,
+        storage_service_checker: ->(_name) { true }
+      )
+    end
+
+    test "rejects a DATE9JA_API_HOST entry missing from D8N_ALLOWED_HOSTS even when another entry is present" do
+      environment = complete_environment.merge(
+        "DATE9JA_API_HOST" => "date9ja-api.d8n.tech,api.date9ja.love",
+        "D8N_ALLOWED_HOSTS" => "api.d8n.tech,dateza-api.d8n.tech,api.date9ja.love"
+      )
+
+      error = assert_raises(Date9jaProductionConfiguration::ConfigurationError) do
+        Date9jaProductionConfiguration.validate!(environment:, storage_service_checker: ->(_name) { true })
+      end
+
+      assert_includes error.message, "D8N_ALLOWED_HOSTS must include every DATE9JA_API_HOST entry"
     end
 
     private

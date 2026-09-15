@@ -1,5 +1,22 @@
 -- =============================================================================
--- Date9ja SOURCE-schema signature contract  (canonical — v3, 2026-09-08)
+-- Date9ja SOURCE-schema signature contract  (canonical — v3, rebaselined 2026-09-15)
+-- =============================================================================
+-- REBASELINE 2026-09-15 (production dress rehearsal, backups_db_production_
+-- 20260915030000.dump, ~933 users, 2,509,959 bytes): 6 net new columns over
+-- the 2026-09-08 baseline, all legitimate upstream Date9ja schema evolution,
+-- reviewed and classified before re-pinning (never silently widened):
+--   - users.app_launch_notice_at, users.app_launch_notice_source,
+--     users.identity_confirmation_pending, users.admin_identity_corrected_at,
+--     users.admin_identity_confirmed_at -- previously "frozen HEAD-only, no
+--     snapshot values" (see AUTHORITATIVE-SNAPSHOT-20260908.md); now deployed
+--     to production. Still not read by any importer (SELECTED_COLUMNS
+--     unchanged) -- no migration behaviour changes.
+--   - phone_verifications.delivery_backend (varchar, NOT NULL) -- new,
+--     non-sensitive delivery-provider metadata on a table no importer reads
+--     (only users.phone_verified_at feeds phone-verification state; see
+--     SNAPSHOT-RUNBOOK.md's own phone_verifications treatment). Classified
+--     PRESERVE in SANITIZATION-CONTRACT.md's verification/trust section.
+-- No table added or removed; base-table set and count (52) unchanged.
 -- =============================================================================
 -- ONE definition, included (\ir) by every Date9ja source-adapter script:
 --   scripts/date9ja/sanitize_snapshot.sql
@@ -32,14 +49,18 @@
 --   index/constraint metadata (checked structurally elsewhere), grantees.
 --
 -- EXPECTED VALUES
---   Computed from the verified authoritative rehearsal dump restored into the
---   disposable local database date9ja_migration_source_20260908. The dump is
---   dated 2026-09-08 03:00 and has SHA-256
---   e1770ef340082bffc9f3a7f5975cbf23c9d6958b45b5c0c8080d352fe3f03f72.
+--   Computed from the real production dress-rehearsal dump
+--   (backups_db_production_20260915030000.dump, 2026-09-15 03:00 SAST,
+--   2,509,959 bytes, dbname api_production, dumped from PostgreSQL 16.14)
+--   restored unsanitized into the disposable local database
+--   date9ja_rehearsal_source_live_20260915 on the isolated PG17 instance.
+--   Superseded prior baseline: v3 0b0e2e2b4b6df617558834f859c44750 / 592
+--   columns (2026-09-08, see AUTHORITATIVE-SNAPSHOT-20260908.md) — the delta
+--   is fully explained above and re-classified, not silently absorbed.
 --
---     v3 signature : 0b0e2e2b4b6df617558834f859c44750
---     base tables  : 52  (exact set asserted below)
---     columns      : 592
+--     v3 signature : 1941e17e07fb076330419d76f9e0c0dc
+--     base tables  : 52  (exact set asserted below, unchanged)
+--     columns      : 598
 --
 --   PG-version note: `information_schema` renders data_type / udt_name /
 --   precisions identically across PG 14–17, and sequence defaults are
@@ -47,7 +68,7 @@
 --   snapshot. On the FIRST v2 run the operator confirms it by running THIS
 --   FILE standalone (it is self-contained and read-only):
 --     psql -d date9ja_snapshot_sanitized -f scripts/date9ja/schema_signature.sql
---   -> prints "Date9ja schema signature OK (v3 0b0e2e2b...)"  = confirmed.
+--   -> prints "Date9ja schema signature OK (v3 1941e17e...)"  = confirmed.
 --   -> RAISEs "SCHEMA DRIFT: ... signature <X> != expected"    = <X> is the
 --      operator-observed value; if the only cause is a PG17 default-rendering
 --      difference, pin <X> in v_expect_sig below and record the one-line diff
@@ -56,8 +77,8 @@
 
 DO $date9ja_schema_signature$
 DECLARE
-  v_expect_sig    text := '0b0e2e2b4b6df617558834f859c44750';
-  v_expect_cols   int  := 592;
+  v_expect_sig    text := '1941e17e07fb076330419d76f9e0c0dc';
+  v_expect_cols   int  := 598;
   v_tables        int;
   v_cols          int;
   v_sig           text;

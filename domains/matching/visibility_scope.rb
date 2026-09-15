@@ -16,6 +16,7 @@ module Matching
     def self.call(brand:, viewer:)
       scope = brand.profiles.kept.active.visible
         .where.not(id: viewer.id)
+        .where(discovery_restricted_at: nil)
         .joins(:user, :brand_membership, :profile_preference)
         .merge(User.kept.active)
         .merge(BrandMembership.kept.active)

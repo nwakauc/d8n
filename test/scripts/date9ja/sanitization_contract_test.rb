@@ -14,11 +14,15 @@ module Date9ja
     ))
 
     test "schema v3 is pinned to the authoritative production snapshot rather than HEAD" do
-      assert_includes signature, "0b0e2e2b4b6df617558834f859c44750"
-      assert_includes signature, "v_expect_cols   int  := 592"
+      assert_includes signature, "1941e17e07fb076330419d76f9e0c0dc"
+      assert_includes signature, "v_expect_cols   int  := 598"
       assert_includes signature, "'exit_attempts'"
-      refute_includes signature, "app_launch_notice_at"
-      refute_includes signature, "identity_confirmation_pending"
+      # 2026-09-15 rebaseline: these were "frozen HEAD-only, no snapshot values"
+      # against the 2026-09-08 dump and are now genuinely deployed to
+      # production (confirmed present in backups_db_production_20260915030000.dump)
+      # -- the pinned signature legitimately includes them.
+      assert_includes signature, "app_launch_notice_at"
+      assert_includes signature, "identity_confirmation_pending"
     end
 
     test "every production lifecycle addition has an explicit sanitization and census contract" do

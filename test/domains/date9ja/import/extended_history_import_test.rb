@@ -41,6 +41,43 @@ module Date9ja
         assert_equal 1, second.reconciliation.count(:profile_views, :already_imported)
       end
 
+      # Perf regression guard (2026-09-15 real-corpus rehearsal): the same
+      # small pool of migrated owners repeats across a huge number of rows in
+      # real entities like daily_introductions/explore_impressions. A single
+      # import run must call Migration::ReferenceMap.resolved for each
+      # distinct (kind, source_id) at most once, not once per row -- asserted
+      # directly against the resolver call count (not SQL/timing, which also
+      # includes the unrelated, genuinely-per-row LegacyReference traffic that
+      # binds each new Date9jaHistoryRecord's own source_id).
+      test "resolves each distinct owner only once per run, not once per row, across many rows" do
+        rows = 20.times.map do |i|
+          { id: 100 + i, viewer_id: 1, viewed_id: 2, created_at: 1.day.ago }
+        end
+        source = Snapshot::ExtendedHistorySource.new(rows: { profile_views: rows })
+
+        calls = []
+        original = Migration::ReferenceMap.method(:resolved)
+        Migration::ReferenceMap.define_singleton_method(:resolved) do |**kwargs|
+          calls << kwargs[:source_id] if kwargs[:source_entity].in?(%w[user profile])
+          original.call(**kwargs)
+        end
+
+        begin
+          ExtendedHistoryImport.call(brand: @brand, source:)
+        ensure
+          Migration::ReferenceMap.define_singleton_method(:resolved, original)
+        end
+
+        assert_equal 20, Date9jaHistoryRecord.where(source_entity: "profile_views").count
+        # Three distinct (kind, source_id) pairs are ever resolved here --
+        # owner "1" as :user, owner "1" as :profile, counterparty "2" as
+        # :profile -- each resolved at most once across all 20 rows, not once
+        # per row (which would be 40+ calls).
+        assert_equal [ "1", "1", "2" ], calls.sort
+        assert_operator calls.size, :<=, 3,
+          "expected Migration::ReferenceMap.resolved to be called at most 3 times (once per distinct (kind, source_id) pair) across 20 rows sharing the same owner/counterparty, got #{calls.size}: #{calls.inspect}"
+      end
+
       test "skips rows whose owner was not migrated" do
         source = Snapshot::ExtendedHistorySource.new(rows: {
           profile_views: [ { id: 20, viewer_id: 999, viewed_id: 2, created_at: 1.day.ago } ]

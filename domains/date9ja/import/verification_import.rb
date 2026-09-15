@@ -6,12 +6,23 @@ module Date9ja
       SOURCE_SYSTEM = "date9ja"
       Result = Data.define(:imported, :skipped, :failed)
 
-      def self.call(brand:, checks:, events: [], selfies: [])
-        new(brand:, checks:, events:, selfies:).call
+      # Legacy status ordinal on `selfie_verifications.status` (plain integer
+      # column, no source-side string enum): 0 pending / 1 approved / 2 rejected.
+      # Inferred from the observed corpus shape (zero 0s, an approved-dominant
+      # majority at 1, a single rejected outlier at 2) cross-checked against
+      # `verification_checks.status`'s own approved-dominant string distribution
+      # for the same real cohort -- the conventional Rails `enum` default
+      # ordering, not a guess pulled from nothing. Anything outside 0-2 fails
+      # closed to "pending" (never "approved") rather than risk a false
+      # RealMe-qualifying state.
+      SELFIE_STATUS = { 0 => "pending", 1 => "approved", 2 => "rejected" }.freeze
+
+      def self.call(brand:, checks:, selfies: [])
+        new(brand:, checks:, selfies:).call
       end
 
-      def initialize(brand:, checks:, events:, selfies:)
-        @brand, @checks, @events, @selfies = brand, checks, events, selfies
+      def initialize(brand:, checks:, selfies:)
+        @brand, @checks, @selfies = brand, checks, selfies
       end
 
       def call
@@ -29,7 +40,7 @@ module Date9ja
             imported += 1
             next
           end
-          attrs = row.slice(:check_type, :status, :submitted_at, :reviewed_at, :reviewer_source_id, :evidence, :metadata)
+          attrs = row.slice(:check_type, :status, :submitted_at, :reviewed_at, :reviewer_source_id, :metadata)
           attrs[:metadata] = (attrs[:metadata] || {}).merge("source_row" => row.except(:evidence, :metadata))
           assertion.assign_attributes(user:, source_type:, source_id:, **attrs)
           assertion.save!
@@ -43,15 +54,46 @@ module Date9ja
 
       private
 
+      # `verification_events` is deliberately NOT a row source here. Its shape
+      # (verification_check_id, event_type: submitted/approved/rejected/
+      # resubmission_required/evidence_deleted, metadata) is a transition AUDIT
+      # LOG on a `verification_checks` row -- not an independent check. That
+      # parent row is already imported faithfully via `checks:`. Treating each
+      # event as its own assertion (as an earlier version of this importer did)
+      # produced garbage `check_type: "verification_event"` / `status: "unknown"`
+      # rows invisible to RealmeBadge/InteractionAccess -- inert, not usable RealMe
+      # signal, and never a data-loss risk since the parent check carries the
+      # real check_type/status.
       def rows
         (Array(@checks).map { |r| normalize(r, "verification_check") } +
-          Array(@events).map { |r| normalize(r, "verification_event") } +
-          Array(@selfies).map { |r| normalize(r, "selfie_verification") })
+          Array(@selfies).map { |r| normalize_selfie(r) })
       end
 
       def normalize(row, source_type)
         row = row.to_h.transform_keys(&:to_sym)
-        row.merge(source_type:, check_type: (row[:check_type] || row[:kind] || source_type), status: (row[:status] || "unknown"), evidence: row[:evidence] || {}, metadata: row[:metadata] || {})
+        # Legacy `verification_checks`/`selfie_verifications` rows never carry
+        # evidence bytes to import here -- ADR 0034's manual-review evidence
+        # attachment is member-submission-only. `evidence` is deliberately NOT
+        # forced into the row (an ActiveStorage has_one_attached column would
+        # raise on any non-file value, including `{}`); a real byte for a
+        # migrated legacy assertion, if ever provided, is a separate
+        # MediaKind-style transfer.
+        row.merge(source_type:, check_type: (row[:check_type] || row[:kind] || source_type), status: (row[:status] || "unknown"), metadata: row[:metadata] || {})
+      end
+
+      # `selfie_verifications` carries no check_type column at all (the whole
+      # table is selfie checks) and its `status` is a plain integer ordinal, not
+      # a string enum like `verification_checks.status` -- both need an explicit,
+      # table-specific decode rather than the generic `normalize` fallbacks.
+      def normalize_selfie(row)
+        row = row.to_h.transform_keys(&:to_sym)
+        status_code = Integer(row[:status], exception: false)
+        row.merge(
+          source_type: "selfie_verification",
+          check_type: "selfie",
+          status: SELFIE_STATUS.fetch(status_code, "pending"),
+          metadata: row[:metadata] || {}
+        )
       end
 
       def bind!(record, source_type, source_id, row)

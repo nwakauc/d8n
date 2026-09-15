@@ -29,6 +29,19 @@ module Date9ja
         @source = source
         @version = importer_version
         @reconciliation = ExtendedHistoryReconciliation.new
+        # Perf (2026-09-15 real-corpus rehearsal): resolve(:user, X)/resolve(:profile, X)
+        # is called up to 3x per row (owner, profile, counterparty), and the
+        # ~887-member migrated cohort repeats across ~110k rows (e.g. every
+        # explore_impressions row references one of those same 887 owners) --
+        # each cache miss is 2 queries (LegacyReference lookup + polymorphic
+        # destination load). A same-run memo cuts that to one resolution per
+        # DISTINCT (kind, source_id) for the whole import, with identical
+        # results -- ReferenceMap bindings are immutable once created (module
+        # doc, line 3-4), and nothing in this run creates a NEW user/profile
+        # binding after the point it could first be read here (identity/
+        # preference/graph imports all run in earlier, separate stages), so a
+        # value cached at the top of this run cannot go stale during it.
+        @resolved_cache = {}
       end
 
       def call
@@ -191,6 +204,13 @@ module Date9ja
       def resolve(kind, source_id)
         return nil if source_id.blank?
 
+        cache_key = [ kind, source_id.to_s ]
+        return @resolved_cache[cache_key] if @resolved_cache.key?(cache_key)
+
+        @resolved_cache[cache_key] = resolve_uncached(kind, source_id)
+      end
+
+      def resolve_uncached(kind, source_id)
         record = Migration::ReferenceMap.resolved(
           source_system: SOURCE_SYSTEM, source_entity: kind.to_s, source_id: source_id.to_s
         )

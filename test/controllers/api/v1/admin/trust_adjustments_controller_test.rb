@@ -42,6 +42,78 @@ class Api::V1::Admin::TrustAdjustmentsControllerTest < ActionDispatch::Integrati
     assert_equal "invalid_adjustment_points", JSON.parse(response.body).fetch("error")
   end
 
+  # --- reversal ----------------------------------------------------------
+
+  test "requires the trust_adjustments reverse capability, separate from create" do
+    post "/api/v1/admin/profiles/#{@profile.public_id}/trust_adjustments", headers: bearer_headers(@token),
+      params: { points: -20, reason_code: "policy_violation", idempotency_key: "k1" }
+    adjustment_id = JSON.parse(response.body).fetch("trust_adjustment").fetch("id")
+
+    limited_admin, limited_token = create_admin(brand: @brand, role_name: "support")
+    patch "/api/v1/admin/profiles/#{@profile.public_id}/trust_adjustments/#{adjustment_id}/reversal",
+      headers: bearer_headers(limited_token), params: { reason: "appeal upheld" }
+    assert_response :forbidden
+  end
+
+  test "overturning a deduction restores the score, preserves history, and is idempotent" do
+    post "/api/v1/admin/profiles/#{@profile.public_id}/trust_adjustments", headers: bearer_headers(@token),
+      params: { points: -20, reason_code: "policy_violation", idempotency_key: "k1" }
+    adjustment_id = JSON.parse(response.body).fetch("trust_adjustment").fetch("id")
+
+    assert_equal 0, Trust::Ledger.score(user: @profile.user, brand: @brand)
+
+    assert_difference -> { SecurityEvent.where(event_type: "admin.trust_adjustment_reversed").count }, 1 do
+      patch "/api/v1/admin/profiles/#{@profile.public_id}/trust_adjustments/#{adjustment_id}/reversal",
+        headers: bearer_headers(@token), params: { reason: "appeal upheld" }
+    end
+    assert_response :success
+    body = JSON.parse(response.body).fetch("trust_adjustment")
+    assert_equal "overturned", body.fetch("appeal_status")
+
+    # Score recalculates immediately, no compensating adjustment created.
+    assert_equal 0, Trust::Ledger.score(user: @profile.user, brand: @brand)
+    assert_equal 1, TrustAdjustment.where(brand: @brand, user: @profile.user).count
+
+    adjustment = TrustAdjustment.find(adjustment_id)
+    assert_equal(-20, adjustment.points)
+    assert_equal "policy_violation", adjustment.reason_code
+    assert_equal @admin.id, adjustment.actor_admin_user_id
+
+    event = SecurityEvent.where(event_type: "admin.trust_adjustment_reversed").last
+    assert_not_includes event.metadata.to_s, "appeal upheld"
+
+    # Idempotent: reversing again does not raise, re-audit, or change state.
+    assert_no_difference -> { SecurityEvent.where(event_type: "admin.trust_adjustment_reversed").count } do
+      patch "/api/v1/admin/profiles/#{@profile.public_id}/trust_adjustments/#{adjustment_id}/reversal",
+        headers: bearer_headers(@token), params: { reason: "again" }
+    end
+    assert_response :success
+  end
+
+  test "an unknown adjustment id is not disclosed" do
+    patch "/api/v1/admin/profiles/#{@profile.public_id}/trust_adjustments/999999/reversal",
+      headers: bearer_headers(@token), params: { reason: "x" }
+    assert_response :not_found
+    assert_equal "adjustment_unavailable", JSON.parse(response.body).fetch("error")
+  end
+
+  test "a cross-brand adjustment cannot be reversed from another brand" do
+    post "/api/v1/admin/profiles/#{@profile.public_id}/trust_adjustments", headers: bearer_headers(@token),
+      params: { points: -20, reason_code: "policy_violation", idempotency_key: "k1" }
+    adjustment_id = JSON.parse(response.body).fetch("trust_adjustment").fetch("id")
+
+    other_brand = Brand.create!(slug: "hookus", name: "HookUs")
+    BrandDomain.create!(brand: other_brand, host: "hookus.test")
+    other_profile = create_profile(brand: other_brand)
+    _other_admin, other_token = create_admin(brand: other_brand, role_name: "trust_safety")
+
+    host! "hookus.test"
+    patch "/api/v1/admin/profiles/#{other_profile.public_id}/trust_adjustments/#{adjustment_id}/reversal",
+      headers: bearer_headers(other_token), params: { reason: "x" }
+    assert_response :not_found
+    assert_equal "adjustment_unavailable", JSON.parse(response.body).fetch("error")
+  end
+
   private
 
   def bearer_headers(token)

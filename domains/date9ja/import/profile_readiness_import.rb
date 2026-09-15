@@ -49,22 +49,32 @@ module Date9ja
         @reconciliation = ProfileReadinessReconciliation.new
       end
 
+      # publication_policy: :publish_visible_onboarded drives Profiles::Publication.
+      # activate!/deactivate!, shared runtime code that legitimately awards live
+      # Trust::AwardEvent points to a real member publishing their profile today.
+      # Reconstructing that same historical state here, for a migrated member,
+      # must not mint fresh trust for it -- their real historical trust is
+      # separately and fully preserved by Date9ja::Import::TrustLedgerImport. See
+      # Migration::ImportContext (the whole call, not just the publish branch, so
+      # every caller of this importer is covered, not only the operator rake task).
       def call
-        assert_contract!
+        Migration::ImportContext.as_migration do
+          assert_contract!
 
-        source.each do |record|
-          reconciliation.measure!(:source_users_considered)
-          if record.soft_deleted? || record.banned?
-            reconciliation.measure!(:source_ineligible)
-            suppress_previously_imported_ineligible!(record)
-            next
+          source.each do |record|
+            reconciliation.measure!(:source_users_considered)
+            if record.soft_deleted? || record.banned?
+              reconciliation.measure!(:source_ineligible)
+              suppress_previously_imported_ineligible!(record)
+              next
+            end
+
+            reconciliation.measure!(:eligible)
+            import_one(record)
           end
 
-          reconciliation.measure!(:eligible)
-          import_one(record)
+          Result.new(reconciliation)
         end
-
-        Result.new(reconciliation)
       end
 
       private

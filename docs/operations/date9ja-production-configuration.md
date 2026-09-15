@@ -1,10 +1,17 @@
 # Date9ja Production Configuration
 
-Date9ja uses the shared D8N production deployment and the legacy-compatible
-public endpoints `https://api.date9ja.love` and `https://www.date9ja.love`.
-`config/deploy.production.yml` contains the non-secret topology and declares all
-secret names. Secret values belong in the deployment secret store, never in the
-repository, image, logs, or command history.
+Date9ja uses the shared D8N production deployment (the same server as HookUs
+and DateZA, `164.68.106.97`). The final canonical public endpoint is
+`https://api.date9ja.love`, matching the existing Date9ja web/mobile apps.
+DNS for `api.date9ja.love` and `www.date9ja.love` still points at the legacy
+Date9ja application until an explicit, separate cutover; do not repoint it as
+a side effect of this deploy. Until that cutover, `https://date9ja-api.d8n.tech`
+(D8N's own domain, never `date9ja.love`) is the temporary host used for founder
+acceptance testing from the Vercel acceptance frontend
+(`https://date9ja-seo-frontend.vercel.app`). `config/deploy.production.yml`
+contains the non-secret topology and declares all secret names. Secret values
+belong in the deployment secret store, never in the repository, image, logs,
+or command history.
 
 ## Required non-secret values
 
@@ -12,8 +19,8 @@ These are committed in `config/deploy.production.yml`:
 
 | Variable | Required production setting |
 | --- | --- |
-| `DATE9JA_API_HOST` | `api.date9ja.love` |
-| `D8N_ALLOWED_HOSTS` | Exact comma-separated API hosts including `api.date9ja.love`; no wildcard |
+| `DATE9JA_API_HOST` | `date9ja-api.d8n.tech,api.date9ja.love` (comma-separated; both map to the same Date9ja `BrandDomain`) |
+| `D8N_ALLOWED_HOSTS` | Exact comma-separated API hosts including every `DATE9JA_API_HOST` entry; no wildcard |
 | `D8N_CORS_ORIGINS` | Exact HTTPS frontend origins including `https://www.date9ja.love`; no wildcard |
 | `D8N_DATE9JA_APP_URL` | `https://www.date9ja.love` |
 | `D8N_DATE9JA_EMAIL_FROM` | A Date9ja address on a sender/domain verified by Resend |

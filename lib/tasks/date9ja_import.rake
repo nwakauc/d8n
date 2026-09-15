@@ -50,6 +50,10 @@ namespace :date9ja do
     connection = Date9ja::Snapshot::Connection.connect!
     source = Date9ja::Snapshot::UserSource.new(connection: connection)
 
+    # Date9ja::Import::ProfileReadinessImport itself wraps its call in
+    # Migration::ImportContext.as_migration (publish_visible_onboarded drives
+    # Profiles::Publication.activate!, which would otherwise mint fresh live
+    # trust points for reconstructed historical state) -- see that class.
     result = Date9ja::Import::ProfileReadinessImport.call(
       brand:, source:, publication_policy:
     )
@@ -396,9 +400,10 @@ namespace :date9ja do
   end
 
   desc "Rehearsal: import the Date9ja VERIFICATION / RealMe assurance history (verification_checks, " \
-       "verification_events, legacy selfie_verifications) into private VerificationAssertion rows. " \
-       "Run AFTER date9ja:import_identity. No evidence bytes, no public serializer exposure. " \
-       "Prints a PII-free JSON tally."
+       "legacy selfie_verifications) into private VerificationAssertion rows. verification_events is " \
+       "a transition audit log on verification_checks, not an independent check, and is not imported " \
+       "as its own assertion. Run AFTER date9ja:import_identity. No evidence bytes, no public " \
+       "serializer exposure. Prints a PII-free JSON tally."
   task import_verification: :environment do
     require "json"
 
@@ -417,8 +422,10 @@ namespace :date9ja do
       brand:,
       checks: read.call("verification_checks",
         %w[id user_id kind check_type status submitted_at reviewed_at reviewer_id tier]),
-      events: read.call("verification_events", %w[id user_id kind status created_at]),
-      selfies: read.call("selfie_verifications", %w[id user_id status submitted_at reviewed_at])
+      # verification_events is NOT read here -- it is a transition audit log on
+      # verification_checks (event_type: submitted/approved/rejected/...), not an
+      # independent check; see VerificationImport's `rows` for the full reasoning.
+      selfies: read.call("selfie_verifications", %w[id user_id status reviewed_at])
     )
     puts JSON.pretty_generate("imported" => result.imported, "skipped" => result.skipped, "failed" => result.failed)
   ensure

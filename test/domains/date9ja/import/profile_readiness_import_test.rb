@@ -45,6 +45,42 @@ module Date9ja
         assert_includes scope, candidate
       end
 
+      # Migration preserves trust; migration itself does not earn trust.
+      # publish_visible_onboarded drives Profiles::Publication.activate!,
+      # shared runtime code that legitimately awards live Trust::AwardEvent
+      # points to a real member publishing today -- reconstructing that same
+      # historical state for a migrated member must not mint fresh trust.
+      test "publishing a profile during readiness import creates zero live TrustEvent rows" do
+        rows = [ row(id: 1, full_name: "Tunde Okafor", gender: 0, looking_for: 1) ]
+        import_identity_and_preferences(rows)
+        attach_ready_photo(profile_for(1))
+
+        result = readiness(rows, publication_policy: :publish_visible_onboarded)
+
+        assert_equal 1, result.reconciliation.count(:ready)
+        assert profile_for(1).reload.active?
+        assert_equal 0, TrustEvent.where(brand: @brand, user: profile_for(1).user).count
+      end
+
+      test "a native (non-import) profile publication still awards trust normally" do
+        # Build a fully complete, publishable profile via the same proven
+        # readiness-import fixture path used above, but in :classify_only mode
+        # so nothing gets published (and therefore no trust awarded) yet.
+        rows = [ row(id: 1, full_name: "Tunde Okafor", gender: 0, looking_for: 1) ]
+        import_identity_and_preferences(rows)
+        attach_ready_photo(profile_for(1))
+        readiness(rows, publication_policy: :classify_only)
+        profile = profile_for(1)
+        assert Profiles::Completion.call(profile:).complete?
+        refute profile.reload.active?
+        assert_equal 0, TrustEvent.where(brand: @brand, user: profile.user).count
+
+        # Outside any Migration::ImportContext -- an ordinary, live publish.
+        Profiles::Publication.activate!(user: profile.user, brand: @brand)
+
+        assert_equal 2, TrustEvent.where(brand: @brand, user: profile.user).count
+      end
+
       test "one-token and three-token names map to a given name without fabricating a surname" do
         rows = [
           row(id: 1, full_name: "Madonna"),

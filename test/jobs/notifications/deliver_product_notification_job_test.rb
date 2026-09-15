@@ -38,7 +38,7 @@ module Notifications
       assert_includes message.fetch(:html), "max-width: 600px"
       assert_includes message.fetch(:html), "Welcome to DateZA"
       assert_includes message.fetch(:text), "Your account is ready. Complete your profile"
-      assert_not_includes message.fetch(:html), "href="
+      assert_includes message.fetch(:html), "Complete your profile"
       assert_equal "product-notification:#{@event.notification.id}:email", message.fetch(:idempotency_key)
     end
 

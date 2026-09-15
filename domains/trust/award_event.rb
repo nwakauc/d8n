@@ -7,6 +7,13 @@ module Trust
   class AwardEvent
     def self.call(user:, brand:, event_type:, points:, idempotency_key:, profile: nil, source: nil, metadata: {})
       return if user.blank? || brand.blank?
+      # Migration preserves trust; migration itself does not earn trust. See
+      # Migration::ImportContext. Real historical trust for a migrated member
+      # is preserved verbatim, elsewhere, by Date9ja::Import::TrustLedgerImport
+      # -- this only suppresses a FRESH award minted as a side effect of an
+      # import task driving shared runtime code (e.g. Profiles::Publication)
+      # to reconstruct historical state.
+      return if Migration::ImportContext.migrating?
 
       TrustEvent.create!(
         brand:, user:, profile:,

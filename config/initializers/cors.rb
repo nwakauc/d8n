@@ -6,6 +6,7 @@ default_origins = if Rails.env.development? || Rails.env.test?
     http://date9ja.localhost:3200
     http://localhost:5173
     https://dateza.vercel.app
+    https://date9ja-seo-frontend.vercel.app
   ]
 else
   []

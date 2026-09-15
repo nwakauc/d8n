@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_14_060000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_15_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -95,6 +95,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_060000) do
     t.index ["admin_user_id", "brand_id"], name: "index_admin_assignments_on_one_active_role_per_brand", unique: true, where: "((deleted_at IS NULL) AND (status = 0))"
     t.index ["admin_user_id"], name: "index_admin_assignments_on_admin_user_id"
     t.index ["brand_id"], name: "index_admin_assignments_on_brand_id"
+  end
+
+  create_table "admin_identity_corrections", force: :cascade do |t|
+    t.bigint "admin_user_id", null: false
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.string "field", null: false
+    t.jsonb "new_value", default: {}, null: false
+    t.text "note"
+    t.jsonb "previous_value", default: {}, null: false
+    t.bigint "profile_id", null: false
+    t.text "reason", null: false
+    t.datetime "updated_at", null: false
+    t.index ["admin_user_id"], name: "index_admin_identity_corrections_on_admin_user_id"
+    t.index ["brand_id", "profile_id"], name: "index_admin_identity_corrections_on_brand_id_and_profile_id"
+    t.index ["brand_id"], name: "index_admin_identity_corrections_on_brand_id"
+    t.index ["profile_id"], name: "index_admin_identity_corrections_on_profile_id"
   end
 
   create_table "admin_mfa_credentials", force: :cascade do |t|
@@ -1029,7 +1046,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_060000) do
     t.check_constraint "accuracy_meters >= 0 AND accuracy_meters <= 100000", name: "chk_profile_locations_accuracy"
     t.check_constraint "latitude >= '-90'::integer::numeric AND latitude <= 90::numeric", name: "chk_profile_locations_latitude"
     t.check_constraint "longitude >= '-180'::integer::numeric AND longitude <= 180::numeric", name: "chk_profile_locations_longitude"
-    t.check_constraint "source::text = ANY (ARRAY['device'::character varying, 'manual'::character varying, 'imported'::character varying, 'place'::character varying]::text[])", name: "chk_profile_locations_source"
+    t.check_constraint "source::text = ANY (ARRAY['device'::character varying::text, 'manual'::character varying::text, 'imported'::character varying::text, 'place'::character varying::text])", name: "chk_profile_locations_source"
   end
 
   create_table "profile_openers", force: :cascade do |t|
@@ -1238,6 +1255,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_060000) do
     t.string "country_code", limit: 2
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
+    t.datetime "discovery_restricted_at"
+    t.bigint "discovery_restricted_by_admin_user_id"
+    t.text "discovery_restriction_note"
+    t.string "discovery_restriction_reason"
     t.string "display_name"
     t.string "drinking", limit: 32
     t.text "faith_family_expectations"
@@ -1271,6 +1292,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_060000) do
     t.index ["brand_id"], name: "index_profiles_on_brand_id"
     t.index ["brand_membership_id"], name: "index_profiles_on_brand_membership_id"
     t.index ["deleted_at"], name: "index_profiles_on_deleted_at"
+    t.index ["discovery_restricted_at"], name: "index_profiles_on_discovery_restricted_at"
+    t.index ["discovery_restricted_by_admin_user_id"], name: "index_profiles_on_discovery_restricted_by_admin_user_id"
     t.index ["id", "brand_id"], name: "idx_profiles_on_id_brand", unique: true
     t.index ["id", "user_id", "brand_id"], name: "idx_profiles_on_id_user_brand", unique: true
     t.index ["public_id"], name: "index_profiles_on_public_id", unique: true
@@ -1451,6 +1474,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_060000) do
   add_foreign_key "admin_assignments", "admin_roles"
   add_foreign_key "admin_assignments", "admin_users"
   add_foreign_key "admin_assignments", "brands"
+  add_foreign_key "admin_identity_corrections", "admin_users"
+  add_foreign_key "admin_identity_corrections", "brands"
+  add_foreign_key "admin_identity_corrections", "profiles"
   add_foreign_key "admin_mfa_credentials", "admin_users"
   add_foreign_key "admin_users", "users"
   add_foreign_key "ai_conversations", "brand_memberships"
@@ -1630,6 +1656,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_060000) do
   add_foreign_key "profile_videos", "brands"
   add_foreign_key "profile_videos", "profiles"
   add_foreign_key "profile_videos", "users"
+  add_foreign_key "profiles", "admin_users", column: "discovery_restricted_by_admin_user_id"
   add_foreign_key "profiles", "brand_memberships"
   add_foreign_key "profiles", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_profiles_membership_tenant"
   add_foreign_key "profiles", "brands"

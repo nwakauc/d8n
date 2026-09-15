@@ -4540,6 +4540,259 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/admin/profiles/{profile_id}/discovery_restriction:
+    post:
+      operationId: restrictProfileDiscovery
+      tags: [Admin]
+      summary: Hide a profile from discovery without suspending or banning it
+      description: |
+        Requires verified admin MFA and `admin.discovery_restrictions.manage`.
+        Deliberately lighter than suspension/ban: no BrandMembership status
+        change, no session revocation, no AccountEnforcement row. The member
+        stays logged in and active; they are simply excluded from discovery
+        and direct profile view by other members (Matching::VisibilityScope).
+        Distinguishable from member-pause, incomplete-profile, suspension,
+        and ban in Member 360 (`profile.discovery_state`) and the discovery
+        diagnostic. A reason is required; an internal note is optional and
+        operator-only. Idempotent-by-conflict: restricting an already-
+        restricted profile returns 409 `already_restricted`.
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+                note:
+                  type: string
+                  maxLength: 2000
+      responses:
+        "201":
+          description: The profile is now excluded from discovery.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profile]
+                properties:
+                  profile:
+                    $ref: "#/components/schemas/AdminDiscoveryRestrictionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: Target is unknown or belongs to another brand (`profile_unavailable`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: The profile is already restricted (`already_restricted`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: Missing/oversized `reason` or oversized `note`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    delete:
+      operationId: liftProfileDiscoveryRestriction
+      tags: [Admin]
+      summary: Restore a profile's normal discovery/direct-view visibility
+      description: |
+        Requires verified admin MFA and `admin.discovery_restrictions.manage`.
+        Restores ONLY what the restriction changed -- account status and any
+        other enforcement (e.g. suspension) are untouched. Lifting a
+        non-restricted profile returns 409 `not_restricted`.
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      responses:
+        "200":
+          description: The restriction was lifted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profile]
+                properties:
+                  profile:
+                    $ref: "#/components/schemas/AdminDiscoveryRestrictionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: Target is unknown or belongs to another brand (`profile_unavailable`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: The profile is not currently restricted (`not_restricted`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /api/v1/admin/profiles/{profile_id}/identity_corrections:
+    get:
+      operationId: listIdentityCorrections
+      tags: [Admin]
+      summary: List a member's admin identity-correction history
+      description: |
+        Requires verified admin MFA and `admin.identity_correction.manage`.
+        Newest-first, bounded to 100 entries. Every correction is additively
+        recorded (`previous_value`/`new_value`, actor, reason, optional note)
+        even though the corrected record only ever holds the latest answer.
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      responses:
+        "200":
+          description: The profile's correction history.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [identity_corrections]
+                properties:
+                  identity_corrections:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AdminIdentityCorrectionEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: Target is unknown or belongs to another brand (`profile_unavailable`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    post:
+      operationId: createIdentityCorrection
+      tags: [Admin]
+      summary: Correct a member's canonical gender or looking_for (interested_in) value
+      description: |
+        Requires verified admin MFA and `admin.identity_correction.manage`.
+        Writes the SAME canonical D8N representation discovery/matching
+        already reads live (`Profile#gender`, `ProfilePreference#interested_in`)
+        -- the very next discovery/matching query already reflects the
+        correction, no separate recalculation step. Existing matches,
+        conversations, and messages are never altered -- D8N does not
+        denormalize these fields onto those rows. A reason is required.
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [field, value, reason]
+              properties:
+                field:
+                  type: string
+                  enum: [gender, interested_in]
+                value:
+                  description: A string for `gender`; an array of strings for `interested_in`.
+                  oneOf:
+                    - type: string
+                    - type: array
+                      items:
+                        type: string
+                reason:
+                  type: string
+                  maxLength: 500
+                note:
+                  type: string
+                  maxLength: 2000
+      responses:
+        "201":
+          description: The correction was applied.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [correction]
+                properties:
+                  correction:
+                    $ref: "#/components/schemas/AdminIdentityCorrectionEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: Target is unknown or belongs to another brand (`profile_unavailable`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: One of `invalid_field`, `invalid_value`, `invalid_reason`, or `invalid_note`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /api/v1/admin/profiles/{profile_id}/trust_adjustments/{id}/reversal:
+    patch:
+      operationId: reverseTrustAdjustment
+      tags: [Trust]
+      summary: Overturn a manual trust-point deduction
+      description: |
+        Requires verified admin MFA and `admin.trust_adjustments.reverse`
+        (a separate capability from `admin.trust_adjustments.manage`, which
+        only covers creating a deduction). Never deletes or mutates the
+        original adjustment's points/reason/actor/timestamp -- only records
+        the appeal decision (`appeal_status: overturned`, resolving actor,
+        timestamp, and an optional reversal reason). The member's Trust
+        Score reflects the reversal on the very next read; no compensating
+        positive adjustment is created. Idempotent: reversing an
+        already-overturned adjustment returns 200 with the unchanged row,
+        never an error.
+      parameters:
+        - $ref: "#/components/parameters/PublicProfileId"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+      responses:
+        "200":
+          description: The adjustment is now overturned (or already was).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [trust_adjustment]
+                properties:
+                  trust_adjustment:
+                    $ref: "#/components/schemas/TrustAdjustmentEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: Unknown adjustment for this brand (`adjustment_unavailable`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: An oversized reversal `reason` (`invalid_reason`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
   /api/v1/hq/operator:
     get:
       operationId: getCurrentHqOperator
@@ -8972,6 +9225,60 @@ components:
         occurred_at:
           type: [string, "null"]
           format: date-time
+    AdminDiscoveryRestrictionResponse:
+      type: object
+      required: [profile_id, discovery_restricted]
+      properties:
+        profile_id:
+          type: string
+          format: uuid
+        discovery_restricted:
+          type: boolean
+        discovery_restricted_at:
+          type: [string, "null"]
+          format: date-time
+        discovery_restriction_reason:
+          type: [string, "null"]
+        discovery_restriction_note:
+          type: [string, "null"]
+        discovery_restricted_by_admin_user_id:
+          type: [integer, "null"]
+    AdminIdentityCorrectionEntry:
+      type: object
+      required: [id, profile_id, field, previous_value, new_value, reason, admin_user_id, created_at]
+      properties:
+        id:
+          type: integer
+        profile_id:
+          type: string
+          format: uuid
+        field:
+          type: string
+          enum: [gender, interested_in]
+        previous_value:
+          description: A string for `gender`; an array of strings for `interested_in`.
+          oneOf:
+            - type: "null"
+            - type: string
+            - type: array
+              items:
+                type: string
+        new_value:
+          description: A string for `gender`; an array of strings for `interested_in`.
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        reason:
+          type: string
+        note:
+          type: [string, "null"]
+        admin_user_id:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
     TrustLedgerEntry:
       type: object
       required: [kind, type, label, points, applies]
@@ -9281,7 +9588,8 @@ components:
           required:
             [brand, generated_at, time_zone, signups_today,
              signups_this_week, signups_this_month, active_today, active_7d,
-             active_30d, gender_split, total_registered_members]
+             active_30d, gender_split, total_registered_members,
+             realme_distribution, trust_summary]
           properties:
             brand:
               type: string
@@ -9327,6 +9635,45 @@ components:
             total_registered_members:
               type: integer
               minimum: 0
+            realme_distribution:
+              type: object
+              description: |
+                Canonical RealMe states (Identity::RealmeAssertions /
+                Identity::RealmeBadge) -- not an invented taxonomy. Every
+                brand member with a profile falls into exactly one bucket.
+              required: [not_started, pending, messaging_eligible, full_badge, rejected_only]
+              properties:
+                not_started:
+                  type: integer
+                  minimum: 0
+                pending:
+                  type: integer
+                  minimum: 0
+                messaging_eligible:
+                  type: integer
+                  minimum: 0
+                  description: At least one approved qualifying check, short of the full badge.
+                full_badge:
+                  type: integer
+                  minimum: 0
+                rejected_only:
+                  type: integer
+                  minimum: 0
+            trust_summary:
+              type: object
+              description: |
+                Bounded counts/aggregates only -- no canonical trust "risk
+                band" exists in this codebase, so none is invented here.
+              required: [members_scored, average_score, members_with_active_deduction]
+              properties:
+                members_scored:
+                  type: integer
+                  minimum: 0
+                average_score:
+                  type: number
+                members_with_active_deduction:
+                  type: integer
+                  minimum: 0
     HqTrustSafetyOverviewResponse:
       type: object
       required: [overview]

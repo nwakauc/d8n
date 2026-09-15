@@ -7,20 +7,32 @@ class KamalProductionConfigurationTest < ActiveSupport::TestCase
 
     assert_equal true, production.dig("proxy", "ssl")
     assert_equal(
-      %w[ api.d8n.tech dateza-api.d8n.tech api.date9ja.love ],
+      %w[ api.d8n.tech dateza-api.d8n.tech api.date9ja.love date9ja-api.d8n.tech ],
       production.dig("proxy", "hosts")
     )
   end
 
 
-  test "DATE9JA_API_HOST matches the canonical Date9ja proxy host and explicit Host allowlist" do
+  test "DATE9JA_API_HOST lists the canonical Date9ja proxy host plus the temporary acceptance host, both proxied and Host-allowlisted" do
     production = YAML.safe_load_file(Rails.root.join("config/deploy.production.yml"))
     proxy_hosts = production.dig("proxy", "hosts")
     clear = production.dig("env", "clear")
+    date9ja_hosts = clear.fetch("DATE9JA_API_HOST").split(",")
 
-    assert_equal "api.date9ja.love", clear.fetch("DATE9JA_API_HOST")
-    assert_includes proxy_hosts, clear.fetch("DATE9JA_API_HOST")
-    assert_includes clear.fetch("D8N_ALLOWED_HOSTS").split(","), clear.fetch("DATE9JA_API_HOST")
+    assert_equal %w[ date9ja-api.d8n.tech api.date9ja.love ], date9ja_hosts
+    date9ja_hosts.each do |host|
+      assert_includes proxy_hosts, host
+      assert_includes clear.fetch("D8N_ALLOWED_HOSTS").split(","), host
+    end
+  end
+
+  test "the temporary Date9ja acceptance host is on D8N's own domain, never date9ja.love" do
+    production = YAML.safe_load_file(Rails.root.join("config/deploy.production.yml"))
+    clear = production.dig("env", "clear")
+    temp_host = clear.fetch("DATE9JA_API_HOST").split(",").first
+
+    assert_equal "date9ja-api.d8n.tech", temp_host
+    refute_includes temp_host, "date9ja.love"
   end
 
   test "DATEZA_API_HOST matches the DateZA proxy host so BrandDomain resolution cannot drift" do
@@ -49,6 +61,13 @@ class KamalProductionConfigurationTest < ActiveSupport::TestCase
 
     assert_includes origins, "https://www.date9ja.love"
     assert origins.none? { |origin| origin.include?("*") }
+  end
+
+  test "production CORS also permits the temporary Vercel founder-acceptance frontend" do
+    production = YAML.safe_load_file(Rails.root.join("config/deploy.production.yml"))
+    origins = production.dig("env", "clear", "D8N_CORS_ORIGINS").split(",")
+
+    assert_includes origins, "https://date9ja-seo-frontend.vercel.app"
   end
 
   test "production declares complete Date9ja R2, email and application URL wiring" do

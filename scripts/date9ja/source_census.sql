@@ -425,7 +425,13 @@ WITH census(ord, section, measure, source_count, note) AS (
             AND column_name IN ('app_launch_notice_at','app_launch_notice_source',
                                 'identity_confirmation_pending','admin_identity_corrected_at',
                                 'admin_identity_confirmed_at')),
-        'must be 0 for this authoritative production snapshot; these five columns are HEAD-only'),
+        -- Was "must be 0" against the 2026-09-08 snapshot (HEAD-only, no
+        -- snapshot values then). As of the 2026-09-15 production dress
+        -- rehearsal these five columns are genuinely deployed to production
+        -- -- 5 is the correct, expected value now; still no importer reads
+        -- them (unchanged migration behaviour). See schema_signature.sql's
+        -- 2026-09-15 rebaseline note.
+        'HEAD-only through 2026-09-08 (expected 0 then); genuinely deployed to production as of 2026-09-15 (expected 5 from then on), still not imported'),
 
   -- =========================================================================
   -- PROFILE / PREFERENCE VALUE CENSUS  (Pass 1 evidence)
@@ -560,7 +566,13 @@ WITH census(ord, section, measure, source_count, note) AS (
                         'rewind_used_on','seed_account','sign_in_count','signup_source','smoking',
                         'state_of_origin','subscription_status','suspended_at','suspension_reason',
                         'tribe','trust_xp','unconfirmed_email','updated_at','v2_onboarding_answers',
-                        'verification_tier','wants_children','willing_to_relocate']))),
+                        'verification_tier','wants_children','willing_to_relocate',
+                        -- HEAD-only as of 2026-09-08 (see measure 180); genuinely
+                        -- deployed to production as of the 2026-09-15 rehearsal.
+                        -- No importer reads them (SELECTED_COLUMNS unchanged).
+                        'app_launch_notice_at','app_launch_notice_source',
+                        'identity_confirmation_pending','admin_identity_corrected_at',
+                        'admin_identity_confirmed_at']))),
   (210, 'profile_values', 'users.gender bounded value distribution',
         NULL,
         (SELECT CASE WHEN d.n > 24

@@ -93,10 +93,15 @@ Rails.application.routes.draw do
         patch "realme_verifications/:id" => "realme_verifications#update"
         post "profiles/:profile_id/suspension" => "suspensions#create"
         delete "profiles/:profile_id/suspension" => "suspensions#destroy"
+        post "profiles/:profile_id/discovery_restriction" => "discovery_restrictions#create"
+        delete "profiles/:profile_id/discovery_restriction" => "discovery_restrictions#destroy"
+        get "profiles/:profile_id/identity_corrections" => "identity_corrections#index"
+        post "profiles/:profile_id/identity_corrections" => "identity_corrections#create"
         post "profiles/:profile_id/ban" => "suspensions#create", defaults: { kind: "ban" }
         delete "profiles/:profile_id/ban" => "suspensions#destroy"
         get "profiles/:profile_id/trust_adjustments" => "trust_adjustments#index"
         post "profiles/:profile_id/trust_adjustments" => "trust_adjustments#create"
+        patch "profiles/:profile_id/trust_adjustments/:id/reversal" => "trust_adjustments#reverse"
       end
       # HQ: unified company command centre backend (docs/FOUNDER-HQ/D8N-HQ/).
       # Never a normal consumer API -- authorized identically to the admin

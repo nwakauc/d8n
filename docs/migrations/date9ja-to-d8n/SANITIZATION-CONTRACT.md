@@ -175,6 +175,7 @@ integrity preserved (no FK column touched); **n/a** = not applicable.
 | `phone_verifications.phone` | PSEUDONYMIZE | `'+99900000' || user_id` | Non-routable, deterministic, aligns with `users.phone` | preserved (NOT NULL) | n/a (no uniq) | n/a |
 | `phone_verifications.code_digest` | DESTROY | `'redacted'` (NOT NULL) | OTP digest | preserved (NOT NULL) | n/a | n/a |
 | `phone_verifications.verified_at`, `request_count`, `attempt_count`, timestamps | PRESERVE | — | Phone-verification state/shape | — | n/a | n/a |
+| `phone_verifications.delivery_backend` (new 2026-09-15, see schema_signature.sql rebaseline) | PRESERVE | — | Delivery-provider name only (e.g. which SMS vendor sent the OTP); not sensitive, not read by any importer (only `users.phone_verified_at` feeds phone-verification state) | preserved (NOT NULL) | n/a | n/a |
 | `push_tokens.token` | PSEUDONYMIZE | `'snapshot-token-' || id` | Live device push credential; unique index | preserved (NOT NULL) | preserved (id unique) | n/a |
 | `push_tokens.device_name` | DESTROY | `NULL` | Often a personal device label ("Jane's iPhone") | preserved (nullable) | n/a | n/a |
 | `push_tokens.last_error` | REDACT | `'[redacted]'` when non-null | May embed token/endpoint fragments | preserved | n/a | n/a |
