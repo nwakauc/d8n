@@ -93,6 +93,13 @@ Rails.application.configure do
   allowed_hosts = ENV["D8N_ALLOWED_HOSTS"].to_s.split(",").map(&:strip).reject(&:blank?).uniq
   config.hosts = allowed_hosts if allowed_hosts.any?
 
+  # kamal-proxy's internal health check hits the container by its own Docker
+  # hostname (e.g. "f4dd4798e751:80"), never one of the registered proxy
+  # hosts above -- without this exclusion, once config.hosts is non-empty,
+  # every health check is blocked by HostAuthorization and the deploy can
+  # never pass its own healthy-container check.
+  config.host_authorization = { exclude: ->(request) { request.path == "/up" } } if allowed_hosts.any?
+
   # Skip http-to-https redirect for the default health check endpoint.
   # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
 
