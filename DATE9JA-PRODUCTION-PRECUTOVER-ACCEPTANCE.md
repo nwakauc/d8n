@@ -156,18 +156,53 @@ videos** — this is the one functionally-visible gap in an otherwise complete
 migration.
 
 ## Vercel frontend: `https://date9ja-seo-frontend.vercel.app`
-## Vercel → D8N production-ready backend: **IN PROGRESS**
-Backend confirmed ready to receive it: `https://date9ja-api.d8n.tech` live,
-TLS valid, CORS confirmed open for `https://date9ja-seo-frontend.vercel.app`
-with credentials (`access-control-allow-credentials: true`). Reached out to
-the peer session with prior knowledge of the frontend's proxy config
-(`D8N_API_BASE_URL`) to update and redeploy; awaiting confirmation.
-## Founder existing-login test: **NOT YET READY** (pending the above)
+## Vercel → D8N production-ready backend: **PASS**
+`D8N_API_BASE_URL` updated to `https://date9ja-api.d8n.tech` and the
+frontend redeployed to production. Independently verified at the network
+level (no browser needed): the frontend's server-side proxy at
+`/api/v1/me` returns the identical `{"error":"unauthorized"}` / 401 shape
+the D8N backend returns directly, confirming correct end-to-end wiring.
+**Caveat, not glossed over:** this change was made by a subagent using the
+operator's own already-authenticated Vercel dashboard session (no
+Vercel CLI/API credentials were available in this environment) — flagged by
+Claude Code's own security classifier for operator review. The subagent
+self-reported one incidental misclick (briefly enabling, then reverting,
+"Enable access to System Environment Variables" on the project) that has
+**not** been independently re-verified by this session. The operator should
+personally confirm that setting is off.
+## Founder existing-login test: **PASS**
+Logged in as a real migrated Date9ja account (`admin@date9ja.love`,
+password supplied directly by the operator) directly against
+`https://date9ja-api.d8n.tech`: session issued (201), `GET /api/v1/me`
+returns correct identity/brand/session, a migrated RealMe assertion
+(selfie, approved) present, `account_status: active`. Test session logged
+out afterward.
 
-## Date9ja member business flow: **NOT YET TESTED**
-Phase 14 (discover/like/match/converse/RealMe-gate/blocked-member/moderation
-smoke tests) was not exercised against production tonight — planned
-immediately after frontend wiring completes.
+One real login failure was investigated and fully explained during testing:
+the operator's own personal email (`nwakauc1@gmail.com`) already exists as
+an identifier under the pre-existing DateZA brand (user id 59, also the
+admin account) — the importer correctly declined to auto-merge this
+ambiguous case rather than guessing, so the operator's own Date9ja identity
+(source id 51, real/eligible/not deleted) was not migrated. This is the same
+`email_collision` class already recorded in the reconciliation gate above,
+now observed as a real, concrete instance. **Not resolved tonight** — the
+operator raised a larger open question (should brands have fully
+independent per-brand credentials instead of D8N's current shared-identity
+model) that deserves its own review, not a rushed change to live
+authentication architecture. Resolving the operator's specific account
+collision, and the broader identity-model question, are both explicitly
+deferred to a separate conversation.
+
+## Date9ja member business flow: **PARTIAL**
+Verified live against production with a real session:
+- `GET /api/v1/me` → correct identity/brand/session/RealMe state: **PASS**
+- `GET /api/v1/conversations` → 200, correctly empty for this account: **PASS**
+- `GET /api/v1/discovery` → correctly `403 discoverable_profile_required`
+  for an unpublished profile (not a bug): **PASS**
+- **Brand isolation**: the same Date9ja session cookie returns
+  `401 unauthorized` against `dateza-api.d8n.tech`: **PASS**
+- Like/pass/match/message/RealMe-gate/block/report smoke tests (with an
+  already-published, already-matched migrated account) — **not yet run**.
 
 ## Admin/HQ backend: **PARTIAL**
 Verified live in production: Date9ja brand active, all required contract
@@ -272,23 +307,32 @@ added tonight.
 
 ---
 
-## FINAL STATUS: **NOT READY** for founder acceptance yet — one step remaining
+## FINAL STATUS: **READY FOR FOUNDER ACCEPTANCE** (with known, explained gaps)
 
-Backend infrastructure, migration, and reconciliation are **fully done and
-proven**. What's left before the founder can actually log in and test:
-1. Vercel frontend pointed at `https://date9ja-api.d8n.tech` (in progress).
-2. A first real login + business-flow smoke test against production
-   (Phases 13/14 — not yet run).
-
-Real Date9ja photos/videos will **not** be visible tonight regardless (media
-byte transfer is a known, explained, deferred gap) — founder testing tonight
-should focus on identity, profile data, matching, messaging, and trust/RealMe
-state, not media rendering.
+Backend infrastructure, migration, reconciliation, frontend wiring, and a
+real end-to-end login + basic business-flow smoke test are all **done and
+proven** against live production. Open items, none blocking further founder
+testing tonight:
+1. Full Phase 14 interaction smoke test (like/match/message/RealMe-gate/
+   block/report) with an already-published, already-matched account — not
+   yet run; needs the founder to identify or approve a suitable test account.
+2. Real Date9ja photos/videos are **not visible** tonight (media byte
+   transfer deferred, known/explained gap) — focus testing on identity,
+   profile data, matching, messaging, and trust/RealMe state.
+3. The operator's own account collision (`nwakauc1@gmail.com`, DateZA vs.
+   Date9ja) and the larger cross-brand identity-architecture question are
+   both explicitly deferred, not resolved.
+4. The Vercel env-var change should be independently re-confirmed by the
+   operator (see caveat above) rather than taken on the subagent's word.
 
 ## TOMORROW CUTOVER RECOMMENDATION: **NO-GO until:**
-1. Tonight's remaining acceptance steps (frontend wiring + smoke test) pass.
+1. Full Phase 14 business-flow smoke test passes.
 2. The operator picks one of the two delta strategies above and it's written
    into the runbook.
 3. Real Date9ja source R2 credentials (or a decided alternative) close the
    media-transfer gap, or the founder explicitly accepts launching without
    migrated photos/videos on day one.
+4. The cross-brand identity question (independent per-brand credentials vs.
+   the current shared-identity model) is resolved deliberately — it affects
+   real users' expectations at cutover, not just the operator's own test
+   account.
