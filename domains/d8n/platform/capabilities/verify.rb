@@ -7,7 +7,7 @@ module D8n
             implementations: %w[Identity::VerificationRequester Identity::VerificationVerifier]),
           CapabilityDefinition.new(key: "verify.contact.phone", status: :available,
             implementations: %w[Identity::VerificationRequester Identity::VerificationVerifier]),
-          # Manual-review RealMe v1 (ADR 0032): a member submits evidence, a
+          # Manual-review RealMe v1 (ADR 0034): a member submits evidence, a
           # human admin approves/rejects/requests resubmission. No automated
           # face-match or document-match yet — those stay :planned.
           CapabilityDefinition.new(key: "verify.identity.selfie", status: :available,

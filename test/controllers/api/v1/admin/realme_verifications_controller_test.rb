@@ -22,6 +22,21 @@ class Api::V1::Admin::RealmeVerificationsControllerTest < ActionDispatch::Integr
     assert_response :forbidden
   end
 
+  test "an admin without the moderate capability is forbidden" do
+    user = User.create!
+    BrandMembership.create!(brand: @brand, user:)
+    admin_user = AdminUser.create!(user:, status: :active)
+    role = AdminRole.find_or_create_by!(name: "support")
+    AdminAssignment.create!(admin_user:, brand: @brand, admin_role: role, status: :active)
+    token = issue_mfa_verified_admin_session!(user:, brand: @brand, admin_user:)
+
+    patch "/api/v1/admin/realme_verifications/#{@assertion.id}",
+      headers: bearer_headers(token), params: { status: "approved" }
+
+    assert_response :forbidden
+    assert_equal "pending", @assertion.reload.status
+  end
+
   test "index lists only pending member submissions for this brand, oldest first" do
     other_profile = create_profile(brand: @brand)
     approved = create_pending_assertion(user: other_profile.user)

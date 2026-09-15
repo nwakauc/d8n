@@ -1,12 +1,26 @@
 # Date9ja → D8N — Final Cutover Report
 
-**Date:** 2026-09-10
+**Date:** 2026-09-10 (superseded 2026-09-15 — see below)
 **Branch:** `date9ja-parity`
 **Commit tested:** `9903c8a` (closure fixes) on `0208846` (committed migration code)
 **Mode:** Final cutover execution — close the two remaining gates, run the full
 migration from committed code, reconcile, decide.
 
-## VERDICT: **CUTOVER READY**
+> **2026-09-15 update (Pass 2 — see `DATE9JA-MIGRATION-PARITY-CLOSURE.md`):**
+> six feature commits landed after this report (RealMe verification/moderation,
+> Trust Score System ADR 0025, progressive RealMe gate, genotype/compatibility
+> contract, Community foundation ADR 0033). Pass 2 audited all of them, found
+> and fixed one real gap (the Trust Score ledger importer was never wired into
+> the operator rake-task chain — fixed), and confirmed no other parity
+> regression. The verdict below is **superseded**: current status is
+> **PARITY_ACCEPTED — CUTOVER READY WITH EXPLICIT OPERATOR STEPS** (a fresh
+> snapshot-scale rehearsal, including the new `date9ja:import_trust_ledger`
+> step, must be run before actual cutover — no snapshot database was available
+> to do so in the Pass 2 sandbox). The reconciliation numbers below remain the
+> last verified snapshot-scale evidence and are expected, not merely hoped, to
+> reproduce unchanged, since no migration-path code changed since this report.
+
+## VERDICT: **CUTOVER READY** (2026-09-10; see 2026-09-15 update above)
 
 No demonstrated production blocker remains. Both gates from the prior GO/NO-GO
 report are closed:

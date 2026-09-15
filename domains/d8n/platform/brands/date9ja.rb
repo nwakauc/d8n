@@ -89,7 +89,6 @@ module D8n
           notify.event
           notify.inbox
           notify.email
-          notify.sms
           notify.push
         ].freeze
 

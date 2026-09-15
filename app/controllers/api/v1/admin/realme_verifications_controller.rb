@@ -14,7 +14,7 @@ module Api
 
         before_action :set_active_storage_url_options, only: :index
 
-        # The manual-review queue (ADR 0032): every pending member-submitted
+        # The manual-review queue (ADR 0034): every pending member-submitted
         # assertion for this brand, oldest first. This is the only way for a
         # moderator to discover what is awaiting a decision.
         def index

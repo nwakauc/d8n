@@ -6,7 +6,7 @@ module Identity
   # D8N does a cheap magic-byte sniff + real-size bound and creates a `pending`
   # VerificationAssertion for a human reviewer (Trust::ModerateRealmeVerification)
   # — there is no automated face-match or document-match yet (deferred; see
-  # docs/adr/0032-realme-manual-review-v1.md).
+  # docs/adr/0034-realme-manual-review-v1.md).
   class RealmeSubmission
     IMAGE_CONTENT_TYPES = ProfilePhoto::ALLOWED_CONTENT_TYPES
     VIDEO_CONTENT_TYPES = ProfileVideo::ALLOWED_CONTENT_TYPES

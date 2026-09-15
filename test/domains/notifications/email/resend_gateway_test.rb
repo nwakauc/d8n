@@ -55,6 +55,20 @@ module Notifications
         end
       end
 
+      test "Date9ja uses only its configured Resend sender" do
+        date9ja = Brand.create!(slug: "date9ja", name: "Date9ja")
+
+        with_env(
+          "RESEND_API_KEY" => "re_x",
+          "D8N_EMAIL_FROM" => "HookUs <no-reply@hookus.test>",
+          "D8N_DATE9JA_EMAIL_FROM" => "Date9ja <no-reply@date9ja.love>"
+        ) do
+          assert_equal "Date9ja <no-reply@date9ja.love>", Email.from_address(date9ja)
+          assert ResendGateway.configured?(brand: date9ja)
+          assert_not_includes Email.from_address(date9ja), "HookUs"
+        end
+      end
+
       test "successful send returns provider message id" do
         captured = {}
         stub = ->(_url, headers:, payload:) {

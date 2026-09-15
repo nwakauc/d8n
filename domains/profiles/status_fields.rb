@@ -9,7 +9,7 @@ module Profiles
   #                    signal, NOT identity verification.
   #   realme_badge   — the member has confirmed their email AND has an
   #                    approved selfie, liveness video, and government ID
-  #                    (Identity::RealmeBadge, ADR 0032). This IS the "it's
+  #                    (Identity::RealmeBadge, ADR 0034). This IS the "it's
   #                    really them" signal, manually reviewed today.
   #   online         — the member has an active brand session used within
   #                    ONLINE_WINDOW. Reuses Matching::FacetFilter::ONLINE_WINDOW

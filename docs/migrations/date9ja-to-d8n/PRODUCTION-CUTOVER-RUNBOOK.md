@@ -280,9 +280,10 @@ bin/rails date9ja:import_historical_graph       | tee cutover-artifacts/07-graph
 bin/rails date9ja:import_verification           | tee cutover-artifacts/08-verification.json
 bin/rails date9ja:import_extended_history       | tee cutover-artifacts/09-extended-history.json
 bin/rails date9ja:import_lifecycle              | tee cutover-artifacts/10-lifecycle.json
+bin/rails date9ja:import_trust_ledger           | tee cutover-artifacts/11-trust-ledger.json  # ADR 0025: re-projects the trust_events/trust_adjustments rows import_extended_history just wrote into the live Trust Score System's tables — without this step migrated members show a zero trust score
 
 # Idempotency re-run of the graph + heaviest importers — expect 0 new rows
-bin/rails date9ja:import_identity ; bin/rails date9ja:import_historical_graph ; bin/rails date9ja:import_extended_history
+bin/rails date9ja:import_identity ; bin/rails date9ja:import_historical_graph ; bin/rails date9ja:import_extended_history ; bin/rails date9ja:import_trust_ledger
 ```
 
 Expected shape (from the final rehearsal; exact numbers scale with the final

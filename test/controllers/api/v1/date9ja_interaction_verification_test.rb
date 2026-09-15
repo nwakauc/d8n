@@ -137,6 +137,45 @@ class Api::V1::Date9jaInteractionVerificationTest < ActionDispatch::IntegrationT
     assert_response :created
   end
 
+  test "a live member-submitted selfie, once approved, unlocks sending on the very next request without unlocking the RealMe badge" do
+    assert_no_difference -> { Message.count } do
+      post_message("Not yet")
+    end
+    assert_realme_required
+
+    ActiveStorage::Current.url_options = { host: "http://test.local" }
+    intent = Identity::RealmeSubmission.create_intent(
+      user: @viewer.user, brand: @brand, check_type: "selfie",
+      filename: "selfie.jpg", byte_size: 1024,
+      checksum: Digest::MD5.base64digest("selfie-bytes"), content_type: "image/jpeg"
+    )
+    blob = ActiveStorage::Blob.find_signed!(intent.fetch(:signed_id))
+    blob.service.upload(blob.key, StringIO.new("\xFF\xD8\xFF".b + ("x" * 1021)))
+    assertion = Identity::RealmeSubmission.attach!(user: @viewer.user, brand: @brand, check_type: "selfie", signed_id: intent.fetch(:signed_id))
+    assert_equal "pending", assertion.status
+
+    assert_no_difference -> { Message.count } do
+      post_message("Still pending review")
+    end
+    assert_realme_required
+
+    admin_user = AdminUser.create!(user: User.create!, status: :active)
+    AdminAssignment.create!(admin_user:, brand: @brand, admin_role: AdminRole.find_or_create_by!(name: "moderator"), status: :active)
+    Trust::ModerateRealmeVerification.call(admin_user:, brand: @brand, assertion_id: assertion.id, decision: "approved")
+
+    assert_difference -> { Message.count }, 1 do
+      post_message("Approved just now")
+    end
+    assert_response :created
+
+    get "/api/v1/me", headers: bearer_headers(@token)
+    body = JSON.parse(response.body)
+    selfie_entry = body.fetch("realme_assertions").find { |e| e.fetch("check_type") == "selfie" }
+    assert_equal "approved", selfie_entry.fetch("status")
+    assert_equal false, body.fetch("realme_badge"),
+      "one approved check unlocks messaging but must not, alone, satisfy the full badge"
+  end
+
   test "another user's verified phone and a rejected assertion do not unlock sending" do
     IdentityIdentifier.create!(
       user: @matched_target.user, kind: :phone, normalized_value: "+234 809 876 5432", verified_at: Time.current

@@ -2,7 +2,7 @@ module Trust
   # Applies the manual review decision for a member-submitted RealMe
   # verification (selfie/liveness-video/government-ID), mirroring
   # Trust::ModerateProfilePhoto's shape. Automated face/document matching is
-  # explicitly deferred (ADR 0032) — this is the human-review path: the admin
+  # explicitly deferred (ADR 0034) — this is the human-review path: the admin
   # looks at `evidence` and decides.
   class ModerateRealmeVerification
     Error = Class.new(StandardError) do

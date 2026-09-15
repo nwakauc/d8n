@@ -27,6 +27,14 @@ module Brands
       assert brand.profile_option_groups.kept.exists?(key: "interests")
     end
 
+    test "canonical production host resolves Date9ja and an unknown host resolves nothing" do
+      brand = Date9jaInstaller.call(hosts: [ "api.date9ja.love" ])
+
+      request = Struct.new(:host)
+      assert_equal brand, Resolver.call(request: request.new("api.date9ja.love")).brand
+      assert_nil Resolver.call(request: request.new("unknown.date9ja.love")).brand
+    end
+
     test "installs sensitive parity groups with compatibility-visible genotype" do
       brand = Date9jaInstaller.call(hosts: [])
 

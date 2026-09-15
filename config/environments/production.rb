@@ -87,6 +87,12 @@ Rails.application.configure do
   # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
   config.force_ssl = true
 
+  # Exact public API hosts only. An empty list preserves staging's existing
+  # behavior, while the production deployment validator below refuses to boot
+  # the real production deployment without an explicit allowlist.
+  allowed_hosts = ENV["D8N_ALLOWED_HOSTS"].to_s.split(",").map(&:strip).reject(&:blank?).uniq
+  config.hosts = allowed_hosts if allowed_hosts.any?
+
   # Skip http-to-https redirect for the default health check endpoint.
   # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
 
@@ -115,7 +121,10 @@ Rails.application.configure do
   # config.action_mailer.raise_delivery_errors = false
 
   # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "example.com" }
+  config.action_mailer.default_url_options = {
+    host: ENV.fetch("D8N_DEFAULT_MAILER_HOST", "localhost"),
+    protocol: "https"
+  }
 
   # Specify outgoing SMTP server. Remember to add smtp/* credentials via rails credentials:edit.
   # config.action_mailer.smtp_settings = {

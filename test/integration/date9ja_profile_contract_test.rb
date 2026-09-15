@@ -15,6 +15,7 @@ class Date9jaProfileContractTest < ActionDispatch::IntegrationTest
     occupation job_title school_or_institution looking_for_text height_cm body_type
     languages fitness is_nigerian state_of_origin nationality ideal_partner_description
     willing_to_relocate relocation_preferences interest_in_nigerian_culture
+    faith_family_expectations
   ].freeze
   ENABLED_IDENTITY = %w[first_name last_name].freeze
   ENABLED_PREFERENCE = %w[interested_in min_age max_age max_distance_km preferred_country_codes].freeze

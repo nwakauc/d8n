@@ -105,7 +105,7 @@ The application expects:
 | --- | --- |
 | `D8N_R2_ENABLED` | Exactly `true` to select R2 |
 | `D8N_DEPLOYMENT_ENV` | Exactly `staging` or `production` |
-| `D8N_R2_BRANDS` | Comma-separated configured brand slugs, currently `hookus,dateza` |
+| `D8N_R2_BRANDS` | Comma-separated configured brand slugs (`hookus,dateza` in staging; `hookus,dateza,date9ja` in production) |
 | `D8N_R2_ENDPOINT` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
 | `D8N_R2_<BRAND>_<ENV>_ACCESS_KEY_ID` | Bucket-scoped R2 S3 API access-key ID |
 | `D8N_R2_<BRAND>_<ENV>_SECRET_ACCESS_KEY` | Bucket-scoped R2 S3 API secret |
@@ -155,8 +155,9 @@ The `staging` Kamal destination is wired end to end:
 - `test/config/kamal_staging_r2_configuration_test.rb` asserts this wiring
   structurally (correct key names, no literal values, consistent with
   `config/storage.yml`) without needing real credentials or a deploy.
-- No `.kamal/secrets.production` or production destination exists yet, and none
-  was created by this change — production remains on local disk with R2 disabled.
+- Production declares isolated HookUs, DateZA, and Date9ja services. Supplying
+  the Date9ja bucket-scoped secrets and completing the provider smoke test are
+  deployment-operator steps; no secret value is committed to the repository.
 
 ### Adding a brand
 

@@ -461,4 +461,16 @@ namespace :date9ja do
   ensure
     Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
   end
+
+  desc "Re-project already-imported Date9ja trust_events/trust_adjustments (ExtendedHistoryImport, " \
+       "as Date9jaHistoryRecord) into the ADR 0025 TrustEvent/TrustAdjustment tables the live Trust " \
+       "Score System reads. Reads only already-migrated D8N data -- no legacy snapshot connection. " \
+       "Run AFTER date9ja:import_extended_history. Prints imported/skipped/failed counts."
+  task import_trust_ledger: :environment do
+    require "json"
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+    result = Date9ja::Import::TrustLedgerImport.call(brand:)
+    puts JSON.pretty_generate(imported: result.imported, skipped: result.skipped, failed: result.failed)
+  end
 end

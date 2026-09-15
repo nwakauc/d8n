@@ -1,7 +1,7 @@
 module Identity
   # Computes the composite RealMe badge: confirmed email AND an approved
   # selfie AND an approved liveness video AND an approved government ID
-  # (ADR 0032). This is the ONLY thing that earns the badge — a verified
+  # (ADR 0034). This is the ONLY thing that earns the badge — a verified
   # phone or a single approved check is not RealMe completion.
   #
   # `Profiles::StatusFields` calls `.bulk` to decorate a whole discovery page

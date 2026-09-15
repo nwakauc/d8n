@@ -1769,6 +1769,148 @@ paths:
           $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/ValidationFailed"
+  /api/v1/realme_verifications/uploads:
+    post:
+      operationId: createRealmeVerificationUpload
+      tags: [Trust]
+      summary: Request a direct-to-R2 RealMe evidence upload authorization
+      description: |
+        Control-plane first step, mirroring `POST /api/v1/profile/photos/uploads`.
+        Declare `check_type` (selfie, video, or government_id), `content_type`,
+        `byte_size`, base64 MD5 `checksum`, and optional `filename`. D8N
+        allocates a private-service object key and returns a short-lived
+        presigned `PUT`. Fails with `verification_already_pending` if the
+        member already has an undecided submission for this check_type.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [check_type, content_type, byte_size, checksum]
+              properties:
+                check_type:
+                  type: string
+                  enum: [selfie, video, government_id]
+                content_type:
+                  type: string
+                byte_size:
+                  type: integer
+                  minimum: 1
+                checksum:
+                  type: string
+                  description: Base64-encoded MD5 digest of the file bytes.
+                filename:
+                  type: string
+      responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "201":
+          description: Short-lived upload authorization.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [upload]
+                properties:
+                  upload:
+                    $ref: "#/components/schemas/RealmeVerificationUpload"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: No profile exists yet for this brand (`profile_required`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: |
+            One of `unsupported_check_type`, `unsupported_content_type`,
+            `invalid_byte_size`, or `verification_already_pending`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /api/v1/realme_verifications:
+    post:
+      operationId: createRealmeVerification
+      tags: [Trust]
+      summary: Attach an uploaded RealMe evidence blob, creating a pending assertion
+      description: |
+        Second step after `POST /api/v1/realme_verifications/uploads`
+        completes. Attaches the uploaded blob (identified by `signed_id`) to a
+        new `pending` `VerificationAssertion` for the given `check_type`. The
+        evidence is never exposed to any other member; only an admin with
+        `admin.realme_verifications.moderate` can view it (short-lived signed
+        URL) via `GET /api/v1/admin/realme_verifications`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [check_type, signed_id]
+              properties:
+                check_type:
+                  type: string
+                  enum: [selfie, video, government_id]
+                signed_id:
+                  type: string
+      responses:
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "201":
+          description: The new pending assertion.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [assertion]
+                properties:
+                  assertion:
+                    $ref: "#/components/schemas/RealmeAssertionEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: No profile exists yet for this brand (`profile_required`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: |
+            One of `upload_not_found`, `invalid_upload`, or
+            `verification_already_pending`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /api/v1/trust_score:
+    get:
+      operationId: getTrustScore
+      tags: [Trust]
+      summary: The current member's own derived trust score and explanation breakdown
+      description: |
+        Always recomputed live from the `TrustEvent`/`TrustAdjustment` ledger
+        (ADR 0025) — never a stored, driftable counter. Independent of
+        `realme_badge`: a member with no RealMe assertions still has a normal
+        baseline score, and a RealMe-verified member is not automatically
+        awarded a high score. `breakdown` never includes moderator identity or
+        free-form internal notes — only the reason/event label and points.
+      responses:
+        "200":
+          description: The member's current score and breakdown.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [score, breakdown]
+                properties:
+                  score:
+                    type: integer
+                    minimum: 0
+                  breakdown:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TrustLedgerEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/community/questions:
     get:
       operationId: listCommunityQuestions
@@ -3933,6 +4075,193 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
           $ref: "#/components/responses/ValidationFailed"
+  /api/v1/admin/realme_verifications:
+    get:
+      operationId: listAdminRealmeVerificationQueue
+      tags: [Trust]
+      summary: List the RealMe manual-review queue for the current brand
+      description: |
+        Requires verified admin MFA and `admin.realme_verifications.moderate`
+        (ADR 0034). Returns every pending member-submitted RealMe assertion
+        for the request's brand, oldest-first, bounded to 100 entries.
+        Evidence is exposed only here, as a short-lived (5 minute) signed URL
+        — never on any member-facing serializer, never cached, never logged.
+        Cross-brand submissions are simply absent, never disclosed.
+      responses:
+        "200":
+          description: The current RealMe moderation queue.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [assertions]
+                properties:
+                  assertions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AdminRealmeVerificationQueueEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+  /api/v1/admin/realme_verifications/{id}:
+    patch:
+      operationId: moderateRealmeVerification
+      tags: [Trust]
+      summary: Apply a review decision to a pending RealMe verification submission
+      description: |
+        Requires verified admin MFA and `admin.realme_verifications.moderate`.
+        `approved` awards the corresponding Trust Score event and, once a
+        member has approved selfie + video + government_id assertions plus a
+        confirmed email, flips their `realme_badge` (ADR 0034) — a single
+        approval already satisfies Date9ja's message-send gate on its own
+        (ADR 0031), independent of the badge. `rejected` and
+        `resubmission_requested` never award or deduct trust automatically.
+        Deciding an already-decided assertion the same way is idempotent;
+        deciding it the opposite way returns a conflict.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected, resubmission_requested]
+                note:
+                  type: string
+      responses:
+        "200":
+          description: Current terminal state and whether this request performed the transition.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [assertion, transitioned]
+                properties:
+                  transitioned:
+                    type: boolean
+                  assertion:
+                    $ref: "#/components/schemas/AdminRealmeVerificationDecision"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: Unknown assertion, or not a pending member submission (`realme_verification_unavailable`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: The assertion already has a conflicting decision (`realme_verification_conflict`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: Invalid decision value (`invalid_realme_verification_decision`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /api/v1/admin/profiles/{profile_id}/trust_adjustments:
+    parameters:
+      - name: profile_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: listTrustAdjustments
+      tags: [Trust]
+      summary: List manual trust-point adjustments for a member
+      description: |
+        Requires verified admin MFA and `admin.trust_adjustments.manage`.
+        Newest-first, bounded to 100 entries. There is no automatic negative
+        scoring anywhere in the system — every deduction here was a
+        deliberate, reasoned admin action.
+      responses:
+        "200":
+          description: The member's trust-adjustment history for this brand.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [trust_adjustments]
+                properties:
+                  trust_adjustments:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TrustAdjustmentEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: createTrustAdjustment
+      tags: [Trust]
+      summary: Record a manual trust-point deduction for a member
+      description: |
+        Requires verified admin MFA and `admin.trust_adjustments.manage`.
+        `points` must be negative — this endpoint is deduction-only; positive
+        trust points come only from automated system events (RealMe approval,
+        photo approval, etc. via `Trust::AwardEvent`), never manual admin
+        creation. `idempotency_key` is required and makes a duplicate request
+        safe: repeating it returns the original adjustment rather than
+        double-applying the deduction. Every adjustment is attributed to the
+        acting admin for audit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [points, reason_code, idempotency_key]
+              properties:
+                points:
+                  type: integer
+                  exclusiveMaximum: 0
+                  description: Must be negative.
+                reason_code:
+                  type: string
+                idempotency_key:
+                  type: string
+                note:
+                  type: string
+      responses:
+        "201":
+          description: The recorded adjustment.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [trust_adjustment]
+                properties:
+                  trust_adjustment:
+                    $ref: "#/components/schemas/TrustAdjustmentEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: Unknown profile for this brand (`user_unavailable`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: One of `invalid_adjustment_points`, `reason_code_required`, or `idempotency_key_required`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
   /api/v1/admin/reports:
     get:
       operationId: listReports
@@ -6290,7 +6619,7 @@ components:
           $ref: "#/components/schemas/ProfileOnboardingStatus"
     MeResponse:
       type: object
-      required: [user_id, brand, session, identifier, verification_required, verification, account_status, account_controls]
+      required: [user_id, brand, session, identifier, verification_required, verification, realme_assertions, realme_badge, account_status, account_controls]
       properties:
         user_id:
           type: integer
@@ -6321,6 +6650,27 @@ components:
           oneOf:
             - $ref: "#/components/schemas/VerificationDispatchState"
             - type: "null"
+        realme_assertions:
+          type: array
+          description: |
+            The current user's latest RealMe assertion per canonical check_type
+            (selfie, video, government_id). Absent entries mean no submission
+            has ever been made for that check_type. This is NOT the same
+            signal as `realme_badge` — a single approved entry here already
+            satisfies Date9ja's message-send gate, while the badge requires
+            all three approved plus a confirmed email (ADR 0031 vs ADR 0034).
+          items:
+            $ref: "#/components/schemas/RealmeAssertionEntry"
+        realme_badge:
+          type: boolean
+          description: |
+            The composite "it's really them" signal: confirmed email AND
+            approved selfie AND approved video AND approved government_id.
+            There is no partial badge. This is the ONLY field that should be
+            labeled "RealMe Verified" in any client surface — never
+            `identifier.verified` (contact-only) and never "has at least one
+            approved realme_assertions entry" (that satisfies messaging, not
+            the badge).
         account_status:
           const: active
           description: |
@@ -6333,6 +6683,42 @@ components:
             state because account closure is immediate.
         account_controls:
           $ref: "#/components/schemas/AccountControls"
+    RealmeAssertionEntry:
+      type: object
+      required: [check_type, status]
+      properties:
+        check_type:
+          type: string
+          enum: [selfie, video, government_id]
+        status:
+          type: string
+          enum: [approved, pending, rejected, resubmission_requested]
+        submitted_at:
+          type: [string, "null"]
+          format: date-time
+        reviewed_at:
+          type: [string, "null"]
+          format: date-time
+    RealmeVerificationUpload:
+      type: object
+      required: [signed_id, url, headers, expires_in, byte_size_limit, allowed_content_types]
+      properties:
+        signed_id:
+          type: string
+        url:
+          type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        expires_in:
+          type: integer
+        byte_size_limit:
+          type: integer
+        allowed_content_types:
+          type: array
+          items:
+            type: string
     AccountControls:
       type: object
       required: [password_change, deactivation, deletion]
@@ -8523,6 +8909,89 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AdminProfilePhotoQueueEntry"
+    AdminRealmeVerificationQueueEntry:
+      type: object
+      required: [id, user_id, check_type, submitted_at]
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        check_type:
+          type: string
+          enum: [selfie, video, government_id]
+        submitted_at:
+          type: [string, "null"]
+          format: date-time
+        evidence:
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [content_type, url, url_expires_in]
+              properties:
+                content_type:
+                  type: string
+                url:
+                  type: string
+                  description: Short-lived (5 minute) signed URL to the raw evidence blob. Never delivered to any other member.
+                url_expires_in:
+                  type: integer
+    AdminRealmeVerificationDecision:
+      type: object
+      required: [id, user_id, check_type, status]
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        check_type:
+          type: string
+          enum: [selfie, video, government_id]
+        status:
+          type: string
+          enum: [approved, rejected, resubmission_requested]
+        reviewed_at:
+          type: [string, "null"]
+          format: date-time
+    TrustAdjustmentEntry:
+      type: object
+      required: [id, profile_id, points, reason_code, appeal_status]
+      properties:
+        id:
+          type: integer
+        profile_id:
+          type: string
+          format: uuid
+        points:
+          type: integer
+        reason_code:
+          type: string
+        appeal_status:
+          type: string
+          enum: [not_requested, pending, upheld, overturned]
+        occurred_at:
+          type: [string, "null"]
+          format: date-time
+    TrustLedgerEntry:
+      type: object
+      required: [kind, type, label, points, applies]
+      properties:
+        kind:
+          type: string
+          enum: [event, adjustment]
+        type:
+          type: string
+          description: The event_type (for a system event) or reason_code (for a manual adjustment).
+        label:
+          type: string
+        points:
+          type: integer
+        applies:
+          type: boolean
+          description: False for an overturned adjustment — kept visible for transparency but excluded from the current score.
+        occurred_at:
+          type: [string, "null"]
+          format: date-time
     AdminProfilePhotoQueueEntry:
       type: object
       required: [id, profile_id, position, created_at, image]

@@ -80,6 +80,22 @@ class Api::V1::Auth::PasswordRecoveriesControllerTest < ActionDispatch::Integrat
     assert_empty Notifications::Sms::TestGateway.deliveries
   end
 
+  test "Date9ja phone recovery cannot fall through to a global SMS sender" do
+    date9ja = Brand.create!(slug: "date9ja", name: "Date9ja", auth_methods: %w[phone_password email_password])
+    BrandDomain.create!(brand: date9ja, host: "date9ja.test")
+    BrandMembership.create!(brand: date9ja, user: @user, status: :active)
+    host! "date9ja.test"
+
+    assert_no_difference -> { OtpChallenge.password_recovery.count } do
+      with_sms_provider("test") do
+        post "/api/v1/auth/password/recovery", params: { identifier: "+27 82 123 4567" }
+      end
+    end
+
+    assert_response :accepted
+    assert_empty Notifications::Sms::TestGateway.deliveries
+  end
+
   test "identity without a membership in the requesting brand is not a recovery channel" do
     @membership.destroy!
 

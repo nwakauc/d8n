@@ -34,6 +34,7 @@ module Identity
       login_identifier = LoginIdentifier.call(identifier_input, brand:)
       return generic_success if login_identifier.blank?
       return generic_success unless AuthPolicy.enabled?(brand:, method: login_identifier.auth_method)
+      return generic_success unless recovery_delivery_enabled?(login_identifier.kind)
 
       identity_identifier = eligible_identifier(login_identifier)
       return generic_success if identity_identifier.blank?
@@ -48,6 +49,13 @@ module Identity
     private
 
     attr_reader :brand, :identifier_input, :ip_address, :user_agent
+
+    def recovery_delivery_enabled?(kind)
+      D8n::Platform::BrandRegistry.fetch(brand:)
+        .capability_enabled?("verify.contact.#{kind}")
+    rescue D8n::Platform::BrandRegistry::UnsupportedBrand
+      true
+    end
 
     # Eligibility is intentionally identity-level, not brand-membership-state level.
     # A suspended user or a `left`/closed HookUs member may still hold a valid D8N
