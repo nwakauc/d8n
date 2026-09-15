@@ -173,7 +173,7 @@ module Date9ja
           brand = provision_brand
           user = User.create!
           identifier = IdentityIdentifier.create!(
-            user: user, kind: :email, normalized_value: row.email, verified_at: Time.current
+            user: user, brand: brand, kind: :email, normalized_value: row.email, verified_at: Time.current
           )
           credential = Credential.create!(
             user: user, identity_identifier: identifier, kind: :password, status: :active

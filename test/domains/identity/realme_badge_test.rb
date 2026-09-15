@@ -11,7 +11,7 @@ class Identity::RealmeBadgeTest < ActiveSupport::TestCase
   end
 
   test "false when email is confirmed but a check is missing" do
-    IdentityIdentifier.create!(user: @user, kind: :email, normalized_value: "a@example.com", verified_at: Time.current)
+    IdentityIdentifier.create!(user: @user, brand: @brand, kind: :email, normalized_value: "a@example.com", verified_at: Time.current)
     VerificationAssertion.create!(
       brand: @brand, user: @user, source_type: "member_submission", source_id: "s1",
       check_type: "selfie", status: "approved"
@@ -21,7 +21,7 @@ class Identity::RealmeBadgeTest < ActiveSupport::TestCase
   end
 
   test "true once email is confirmed and selfie, video (via liveness alias), and government_id (via gov_id alias) are approved" do
-    IdentityIdentifier.create!(user: @user, kind: :email, normalized_value: "a@example.com", verified_at: Time.current)
+    IdentityIdentifier.create!(user: @user, brand: @brand, kind: :email, normalized_value: "a@example.com", verified_at: Time.current)
     VerificationAssertion.create!(
       brand: @brand, user: @user, source_type: "member_submission", source_id: "s1",
       check_type: "selfie", status: "approved"
@@ -39,7 +39,7 @@ class Identity::RealmeBadgeTest < ActiveSupport::TestCase
   end
 
   test "does not count a rejected or pending check" do
-    IdentityIdentifier.create!(user: @user, kind: :email, normalized_value: "a@example.com", verified_at: Time.current)
+    IdentityIdentifier.create!(user: @user, brand: @brand, kind: :email, normalized_value: "a@example.com", verified_at: Time.current)
     VerificationAssertion.create!(
       brand: @brand, user: @user, source_type: "member_submission", source_id: "s1",
       check_type: "selfie", status: "rejected"
@@ -58,7 +58,7 @@ class Identity::RealmeBadgeTest < ActiveSupport::TestCase
 
   test "does not leak another brand's approved checks" do
     other_brand = Brand.create!(slug: "hookus", name: "HookUs")
-    IdentityIdentifier.create!(user: @user, kind: :email, normalized_value: "a@example.com", verified_at: Time.current)
+    IdentityIdentifier.create!(user: @user, brand: @brand, kind: :email, normalized_value: "a@example.com", verified_at: Time.current)
     %w[selfie video government_id].each_with_index do |check_type, i|
       VerificationAssertion.create!(
         brand: other_brand, user: @user, source_type: "member_submission", source_id: "o#{i}",
@@ -71,7 +71,7 @@ class Identity::RealmeBadgeTest < ActiveSupport::TestCase
 
   test "bulk computes for many users in a fixed number of queries" do
     other_user = User.create!
-    IdentityIdentifier.create!(user: @user, kind: :email, normalized_value: "a@example.com", verified_at: Time.current)
+    IdentityIdentifier.create!(user: @user, brand: @brand, kind: :email, normalized_value: "a@example.com", verified_at: Time.current)
     %w[selfie video government_id].each_with_index do |check_type, i|
       VerificationAssertion.create!(
         brand: @brand, user: @user, source_type: "member_submission", source_id: "b#{i}",

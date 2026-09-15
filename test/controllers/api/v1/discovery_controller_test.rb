@@ -63,7 +63,7 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
 
   test "decorates each candidate with viewer-relative status fields" do
     candidate = create_candidate(display_name: "Sam")
-    IdentityIdentifier.create!(user: candidate.user, kind: :email, normalized_value: "sam@example.com", verified_at: Time.current)
+    IdentityIdentifier.create!(user: candidate.user, brand: @brand, kind: :email, normalized_value: "sam@example.com", verified_at: Time.current)
     Session.issue!(brand: @brand, user: candidate.user).last.update!(last_used_at: 1.minute.ago)
     create_location(@viewer)
     create_location(candidate)

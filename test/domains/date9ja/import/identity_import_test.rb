@@ -205,7 +205,7 @@ module Date9ja
 
       test "a normalized-email collision fails the row closed and never merges" do
         existing = User.create!
-        existing.identity_identifiers.create!(kind: :email, normalized_value: "member1@date9ja.example")
+        existing.identity_identifiers.create!(brand: @brand, kind: :email, normalized_value: "member1@date9ja.example")
 
         result = nil
         assert_no_difference([ -> { User.count }, -> { LegacyReference.count } ]) do
@@ -218,9 +218,22 @@ module Date9ja
         assert_nil resolved("user", 1)
       end
 
+      test "an identifier that already exists on a DIFFERENT brand does not collide -- identity is brand-scoped" do
+        other_brand = Brand.create!(slug: "dateza-idi-#{SecureRandom.hex(4)}", name: "DateZA")
+        existing = User.create!
+        existing.identity_identifiers.create!(brand: other_brand, kind: :email, normalized_value: "member1@date9ja.example")
+
+        result = import([ row(id: 1) ])
+
+        assert_equal 1, result.reconciliation.count(:imported)
+        assert_equal 0, result.reconciliation.count(:failed)
+        assert resolved("user", 1).present?
+        assert_not_equal existing, resolved("user", 1)
+      end
+
       test "a normalized-phone collision imports the row without the phone identifier" do
         other = User.create!
-        other.identity_identifiers.create!(kind: :phone, normalized_value: "2348012345678")
+        other.identity_identifiers.create!(brand: @brand, kind: :phone, normalized_value: "2348012345678")
 
         result = import([ row(id: 1, phone: "+2348012345678") ])
 
@@ -458,7 +471,7 @@ module Date9ja
 
       test "reconciliation output carries no PII or secret material" do
         digest = synthetic_digest
-        User.create!.identity_identifiers.create!(kind: :email, normalized_value: "member9@date9ja.example")
+        User.create!.identity_identifiers.create!(brand: @brand, kind: :email, normalized_value: "member9@date9ja.example")
         result = import([
           row(id: 9, encrypted_password: digest, phone: "+2348090000009", display_name: "Sensitive Name")
         ])

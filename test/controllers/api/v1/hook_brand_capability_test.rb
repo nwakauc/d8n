@@ -7,7 +7,7 @@ class Api::V1::HookBrandCapabilityTest < ActionDispatch::IntegrationTest
     @viewer = create_profile(brand: @dateza, gender: "woman", interested_in: [ "man" ])
     @target = create_profile(brand: @dateza, gender: "man", interested_in: [ "woman" ])
     @identifier = IdentityIdentifier.create!(
-      user: @viewer.user, kind: :email, normalized_value: "dateza-hooks@example.com", verified_at: Time.current
+      user: @viewer.user, brand: @dateza, kind: :email, normalized_value: "dateza-hooks@example.com", verified_at: Time.current
     )
     credential = Credential.create!(user: @viewer.user, identity_identifier: @identifier, kind: :password)
     @token, = Session.issue!(brand: @dateza, user: @viewer.user, credential:)

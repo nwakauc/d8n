@@ -133,7 +133,7 @@ class Api::V1::Date9jaDiscoveryCuratedDailyControllerTest < ActionDispatch::Inte
   # contact-confirmation or RealMe gate.
   def verified_credential(user, email)
     identifier = IdentityIdentifier.create!(
-      user:, kind: :email, normalized_value: email, verified_at: Time.current
+      user:, brand: @brand, kind: :email, normalized_value: email, verified_at: Time.current
     )
     Credential.create!(user:, identity_identifier: identifier, kind: :password, status: :active)
   end

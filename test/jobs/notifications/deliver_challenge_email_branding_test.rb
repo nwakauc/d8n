@@ -83,7 +83,7 @@ module Notifications
     def create_email_challenge(brand:, recipient:)
       user = User.create!
       BrandMembership.create!(brand:, user:, status: :active)
-      identifier = user.identity_identifiers.create!(kind: :email, normalized_value: recipient)
+      identifier = user.identity_identifiers.create!(brand:, kind: :email, normalized_value: recipient)
       code = "123456"
 
       OtpChallenge.create!(

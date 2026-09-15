@@ -21,7 +21,7 @@ class Api::V1::Date9jaInteractionVerificationTest < ActionDispatch::IntegrationT
     ).conversation
 
     @viewer_identifier = IdentityIdentifier.create!(
-      user: @viewer.user, kind: :email, normalized_value: "chidi@example.test"
+      user: @viewer.user, brand: @brand, kind: :email, normalized_value: "chidi@example.test"
     )
     credential = Credential.create!(
       user: @viewer.user, identity_identifier: @viewer_identifier, kind: :password, status: :active
@@ -84,7 +84,7 @@ class Api::V1::Date9jaInteractionVerificationTest < ActionDispatch::IntegrationT
 
   test "a verified phone does not unlock message sending while Date9ja phone verification is disabled" do
     IdentityIdentifier.create!(
-      user: @viewer.user, kind: :phone, normalized_value: "+234 801 234 5678", verified_at: Time.current
+      user: @viewer.user, brand: @brand, kind: :phone, normalized_value: "+234 801 234 5678", verified_at: Time.current
     )
 
     assert_no_difference -> { Message.count } do
@@ -178,7 +178,7 @@ class Api::V1::Date9jaInteractionVerificationTest < ActionDispatch::IntegrationT
 
   test "another user's verified phone and a rejected assertion do not unlock sending" do
     IdentityIdentifier.create!(
-      user: @matched_target.user, kind: :phone, normalized_value: "+234 809 876 5432", verified_at: Time.current
+      user: @matched_target.user, brand: @brand, kind: :phone, normalized_value: "+234 809 876 5432", verified_at: Time.current
     )
     VerificationAssertion.create!(
       brand: @brand,

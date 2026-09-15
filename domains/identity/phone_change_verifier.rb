@@ -47,7 +47,7 @@ module Identity
     def credential = (@credential ||= session.credential)
     def identifier = (@identifier ||= credential&.identity_identifier)
     def eligible_credential? = credential&.password? && credential.active? && credential.deleted_at.nil? && identifier&.phone? && identifier.deleted_at.nil? && credential.user_id == session.user_id
-    def phone_owned?(phone) = IdentityIdentifier.kept.phone.where(normalized_value: phone).where.not(id: identifier.id).exists?
+    def phone_owned?(phone) = IdentityIdentifier.kept.phone.where(brand: session.brand, normalized_value: phone).where.not(id: identifier.id).exists?
     def audit(outcome, old_phone: identifier.normalized_value, new_phone:, revoked_session_count: nil)
       SecurityEvent.create!(brand: session.brand, user: session.user, event_type: "auth.phone_change.#{outcome}", severity: outcome == "succeeded" ? :info : :warning, ip_address:, user_agent:, metadata: { old_identifier_last4: old_phone.last(4), new_identifier_last4: new_phone.last(4), revoked_session_count: }.compact)
     end

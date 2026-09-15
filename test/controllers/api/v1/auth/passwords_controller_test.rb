@@ -81,7 +81,7 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
 
   test "international input finds one legacy national-form identity without creating a duplicate" do
     user = User.create!
-    identifier = user.identity_identifiers.create!(kind: :phone, normalized_value: "0821234567")
+    identifier = user.identity_identifiers.create!(brand: @brand, kind: :phone, normalized_value: "0821234567")
     credential = user.credentials.create!(identity_identifier: identifier, kind: :password, status: :active)
     Identity::PasswordEngine.set!(credential:, password: "secret")
     BrandMembership.create!(brand: @brand, user:, status: :active)
@@ -239,26 +239,29 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert response.headers.fetch("Retry-After").to_i.positive?
   end
 
-  test "the registration IP throttle is platform-wide: switching brand host does not reset it" do
+  # Registration is brand-scoped, same as identity itself (app/models/
+  # identity_identifier.rb) — a legitimate independent registration on a
+  # second brand must never be throttled by the first brand's attempts.
+  test "the registration IP throttle is brand-scoped: switching brand host resets it" do
     other_brand = Brand.create!(slug: "dateza", name: "DateZA", auth_methods: %w[ email_password ])
     BrandDomain.create!(brand: other_brand, host: "dateza.test")
     ip_limit = Identity::PasswordThrottle::POLICIES.fetch("password_registration").fetch(:ip_limit)
 
-    (ip_limit - 1).times do |index|
+    ip_limit.times do |index|
       post "/api/v1/auth/password/register",
         params: { identifier: "split-#{index}@example.com", password: "secret" }
       assert_response :created
     end
 
+    post "/api/v1/auth/password/register", params: { identifier: "one-more-still@example.com", password: "secret" }
+    assert_response :too_many_requests
+
     host! "dateza.test"
     post "/api/v1/auth/password/register", params: { identifier: "split-last@example.com", password: "secret" }
     assert_response :created
-
-    post "/api/v1/auth/password/register", params: { identifier: "one-more-still@example.com", password: "secret" }
-    assert_response :too_many_requests
   end
 
-  test "the registration identifier throttle is platform-wide: switching brand host does not reset it" do
+  test "the registration identifier throttle is brand-scoped: switching brand host resets it" do
     other_brand = Brand.create!(slug: "dateza", name: "DateZA", auth_methods: %w[ email_password ])
     BrandDomain.create!(brand: other_brand, host: "dateza.test")
     identifier_limit = Identity::PasswordThrottle::POLICIES.fetch("password_registration").fetch(:identifier_limit)
@@ -280,13 +283,18 @@ class Api::V1::Auth::PasswordsControllerTest < ActionDispatch::IntegrationTest
       assert_response :unprocessable_entity
     end
 
+    post "/api/v1/auth/password/register",
+      params: { identifier: "taken@example.com", password: "secret" },
+      headers: { "REMOTE_ADDR" => remote_ips.last }
+    assert_response :too_many_requests
+    assert_equal({ "error" => "rate_limited" }, JSON.parse(response.body))
+
+    # A DIFFERENT brand has never seen this identifier, so it registers cleanly.
     host! "dateza.test"
     post "/api/v1/auth/password/register",
       params: { identifier: "taken@example.com", password: "secret" },
       headers: { "REMOTE_ADDR" => remote_ips.last }
-
-    assert_response :too_many_requests
-    assert_equal({ "error" => "rate_limited" }, JSON.parse(response.body))
+    assert_response :created
   end
 
   test "malformed identifiers cannot bypass the registration IP throttle" do

@@ -391,7 +391,7 @@ class Api::V1::LikesControllerTest < ActionDispatch::IntegrationTest
     create_like(liker, viewer)
     create_like(viewer, liked)
     identifier = IdentityIdentifier.create!(
-      user: viewer.user, kind: :email, normalized_value: "viewer@example.com", verified_at: Time.current
+      user: viewer.user, brand:, kind: :email, normalized_value: "viewer@example.com", verified_at: Time.current
     )
     credential = Credential.create!(user: viewer.user, identity_identifier: identifier, kind: :password, status: :active)
     token, = Session.issue!(brand:, user: viewer.user, credential:)

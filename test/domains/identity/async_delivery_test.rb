@@ -10,7 +10,7 @@ module Identity
       @brand = Brand.create!(slug: "hookus", name: "HookUs", auth_methods: %w[phone_password email_password])
       @user = User.create!
       BrandMembership.create!(brand: @brand, user: @user, status: :active)
-      @phone = @user.identity_identifiers.create!(kind: :phone, normalized_value: "27821234567", verified_at: Time.current)
+      @phone = @user.identity_identifiers.create!(brand: @brand, kind: :phone, normalized_value: "27821234567", verified_at: Time.current)
       @credential = @user.credentials.create!(identity_identifier: @phone, kind: :password, status: :active)
       Identity::PasswordEngine.set!(credential: @credential, password: "secret")
     end

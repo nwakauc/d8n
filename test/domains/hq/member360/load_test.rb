@@ -13,7 +13,7 @@ class Hq::Member360::LoadTest < ActiveSupport::TestCase
     ProfilePreference.create!(
       brand: @brand, user: @user, profile: @profile, min_age: 21, max_age: 40, interested_in: [ "person" ]
     )
-    IdentityIdentifier.create!(user: @user, kind: :email, normalized_value: "ada@example.com")
+    IdentityIdentifier.create!(user: @user, brand: @brand, kind: :email, normalized_value: "ada@example.com")
   end
 
   test "returns all six sections for a member with a profile" do

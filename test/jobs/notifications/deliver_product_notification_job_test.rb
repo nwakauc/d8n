@@ -9,6 +9,7 @@ module Notifications
       @user = User.create!
       @membership = BrandMembership.create!(brand: @brand, user: @user, status: :active)
       @user.identity_identifiers.create!(
+        brand: @brand,
         kind: :email,
         normalized_value: "welcome@example.com",
         last_seen_at: Time.current

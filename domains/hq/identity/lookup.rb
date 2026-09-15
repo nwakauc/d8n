@@ -45,7 +45,7 @@ module Hq
         return if identifier.blank?
 
         ::IdentityIdentifier.kept
-          .where(kind: identifier.kind, normalized_value: identifier.lookup_values)
+          .where(brand:, kind: identifier.kind, normalized_value: identifier.lookup_values)
           .first&.user
       end
 

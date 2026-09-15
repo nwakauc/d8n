@@ -93,8 +93,15 @@ class ProductionMediaSafetyTest < ActiveSupport::TestCase
       abort "Date9ja production bucket crossed" unless date9ja.bucket.name == "d8n-date9ja-prod"
       abort "Date9ja frontend origin missing" unless Rails.configuration.x.cors_origins.include?("https://www.date9ja.love")
       abort "Date9ja API host missing" unless Rails.application.config.hosts.include?("api.date9ja.love")
-      status, = Rails.application.call(Rack::MockRequest.env_for("/up", "HTTP_HOST" => "attacker.example"))
-      abort "unknown production Host was accepted" unless status == 403
+      # /up deliberately bypasses Host authorization (config/environments/
+      # production.rb) -- kamal-proxy's own internal health check hits the
+      # container by its Docker hostname, never a registered proxy host, so
+      # this exclusion is required for deploys to pass their own health
+      # check at all. Every other path must still enforce the allowlist.
+      up_status, = Rails.application.call(Rack::MockRequest.env_for("/up", "HTTP_HOST" => "attacker.example"))
+      abort "/up did not bypass Host authorization for an unknown Host" unless up_status == 200
+      other_status, = Rails.application.call(Rack::MockRequest.env_for("/api/v1/me", "HTTP_HOST" => "attacker.example"))
+      abort "unknown production Host was accepted on a non-/up path" unless other_status == 403
     RUBY
 
     stdout, stderr, status = production_runner(script, complete_r2_environment("production"))

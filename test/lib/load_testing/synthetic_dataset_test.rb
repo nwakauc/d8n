@@ -24,6 +24,7 @@ module LoadTesting
       brand = create_brand
       normal_user = User.create!
       lookalike = normal_user.identity_identifiers.create!(
+        brand:,
         kind: :email,
         normalized_value: "loadtest-user-999999@example.invalid",
         metadata: {}

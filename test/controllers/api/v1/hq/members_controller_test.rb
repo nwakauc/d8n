@@ -5,7 +5,7 @@ class Api::V1::Hq::MembersControllerTest < ActionDispatch::IntegrationTest
     @brand = Brand.create!(slug: "hookus", name: "HookUs")
     BrandDomain.create!(brand: @brand, host: "hookus.test")
     @ada = create_profile(brand: @brand, display_name: "Ada")
-    IdentityIdentifier.create!(user: @ada.user, kind: :email, normalized_value: "ada@example.com")
+    IdentityIdentifier.create!(user: @ada.user, brand: @brand, kind: :email, normalized_value: "ada@example.com")
     @admin, @admin_token = create_admin(brand: @brand)
     host! "hookus.test"
   end
@@ -41,7 +41,7 @@ class Api::V1::Hq::MembersControllerTest < ActionDispatch::IntegrationTest
   test "a member who only exists on another brand is not found here" do
     other_brand = Brand.create!(slug: "other", name: "Other")
     other_member = create_profile(brand: other_brand, display_name: "Cross")
-    IdentityIdentifier.create!(user: other_member.user, kind: :email, normalized_value: "cross@example.com")
+    IdentityIdentifier.create!(user: other_member.user, brand: other_brand, kind: :email, normalized_value: "cross@example.com")
 
     get "/api/v1/hq/members/cross@example.com", headers: bearer_headers(@admin_token)
     assert_response :not_found
@@ -118,11 +118,11 @@ class Api::V1::Hq::MembersControllerTest < ActionDispatch::IntegrationTest
     @ada.user.update!(first_name: "Ada", last_name: "Okafor")
     IdentityIdentifier.find_by!(user: @ada.user, kind: :email).update!(verified_at: Time.current)
     sam = create_profile(brand: @brand, display_name: "Samuel")
-    IdentityIdentifier.create!(user: sam.user, kind: :phone, normalized_value: "0821234567")
+    IdentityIdentifier.create!(user: sam.user, brand: @brand, kind: :phone, normalized_value: "0821234567")
 
     other_brand = Brand.create!(slug: "other", name: "Other")
     cross = create_profile(brand: other_brand, display_name: "Ada Hidden")
-    IdentityIdentifier.create!(user: cross.user, kind: :email, normalized_value: "ada-hidden@example.com")
+    IdentityIdentifier.create!(user: cross.user, brand: other_brand, kind: :email, normalized_value: "ada-hidden@example.com")
 
     get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { search: "ada" }
     assert_response :success
@@ -143,7 +143,7 @@ class Api::V1::Hq::MembersControllerTest < ActionDispatch::IntegrationTest
     old = create_profile(brand: @brand, display_name: "Old")
     old.user.update!(status: :suspended)
     old.brand_membership.update!(status: :suspended)
-    IdentityIdentifier.create!(user: old.user, kind: :email, normalized_value: "old@example.com")
+    IdentityIdentifier.create!(user: old.user, brand: @brand, kind: :email, normalized_value: "old@example.com")
     Session.issue!(user: @ada.user, brand: @brand).last.update!(last_used_at: 1.hour.ago)
 
     get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: {
@@ -214,7 +214,7 @@ class Api::V1::Hq::MembersControllerTest < ActionDispatch::IntegrationTest
   test "a member with no profile yet renders empty-state sections instead of crashing" do
     bare_user = User.create!
     BrandMembership.create!(brand: @brand, user: bare_user)
-    IdentityIdentifier.create!(user: bare_user, kind: :email, normalized_value: "bare@example.com")
+    IdentityIdentifier.create!(user: bare_user, brand: @brand, kind: :email, normalized_value: "bare@example.com")
 
     get "/api/v1/hq/members/bare@example.com", headers: bearer_headers(@admin_token)
     assert_response :success
@@ -273,7 +273,7 @@ class Api::V1::Hq::MembersControllerTest < ActionDispatch::IntegrationTest
 
   test "a cursor cannot be replayed against a different member" do
     other = create_profile(brand: @brand, display_name: "Sam")
-    IdentityIdentifier.create!(user: other.user, kind: :email, normalized_value: "sam@example.com")
+    IdentityIdentifier.create!(user: other.user, brand: @brand, kind: :email, normalized_value: "sam@example.com")
     3.times { SecurityEvent.create!(brand: @brand, user: @ada.user, event_type: "x", severity: :info) }
 
     get "/api/v1/hq/members/ada@example.com/security_events",
@@ -331,7 +331,7 @@ class Api::V1::Hq::MembersControllerTest < ActionDispatch::IntegrationTest
   test "discovery_diagnostic on a member without a profile is not found" do
     bare_user = User.create!
     BrandMembership.create!(brand: @brand, user: bare_user)
-    IdentityIdentifier.create!(user: bare_user, kind: :email, normalized_value: "bare@example.com")
+    IdentityIdentifier.create!(user: bare_user, brand: @brand, kind: :email, normalized_value: "bare@example.com")
 
     get "/api/v1/hq/members/bare@example.com/discovery_diagnostic", headers: bearer_headers(@admin_token)
     assert_response :not_found

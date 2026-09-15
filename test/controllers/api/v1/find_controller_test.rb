@@ -11,7 +11,7 @@ class Api::V1::FindControllerTest < ActionDispatch::IntegrationTest
     )
     create_location(@viewer, latitude: -26.2041, longitude: 28.0473)
     identifier = IdentityIdentifier.create!(
-      user: @viewer.user, kind: :email, normalized_value: "find-viewer@example.com", verified_at: Time.current
+      user: @viewer.user, brand: @brand, kind: :email, normalized_value: "find-viewer@example.com", verified_at: Time.current
     )
     credential = Credential.create!(user: @viewer.user, identity_identifier: identifier, kind: :password)
     @token, = Session.issue!(brand: @brand, user: @viewer.user, credential:)

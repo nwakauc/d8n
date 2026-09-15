@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_15_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_15_130200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -682,6 +682,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_110000) do
   end
 
   create_table "identity_identifiers", force: :cascade do |t|
+    t.bigint "brand_id", null: false
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
     t.integer "kind", null: false
@@ -691,7 +692,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_110000) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.datetime "verified_at"
-    t.index ["kind", "normalized_value"], name: "index_identity_identifiers_on_kind_and_normalized_value", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["brand_id", "kind", "normalized_value"], name: "index_identity_identifiers_on_brand_kind_and_normalized_value", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["brand_id"], name: "index_identity_identifiers_on_brand_id"
     t.index ["user_id"], name: "index_identity_identifiers_on_user_id"
   end
 
@@ -1574,6 +1576,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_110000) do
   add_foreign_key "hooks", "profile_openers", column: ["profile_opener_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_profile_opener_tenant"
   add_foreign_key "hooks", "profiles", column: ["recipient_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_recipient_tenant"
   add_foreign_key "hooks", "profiles", column: ["sender_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_sender_tenant"
+  add_foreign_key "identity_identifiers", "brands"
   add_foreign_key "identity_identifiers", "users"
   add_foreign_key "legacy_references", "brands"
   add_foreign_key "likes", "brands"

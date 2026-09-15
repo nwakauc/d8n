@@ -5,7 +5,7 @@ module Admin
     def self.assign(actor_context:, brand:, email:, role_name:, session: nil)
       raise OperatorError, :invalid_role unless RolePolicy.grantable?(actor_context, role_name)
 
-      user = user_for_email(email)
+      user = user_for_email(email, brand:)
       raise OperatorError, :operator_unavailable if user.blank?
       unless BrandMembership.kept.active.exists?(user:, brand:)
         raise OperatorError, :operator_brand_membership_required
@@ -92,12 +92,12 @@ module Admin
     end
     private_class_method :target_admin
 
-    def self.user_for_email(email)
+    def self.user_for_email(email, brand:)
       login = Identity::LoginIdentifier.call(email)
       return unless login&.kind == :email
 
       IdentityIdentifier.kept.email.where.not(verified_at: nil)
-        .find_by(normalized_value: login.normalized_value)&.user
+        .find_by(brand:, normalized_value: login.normalized_value)&.user
     end
     private_class_method :user_for_email
 

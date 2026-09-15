@@ -77,9 +77,9 @@ class Api::V1::Date9jaCoreDatingLoopTest < ActionDispatch::IntegrationTest
 
   def realme_ready_credential(user, email, phone)
     identifier = IdentityIdentifier.create!(
-      user:, kind: :email, normalized_value: email, verified_at: Time.current
+      user:, brand: @brand, kind: :email, normalized_value: email, verified_at: Time.current
     )
-    IdentityIdentifier.create!(user:, kind: :phone, normalized_value: phone, verified_at: Time.current)
+    IdentityIdentifier.create!(user:, brand: @brand, kind: :phone, normalized_value: phone, verified_at: Time.current)
     # Date9ja's message-send gate (ADR 0031) is phone-blind — phone
     # verification is disabled for this brand — so an approved RealMe
     # assertion (ADR 0032) is what actually satisfies it, not the verified

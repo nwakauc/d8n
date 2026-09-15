@@ -16,9 +16,9 @@ class Profiles::StatusFieldsTest < ActiveSupport::TestCase
 
   test "flags verified only when the member has a verified identifier" do
     verified = build_profile
-    IdentityIdentifier.create!(user: verified.user, kind: :email, normalized_value: "v@example.com", verified_at: Time.current)
+    IdentityIdentifier.create!(user: verified.user, brand: @brand, kind: :email, normalized_value: "v@example.com", verified_at: Time.current)
     unverified = build_profile
-    IdentityIdentifier.create!(user: unverified.user, kind: :email, normalized_value: "u@example.com", verified_at: nil)
+    IdentityIdentifier.create!(user: unverified.user, brand: @brand, kind: :email, normalized_value: "u@example.com", verified_at: nil)
 
     status = status_fields(viewer: @viewer, profiles: [ verified, unverified ])
 
@@ -28,7 +28,7 @@ class Profiles::StatusFieldsTest < ActiveSupport::TestCase
 
   test "flags realme_badge only when email is confirmed and all three checks are approved" do
     badged = build_profile
-    IdentityIdentifier.create!(user: badged.user, kind: :email, normalized_value: "b@example.com", verified_at: Time.current)
+    IdentityIdentifier.create!(user: badged.user, brand: @brand, kind: :email, normalized_value: "b@example.com", verified_at: Time.current)
     %w[selfie video government_id].each_with_index do |check_type, i|
       VerificationAssertion.create!(
         brand: @brand, user: badged.user, source_type: "member_submission", source_id: "s#{i}",
@@ -37,7 +37,7 @@ class Profiles::StatusFieldsTest < ActiveSupport::TestCase
     end
 
     missing_id_check = build_profile
-    IdentityIdentifier.create!(user: missing_id_check.user, kind: :email, normalized_value: "m@example.com", verified_at: Time.current)
+    IdentityIdentifier.create!(user: missing_id_check.user, brand: @brand, kind: :email, normalized_value: "m@example.com", verified_at: Time.current)
     VerificationAssertion.create!(
       brand: @brand, user: missing_id_check.user, source_type: "member_submission", source_id: "m1",
       check_type: "selfie", status: "approved"

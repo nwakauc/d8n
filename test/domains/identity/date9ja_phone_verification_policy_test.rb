@@ -8,7 +8,7 @@ module Identity
       brand = Brand.create!(slug: "date9ja", name: "Date9ja", auth_methods: %w[phone_password email_password])
       user = User.create!
       BrandMembership.create!(brand:, user:, status: :active)
-      user.identity_identifiers.create!(kind: :phone, normalized_value: "2348012345678")
+      user.identity_identifiers.create!(brand:, kind: :phone, normalized_value: "2348012345678")
       Notifications::Sms::TestGateway.clear
 
       previous = ENV["D8N_SMS_PROVIDER"]

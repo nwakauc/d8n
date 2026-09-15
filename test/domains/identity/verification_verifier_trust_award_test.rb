@@ -7,7 +7,7 @@ class Identity::VerificationVerifierTrustAwardTest < ActiveSupport::TestCase
   end
 
   test "awards realme_email_approved points on successful email verification" do
-    identifier = @user.identity_identifiers.create!(kind: :email, normalized_value: "ada@example.com")
+    identifier = @user.identity_identifiers.create!(brand: @brand, kind: :email, normalized_value: "ada@example.com")
     challenge = create_challenge(identifier:, kind: "email_verification")
 
     result = Identity::VerificationVerifier.call(user: @user, brand: @brand, kind: "email", code: "123456")
@@ -19,7 +19,7 @@ class Identity::VerificationVerifierTrustAwardTest < ActiveSupport::TestCase
   end
 
   test "awards realme_phone_approved points on successful phone verification" do
-    identifier = @user.identity_identifiers.create!(kind: :phone, normalized_value: "+15551234567")
+    identifier = @user.identity_identifiers.create!(brand: @brand, kind: :phone, normalized_value: "+15551234567")
     create_challenge(identifier:, kind: "phone_verification")
 
     Identity::VerificationVerifier.call(user: @user, brand: @brand, kind: "phone", code: "123456")
@@ -28,7 +28,7 @@ class Identity::VerificationVerifierTrustAwardTest < ActiveSupport::TestCase
   end
 
   test "does not double-award on a second verify call for an already-verified identifier" do
-    identifier = @user.identity_identifiers.create!(kind: :email, normalized_value: "ada@example.com")
+    identifier = @user.identity_identifiers.create!(brand: @brand, kind: :email, normalized_value: "ada@example.com")
     create_challenge(identifier:, kind: "email_verification")
     Identity::VerificationVerifier.call(user: @user, brand: @brand, kind: "email", code: "123456")
 

@@ -224,14 +224,14 @@ module Profiles
     test "informational verification counts only verified contact identifiers" do
       profile = build_profile(display_name: "Ada")
       IdentityIdentifier.create!(
-        user: profile.user, kind: :oauth_provider_uid,
+        user: profile.user, brand: profile.brand, kind: :oauth_provider_uid,
         normalized_value: "provider:subject", verified_at: Time.current
       )
 
       assert_not Completion.call(profile:).sections.fetch("verification").fetch(:complete)
 
       IdentityIdentifier.create!(
-        user: profile.user, kind: :email,
+        user: profile.user, brand: profile.brand, kind: :email,
         normalized_value: "ada@example.com", verified_at: Time.current
       )
 

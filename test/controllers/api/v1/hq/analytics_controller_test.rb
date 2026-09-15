@@ -71,7 +71,7 @@ class Api::V1::Hq::AnalyticsControllerTest < ActionDispatch::IntegrationTest
       brand: @brand, user:, brand_membership: user.brand_memberships.last,
       display_name: "M", birthdate: 30.years.ago.to_date, gender: "man", status: :active, visibility: :visible
     )
-    user.identity_identifiers.create!(kind: :email, normalized_value: "#{SecureRandom.hex(6)}@example.com", verified_at: email_verified ? Time.current : nil)
+    user.identity_identifiers.create!(brand: @brand, kind: :email, normalized_value: "#{SecureRandom.hex(6)}@example.com", verified_at: email_verified ? Time.current : nil)
     check_types_approved.each do |check_type|
       VerificationAssertion.create!(brand: @brand, user:, check_type:, status: "approved", source_type: "test", source_id: SecureRandom.hex(8))
     end

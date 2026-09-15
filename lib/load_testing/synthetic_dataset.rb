@@ -263,7 +263,7 @@ module LoadTesting
 
     def create_account!(index)
       email = format(EMAIL_FORMAT, index)
-      identifier = IdentityIdentifier.kept.email.find_by(normalized_value: email)
+      identifier = IdentityIdentifier.kept.email.find_by(brand:, normalized_value: email)
       if identifier && identifier.metadata.slice(*TAG.keys) != TAG
         raise ConfigurationError, "identifier collision for #{email}; existing record is not tagged synthetic"
       end
@@ -271,6 +271,7 @@ module LoadTesting
       user = identifier&.user || User.create!(status: :active)
       user.update!(status: :active, deleted_at: nil)
       identifier ||= user.identity_identifiers.create!(
+        brand:,
         kind: :email,
         normalized_value: email,
         metadata: TAG,

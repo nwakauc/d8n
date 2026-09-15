@@ -60,6 +60,7 @@ module Identity
 
     def authenticate_unthrottled(login_identifier)
       identifiers = IdentityIdentifier.kept.where(
+        brand:,
         kind: login_identifier.kind,
         normalized_value: login_identifier.lookup_values
       ).limit(2).to_a

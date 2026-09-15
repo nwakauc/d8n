@@ -291,7 +291,7 @@ class Api::V1::DatezaDiscoveryControllerTest < ActionDispatch::IntegrationTest
   test "projects opener_state (not HookUs's hook_state) onto Discover candidates" do
     candidate = create_candidate
     identifier = IdentityIdentifier.create!(
-      user: @viewer.user, kind: :email, normalized_value: "opener-state@example.com", verified_at: Time.current
+      user: @viewer.user, brand: @brand, kind: :email, normalized_value: "opener-state@example.com", verified_at: Time.current
     )
     credential = Credential.create!(user: @viewer.user, identity_identifier: identifier, kind: :password)
     verified_token, = Session.issue!(brand: @brand, user: @viewer.user, credential:)

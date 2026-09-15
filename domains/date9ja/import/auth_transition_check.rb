@@ -138,7 +138,7 @@ module Date9ja
         parsed = ::Identity::LoginIdentifier.call(subject.identifier, brand:)
         return record(:resolve, :fail, "identifier_unparseable") if parsed.blank?
 
-        matches = IdentityIdentifier.kept.where(kind: parsed.kind, normalized_value: parsed.lookup_values).limit(2).to_a
+        matches = IdentityIdentifier.kept.where(brand:, kind: parsed.kind, normalized_value: parsed.lookup_values).limit(2).to_a
         ii = matches.one? ? matches.first : nil
         return record(:resolve, :fail, "identity_not_found") if ii.blank?
 

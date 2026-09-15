@@ -129,6 +129,7 @@ module Identity
             audit(login_identifier, result: :throttled, retry_after: throttle.retry_after)
             result = failure(:rate_limited, retry_after: throttle.retry_after)
           elsif IdentityIdentifier.where(
+            brand:,
             kind: login_identifier.kind,
             normalized_value: login_identifier.lookup_values
           ).exists?
@@ -150,6 +151,7 @@ module Identity
     def create_account(login_identifier)
       user = User.create!
       identity_identifier = user.identity_identifiers.create!(
+        brand:,
         kind: login_identifier.kind,
         normalized_value: login_identifier.normalized_value,
         verified_at: nil,

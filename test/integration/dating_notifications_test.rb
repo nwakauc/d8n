@@ -546,7 +546,7 @@ class DatingNotificationsTest < ActionDispatch::IntegrationTest
       gender:, birthdate: 28.years.ago.to_date, status: :active, visibility: :visible
     )
     ProfilePreference.create!(brand: @brand, user:, profile:, min_age: 18, max_age: 60, interested_in:)
-    IdentityIdentifier.create!(user:, kind: :email, normalized_value: "#{SecureRandom.hex(6)}@example.com", verified_at: Time.current)
+    IdentityIdentifier.create!(user:, brand: @brand, kind: :email, normalized_value: "#{SecureRandom.hex(6)}@example.com", verified_at: Time.current)
     profile
   end
 

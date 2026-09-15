@@ -7,7 +7,7 @@ class Api::V1::Hq::AuthorizationMatrixTest < ActionDispatch::IntegrationTest
     Admin::Capabilities::ROLE_NAMES.each { |name| AdminRole.find_or_create_by!(name:) }
     @member = create_profile("Member")
     IdentityIdentifier.create!(
-      user: @member.user, kind: :email, normalized_value: "member@example.test", verified_at: Time.current
+      user: @member.user, brand: @brand, kind: :email, normalized_value: "member@example.test", verified_at: Time.current
     )
     @reporter = create_profile("Reporter")
     @report = Report.create!(

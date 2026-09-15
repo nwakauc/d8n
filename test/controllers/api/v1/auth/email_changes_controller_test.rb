@@ -11,6 +11,7 @@ class Api::V1::Auth::EmailChangesControllerTest < ActionDispatch::IntegrationTes
     @user = User.create!
     BrandMembership.create!(brand: @brand, user: @user)
     @identifier = @user.identity_identifiers.create!(
+      brand: @brand,
       kind: :email,
       normalized_value: "wrong@example.com"
     )
@@ -119,7 +120,7 @@ class Api::V1::Auth::EmailChangesControllerTest < ActionDispatch::IntegrationTes
 
   test "requires the current password without revealing replacement availability" do
     other_user = User.create!
-    other_user.identity_identifiers.create!(kind: :email, normalized_value: "taken@example.com")
+    other_user.identity_identifiers.create!(brand: @brand, kind: :email, normalized_value: "taken@example.com")
 
     assert_no_difference -> { OtpChallenge.email_change.count } do
       post "/api/v1/auth/email/change",
@@ -136,7 +137,7 @@ class Api::V1::Auth::EmailChangesControllerTest < ActionDispatch::IntegrationTes
 
   test "returns one generic error for malformed current and occupied replacement emails" do
     other_user = User.create!
-    other_user.identity_identifiers.create!(kind: :email, normalized_value: "taken@example.com")
+    other_user.identity_identifiers.create!(brand: @brand, kind: :email, normalized_value: "taken@example.com")
 
     request_change(email: "wrong@example.com")
     current_response = response.body
@@ -149,6 +150,18 @@ class Api::V1::Auth::EmailChangesControllerTest < ActionDispatch::IntegrationTes
     assert_equal occupied_response, response.body
     assert_equal({ "error" => "email_change_unavailable" }, JSON.parse(response.body))
     assert_empty ActionMailer::Base.deliveries
+  end
+
+  test "an email already used by an unrelated member on a DIFFERENT brand is not considered taken" do
+    other_brand = Brand.create!(slug: "other", name: "Other")
+    other_user = User.create!
+    other_user.identity_identifiers.create!(brand: other_brand, kind: :email, normalized_value: "cross-brand@example.com")
+
+    assert_difference -> { OtpChallenge.email_change.count }, 1 do
+      request_change(email: "cross-brand@example.com")
+    end
+
+    assert_response :accepted
   end
 
   test "a challenge is bound to the session that requested it" do
@@ -253,7 +266,7 @@ class Api::V1::Auth::EmailChangesControllerTest < ActionDispatch::IntegrationTes
     request_change
     code = delivered_code
     claimant = User.create!
-    claimant.identity_identifiers.create!(kind: :email, normalized_value: "correct@example.com")
+    claimant.identity_identifiers.create!(brand: @brand, kind: :email, normalized_value: "correct@example.com")
 
     patch "/api/v1/auth/email/change",
       headers: bearer_headers(@token),
@@ -266,7 +279,7 @@ class Api::V1::Auth::EmailChangesControllerTest < ActionDispatch::IntegrationTes
   end
 
   test "requires an email-backed password credential" do
-    phone = @user.identity_identifiers.create!(kind: :phone, normalized_value: "+27 82 123 4567")
+    phone = @user.identity_identifiers.create!(brand: @brand, kind: :phone, normalized_value: "+27 82 123 4567")
     phone_credential = @user.credentials.create!(identity_identifier: phone, kind: :password)
     Identity::PasswordEngine.set!(credential: phone_credential, password: "secret")
     phone_token, = Session.issue!(brand: @brand, user: @user, credential: phone_credential)

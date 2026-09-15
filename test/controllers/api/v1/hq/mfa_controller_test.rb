@@ -7,7 +7,7 @@ class Api::V1::Hq::MfaControllerTest < ActionDispatch::IntegrationTest
     @user = User.create!
     BrandMembership.create!(brand: @brand, user: @user)
     IdentityIdentifier.create!(
-      user: @user, kind: :email, normalized_value: "operator@example.test", verified_at: Time.current
+      user: @user, brand: @brand, kind: :email, normalized_value: "operator@example.test", verified_at: Time.current
     )
     @admin = AdminUser.create!(user: @user, status: :active)
     role = AdminRole.find_or_create_by!(name: "moderator")

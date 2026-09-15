@@ -1,5 +1,6 @@
 class IdentityIdentifier < ApplicationRecord
   belongs_to :user
+  belongs_to :brand
 
   has_many :credentials, dependent: :restrict_with_exception
   has_many :auth_attempts, dependent: :nullify
@@ -12,7 +13,10 @@ class IdentityIdentifier < ApplicationRecord
 
   before_validation :normalize_value
 
-  validates :normalized_value, presence: true, uniqueness: { scope: :kind, conditions: -> { kept } }
+  # Identity is brand-scoped: the same email/phone may independently belong
+  # to a different User on a different brand. Each brand registration gets
+  # its own User -- there is no cross-brand identity linkage by design.
+  validates :normalized_value, presence: true, uniqueness: { scope: [ :kind, :brand_id ], conditions: -> { kept } }
 
   private
 

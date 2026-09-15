@@ -111,7 +111,7 @@ class DatezaProductNotificationMailerTest < ActionMailer::TestCase
     user = User.create!
     membership = BrandMembership.create!(brand: @brand, user:, status: :active)
     user.identity_identifiers.create!(
-      kind: :email, normalized_value: "#{SecureRandom.hex(6)}@example.com", verified_at: Time.current
+      brand: @brand, kind: :email, normalized_value: "#{SecureRandom.hex(6)}@example.com", verified_at: Time.current
     )
     Profile.create!(
       brand: @brand, user:, brand_membership: membership, display_name:,

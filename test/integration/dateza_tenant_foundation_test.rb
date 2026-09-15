@@ -85,7 +85,7 @@ class DatezaTenantFoundationTest < ActionDispatch::IntegrationTest
     dateza_viewer = create_member_profile(brand: @dateza, name: "DateZA Viewer")
     hookus_target = create_member_profile(brand: @hookus, name: "HookUs Target")
     identifier = IdentityIdentifier.create!(
-      user: dateza_viewer.user, kind: :email,
+      user: dateza_viewer.user, brand: @dateza, kind: :email,
       normalized_value: "tenant-viewer@example.com", verified_at: Time.current
     )
     credential = Credential.create!(user: dateza_viewer.user, identity_identifier: identifier, kind: :password)

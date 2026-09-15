@@ -200,6 +200,7 @@ module Date9ja
           bind!(user, "user", record)
 
           email_identifier = user.identity_identifiers.create!(
+            brand:,
             kind: :email,
             normalized_value: email.normalized_value,
             verified_at: FieldMapping.email_verified_at(record)
@@ -209,6 +210,7 @@ module Date9ja
 
           if phone
             phone_identifier = user.identity_identifiers.create!(
+              brand:,
               kind: :phone,
               normalized_value: phone.normalized_value,
               verified_at: FieldMapping.phone_verified_at(record)
@@ -294,7 +296,7 @@ module Date9ja
       # just created for the same source row — i.e. a genuine normalization
       # collision that must never be silently merged.
       def colliding_identifier?(kind, values)
-        IdentityIdentifier.kept.exists?(kind: kind, normalized_value: values)
+        IdentityIdentifier.kept.where(brand:).exists?(kind: kind, normalized_value: values)
       end
     end
   end

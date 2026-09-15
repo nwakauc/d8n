@@ -9,8 +9,8 @@ class Hq::Identity::LookupTest < ActiveSupport::TestCase
       brand: @brand, user: @user, brand_membership: @membership, display_name: "Ada",
       birthdate: 30.years.ago.to_date, gender: "person", status: :active, visibility: :visible
     )
-    @email = IdentityIdentifier.create!(user: @user, kind: :email, normalized_value: "ada@example.com")
-    @phone = IdentityIdentifier.create!(user: @user, kind: :phone, normalized_value: "27821234567")
+    @email = IdentityIdentifier.create!(user: @user, brand: @brand, kind: :email, normalized_value: "ada@example.com")
+    @phone = IdentityIdentifier.create!(user: @user, brand: @brand, kind: :phone, normalized_value: "27821234567")
   end
 
   test "resolves a member by email" do
@@ -37,7 +37,7 @@ class Hq::Identity::LookupTest < ActiveSupport::TestCase
   test "resolves a member without a profile yet, by email" do
     bare_user = User.create!
     BrandMembership.create!(brand: @brand, user: bare_user)
-    IdentityIdentifier.create!(user: bare_user, kind: :email, normalized_value: "bare@example.com")
+    IdentityIdentifier.create!(user: bare_user, brand: @brand, kind: :email, normalized_value: "bare@example.com")
 
     result = Hq::Identity::Lookup.call(brand: @brand, lookup: "bare@example.com")
 
@@ -56,7 +56,7 @@ class Hq::Identity::LookupTest < ActiveSupport::TestCase
     other_brand = Brand.create!(slug: "other", name: "Other")
     other_user = User.create!
     BrandMembership.create!(brand: other_brand, user: other_user)
-    IdentityIdentifier.create!(user: other_user, kind: :email, normalized_value: "cross@example.com")
+    IdentityIdentifier.create!(user: other_user, brand: other_brand, kind: :email, normalized_value: "cross@example.com")
     Profile.create!(
       brand: other_brand, user: other_user,
       brand_membership: BrandMembership.find_by(brand: other_brand, user: other_user),
@@ -75,5 +75,19 @@ class Hq::Identity::LookupTest < ActiveSupport::TestCase
     result = Hq::Identity::Lookup.call(brand: other_brand, lookup: "ada@example.com")
 
     assert_nil result
+  end
+
+  test "two brands sharing an identifier value each resolve only their own independent member" do
+    other_brand = Brand.create!(slug: "other", name: "Other")
+    other_user = User.create!
+    other_membership = BrandMembership.create!(brand: other_brand, user: other_user)
+    IdentityIdentifier.create!(user: other_user, brand: other_brand, kind: :email, normalized_value: "ada@example.com")
+
+    result_on_this_brand = Hq::Identity::Lookup.call(brand: @brand, lookup: "ada@example.com")
+    result_on_other_brand = Hq::Identity::Lookup.call(brand: other_brand, lookup: "ada@example.com")
+
+    assert_equal @user, result_on_this_brand.user
+    assert_equal other_user, result_on_other_brand.user
+    assert_equal other_membership, result_on_other_brand.brand_membership
   end
 end

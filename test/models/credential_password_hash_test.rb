@@ -112,8 +112,10 @@ class CredentialPasswordHashTest < ActiveSupport::TestCase
 
   def credential(kind:, verified_at: Time.current)
     user = User.create!
+    brand = Brand.create!(slug: "hookus-#{SecureRandom.hex(4)}", name: "HookUs")
     identifier = IdentityIdentifier.create!(
       user:,
+      brand:,
       kind: :phone,
       normalized_value: "+2782123#{SecureRandom.random_number(10000).to_s.rjust(4, '0')}",
       verified_at:

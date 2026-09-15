@@ -40,7 +40,7 @@ module Media
     end
 
     test "keys contain no PII — only brand slug, ids, and uuids" do
-      @user.identity_identifiers.create!(kind: :email, normalized_value: "ada@example.com")
+      @user.identity_identifiers.create!(brand: @brand, kind: :email, normalized_value: "ada@example.com")
       key = ObjectKey.profile_photo_original(
         brand: @brand, user: @user, profile: @profile, content_type: "image/png"
       )

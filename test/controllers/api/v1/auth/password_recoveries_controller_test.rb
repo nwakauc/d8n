@@ -11,7 +11,7 @@ class Api::V1::Auth::PasswordRecoveriesControllerTest < ActionDispatch::Integrat
     @user = User.create!
     @membership = BrandMembership.create!(brand: @brand, user: @user, status: :active)
     @phone = @user.identity_identifiers.create!(
-      kind: :phone, normalized_value: "+27 82 123 4567", verified_at: Time.current
+      brand: @brand, kind: :phone, normalized_value: "+27 82 123 4567", verified_at: Time.current
     )
     @credential = @user.credentials.create!(identity_identifier: @phone, kind: :password, status: :active)
     Identity::PasswordEngine.set!(credential: @credential, password: "secret")
@@ -138,7 +138,7 @@ class Api::V1::Auth::PasswordRecoveriesControllerTest < ActionDispatch::Integrat
 
   test "delivers a recovery code by email for an email-backed credential" do
     email = @user.identity_identifiers.create!(
-      kind: :email, normalized_value: "ada@example.com", verified_at: Time.current
+      brand: @brand, kind: :email, normalized_value: "ada@example.com", verified_at: Time.current
     )
     @user.credentials.create!(identity_identifier: email, kind: :password, status: :active).then do |cred|
       Identity::PasswordEngine.set!(credential: cred, password: "secret")

@@ -94,7 +94,7 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
 
   test "includes viewer-relative status fields on the profile detail" do
     target = create_candidate(display_name: "Sam")
-    IdentityIdentifier.create!(user: target.user, kind: :email, normalized_value: "sam@example.com", verified_at: Time.current)
+    IdentityIdentifier.create!(user: target.user, brand: @brand, kind: :email, normalized_value: "sam@example.com", verified_at: Time.current)
     Session.issue!(brand: @brand, user: target.user).last.update!(last_used_at: 1.minute.ago)
     create_location(@viewer)
     create_location(target)
@@ -114,7 +114,7 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
   test "contact verification ignores verified non-contact identifiers" do
     target = create_candidate(display_name: "Sam")
     IdentityIdentifier.create!(
-      user: target.user, kind: :oauth_provider_uid,
+      user: target.user, brand: @brand, kind: :oauth_provider_uid,
       normalized_value: "provider:subject", verified_at: Time.current
     )
 
@@ -449,10 +449,10 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     viewer.update!(status: :active, visibility: :visible)
     target.update!(status: :active, visibility: :visible)
     IdentityIdentifier.create!(
-      user: target.user, kind: :email, normalized_value: "target@example.com", verified_at: Time.current
+      user: target.user, brand:, kind: :email, normalized_value: "target@example.com", verified_at: Time.current
     )
     viewer_identifier = IdentityIdentifier.create!(
-      user: viewer.user, kind: :email, normalized_value: "viewer@example.com", verified_at: Time.current
+      user: viewer.user, brand:, kind: :email, normalized_value: "viewer@example.com", verified_at: Time.current
     )
     credential = Credential.create!(
       user: viewer.user, identity_identifier: viewer_identifier, kind: :password, status: :active
@@ -499,7 +499,7 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     # Date9ja profile detail is available without contact confirmation; this
     # verified fixture simply mirrors an ordinary established member.
     viewer_identifier = IdentityIdentifier.create!(
-      user: viewer.user, kind: :email, normalized_value: "viewer@example.com", verified_at: Time.current
+      user: viewer.user, brand:, kind: :email, normalized_value: "viewer@example.com", verified_at: Time.current
     )
     credential = Credential.create!(
       user: viewer.user, identity_identifier: viewer_identifier, kind: :password, status: :active
