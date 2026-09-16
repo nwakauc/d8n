@@ -22,7 +22,10 @@ require "thread"
 CONCURRENCY = Integer(ENV.fetch("D8N_MEDIA_TRANSFER_CONCURRENCY", "16"))
 
 def build_client(access_key_id:, secret_access_key:, endpoint:)
-  Aws::S3::Client.new(access_key_id:, secret_access_key:, endpoint:, region: "auto", force_path_style: true)
+  Aws::S3::Client.new(
+    access_key_id:, secret_access_key:, endpoint:, region: "auto", force_path_style: true,
+    http_open_timeout: 15, http_read_timeout: 60, retry_limit: 3
+  )
 end
 
 source_bucket = ENV.fetch("CLOUDFLARE_R2_BUCKET")
@@ -70,6 +73,7 @@ def transfer_one(key, source, source_bucket, destination, destination_bucket)
     source.get_object(bucket: source_bucket, key: key) { |chunk| tmp.write(chunk) }
     tmp.flush
     size = tmp.size
+    STDERR.puts "  -> downloaded #{key} (#{size} bytes), uploading..." if size > 5_000_000
     tmp.rewind
     destination.put_object(bucket: destination_bucket, key: key, body: tmp)
 

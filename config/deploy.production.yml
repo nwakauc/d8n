@@ -1,5 +1,15 @@
 service: d8n
 
+# Default (30s) is too tight for this app's current eager-load + boot time
+# with the accumulated migrations/schema -- two consecutive deploys timed
+# out here on 2026-09-16 with Puma still mid-boot when kamal-proxy gave up
+# (confirmed via container logs: "Booting Puma" followed seconds later by
+# "Relaying signal to upstream process: terminated", zero downtime both
+# times since the old container kept serving throughout). This does not
+# change anything about how fast the app actually boots -- it only gives
+# Puma enough real time to finish before the deploy is judged unhealthy.
+deploy_timeout: 90
+
 servers:
   web:
     - 164.68.106.97
