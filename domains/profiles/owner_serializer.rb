@@ -35,8 +35,13 @@ module Profiles
 
     attr_reader :profile, :field_policy
 
+    # Scalar values the owner may see, resolved once through FieldPolicy
+    # (canonical ∧ brand-enabled ∧ not sensitive-identity ∧ storage available).
+    # The serializer picks values; it does not re-derive policy.
     def owner_profile_fields
-      field_policy.enabled_profile_fields.index_with { |field| owner_value(field) }.symbolize_keys
+      field_policy.owner_serialized_fields
+        .select { |field| field.storage.fetch(:record) == :profile }
+        .to_h { |field| [ field.key.to_sym, owner_value(field.key) ] }
     end
 
     def owner_value(field)
@@ -48,8 +53,9 @@ module Profiles
     end
 
     def private_identity_payload
-      field_policy.enabled_identity_fields
-        .index_with { |field| profile.user.public_send(field) }.symbolize_keys
+      field_policy.owner_serialized_fields
+        .select { |field| field.storage.fetch(:record) == :user }
+        .to_h { |field| [ field.key.to_sym, profile.user.public_send(field.key) ] }
     end
 
     def selected_options

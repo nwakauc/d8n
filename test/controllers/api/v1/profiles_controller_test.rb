@@ -38,6 +38,46 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "hookups" ], profile.fetch("options").fetch("intents")
   end
 
+  test "viewer_interaction defaults to no like/pass when the viewer has done neither" do
+    target = create_candidate
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    assert_response :success
+    interaction = JSON.parse(response.body).fetch("profile").fetch("viewer_interaction")
+    assert_equal({ "liked" => false, "kind" => nil, "passed" => false }, interaction)
+  end
+
+  test "viewer_interaction reports an existing plain like" do
+    target = create_candidate
+    Like.create!(brand: @brand, liker_profile: @viewer, liked_profile: target, kind: :like)
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    interaction = JSON.parse(response.body).fetch("profile").fetch("viewer_interaction")
+    assert_equal({ "liked" => true, "kind" => "like", "passed" => false }, interaction)
+  end
+
+  test "viewer_interaction reports an existing super_like distinctly from a plain like" do
+    target = create_candidate
+    Like.create!(brand: @brand, liker_profile: @viewer, liked_profile: target, kind: :super_like)
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    interaction = JSON.parse(response.body).fetch("profile").fetch("viewer_interaction")
+    assert_equal({ "liked" => true, "kind" => "super_like", "passed" => false }, interaction)
+  end
+
+  test "viewer_interaction reports an existing pass" do
+    target = create_candidate
+    ProfilePass.create!(brand: @brand, passer_profile: @viewer, passed_profile: target)
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    interaction = JSON.parse(response.body).fetch("profile").fetch("viewer_interaction")
+    assert_equal({ "liked" => false, "kind" => nil, "passed" => true }, interaction)
+  end
+
   test "response uses the public profile id and never internal identifiers or a compatibility payload" do
     target = create_candidate(display_name: "Sam")
 
@@ -54,7 +94,7 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
 
   test "includes viewer-relative status fields on the profile detail" do
     target = create_candidate(display_name: "Sam")
-    IdentityIdentifier.create!(user: target.user, kind: :email, normalized_value: "sam@example.com", verified_at: Time.current)
+    IdentityIdentifier.create!(user: target.user, brand: @brand, kind: :email, normalized_value: "sam@example.com", verified_at: Time.current)
     Session.issue!(brand: @brand, user: target.user).last.update!(last_used_at: 1.minute.ago)
     create_location(@viewer)
     create_location(target)
@@ -74,7 +114,7 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
   test "contact verification ignores verified non-contact identifiers" do
     target = create_candidate(display_name: "Sam")
     IdentityIdentifier.create!(
-      user: target.user, kind: :oauth_provider_uid,
+      user: target.user, brand: @brand, kind: :oauth_provider_uid,
       normalized_value: "provider:subject", verified_at: Time.current
     )
 
@@ -320,10 +360,11 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     # Budget guards against an N+1 that scales with photos/options. The viewer
-    # status fields (verified, presence, viewer + candidate location) and the
-    # viewer-relative hook state (matches/outgoing/incoming/likes) each add a
+    # status fields (verified, realme_badge, presence, viewer + candidate
+    # location), the viewer-relative hook state (matches/outgoing/incoming/
+    # likes), and viewer_interaction (existing like + pass lookup) each add a
     # small *fixed* number of queries that does not grow with either.
-    assert_operator select_count, :<, 30
+    assert_operator select_count, :<, 34
   end
 
   # Centerpiece: B is discoverable by A and directly retrievable; once B blocks A
@@ -408,10 +449,10 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     viewer.update!(status: :active, visibility: :visible)
     target.update!(status: :active, visibility: :visible)
     IdentityIdentifier.create!(
-      user: target.user, kind: :email, normalized_value: "target@example.com", verified_at: Time.current
+      user: target.user, brand:, kind: :email, normalized_value: "target@example.com", verified_at: Time.current
     )
     viewer_identifier = IdentityIdentifier.create!(
-      user: viewer.user, kind: :email, normalized_value: "viewer@example.com", verified_at: Time.current
+      user: viewer.user, brand:, kind: :email, normalized_value: "viewer@example.com", verified_at: Time.current
     )
     credential = Credential.create!(
       user: viewer.user, identity_identifier: viewer_identifier, kind: :password, status: :active
@@ -448,7 +489,64 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_not profile.fetch("verification").key?("realme")
   end
 
+  test "Date9ja detail delivers a deliverable intro video as a safe signed payload" do
+    brand = Brand.create!(slug: "date9ja", name: "Date9ja")
+    Profiles::Date9jaProfileCatalog.install!(brand:)
+    BrandDomain.create!(brand:, host: "date9ja.test")
+    viewer = create_profile(brand:, gender: "woman", age: 30, interested_in: [ "man" ], min_age: 25, max_age: 40)
+    target = create_profile(brand:, gender: "man", age: 31, interested_in: [ "woman" ], min_age: 25, max_age: 40, display_name: "Ade")
+    video = attach_ready_video(target)
+    # Date9ja profile detail is available without contact confirmation; this
+    # verified fixture simply mirrors an ordinary established member.
+    viewer_identifier = IdentityIdentifier.create!(
+      user: viewer.user, brand:, kind: :email, normalized_value: "viewer@example.com", verified_at: Time.current
+    )
+    credential = Credential.create!(
+      user: viewer.user, identity_identifier: viewer_identifier, kind: :password, status: :active
+    )
+    token, = Session.issue!(brand:, user: viewer.user, credential:)
+    host! "date9ja.test"
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(token)
+
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("profile").fetch("video")
+    assert_equal video.public_id, payload.fetch("id")
+    assert_equal 5, payload.fetch("duration_seconds")
+    assert payload.fetch("playback_url").present?
+    assert_not_includes response.body, video.playback.blob.key
+    assert_not_includes response.body, video.video.blob.key
+
+    # A soft delete takes effect on the very next read.
+    video.update!(deleted_at: Time.current)
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(token)
+    assert_response :success
+    assert_nil JSON.parse(response.body).fetch("profile").fetch("video")
+  end
+
+  test "HookUs detail carries no video key (capability disabled)" do
+    target = create_candidate(display_name: "Sam")
+
+    get "/api/v1/profiles/#{target.public_id}", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert_not JSON.parse(response.body).fetch("profile").key?("video")
+  end
+
   private
+
+  def attach_ready_video(profile)
+    video = ProfileVideo.new(
+      profile:, user: profile.user, brand: profile.brand,
+      status: :pending_review, visibility: :visible,
+      processing_state: :ready, duration_seconds: 5, processed_at: Time.current
+    )
+    video.video.attach(io: StringIO.new("raw".b), filename: "v.mp4", content_type: "video/mp4")
+    video.playback.attach(io: StringIO.new("play".b), filename: "playback.mp4", content_type: "video/mp4")
+    video.poster.attach(io: StringIO.new("post".b), filename: "poster.jpg", content_type: "image/jpeg")
+    video.save!
+    video
+  end
 
   def bearer_headers(token)
     { "Authorization" => "Bearer #{token}" }

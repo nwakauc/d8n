@@ -5,12 +5,16 @@ module Admin
 
       Result = Data.define(:admin_user)
 
-      def self.call(email:)
+      # Identity is brand-scoped (app/models/identity_identifier.rb) -- the
+      # operator names which brand's account is the admin-rooted identity,
+      # same as Admin::FounderBootstrap, rather than this guessing/picking
+      # arbitrarily among however many brands happen to share that email.
+      def self.call(email:, brand:)
         login = Identity::LoginIdentifier.call(email)
         identifier = login&.kind == :email &&
-          IdentityIdentifier.kept.email.find_by(normalized_value: login.normalized_value)
+          IdentityIdentifier.kept.email.find_by(brand:, normalized_value: login.normalized_value)
         admin_user = identifier && AdminUser.kept.find_by(user: identifier.user)
-        raise Unavailable, "No active administrative identity is available for that email" if admin_user.blank?
+        raise Unavailable, "No active administrative identity is available for that email on that brand" if admin_user.blank?
 
         credential = admin_user.admin_mfa_credentials.kept.first
         raise Unavailable, "No MFA enrollment is available for that administrative identity" if credential.blank?

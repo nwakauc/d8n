@@ -23,6 +23,24 @@ module Brands
       assert brand.profile_option_groups.kept.exists?(key: "relationship_intent")
     end
 
+    test "Date9ja can be provisioned from missing brand data and resolves correctly" do
+      assert_not Brand.kept.exists?(slug: "date9ja")
+      assert_not BrandDomain.kept.exists?(host: "date9ja.test")
+
+      brand = Provisioner.call(slug: "date9ja", hosts: [ "date9ja.test" ])
+
+      result = Resolver.call(request: FakeRequest.new("date9ja.test"))
+      assert_equal brand, result.brand
+      assert_equal :host, result.source
+
+      assert_equal %w[ email_password phone_password ], brand.auth_methods
+      assert brand.profile_option_groups.kept.exists?(key: "relationship_intent")
+
+      contract = D8n::Platform::BrandRegistry.fetch(brand:)
+      assert_equal "date9ja", contract.slug
+      assert_not contract.capability_enabled?("discovery.surface.feed")
+    end
+
     test "HookUs can be provisioned from missing brand data and resolves correctly" do
       assert_not Brand.kept.exists?(slug: "hookus")
       assert_not BrandDomain.kept.exists?(host: "hookus.test")

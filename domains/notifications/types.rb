@@ -15,6 +15,34 @@ module Notifications
     DATING_EVENT_PAYLOAD_KEYS = %w[actor target].freeze
 
     DEFINITIONS = {
+      "date9ja.welcome" => Definition.new(
+        code: "date9ja.welcome",
+        title: "Welcome to Date9ja",
+        body: "Your account is ready. Complete your profile and start meeting people worth meeting.",
+        email_subject: "Welcome to Date9ja",
+        allowed_payload_keys: []
+      ),
+      "date9ja.like_received" => Definition.new(
+        code: "date9ja.like_received",
+        title: "Someone likes you",
+        body: "You have a new like on Date9ja. Open the app to see who.",
+        email_subject: "Someone likes you on Date9ja",
+        allowed_payload_keys: DATING_EVENT_PAYLOAD_KEYS
+      ),
+      "date9ja.match_created" => Definition.new(
+        code: "date9ja.match_created",
+        title: "It's a match!",
+        body: "You have a new match on Date9ja. Say hello.",
+        email_subject: "You have a new match on Date9ja",
+        allowed_payload_keys: DATING_EVENT_PAYLOAD_KEYS
+      ),
+      "date9ja.message_received" => Definition.new(
+        code: "date9ja.message_received",
+        title: "New message",
+        body: "You have a new message on Date9ja.",
+        email_subject: "New message on Date9ja",
+        allowed_payload_keys: DATING_EVENT_PAYLOAD_KEYS
+      ),
       "dateza.welcome" => Definition.new(
         code: "dateza.welcome",
         title: "Welcome to DateZA",

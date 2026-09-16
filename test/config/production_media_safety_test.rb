@@ -84,10 +84,24 @@ class ProductionMediaSafetyTest < ActiveSupport::TestCase
       brand = Data.define(:slug)
       hookus = ActiveStorage::Blob.services.fetch(Media::StorageResolver.service_name(brand: brand.new(slug: "hookus")))
       dateza = ActiveStorage::Blob.services.fetch(Media::StorageResolver.service_name(brand: brand.new(slug: "dateza")))
+      date9ja = ActiveStorage::Blob.services.fetch(Media::StorageResolver.service_name(brand: brand.new(slug: "date9ja")))
       abort "HookUs did not use production" unless hookus.name == :r2_hookus_production
       abort "DateZA did not use production" unless dateza.name == :r2_dateza_production
+      abort "Date9ja did not use production" unless date9ja.name == :r2_date9ja_production
       abort "HookUs production bucket crossed" unless hookus.bucket.name == "d8n-hookus-prod"
       abort "DateZA production bucket crossed" unless dateza.bucket.name == "d8n-dateza-prod"
+      abort "Date9ja production bucket crossed" unless date9ja.bucket.name == "d8n-date9ja-prod"
+      abort "Date9ja frontend origin missing" unless Rails.configuration.x.cors_origins.include?("https://www.date9ja.love")
+      abort "Date9ja API host missing" unless Rails.application.config.hosts.include?("api.date9ja.love")
+      # /up deliberately bypasses Host authorization (config/environments/
+      # production.rb) -- kamal-proxy's own internal health check hits the
+      # container by its Docker hostname, never a registered proxy host, so
+      # this exclusion is required for deploys to pass their own health
+      # check at all. Every other path must still enforce the allowlist.
+      up_status, = Rails.application.call(Rack::MockRequest.env_for("/up", "HTTP_HOST" => "attacker.example"))
+      abort "/up did not bypass Host authorization for an unknown Host" unless up_status == 200
+      other_status, = Rails.application.call(Rack::MockRequest.env_for("/api/v1/me", "HTTP_HOST" => "attacker.example"))
+      abort "unknown production Host was accepted on a non-/up path" unless other_status == 403
     RUBY
 
     stdout, stderr, status = production_runner(script, complete_r2_environment("production"))
@@ -99,19 +113,28 @@ class ProductionMediaSafetyTest < ActiveSupport::TestCase
     MESSAGE
   end
 
+  test "production refuses a missing Date9ja R2 bucket before serving" do
+    environment = complete_r2_environment("production")
+    environment["D8N_R2_DATE9JA_PRODUCTION_BUCKET"] = nil
+    stdout, stderr, status = production_runner("abort 'boot unexpectedly succeeded'", environment)
+
+    assert_not status.success?
+    assert_includes "#{stdout}\n#{stderr}", "D8N_R2_DATE9JA_PRODUCTION_BUCKET"
+  end
+
   private
 
   def complete_r2_environment(environment)
     bucket_names = if environment == "staging"
       { "HOOKUS" => "d8n-staging-media", "DATEZA" => "d8n-dateza-staging" }
     else
-      { "HOOKUS" => "d8n-hookus-prod", "DATEZA" => "d8n-dateza-prod" }
+      { "HOOKUS" => "d8n-hookus-prod", "DATEZA" => "d8n-dateza-prod", "DATE9JA" => "d8n-date9ja-prod" }
     end
 
     values = {
       "D8N_R2_ENABLED" => "true",
       "D8N_DEPLOYMENT_ENV" => environment,
-      "D8N_R2_BRANDS" => "hookus,dateza",
+      "D8N_R2_BRANDS" => environment == "production" ? "hookus,dateza,date9ja" : "hookus,dateza",
       "D8N_R2_ENDPOINT" => "https://example.invalid",
       # Legacy HookUs staging blobs retain these names and service_name `r2`.
       "D8N_R2_ACCESS_KEY_ID" => "legacy-access-key",
@@ -124,7 +147,27 @@ class ProductionMediaSafetyTest < ActiveSupport::TestCase
       values["#{prefix}_SECRET_ACCESS_KEY"] = "#{brand.downcase}-secret-key"
       values["#{prefix}_BUCKET"] = bucket
     end
+    values.merge!(complete_date9ja_production_environment) if environment == "production"
     values
+  end
+
+  def complete_date9ja_production_environment
+    {
+      "DATE9JA_API_HOST" => "api.date9ja.love",
+      "D8N_ALLOWED_HOSTS" => "api.d8n.tech,dateza-api.d8n.tech,api.date9ja.love",
+      "D8N_CORS_ORIGINS" => "https://www.date9ja.love",
+      "D8N_DATE9JA_APP_URL" => "https://www.date9ja.love",
+      "D8N_DATE9JA_EMAIL_FROM" => "Date9ja <no-reply@date9ja.love>",
+      "D8N_DEFAULT_MAILER_HOST" => "api.d8n.tech",
+      "D8N_EMAIL_PROVIDER" => "resend",
+      "RESEND_API_KEY" => "test-resend-key",
+      "D8N_DATABASE_HOST" => "localhost",
+      "D8N_DATABASE_PORT" => "5432",
+      "D8N_DATABASE_NAME" => "d8n_production",
+      "D8N_DATABASE_USERNAME" => "d8n",
+      "D8N_DATABASE_PASSWORD" => "test-password",
+      "D8N_QUEUE_DATABASE_NAME" => "d8n_production_queue"
+    }
   end
 
   def production_runner(script, environment = {})

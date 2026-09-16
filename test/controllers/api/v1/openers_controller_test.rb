@@ -176,7 +176,7 @@ class Api::V1::OpenersControllerTest < ActionDispatch::IntegrationTest
       gender: "woman", birthdate: 28.years.ago.to_date, status: :active, visibility: :visible
     )
     ProfilePreference.create!(brand: @brand, user:, profile:, min_age: 18, max_age: 60, interested_in: %w[man woman non_binary])
-    IdentityIdentifier.create!(user:, kind: :email, normalized_value: email, verified_at: Time.current)
+    IdentityIdentifier.create!(user:, brand: @brand, kind: :email, normalized_value: email, verified_at: Time.current)
     profile
   end
 

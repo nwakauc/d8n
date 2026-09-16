@@ -41,6 +41,16 @@ module AbuseProtection
         rule("sustained", scope: :user, limit: 600, window: 1.hour)
       ],
 
+      # LLM requests cost money and can be used to probe a provider or generate
+      # abusive volume. This is intentionally an abuse ceiling, not a future
+      # product entitlement/quota, which belongs in the AI domain once billing
+      # and entitlement policies exist.
+      ai_message: [
+        rule("burst",     scope: :user, limit: 5,  window: 1.minute),
+        rule("sustained", scope: :user, limit: 60, window: 1.hour),
+        rule("ip",        scope: :ip,   limit: 180, window: 1.hour)
+      ],
+
       # Likes / Passes: fast swiping is normal, mass automation is not. Abuse
       # ceiling only — NOT a free/premium Like allowance.
       like_profile: [
@@ -60,6 +70,15 @@ module AbuseProtection
         rule("burst",     scope: :user, limit: 10,  window: 1.minute),
         rule("sustained", scope: :user, limit: 60,  window: 1.hour),
         rule("ip",        scope: :ip,   limit: 120, window: 1.hour)
+      ],
+
+      # Community is authenticated UGC. This shared bucket covers submissions,
+      # edits, reactions, Circle participation, and RSVPs. It is intentionally
+      # an abuse ceiling rather than a product posting allowance.
+      community_write: [
+        rule("burst",     scope: :user, limit: 20,  window: 1.minute),
+        rule("sustained", scope: :user, limit: 180, window: 1.hour),
+        rule("ip",        scope: :ip,   limit: 500, window: 1.hour)
       ],
 
       # Media upload intents are expensive downstream (R2 objects, HEAD/verify,

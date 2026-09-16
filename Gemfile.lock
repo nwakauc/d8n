@@ -356,6 +356,7 @@ DEPENDENCIES
   brakeman
   bundler-audit
   debug
+  dotenv
   json (>= 2.21.2)
   kamal
   pg (~> 1.1)

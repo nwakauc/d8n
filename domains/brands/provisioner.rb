@@ -8,6 +8,7 @@ module Brands
     class UnsupportedBrand < StandardError; end
 
     INSTALLERS = {
+      "date9ja" => Brands::Date9jaInstaller,
       "dateza" => Brands::DatezaInstaller,
       "hookus" => Brands::HookusInstaller
     }.freeze

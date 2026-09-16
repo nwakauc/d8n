@@ -88,6 +88,26 @@ Do not place complex cross-domain business logic randomly in models, controllers
 
 Use clear service objects, policies, commands, or domain modules where the codebase establishes that pattern.
 
+### Date9ja Capability-Parity Rules
+
+For Date9ja parity work, shared capability comes first. Before creating a
+Date9ja-specific domain, service, model, or route, agents must inspect existing
+D8N ownership, determine whether an existing domain should be extended, and
+decide whether a genuinely reusable capability is justified. Brand differences
+should normally be expressed through policy, configuration, catalogues, feature
+enablement, limits, entitlements, presentation, or personality.
+
+Every capability must have one explicit D8N domain owner and an intentional
+public/domain contract. Do not spread `if date9ja`, `if dateza`, or `if hookus`
+branches through shared code. Preserve Date9ja's user-visible behavior while
+improving its internal architecture. Any unavoidable semantic change requires
+explicit product approval; no behavior may be silently changed or dropped.
+
+The lifecycle, ownership, handoff, quality, and acceptance requirements for
+this program are maintained in `docs/engineering/AGENT-WORKFLOW.md`,
+`docs/engineering/QUALITY-GATES.md`, and
+`docs/migrations/date9ja-to-d8n/FEATURE-PARITY-ACCEPTANCE.md`.
+
 ### No Backend Forking Per Brand
 
 Agents must not duplicate the backend for Date9ja, HookUs, DateZA, DateAussie, or future brands.

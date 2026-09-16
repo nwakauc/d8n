@@ -1,4 +1,12 @@
-# D8N Agent Workflow
+# Superseded D8N Agent Workflow
+
+This predecessor is retained for history only. The authoritative workflow,
+capability lifecycle, ownership rules, handoff protocol, and review rules are
+in [docs/engineering/AGENT-WORKFLOW.md](../engineering/AGENT-WORKFLOW.md).
+
+Do not update this document with new process rules.
+
+<!--
 
 ## Core Rule
 
@@ -39,3 +47,4 @@ If a test is wrong, explain why before changing it.
 Date9ja is a behavioral reference, not an architecture template.
 
 Implement D8N behavior according to D8N architecture.
+-->

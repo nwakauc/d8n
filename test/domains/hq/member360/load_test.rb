@@ -13,7 +13,7 @@ class Hq::Member360::LoadTest < ActiveSupport::TestCase
     ProfilePreference.create!(
       brand: @brand, user: @user, profile: @profile, min_age: 21, max_age: 40, interested_in: [ "person" ]
     )
-    IdentityIdentifier.create!(user: @user, kind: :email, normalized_value: "ada@example.com")
+    IdentityIdentifier.create!(user: @user, brand: @brand, kind: :email, normalized_value: "ada@example.com")
   end
 
   test "returns all six sections for a member with a profile" do
@@ -34,6 +34,27 @@ class Hq::Member360::LoadTest < ActiveSupport::TestCase
     assert_equal 0, sections[:safety][:reports_filed_count]
     assert_nil sections[:safety][:active_enforcement]
     assert_nil sections[:activity][:last_login_at]
+  end
+
+  test "discovery_state distinguishes moderator_hidden from suspended, banned, and deleted/left" do
+    sections = Hq::Member360::Load.call(brand: @brand, brand_membership: @membership)
+    assert_nil sections[:safety][:discovery_restriction]
+
+    Admin::RestrictProfileDiscovery.call(
+      admin_user: admin_user_for(@brand), brand: @brand, profile_public_id: @profile.public_id, reason: "under review"
+    )
+    sections = Hq::Member360::Load.call(brand: @brand, brand_membership: @membership.reload)
+    assert_equal "moderator_hidden", sections[:profile][:discovery_state]
+    assert_equal "under review", sections[:safety][:discovery_restriction][:reason]
+
+    Admin::LiftProfileDiscoveryRestriction.call(admin_user: admin_user_for(@brand), brand: @brand, profile_public_id: @profile.public_id)
+    @membership.update!(status: :suspended)
+    sections = Hq::Member360::Load.call(brand: @brand, brand_membership: @membership.reload)
+    assert_equal "suspended", sections[:profile][:discovery_state]
+
+    @membership.update!(status: :left)
+    sections = Hq::Member360::Load.call(brand: @brand, brand_membership: @membership.reload)
+    assert_equal "deleted_left", sections[:profile][:discovery_state]
   end
 
   test "handles a member with no profile yet without crashing" do
@@ -97,6 +118,12 @@ class Hq::Member360::LoadTest < ActiveSupport::TestCase
   end
 
   private
+
+  def admin_user_for(brand)
+    user = User.create!
+    BrandMembership.create!(brand:, user:)
+    AdminUser.create!(user:, status: :active)
+  end
 
   def create_profile(brand:, display_name:)
     user = User.create!

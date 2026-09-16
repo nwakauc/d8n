@@ -34,12 +34,27 @@ module Trust
           photo.update!(status: target, visibility: target == "approved" ? :visible : :hidden)
           Profiles::Publication.unpublish_if_incomplete!(profile: photo.profile)
           record_audit!(admin_user:, brand:, photo:, decision: target)
+          award_trust!(photo) if target == "approved"
           transitioned = true
         end
       end
 
       Result.new(photo:, transitioned:)
     end
+
+    # Live trust award (ADR 0025 / Trust::Date9jaSchedule) — identical points
+    # to Date9ja's own ActivityAwarder#photo_approved! (primary vs. other).
+    def self.award_trust!(photo)
+      primary = photo.position.to_i.zero?
+      Trust::AwardEvent.call(
+        user: photo.user, brand: photo.brand, profile: photo.profile,
+        event_type: Trust::Date9jaSchedule::PHOTO_EVENT_TYPE,
+        points: primary ? Trust::Date9jaSchedule::PHOTO_PRIMARY_POINTS : Trust::Date9jaSchedule::PHOTO_OTHER_POINTS,
+        idempotency_key: "activity:#{photo.id}:approved_photo", source: photo,
+        metadata: { "primary" => primary }
+      )
+    end
+    private_class_method :award_trust!
 
     Result = Data.define(:photo, :transitioned)
 

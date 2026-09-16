@@ -24,7 +24,7 @@ module Matching
         @cursor = cursor
         @limit = normalize_limit(limit)
         @surface = PolicyRegistry.surface_for(brand:)
-        @policy = surface.policy
+        @policy = PolicyRegistry.fetch(brand:)
         @filter = Filter.parse(brand:, min_age:, max_age:, max_distance_km:, relationship_intent:)
         @now = now
       end
@@ -105,7 +105,8 @@ module Matching
         scope.includes(
           :brand,
           { profile_option_selections: [ :profile_option, :profile_option_group ] },
-          { profile_photos: { display_image_attachment: :blob } }
+          { profile_photos: { display_image_attachment: :blob } },
+          { profile_video: [ { playback_attachment: :blob }, { poster_attachment: :blob } ] }
         )
       end
 

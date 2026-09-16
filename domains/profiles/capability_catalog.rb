@@ -30,11 +30,14 @@ module Profiles
         options: {
           "short_term_fun" => "Short-term fun",
           "casual_dating" => "Casual dating",
+          "dating" => "Dating",
           "friends_with_benefits" => "Friends with benefits",
           "open_to_dating" => "Open to dating",
+          "courtship" => "Courtship",
           "long_term_relationship" => "Long-term relationship",
           "marriage" => "Marriage",
           "friendship" => "Friendship",
+          "activity_partner" => "Activity partner",
           "still_figuring_it_out" => "Still figuring it out"
         }
       },
@@ -135,6 +138,9 @@ module Profiles
         cardinality: :single, max_selections: 1, visibility: :public_profile,
         options: {
           "high_school" => "High school", "vocational" => "Vocational",
+          # A completed tertiary diploma (e.g. Nigerian OND/HND) — more than
+          # "some college", not a full undergraduate degree.
+          "diploma" => "Diploma",
           "some_college" => "Some college", "undergraduate" => "Undergraduate",
           "postgraduate" => "Postgraduate", "doctorate" => "Doctorate",
           "other" => "Other", "prefer_not_to_say" => "Prefer not to say"
@@ -190,9 +196,148 @@ module Profiles
         cardinality: :single, max_selections: 1, visibility: :owner_only,
         options: {
           "yes" => "Yes", "maybe" => "Maybe", "no" => "No",
+          # `open` is distinct from `maybe` and from
+          # `open_to_partner_with_children`: it is "open to it, no strong view",
+          # neither an undecided lean nor a statement about a partner's existing
+          # children. Date9ja collects exactly this value.
+          "open" => "Open to it",
           "open_to_partner_with_children" => "Open to a partner with children",
           "prefer_not_to_say" => "Prefer not to say"
         }
+      },
+      # How many children a member already has. Distinct from `has_children`
+      # (a yes/no question): this preserves the exact bucket, and "three_or_more"
+      # is a real category, not the number 3.
+      "children_count" => {
+        label: "How many children do you have?",
+        cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "none" => "None", "one" => "One", "two" => "Two",
+          "three_or_more" => "Three or more", "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      # How much a member wants family involved in the relationship decision, as
+      # an intensity. Distinct from `family_involvement` (which asks about the
+      # arrangement, not the degree).
+      "family_involvement_level" => {
+        label: "How involved do you want family to be?",
+        cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "low" => "Low", "medium" => "Medium", "high" => "High",
+          "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      # How soon a member wants to be settled in a committed relationship.
+      "commitment_timeline" => {
+        label: "How soon are you hoping to settle down?",
+        cardinality: :single, max_selections: 1, visibility: :public_profile,
+        options: {
+          "asap" => "As soon as possible", "within_1_year" => "Within a year",
+          "one_to_two_years" => "One to two years", "two_to_three_years" => "Two to three years",
+          "not_sure" => "Not sure yet"
+        }
+      },
+      "marital_status" => {
+        label: "Marital status",
+        cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "single" => "Single", "divorced" => "Divorced", "widowed" => "Widowed",
+          "separated" => "Separated", "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      "tribe" => {
+        label: "Tribe / ethnicity", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "igbo" => "Igbo", "yoruba" => "Yoruba", "hausa" => "Hausa", "fulani" => "Fulani",
+          "ijaw" => "Ijaw", "ibibio" => "Ibibio", "edo" => "Edo", "kanuri" => "Kanuri",
+          "tiv" => "Tiv", "efik" => "Efik", "nupe" => "Nupe", "urhobo" => "Urhobo",
+          "itsekiri" => "Itsekiri", "igala" => "Igala", "idoma" => "Idoma", "ebira" => "Ebira",
+          "annang" => "Annang", "ogoni" => "Ogoni", "ekoi" => "Ekoi", "jukun" => "Jukun",
+          "other" => "Other", "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      "genotype" => {
+        # Health-adjacent and owner-only by default, never a completion gate. A
+        # brand must opt in explicitly; Date9ja widens this to potential-match
+        # visibility for its separately reported compatibility critical check.
+        label: "Genotype", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "aa" => "AA", "as" => "AS", "ss" => "SS", "ac" => "AC", "sc" => "SC", "cc" => "CC",
+          "not_tested" => "Not tested", "other" => "Other", "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      # A self-identified ethnicity, distinct from `tribe` (Date9ja stores both
+      # columns). Conservative superset; owner-only.
+      "ethnicity" => {
+        label: "Ethnicity", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "igbo" => "Igbo", "yoruba" => "Yoruba", "hausa" => "Hausa", "fulani" => "Fulani",
+          "ijaw" => "Ijaw", "ibibio" => "Ibibio", "edo" => "Edo", "kanuri" => "Kanuri",
+          "tiv" => "Tiv", "nupe" => "Nupe", "igala" => "Igala", "efik" => "Efik",
+          "urhobo" => "Urhobo", "itsekiri" => "Itsekiri", "annang" => "Annang",
+          "mixed" => "Mixed", "other" => "Other", "prefer_not_to_say" => "Prefer not to say",
+          # Date9ja's authoritative enum also contains broad identity values.
+          # They remain distinct; no source value is folded into a tribe code.
+          "black" => "Black", "white_european" => "White European", "asian" => "Asian",
+          "hispanic_latino" => "Hispanic / Latino", "middle_eastern" => "Middle Eastern",
+          "white" => "White", "european" => "European"
+        }
+      },
+      # Religious denomination. Flat vocabulary (matches how the single legacy
+      # column works — Date9ja does not nest it under a selected religion).
+      "denomination" => {
+        label: "Denomination", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "catholic" => "Catholic", "anglican" => "Anglican", "pentecostal" => "Pentecostal",
+          "baptist" => "Baptist", "methodist" => "Methodist", "presbyterian" => "Presbyterian",
+          "orthodox" => "Orthodox", "adventist" => "Seventh-day Adventist",
+          "evangelical" => "Evangelical", "non_denominational" => "Non-denominational",
+          "sunni" => "Sunni", "shia" => "Shia", "ahmadiyya" => "Ahmadiyya",
+          "none" => "None", "other" => "Other", "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      # Openness to marrying outside one's own tribe / ethnicity.
+      "intertribal_marriage_openness" => {
+        label: "Open to intertribal marriage?",
+        cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "open" => "Open", "not_open" => "Not open", "depends" => "Depends",
+          "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      # Openness to a polygamous arrangement.
+      "polygamy_openness" => {
+        label: "Open to polygamy?",
+        cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: {
+          "open" => "Open", "not_open" => "Not open", "depends" => "Depends",
+          "already_in_one" => "Already in a polygamous arrangement",
+          "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      "family_involvement" => {
+        label: "Family involvement", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: { "must_approve" => "Family blessing matters", "blessing_matters" => "Involved, but the decision is ours", "later_when_serious" => "Tell them when serious", "my_decision_alone" => "Between two people" }
+      },
+      "faith_practice" => {
+        label: "Faith practice", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: { "central_daily" => "Central", "practice_regularly" => "Practised regularly", "practice_flexibly" => "Cultural more than practised", "not_a_factor" => "Not a factor" }
+      },
+      "money_providing" => {
+        label: "Money", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: { "both_one_purse" => "Everything joint", "joint_and_personal" => "Joint and personal", "split_bills" => "Split the bills", "earner_carries_more" => "Higher earner carries more" }
+      },
+      "settlement" => {
+        label: "Settlement", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: { "nigeria_staying_returning" => "Build at home", "diaspora_visiting_often" => "Abroad, visiting home", "open_to_relocate" => "Open to relocate", "abroad_home_eventually" => "Abroad now, home eventually" }
+      },
+      "children" => {
+        label: "Children", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: { "want_soon" => "Yes, soon", "want_no_rush" => "Yes, no rush", "open_either_way" => "Open to it", "dont_want" => "No" }
+      },
+      "conflict" => {
+        label: "Conflict", cardinality: :single, max_selections: 1, visibility: :owner_only,
+        options: { "talk_now" => "Talk immediately", "cool_off_first" => "Cool off first", "trusted_mediator" => "Use a trusted mediator", "avoid_until_passes" => "Give it time" }
       },
       "physical_affection" => {
         label: "Physical affection",
@@ -216,6 +361,38 @@ module Profiles
         options: {
           "low" => "Low", "medium" => "Medium", "high" => "High",
           "prefer_not_to_say" => "Prefer not to say"
+        }
+      },
+      # What a member values most in a relationship — a curated multi-select.
+      # The lossless D8N home for Date9ja's `users.relationship_values` array.
+      # Owner-only by default (it is a personal statement); a brand may widen.
+      "relationship_values" => {
+        label: "What matters most to you in a relationship?",
+        cardinality: :multiple, max_selections: 10, visibility: :owner_only,
+        options: {
+          "honesty" => "Honesty", "loyalty" => "Loyalty", "trust" => "Trust",
+          "communication" => "Communication", "respect" => "Respect",
+          "faith" => "Shared faith", "family" => "Family", "ambition" => "Ambition",
+          "independence" => "Independence", "growth" => "Growth", "kindness" => "Kindness",
+          "humour" => "Humour", "adventure" => "Adventure", "stability" => "Stability",
+          "generosity" => "Generosity", "emotional_openness" => "Emotional openness"
+        }
+      },
+      # Hard dealbreakers — a curated multi-select kept LOSSLESS (every value is a
+      # distinct option, never collapsed into one prompt). The D8N home for
+      # Date9ja's `users.dealbreakers` array. Owner-only; a brand may widen.
+      "dealbreakers" => {
+        label: "Dealbreakers",
+        cardinality: :multiple, max_selections: 12, visibility: :owner_only,
+        options: {
+          "smoking" => "Smoking", "heavy_drinking" => "Heavy drinking", "drugs" => "Drugs",
+          "wants_children" => "Wants children", "does_not_want_children" => "Doesn't want children",
+          "already_has_children" => "Already has children", "long_distance" => "Long distance",
+          "different_faith" => "Different faith", "no_ambition" => "No ambition",
+          "poor_communication" => "Poor communication", "dishonesty" => "Dishonesty",
+          "jealousy" => "Jealousy", "different_politics" => "Different politics",
+          "not_financially_stable" => "Not financially stable",
+          "against_marriage" => "Not open to marriage", "poor_hygiene" => "Poor hygiene"
         }
       }
     }.freeze

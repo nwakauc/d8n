@@ -17,7 +17,7 @@ class Api::V1::DatezaInteractionVerificationTest < ActionDispatch::IntegrationTe
       user: @viewer.user, brand: @brand, match_public_id: @match.public_id
     ).conversation
     @identifier = IdentityIdentifier.create!(
-      user: @viewer.user, kind: :email, normalized_value: "thandi@example.com"
+      user: @viewer.user, brand: @brand, kind: :email, normalized_value: "thandi@example.com"
     )
     credential = Credential.create!(
       user: @viewer.user, identity_identifier: @identifier, kind: :password, status: :active
@@ -108,7 +108,7 @@ class Api::V1::DatezaInteractionVerificationTest < ActionDispatch::IntegrationTe
 
   test "a different verified identifier does not verify the identifier used by this session" do
     IdentityIdentifier.create!(
-      user: @viewer.user, kind: :phone, normalized_value: "+27821234567", verified_at: Time.current
+      user: @viewer.user, brand: @brand, kind: :phone, normalized_value: "+27821234567", verified_at: Time.current
     )
 
     get "/api/v1/profiles/#{@detail_target.public_id}", headers: bearer_headers(@token)
@@ -139,7 +139,7 @@ class Api::V1::DatezaInteractionVerificationTest < ActionDispatch::IntegrationTe
     like_target = create_basic_profile(brand: hookus, gender: "man", interested_in: [ "woman" ])
     pass_target = create_basic_profile(brand: hookus, gender: "man", interested_in: [ "woman" ])
     identifier = IdentityIdentifier.create!(
-      user: viewer.user, kind: :email, normalized_value: "unverified-hookus@example.com"
+      user: viewer.user, brand: hookus, kind: :email, normalized_value: "unverified-hookus@example.com"
     )
     credential = Credential.create!(user: viewer.user, identity_identifier: identifier, kind: :password)
     token, = Session.issue!(brand: hookus, user: viewer.user, credential:)

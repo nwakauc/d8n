@@ -25,7 +25,9 @@ module Api
               active_7d: result.active_7d,
               active_30d: result.active_30d,
               gender_split: result.gender_split,
-              total_registered_members: result.total_registered_members
+              total_registered_members: result.total_registered_members,
+              realme_distribution: result.realme_distribution,
+              trust_summary: result.trust_summary
             }
           }
         end

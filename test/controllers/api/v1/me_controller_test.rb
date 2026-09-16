@@ -29,6 +29,8 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
     assert_nil response_body.fetch("identifier")
     assert_equal false, response_body.fetch("verification_required")
     assert_nil response_body.fetch("verification")
+    assert_equal [], response_body.fetch("realme_assertions")
+    assert_equal false, response_body.fetch("realme_badge")
     assert Session.find(session.id).last_used_at > session.last_used_at
     assert_equal "active", response_body.fetch("account_status")
     assert_equal(
@@ -38,7 +40,7 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "returns masked verification state for the session credential" do
-    identifier = @user.identity_identifiers.create!(kind: :email, normalized_value: "ada@example.com")
+    identifier = @user.identity_identifiers.create!(brand: @brand, kind: :email, normalized_value: "ada@example.com")
     credential = @user.credentials.create!(identity_identifier: identifier, kind: :password)
     token, = Session.issue!(brand: @brand, user: @user, credential:)
     challenge = OtpChallenge.create!(
@@ -66,6 +68,40 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
     assert_equal challenge.expires_at.iso8601, body.dig("verification", "expires_at")
     assert_not_includes response.body, identifier.normalized_value
     assert challenge.reload.delivery_code.present?
+  end
+
+  test "surfaces approved RealMe assertions" do
+    token, = Session.issue!(brand: @brand, user: @user)
+    VerificationAssertion.create!(
+      brand: @brand, user: @user, source_type: "verification_check", source_id: "s1",
+      check_type: "selfie", status: "approved"
+    )
+
+    get "/api/v1/me", headers: bearer_headers(token)
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal(
+      [ { "check_type" => "selfie", "status" => "approved", "submitted_at" => nil, "reviewed_at" => nil } ],
+      body.fetch("realme_assertions")
+    )
+    assert_equal false, body.fetch("realme_badge")
+  end
+
+  test "surfaces the realme_badge once email is confirmed and all three checks are approved" do
+    token, = Session.issue!(brand: @brand, user: @user)
+    IdentityIdentifier.create!(user: @user, brand: @brand, kind: :email, normalized_value: "ada@example.com", verified_at: Time.current)
+    %w[selfie video government_id].each_with_index do |check_type, i|
+      VerificationAssertion.create!(
+        brand: @brand, user: @user, source_type: "member_submission", source_id: "s#{i}",
+        check_type:, status: "approved"
+      )
+    end
+
+    get "/api/v1/me", headers: bearer_headers(token)
+
+    assert_response :success
+    assert_equal true, JSON.parse(response.body).fetch("realme_badge")
   end
 
   test "rejects expired sessions" do
@@ -114,7 +150,7 @@ class Api::V1::MeControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "rejects a session issued by a revoked credential" do
-    identifier = IdentityIdentifier.create!(user: @user, kind: :phone, normalized_value: "+27821234567")
+    identifier = IdentityIdentifier.create!(user: @user, brand: @brand, kind: :phone, normalized_value: "+27821234567")
     credential = Credential.create!(user: @user, identity_identifier: identifier, kind: :phone_otp)
     token, = Session.issue!(brand: @brand, user: @user, credential:)
     credential.update!(status: :revoked)

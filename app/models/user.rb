@@ -19,6 +19,10 @@ class User < ApplicationRecord
   has_many :find_profile_exposures, dependent: :restrict_with_exception
   has_many :discovery_allocations, dependent: :restrict_with_exception
   has_many :conversation_participants, dependent: :restrict_with_exception
+  has_many :migration_profile_readinesses,
+    class_name: "Migration::ProfileReadiness",
+    dependent: :restrict_with_exception
+  has_many :date9ja_history_records, dependent: :restrict_with_exception
 
   enum :status, { active: 0, suspended: 1, closed: 2 }
 

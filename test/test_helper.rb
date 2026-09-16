@@ -99,5 +99,26 @@ module ActiveSupport
     def build_test_h264_mov_bytes(duration: 1)
       build_real_test_video_bytes(video_codec: "libx264", container: "mov", duration:)
     end
+
+    # Present Profiles::FieldCatalog as if it also defined `extra_fields`, only
+    # for the duration of the block, by swapping its authoritative constants.
+    # Used to prove FieldPolicy / the serializers fail closed on a
+    # sensitive-identity or pending-storage field a brand should never be able
+    # to enable — before any such field is a real catalogue definition.
+    def with_field_catalog_extra(*extra_fields)
+      catalog = Profiles::FieldCatalog
+      original_all = catalog::ALL
+      original_by_key = catalog::BY_KEY
+      swap = lambda do |name, value|
+        catalog.send(:remove_const, name)
+        catalog.const_set(name, value)
+      end
+      swap.call(:ALL, (original_all + extra_fields).freeze)
+      swap.call(:BY_KEY, original_by_key.merge(extra_fields.index_by(&:key)).freeze)
+      yield
+    ensure
+      swap.call(:ALL, original_all)
+      swap.call(:BY_KEY, original_by_key)
+    end
   end
 end

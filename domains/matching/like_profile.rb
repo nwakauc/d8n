@@ -2,15 +2,16 @@ module Matching
   class LikeProfile
     Result = Data.define(:like, :match, :created)
 
-    def self.call(user:, brand:, target_public_id:, eligibility_policy: nil)
-      new(user:, brand:, target_public_id:, eligibility_policy:).call
+    def self.call(user:, brand:, target_public_id:, eligibility_policy: nil, kind: :like)
+      new(user:, brand:, target_public_id:, eligibility_policy:, kind:).call
     end
 
-    def initialize(user:, brand:, target_public_id:, eligibility_policy:)
+    def initialize(user:, brand:, target_public_id:, eligibility_policy:, kind: :like)
       @user = user
       @brand = brand
       @target_public_id = target_public_id
       @eligibility_policy = eligibility_policy
+      @kind = kind
     end
 
     def call
@@ -31,7 +32,7 @@ module Matching
 
         ensure_not_matched!(viewer:, target:)
         ProfilePass.kept.find_by(brand:, passer_profile: viewer, passed_profile: target)&.update!(deleted_at: Time.current)
-        like = Like.create!(brand:, liker_profile: viewer, liked_profile: target, kind: :like)
+        like = Like.create!(brand:, liker_profile: viewer, liked_profile: target, kind:)
         match = create_match_if_mutual(viewer:, target:)
         # A Like that immediately completes a mutual match is the higher-value
         # match_created event for both sides — a bare "someone liked you" would
@@ -50,7 +51,7 @@ module Matching
 
     private
 
-    attr_reader :user, :brand, :target_public_id, :eligibility_policy
+    attr_reader :user, :brand, :target_public_id, :eligibility_policy, :kind
 
     def lock_participants!(viewer:, target:)
       locked_ids = Profile.kept.where(brand:, id: [ viewer.id, target.id ]).order(:id).lock.pluck(:id)

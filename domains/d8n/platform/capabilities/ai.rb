@@ -2,13 +2,14 @@ module D8n
   module Platform
     module Capabilities
       module Ai
-        DEFINITIONS = %w[
-          ai.matchmaker
-          ai.profile_assistant
-          ai.dating_assistant
-          ai.safety_assistant
-          ai.moderation_assistant
-        ].map { |key| CapabilityDefinition.new(key:, status: :planned) }.freeze
+        DEFINITIONS = [
+          CapabilityDefinition.new(key: "ai.dating_assistant", status: :available,
+            implementations: %w[Ai::ConversationService Ai::ProviderRegistry Ai::SafetyTriage]),
+          CapabilityDefinition.new(key: "ai.matchmaker", status: :planned),
+          CapabilityDefinition.new(key: "ai.profile_assistant", status: :planned),
+          CapabilityDefinition.new(key: "ai.safety_assistant", status: :planned),
+          CapabilityDefinition.new(key: "ai.moderation_assistant", status: :planned)
+        ].freeze
 
         def self.definitions = DEFINITIONS
       end

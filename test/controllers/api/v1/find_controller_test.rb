@@ -11,7 +11,7 @@ class Api::V1::FindControllerTest < ActionDispatch::IntegrationTest
     )
     create_location(@viewer, latitude: -26.2041, longitude: 28.0473)
     identifier = IdentityIdentifier.create!(
-      user: @viewer.user, kind: :email, normalized_value: "find-viewer@example.com", verified_at: Time.current
+      user: @viewer.user, brand: @brand, kind: :email, normalized_value: "find-viewer@example.com", verified_at: Time.current
     )
     credential = Credential.create!(user: @viewer.user, identity_identifier: identifier, kind: :password)
     @token, = Session.issue!(brand: @brand, user: @viewer.user, credential:)
@@ -38,6 +38,20 @@ class Api::V1::FindControllerTest < ActionDispatch::IntegrationTest
     host! "dateza.test"
     get "/api/v1/find", headers: bearer_headers(hookus_token)
     assert_response :unauthorized
+  end
+
+  test "Date9ja browse does not expose the separate Find surface" do
+    date9ja = Brands::Date9jaInstaller.call(hosts: [ "date9ja.test" ])
+    viewer = create_profile(
+      brand: date9ja, gender: "woman", age: 30, interested_in: [ "man" ], min_age: 18, max_age: 60
+    )
+    token, = Session.issue!(brand: date9ja, user: viewer.user)
+    host! "date9ja.test"
+
+    get "/api/v1/find", headers: bearer_headers(token)
+
+    assert_response :not_found
+    assert_equal({ "error" => "find_not_configured" }, JSON.parse(response.body))
   end
 
   test "translates the shared discoverable-viewer rejection to the Find API error" do

@@ -17,7 +17,12 @@ module D8n
             implementations: %w[Admin::EnforcementAudit]),
           CapabilityDefinition.new(key: "trust.reputation", status: :planned),
           CapabilityDefinition.new(key: "trust.fraud_detection", status: :planned),
-          CapabilityDefinition.new(key: "trust.trust_score", status: :planned)
+          # ADR 0025: brand-scoped, idempotent, rebuildable ledger + a
+          # score-plus-explanation read surface. Live point emission into
+          # existing flows (verification/photos/profile completion) is
+          # deliberately not part of this — historical replay only so far.
+          CapabilityDefinition.new(key: "trust.trust_score", status: :available,
+            implementations: %w[Trust::Ledger Api::V1::TrustScoresController])
         ].freeze
 
         def self.definitions = DEFINITIONS

@@ -16,7 +16,7 @@ module D8n
         assert_equal Profiles::HookusProfileCatalog, contract.profile.catalog
         assert_equal "27", contract.phone_country_calling_code
         assert contract.capability_enabled?("id.session.browser_persistence")
-        assert_equal Profiles::Configuration::PROFILE_FIELD_LABELS.keys, contract.enabled_profile_fields
+        assert_equal Profiles::FieldCatalog.enableable_keys_for_group(:profile), contract.enabled_profile_fields
         assert contract.capability_enabled?("discovery.surface.feed")
         assert contract.capability_enabled?("match.hook")
         assert contract.capability_enabled?("match.hook_tonight")
@@ -81,16 +81,106 @@ module D8n
         assert_equal "Africa/Johannesburg", curated.allocation.time_zone
         assert_equal "discovery.curated_daily", contract.default_discovery_surface_key
         assert_equal :verified_login_identifier, contract.interaction.verification_requirement
+        assert_nil contract.interaction.message_send_verification_requirement
         assert_equal :immediate, contract.media.initial_visibility
         assert_equal %w[membership_registered like_received match_created opener_received message_received].sort,
           contract.notifications.event_types.sort
       end
 
-      test "denies nil Date9ja and unknown brands" do
-        [ nil, Brand.new(slug: "date9ja", name: "Date9ja"), Brand.new(slug: "future", name: "Future") ].each do |brand|
+      test "denies nil and unknown brands" do
+        [ nil, Brand.new(slug: "future", name: "Future") ].each do |brand|
           error = assert_raises(BrandRegistry::UnsupportedBrand) { BrandRegistry.fetch(brand:) }
           assert_equal :brand_not_configured, error.code
         end
+      end
+
+      test "resolves the Date9ja core dating loop contract" do
+        brand = Brand.new(
+          slug: "date9ja", name: "Date9ja",
+          auth_methods: %w[email_password phone_password],
+          profile_requirements: Profiles::Date9jaProfileCatalog::REQUIREMENTS
+        )
+        contract = BrandRegistry.fetch(brand:)
+
+        assert_equal "date9ja", contract.slug
+        assert_equal %w[email_password phone_password], contract.auth_methods
+        assert_equal Profiles::Date9jaProfileCatalog, contract.profile.catalog
+        assert_equal "234", contract.phone_country_calling_code
+        assert_empty contract.place_country_codes
+        assert contract.capability_enabled?("profile.photos")
+        assert_not contract.capability_enabled?("profile.location.place_selection")
+        assert contract.capability_enabled?("id.session.browser_persistence")
+        assert_not contract.capability_enabled?("verify.contact.phone")
+        assert contract.capability_enabled?("trust.report_evidence")
+        assert_not contract.capability_enabled?("discovery.surface.feed")
+        assert contract.capability_enabled?("discovery.surface.browse")
+        assert contract.capability_enabled?("discovery.surface.daily_batch")
+        assert contract.capability_enabled?("match.interaction.like")
+        assert contract.capability_enabled?("chat.conversation")
+        assert_not contract.capability_enabled?("match.opener")
+        assert_equal [ "discovery.find", "discovery.curated_daily" ], contract.discovery_surfaces.keys
+        assert_equal "discovery.find", contract.default_discovery_surface_key
+        assert_nil contract.opener
+        assert_nil contract.interaction.verification_requirement
+        assert_equal :verified_realme_method, contract.interaction.message_send_verification_requirement
+        assert_equal :immediate, contract.media.initial_visibility
+        assert_equal Matching::EligibilityPolicy::LIQUIDITY_FIRST, contract.interaction.eligibility_policy
+      end
+
+      test "Date9ja enables profile video with its legacy-compatible media policy" do
+        contract = BrandRegistry.fetch(brand: Brand.new(slug: "date9ja", name: "Date9ja"))
+
+        assert contract.capability_enabled?("profile.video")
+        assert contract.capability_enabled?("media.profile_video.upload")
+        assert contract.capability_enabled?("media.profile_video.deliver")
+        video = contract.media.video
+        assert_equal :immediate, video.initial_visibility
+        assert_equal 60, video.max_duration_seconds
+        assert_equal 50.megabytes, video.max_byte_size
+      end
+
+      test "every registered brand notification type has a materialization definition" do
+        BrandRegistry.slugs.each do |slug|
+          brand = Brand.new(slug:, name: slug)
+          contract = BrandRegistry.fetch(brand:)
+          contract.notifications.notification_types.each do |notification_type|
+            assert_equal notification_type, Notifications::Types.fetch(notification_type).code,
+              "#{slug} declares an undefined notification type"
+          end
+        end
+      end
+
+      test "HookUs and DateZA do not enable profile video" do
+        %w[hookus dateza].each do |slug|
+          contract = BrandRegistry.fetch(brand: Brand.new(slug:, name: slug))
+          assert_nil contract.media.video, "#{slug} must not carry a video configuration"
+          assert_not contract.capability_enabled?("profile.video"), "#{slug} must not enable profile.video"
+        end
+      end
+
+      test "Date9ja capability access enables the core loop and keeps feed disabled" do
+        contract = BrandRegistry.fetch(
+          brand: Brand.new(
+            slug: "date9ja", name: "Date9ja", auth_methods: %w[email_password phone_password]
+          )
+        )
+
+        assert CapabilityAccess.authorize!(contract:, capability: "profile.photos")
+
+        feed_error = assert_raises(CapabilityAccess::NotConfigured) do
+          CapabilityAccess.authorize!(contract:, capability: "discovery.surface.feed")
+        end
+        assert_equal :matching_not_configured, feed_error.code
+
+        assert CapabilityAccess.authorize!(contract:, capability: "chat.conversation")
+      end
+
+      test "Date9ja is available in the production discovery strategy registry" do
+        brand = Brand.new(
+          slug: "date9ja", name: "Date9ja", auth_methods: %w[email_password phone_password]
+        )
+
+        assert_equal Matching::Strategies::Date9jaContract, Matching::StrategyRegistry.fetch(brand:)
       end
 
       test "does not allow a brand contract to enable a planned capability" do

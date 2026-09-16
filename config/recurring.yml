@@ -25,3 +25,7 @@ production:
     class: Notifications::RecoverPendingJob
     queue: default
     schedule: every minute
+  award_trust_membership_milestones:
+    class: Trust::AwardMembershipMilestonesJob
+    queue: default
+    schedule: every day at 4am

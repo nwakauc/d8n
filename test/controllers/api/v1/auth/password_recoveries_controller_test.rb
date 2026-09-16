@@ -11,7 +11,7 @@ class Api::V1::Auth::PasswordRecoveriesControllerTest < ActionDispatch::Integrat
     @user = User.create!
     @membership = BrandMembership.create!(brand: @brand, user: @user, status: :active)
     @phone = @user.identity_identifiers.create!(
-      kind: :phone, normalized_value: "+27 82 123 4567", verified_at: Time.current
+      brand: @brand, kind: :phone, normalized_value: "+27 82 123 4567", verified_at: Time.current
     )
     @credential = @user.credentials.create!(identity_identifier: @phone, kind: :password, status: :active)
     Identity::PasswordEngine.set!(credential: @credential, password: "secret")
@@ -80,6 +80,22 @@ class Api::V1::Auth::PasswordRecoveriesControllerTest < ActionDispatch::Integrat
     assert_empty Notifications::Sms::TestGateway.deliveries
   end
 
+  test "Date9ja phone recovery cannot fall through to a global SMS sender" do
+    date9ja = Brand.create!(slug: "date9ja", name: "Date9ja", auth_methods: %w[phone_password email_password])
+    BrandDomain.create!(brand: date9ja, host: "date9ja.test")
+    BrandMembership.create!(brand: date9ja, user: @user, status: :active)
+    host! "date9ja.test"
+
+    assert_no_difference -> { OtpChallenge.password_recovery.count } do
+      with_sms_provider("test") do
+        post "/api/v1/auth/password/recovery", params: { identifier: "+27 82 123 4567" }
+      end
+    end
+
+    assert_response :accepted
+    assert_empty Notifications::Sms::TestGateway.deliveries
+  end
+
   test "identity without a membership in the requesting brand is not a recovery channel" do
     @membership.destroy!
 
@@ -122,7 +138,7 @@ class Api::V1::Auth::PasswordRecoveriesControllerTest < ActionDispatch::Integrat
 
   test "delivers a recovery code by email for an email-backed credential" do
     email = @user.identity_identifiers.create!(
-      kind: :email, normalized_value: "ada@example.com", verified_at: Time.current
+      brand: @brand, kind: :email, normalized_value: "ada@example.com", verified_at: Time.current
     )
     @user.credentials.create!(identity_identifier: email, kind: :password, status: :active).then do |cred|
       Identity::PasswordEngine.set!(credential: cred, password: "secret")

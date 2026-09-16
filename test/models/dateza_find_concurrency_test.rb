@@ -53,6 +53,7 @@ module Matching
         user_ids = Profile.where(brand:).pluck(:user_id)
         FindProfileExposure.where(brand:).delete_all
         ProfilePreference.where(brand:).delete_all
+        AnalyticsEvent.where(brand:).delete_all
         Profile.where(brand:).delete_all
         BrandMembership.where(brand:).delete_all
         User.where(id: user_ids).delete_all

@@ -3,7 +3,9 @@ class Like < ApplicationRecord
   belongs_to :liker_profile, class_name: "Profile"
   belongs_to :liked_profile, class_name: "Profile"
 
-  enum :kind, { like: 0, hook: 1 }, prefix: true
+  # `hook` is D8N's product name for Date9ja's `super_like`; retaining the
+  # legacy alias keeps imported history lossless and makes the mapping explicit.
+  enum :kind, { like: 0, hook: 1, super_like: 1 }, prefix: true
 
   scope :kept, -> { where(deleted_at: nil) }
 

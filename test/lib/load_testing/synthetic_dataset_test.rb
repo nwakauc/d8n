@@ -24,6 +24,7 @@ module LoadTesting
       brand = create_brand
       normal_user = User.create!
       lookalike = normal_user.identity_identifiers.create!(
+        brand:,
         kind: :email,
         normalized_value: "loadtest-user-999999@example.invalid",
         metadata: {}
@@ -47,10 +48,17 @@ module LoadTesting
       assert Identity::PasswordEngine.matches?(credential:, password: "synthetic-secret")
       assert_equal 40, SyntheticDataset.synthetic_identifiers.count
 
+      synthetic_user_ids = SyntheticDataset.synthetic_identifiers.pluck(:user_id)
+      assert_operator AnalyticsEvent.where(user_id: synthetic_user_ids).count, :>, 0,
+        "create_activity! should have emitted analytics events for synthetic users"
+
       result = generator.cleanup!
 
       assert_equal 0, result.users
       assert_equal 0, result.profiles
+      # Analytics events reference profiles/users/sessions with restricting FKs;
+      # cleanup must remove them or the profile/user deletes fail (regression).
+      assert_equal 0, AnalyticsEvent.where(user_id: synthetic_user_ids).count
       assert_predicate normal_user.reload, :persisted?
       assert_predicate lookalike.reload, :persisted?
     end

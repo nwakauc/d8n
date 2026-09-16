@@ -1,6 +1,18 @@
 # Date9ja Capability Parity Matrix
 
-Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, notifications, Action Cable channels, and D8N routes/domains. The inventory contains **75 user-facing capability rows**. A capability is not expendable because D8N does not support it today. **Full retained Date9ja feature parity is a production cutover requirement.**
+> Current execution note (updated 2026-09-12): Date9ja onboarding parity is **IMPLEMENTED / SELF-VERIFIED** in the shared profile contract. The server-driven configuration includes the conditional Nigerian background path, owner-only faith/tribe capabilities, optional potential-match-visible genotype, six compatibility answer groups, relocation fields, and the legacy bio minimum. `date9ja_v1` now scores relationship compatibility and reports genotype as a separate critical check; unknown/not-tested answers pass as `not_assessed`. Date9ja uses country/city profile fields only; it does not require a device `ProfileLocation` or distance filtering. No other brand receives these requirements; the Date9ja frontend and real-corpus value rehearsal remain deferred.
+
+> Current execution note (2026-09-07): Date9ja Core Dating Loop is **IMPLEMENTED / SELF-VERIFIED** through shared D8N browse discovery, reciprocal eligibility, likes, passes, mutual matches, conversations, and text messages. The Date9ja contract enables only the browse surface (`discovery.find`); daily-batch/feed semantics, opener, historical graph migration, and frontend parity remain separate work. This runtime enablement is not independent review, parity acceptance, or production cutover.
+
+> Current execution note (2026-09-08): Historical Date9ja graph/state import is **IMPLEMENTED / SELF-VERIFIED** for deterministic Date9ja-shaped fixtures through the snapshot normalizer and canonical likes, passes, matches, conversations, text messages, blocks, and reports. The historical HTTP journey is fixture-proven end to end through the normal Date9ja runtime (migrated match, conversation, ordered historical messages, a new native message, and the peer's read), with a post-native rerun preserving native state. Historical profile views, reply/read/edit fidelity, non-text message content, and corpus-scale reconciliation remain deferred; real sanitized-corpus rehearsal is pending and production is untouched. This is not a production migration, parity acceptance, or cutover readiness.
+
+> Current execution note (2026-09-12): Date9ja progressive RealMe authorization is **IMPLEMENTED / SELF-VERIFIED** at the shared brand-policy boundary (ADR 0031). Contact confirmation no longer blocks the dating loop through matching or history. Ordinary message send requires a verified phone or an approved same-brand non-email assurance assertion; verified email alone does not qualify. A future message-media upload intent uses the same rule if that capability is enabled. No schema migration is introduced. Final production verification import/reconciliation and live selfie/video/ID flows remain separate gates.
+
+Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, notifications, Action Cable channels, and D8N routes/domains. This document is the single source of truth for the normalized retained user-capability inventory and its status totals. A capability is not expendable because D8N does not support it today. **Full retained Date9ja feature parity is a production cutover requirement.**
+
+## Scope rule
+
+Every shipped/reachable Date9ja user-facing capability is inside the parity bar unless the product owner explicitly retires it. Community, Dating Hub, Aunty Phobie, Careers, and Feedback are included. Founder/admin operations are not consumer parity rows; they are tracked in the operational dependency register below and must map to D8N HQ before the legacy administration backend is retired.
 
 | Capability | Date9ja today | D8N today | Parity status | D8N target domain | Brand-specific policy? | Data migration required? | API compatibility required? | Cutover blocker? |
 |---|---|---|---|---|---:|---:|---:|---:|
@@ -18,9 +30,15 @@ Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, noti
 | Completion score/steps | Source completion score and client steps | D8N completion contract | PARTIAL | Profiles | Yes | State | Yes | Yes |
 | Public profile | User serializer and profile card | Explicit public profile serializer | PARTIAL | Profiles | Yes | Yes | Yes | Yes |
 | Private identity fields | Name/email/phone fields | Platform identity and owner serializer | PARITY | Identity/Profiles | Yes | Yes | Yes | Yes |
-| Gender/interested-in | Integer enums on user | Profile/preference fields | PARTIAL | Profiles/Match | Yes | Yes | Yes | Yes |
+| Gender | Integer enum on user | Profile field/catalogue | PARTIAL | Profiles | Yes | Yes | Yes | Yes |
+| Interested-in/orientation | Integer enum on user | Profile preference field | PARTIAL | Profiles/Match | Yes | Yes | Yes | Yes |
 | Relationship intent | Enum plus values/timeline | DateZA-style catalog only; Date9ja absent | MISSING | Profiles/Match | Yes | Yes | Yes | Yes |
-| Faith/ethnicity/tribe/genotype | Columns, arrays, onboarding JSON | Some typed/catalog capability, not complete Date9ja set | MISSING | Profiles/Verification | Yes | Yes | Yes | Yes |
+| Faith | Onboarding field and user value | No complete Date9ja contract | MISSING | Profiles | Yes | Yes | Yes | Yes |
+| Ethnicity | Onboarding field and user value | No complete Date9ja contract | MISSING | Profiles | Yes | Yes | Yes | Yes |
+| Tribe | Onboarding field and user value | No complete Date9ja contract | MISSING | Profiles | Yes | Yes | Yes | Yes |
+| Genotype | Sensitive onboarding field and user value | No equivalent; privacy/architecture decision required | NEEDS PRODUCT DECISION | Profiles/Trust & Safety | Yes | Yes | Yes | Yes |
+| Denomination | Onboarding field and user value | No complete Date9ja contract | MISSING | Profiles | Yes | Yes | Yes | Yes |
+| Preferred tribes | Matching preference array | No complete Date9ja contract | MISSING | Matching/Profiles | Yes | Yes | Yes | Yes |
 | Family/children preferences | Columns/enums and onboarding data | Partial typed options | PARTIAL | Profiles/Match | Yes | Yes | Yes | Yes |
 | Lifestyle fields | Smoking, drinking, fitness, education, height/body type | Partial profile fields/options | PARTIAL | Profiles/Match | Yes | Yes | Yes | Yes |
 | Languages/interests/values | Arrays on users | Catalog/options/prompts | PARTIAL | Profiles | Yes | Yes | Yes | Yes |
@@ -28,15 +46,17 @@ Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, noti
 | Profile prompts/about | Persona/about/ideal partner and prompts | Generic prompts, no Date9ja catalog | PARTIAL | Profiles | Yes | Yes | Yes | Yes |
 | Profile visibility/publication | `profile_hidden`, moderation and confirmation rules | Profile publication/visibility policy | DIFFERENT SEMANTICS | Profiles/Trust | Yes | Yes | Yes | Yes |
 | Profile photos | Six photos, primary/order, moderation | Profile photos, processing, visibility | PARTIAL | Media | Yes | Yes | Yes | Yes |
-| Profile video | Upload/update/delete and moderation | No profile-video capability | MISSING | Media | Yes | Yes | Yes | Yes |
+| Profile video | Upload/update/delete and moderation | Shared `media.profile_video.*` capability; owner CRUD + processing + **public delivery on profile detail** (ADR 0023, ADR 0011 delivery recheck); legacy importer + media reconciliation pending | PARTIAL | Media | Yes | Yes | Yes | Yes |
 | Profile location | Stored coordinates/city and discovery distance | Private profile location/place model | DIFFERENT SEMANTICS | Profiles/Discovery | Yes | Yes | Yes | Yes |
 | Search | Filtered `/search` endpoint | DateZA/Find/discovery surfaces differ | DIFFERENT SEMANTICS | Discovery | Yes | No | Yes | Yes |
 | Discovery/daily picks | Daily picks, explore, impressions, limits | D8N discovery/find allocations | PARTIAL | Discovery | Yes | Maybe | Yes | Yes |
 | Online/recent activity | Online-now endpoint and last active | Session-derived status fields | PARTIAL | Engagement/Discovery | Yes | No | Yes | Yes |
 | Recommendations | Daily introductions and matching service | D8N discovery strategies | PARTIAL | Discovery/Match | Yes | Maybe | Yes | Yes |
-| Pass/unpass | Pass, unpass, rewind | Pass, no source-equivalent rewind contract | PARTIAL | Match | Yes | Yes | Yes | Yes |
+| Pass/unpass | Pass and undo pass | Pass, no source-equivalent undo contract | PARTIAL | Match | Yes | Yes | Yes | Yes |
+| Rewind | One-per-day rewind of the last discovery action | No source-equivalent rewind contract | MISSING | Match/Discovery | Yes | Yes | Yes | Yes |
 | Profile view | View profile and persist view | No persisted profile views | MISSING | Engagement | Yes | Yes | Yes | Yes |
-| Like/super-like/unlike | Direct user relationships | Profile-scoped likes | PARTIAL | Match | Yes | Yes | Yes | Yes |
+| Like/unlike | Direct user relationships | Profile-scoped likes | PARTIAL | Match | Yes | Yes | Yes | Yes |
+| Super-like | Enhanced like action and entitlement/limit behavior | No Date9ja-equivalent action contract | MISSING | Match/PAY | Yes | Yes | Yes | Yes |
 | Incoming/outgoing likes | Separate list surfaces | Incoming/outgoing D8N routes | PARTIAL | Match | Yes | Yes | Yes | Yes |
 | Match creation | Canonical user pair on mutual like | Canonical profile pair | DIFFERENT SEMANTICS | Match | Yes | Yes | Yes | Yes |
 | Unmatch | Existing match behavior | D8N unmatch | PARTIAL | Match | Yes | Yes | Yes | Yes |
@@ -52,7 +72,9 @@ Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, noti
 | Message reactions | Emoji create/delete | No reaction model | MISSING | Messaging | No | Yes | Yes | Yes |
 | Realtime messages | Action Cable match channel | D8N messaging/realtime not equivalent | PARTIAL | Messaging | Yes | No | Yes | Yes |
 | Typing/presence | Cable/client behavior where implemented | No equivalent documented contract | MISSING | Messaging/Engagement | Yes | No | Yes | Yes |
-| Email/push/in-app notifications | Notifications, delivery rows, preferences | Brand notification events/inbox/deliveries | PARTIAL | Notifications | Yes | Yes | Yes | Yes |
+| In-app notifications | Notification inbox, unread state, read actions | Brand notification events/inbox | PARTIAL | Notifications | Yes | Yes | Yes | Yes |
+| Email notifications | Notification email delivery and preferences | Brand delivery plans/state | PARTIAL | Notifications | Yes | Yes | Yes | Yes |
+| Push notifications | Device push delivery and preferences | Brand delivery plans/state | PARTIAL | Notifications | Yes | State | Yes | Yes |
 | Notification preferences | Product/email JSON preferences | Typed product email/push preferences | PARTIAL | Notifications | Yes | Yes | Yes | Yes |
 | Push registration | Token register/unregister | Encrypted brand device registration | PARTIAL | Notifications | Yes | State | Yes | Yes |
 | Notification realtime/toasts/sounds | Notification Cable, UI badges/sounds | D8N notification foundation; client work required | PARTIAL | Engagement/Notifications | Yes | No | Yes | Yes |
@@ -65,31 +87,129 @@ Audited 2026-09-02 across the Date9ja API, web client, mobile client, jobs, noti
 | Verification events/history | Checks/events/evidence retention | No equivalent full history | MISSING | Verification | Yes | Yes | Yes | Yes |
 | Trust XP/score | Trust score endpoint, ledger, adjustments | No equivalent persisted trust capability | MISSING | Trust & Safety | Yes | Yes | Yes | Yes |
 | Moderation/publication | Admin flags, photo review, suspensions/bans | Profile/photo moderation and enforcements | PARTIAL | Trust & Safety | Yes | Yes | Yes | Yes |
-| Community questions/answers/votes | Browse/create/answer/vote/report | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
-| Community events/RSVP/attendees | Browse/create/remarks/RSVP | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
-| Community stories/remarks | Browse/create/remark/report | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
-| Community moderation | Admin review/risk flags/reports | No D8N community moderation | MISSING | Community/Trust & Safety | Yes | Yes | Yes | Yes |
-| Dating Hub batches/contacts | CRUD and matched/external contacts | No D8N equivalent | MISSING | Engagement or Community | Yes | Yes | Yes | Yes |
-| Dating Hub notes/suggestions | Contact notes and suggestions | No D8N equivalent | MISSING | AI/Engagement | Yes | Yes | Yes | Yes |
-| Dating Hub coach/persona | Coach and persona CRUD | No D8N equivalent | MISSING | AI | Yes | Yes | Yes | Yes |
-| Dating Hub daily life | Daily life entry CRUD | No D8N equivalent | MISSING | Engagement | Yes | Yes | Yes | Yes |
-| Aunty Phobie chat | AI assistant messages/support | No D8N equivalent | MISSING | AI | Yes | Yes | Yes | Yes |
+| Community questions | Browse/create questions and report | Shared brand-scoped submit/moderate/browse/edit/delete/report foundation | PARTIAL | Community | Yes | Yes | Yes | Yes |
+| Community answers | Browse/create answers and report | Shared brand-scoped submit/moderate/browse/report foundation | PARTIAL | Community | Yes | Yes | Yes | Yes |
+| Community answer votes | Vote/unvote answers | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
+| Community events | Browse/create events and remarks | Shared moderated events exist; legacy remarks remain missing | PARTIAL | Community | Yes | Yes | Yes | Yes |
+| Community event RSVP/attendees | RSVP and attendee visibility | Capacity-safe RSVP and organizer-only attendee roster | PARTIAL | Community | Yes | Yes | Yes | Yes |
+| Community stories | Browse/create stories and report | Shared moderated text stories exist; video/media remains gated | PARTIAL | Community | Yes | Yes | Yes | Yes |
+| Community story remarks | Browse/create remarks and report | No D8N community domain | MISSING | Community | Yes | Yes | Yes | Yes |
+| Community moderation | Admin review/risk flags/reports | Brand-scoped MFA review queue, audited decisions, and Trust reports; automated risk flags remain missing | PARTIAL | Community/Trust & Safety | Yes | Yes | Yes | Yes |
+| Dating Hub batches | CRUD dating-workflow batches | No D8N equivalent | MISSING | Engagement | Yes | Yes | Yes | Yes |
+| Dating Hub tracked contacts | Matched and external contact tracking | No D8N equivalent | MISSING | Engagement | Yes | Yes | Yes | Yes |
+| Dating Hub contact notes | Notes attached to tracked contacts | No D8N equivalent | MISSING | Engagement | Yes | Yes | Yes | Yes |
+| Dating Hub suggestions | Contact-specific suggestions | No D8N equivalent | MISSING | Engagement/AI | Yes | Yes | Yes | Yes |
+| Dating Hub coach | Coach content and guidance | No D8N equivalent | MISSING | AI | Yes | Yes | Yes | Yes |
+| Dating Hub persona | User-configured dating persona | No D8N equivalent | MISSING | AI/Profiles | Yes | Yes | Yes | Yes |
+| Dating Hub daily-life journal | Daily life entry CRUD | No D8N equivalent | MISSING | Engagement | Yes | Yes | Yes | Yes |
+| Aunty Phobie conversation | AI assistant messages/support | No D8N equivalent | MISSING | AI | Yes | Yes | Yes | Yes |
+| Aunty Phobie history/usage limits | Conversation history, usage events, limits | No D8N equivalent | MISSING | AI/PAY | Yes | Yes | Yes | Yes |
 | Aunty Phobie escalation | Safety escalation/admin resolution | No D8N equivalent | MISSING | AI/Trust & Safety | Yes | Yes | Yes | Yes |
 | Premium/founding access | Premium status, founding membership/limits | No Date9ja billing/entitlement target | MISSING | PAY/Entitlements | Yes | Yes | Yes | Yes |
-| Analytics/attribution | Signup attribution, admin metrics/events | D8N analytics event model differs | PARTIAL | Insights | Yes | Maybe | Yes | No |
-| Support chat | Dedicated support account via match/messages | No explicit D8N support-chat capability | NEEDS PRODUCT DECISION | Messaging/Support | Yes | Yes | Yes | Yes |
-| Feedback/careers/account UI | Feedback and career application flows | Not Date9ja dating core in D8N | LEGACY/UNUSED | Community/Operations | Yes | Decision | Yes | No |
+| Signup acquisition attribution | First-touch UTM/source captured at signup | D8N analytics event model differs | PARTIAL | Insights | Yes | Maybe | Yes | No |
+| Product analytics events | Signup/profile/verification/match/conversation metrics | D8N analytics event model differs | PARTIAL | Insights | Yes | Maybe | Yes | No |
+| Support chat | Dedicated support account via match/messages | No explicit D8N support-chat capability | MISSING | Messaging/Support | Yes | Yes | Yes | Yes |
+| Careers | Public jobs, applications, and application status | No Date9ja careers target | MISSING | Community/Operations | Yes | Yes | Yes | Yes |
+| Feedback | User feedback submission and status | No Date9ja feedback target | MISSING | Engagement/Support | Yes | Yes | Yes | Yes |
 
-## Counts
+## Counts — authoritative
 
 | Status | Count |
 |---|---:|
 | PARITY | 1 |
-| PARTIAL | 37 |
-| MISSING | 24 |
+| PARTIAL | 48 |
+| MISSING | 34 |
 | DIFFERENT SEMANTICS | 11 |
-| LEGACY/UNUSED | 1 |
+| LEGACY/UNUSED | 0 |
 | NEEDS PRODUCT DECISION | 1 |
-| **Total** | **75** |
+| **Total** | **95** |
 
-The detailed inventory contains 75 capability rows. The counts above are authoritative for this document.
+Delta log: Profile video MISSING → PARTIAL (2026-09-02) — shared `media.profile_video.*` capability built (ADR 0023); owner CRUD + processing only; not PARITY until the importer, media reconciliation, and the acceptance journey pass.
+Delta log: Six Community rows MISSING → PARTIAL (2026-09-13) — shared brand-scoped records, explicit read/participation/moderation capabilities, pending-only publication, owner workflows, capacity-safe RSVP/private roster, Circle membership, dedicated MFA admin permissions/audit, database tenant FKs, and Trust report targets are implemented and request-tested. Votes, event/story remarks, story media, notification delivery, historical import, risk automation, frontend compatibility, and parity acceptance remain open.
+Delta log: Migrated profile readiness IMPLEMENTED / SELF-VERIFIED (2026-09-07) — a migration-only pass now records one PII-free disposition per eligible source member (`ready`, `intentionally_hidden`, `remediation_required`, `failed`) with multiple reason codes, preserves native/member/operator data on rerun, maps only exact two-token names and reviewed country aliases, creates only exact canonical Nigerian Place selections through the shared location service, leaves missing ages and unresolved options for remediation, and proves canonical completion/publication/eligibility in representative integration tests. D-8 auto-publication remains open and the default is classify-only; sanitized 280-member rehearsal is pending because the source snapshot connection is unavailable. Profile onboarding/completion/location/publication rows remain PARTIAL/DIFFERENT until that rehearsal, member remediation UX, and parity acceptance.
+Delta log: Profile video public delivery wired (2026-09-02) — `Profiles::DetailSerializer` now exposes a `video` payload on `GET /api/v1/profiles/{id}` for brands that enable `profile.video` (Date9ja), re-authorized per read via `Profiles::VideoLibrary` + `Media::VideoPolicy` (ADR 0011). Codex-reviewed 2026-09-02 (VERIFIED) with a `ProfileVideo.brand_id == Profile.brand_id` defence-in-depth guard added. Still PARTIAL — legacy video importer, migrated-media reconciliation, sanitized snapshot, and the frontend/API + parity acceptance journeys remain (see `SNAPSHOT-RUNBOOK.md`).
+
+Delta log: Profile video legacy importer — pass 1 (media preflight) VERIFIED (Codex independent review 2026-09-03: ACCEPT WITH SMALL FIX — documentation correction completed) — `Date9ja::Snapshot::VideoSource` + `Date9ja::Import::VideoPreflight` reuse the generic `Migration::MediaObjectRef` / `MediaAttachmentRef` / `ReferenceMap` spine (no new framework). Sanitized-snapshot rehearsal: 35/35 preflighted, idempotent second pass, 0 `ProfileVideo` / 0 Active Storage rows, content types 26 `video/mp4` + 9 `video/quicktime` (0 unsupported); legacy `duration_seconds` missing for all 35 → no source row known to exceed the D8N limit, actual duration unproven, pass 2 must derive it from the media container. **Status unchanged — still PARTIAL** (pass-2 byte transfer + L2 synthetic-corpus rehearsal, migrated-media reconciliation, and the frontend/API + parity acceptance journeys remain).
+
+Delta log: Profile video legacy importer — pass 2A (source bytes → authoritative verification + duration → deterministic destination adoption) IMPLEMENTED / SELF_VERIFIED (2026-09-04, ADR 0029) — `Migration::MediaTransfer` generalized across media kinds via an injected `MediaKind` strategy (`MediaKind::Image` byte-for-byte unchanged; `MediaKind::Video` parameterizes only content types / byte ceiling / `ftyp` detection / container validation + ffprobe duration / remote re-verify body). `Media::VideoProcessor.probe` (ffprobe-only, no transcode) extracted. New `Date9ja::Snapshot::VideoLocatorSource` + `Date9ja::Import::VideoTransfer` (Phase A only) + `VideoTransferReconciliation`. Maximum success state is a destination ACTIVE STORAGE ORIGINAL BLOB — lifecycle `SOURCE_ACCEPTED / DESTINATION_ADOPTED`, **never `transferred`**. Creates **0 `ProfileVideo`, 0 `profile_video` `ReferenceMap` bindings, 0 processing jobs** (proven by tests). Unreadable duration → `quarantined`/`duration_unreadable`; over the 60s brand limit → `quarantined`/`duration_over_limit` — neither adopts a blob. RuboCop / Zeitwerk / Brakeman clean; 347 focused runs / 0 failures. L1 automated only (real ffmpeg-generated fixtures); full 35-video source-byte rehearsal deferred to Pass 2C synthetic L2. **Status unchanged — still PARTIAL, NOT `PARITY_ACCEPTED`, NOT independently reviewed.** Pass 2B (`ProfileVideo` + binding + processing + playback/poster) and PD-2 (grandfather / trim / quarantine-remove) remain.
+
+Delta log: Profile video legacy importer — pass 2B (domain binding + processing + playback/poster validation) IMPLEMENTED / SELF_VERIFIED (2026-09-04, ADR 0029) — `Date9ja::Import::VideoTransfer.call(stage: :domain)` completes an adopted Pass-2A video: RESOLVE (idempotent chain check) → Phase B short `LockGuard`-held txn (re-lock `MediaAttachmentRef`, re-resolve owner, re-prove deterministic blob, one-live-video invariant, moderation map → new `Profiles::VideoUpload.build_video!` → `Migration::ReferenceMap.bind!`) → Phase C (`Media::ProcessProfileVideoJob` → `Media::PlaybackDerivative.valid?` playback + poster → `ready` → existing raw purge). New shared runtime hardening (benefits native uploads): `20260904120000_add_processing_claim_to_profile_videos` (claim-token + metadata jsonb, mirrors the photo migration), `ProfileVideo` claim/sweepable helpers, claim-token concurrency in `Media::ProcessProfileVideoJob`, `Media::ProfileVideoProcessingSweeper`, `Media::PlaybackDerivative`. Reconciliation adds `ready` / `already_ready` / `processing_failed` / `derivative_validation_failed`; still never emits `transferred`; invariant `videos_considered == Σ dispositions`. Two complete runs → 0 duplicate ProfileVideo/attachment/binding, no reprocessing, no raw recreation. RuboCop / Zeitwerk / Brakeman clean; 478 focused runs / 0 failures; Profile Photo regression 82 / 0. L1 automated only (real ffmpeg fixtures); full 35-video synthetic L2 = Pass 2C. **Status unchanged — still PARTIAL, NOT `PARITY_ACCEPTED`, NOT independently reviewed.** Pass 2C + later migration gates and PD-2 (grandfather / trim / quarantine-remove) remain.
+
+Delta log: Profile video legacy importer — pass 2C (deterministic synthetic L2 corpus + verifier + full isolated rehearsal + interruption/adversarial evidence) IMPLEMENTED / SELF_VERIFIED (2026-09-04, ADR 0029). `Date9ja::Snapshot::SyntheticVideoMedia` + `Generator` + `Verifier` (video analogue of the Codex-verified photo `SyntheticMedia`): 35 ffmpeg-rendered bitexact H.264 MP4/MOV bodies mirroring the census metadata (26 mp4 + 9 mov, all ≤ 60 s), only `byte_size`/`checksum` rewritten on the 35 authorized `video` blob rows; two clean generations byte-identical; 24-check independent verifier (re-render, container walk, ffprobe, DB drift). Full self-contained Pass 1 → 2A → 2B rehearsal (569 assertions): 35 preflighted → 35 adopted / 0 `ProfileVideo` → 35 `ready` (PV + binding + playback + poster validated + originals purged, never `transferred`) → independent destination verifier → rerun 35 `already_ready` / zero growth. Interruption windows A/B-E/C/F-G recovered (B/C structurally impossible); bounded process-kill → deterministic stale-reclaim recovery (real forked SIGKILL deferred to operator L2). Adversarial suite (separate from the census): over-limit / unreadable / malformed / spoofed / drift / collision / orphan / tampered-derivatives all fail closed. Rake: `date9ja:build_video_media_v3` / `verify_video_media_v3`. **Evidence rule preserved: proves the migration machinery, NOT anything about the real videos' duration/codec/container. PD-2 NOT chosen — real over-limit count UNKNOWN.** RuboCop / Zeitwerk / Brakeman clean. Full write-up: `VIDEO-L2.md`. **Feature-boundary Codex review: BLOCKED — 3 findings fixed 2026-09-04 without redesign:** (1, BLOCKER) `Media::ProcessProfileVideoJob#finalize!` now independently validates every candidate playback/poster blob's actual remote bytes (new `Media::PlaybackDerivative` blob-level validators — key/service/type/size + remote exists + byte-size + checksum/body identity + container walk / image decode) OUTSIDE all DB locks before attaching, with an ABA fingerprint recheck under the finalize lock — a validation-failing candidate is never attached / ready / raw-purged; (4) `ProfileVideo#safe_derivative_ready?` requires both derivatives so READY is never stronger than deliverability; (2) verifier checks 27 (full `active_storage_attachments` byte-identical) + 28 (unrelated table row counts); (3) `Verifier#object_path` resolves manifest keys through `Date9ja::Storage::SafeObjectKey` + check 24 (path-containment before any file read). Retest: 546 runs / 2516 assertions / 0 failures; Profile Photo + photo-L2 regression 125 / 0; RuboCop / Zeitwerk / Brakeman clean. **Status unchanged — still PARTIAL, NOT `PARITY_ACCEPTED`.** Ready for narrow Codex re-review; operator L2 run against a real `media_v3` restore + real forked-worker SIGKILL remain.
+
+Delta log: Migrated-account authentication transition + recovery/reactivation — Wave A Step 3 closeout IMPLEMENTED / SELF_VERIFIED (2026-09-04, `AUTH-TRANSITION.md`). No Date9ja-specific auth infrastructure: the migrated account is an ordinary D8N identity driving the shared `Identity::PasswordLogin` / `Session` / `SessionAuthenticator` / `RecoveryRequester`→`RecoveryVerifier`→`PasswordReset` / `Accounts::DeactivateAccount`↔`Identity::AccountReactivation` services; Date9ja behaviour is brand-contract config only. `Date9ja::Import::IdentityImport` now migrates an account whose legacy bcrypt digest is unusable **but** which owns a **verified email** (operable recovery channel) as a **recovery-required credential** (active password credential, no `CredentialPasswordHash`; first access via the recovery flow) instead of dropping the row; an unusable digest with **no operable channel** (a verified phone alone does not count) still fails closed (no unreachable account); a rerun requires a supported bcrypt hash (`credential_completeness`), corrupt destination state → `credential_hash_corrupt`. New `Date9ja::Import::AuthTransitionCheck` + L1 rehearsal + a scaled 19-row synthetic L2 rehearsal (import → reconciliation balance → pre-sign-in idempotency → full auth journey, 0 failures → post-recovery re-run never clobbers a member-set password) exercise login + brand-scoped session + cross-brand isolation + full recovery→reset (session-revoking) + deactivate↔reactivate for every migrated lifecycle. The `date9ja:verify_auth_transition` operator tool has a throwaway-DB fence (`Connection.assert_runtime_safe!`) + manifest validation (empty / unknown-lifecycle rejected before any check) and is proven against a compliant throwaway DB incl. those refusals; the real-seed-account operator L2 (real cost-12 + real plaintexts) stays an operator task like `bcrypt_proof.rb`. bcrypt cost-12 byte compatibility stays VERIFIED separately. **Semantic difference for Phase-5 acceptance (not a blocker):** an unverified email authenticates by password but is not a signed-out reset channel (ADR 0012; Date9ja's Devise `:recoverable` allowed it) — 79/288 census accounts unconfirmed. Product question "final treatment of deleted/banned accounts" closed for the recovery path by source analysis — Date9ja has no consumer undelete route, so skipping `deleted_at`/`banned_at` rows is parity-correct. Feature-boundary Codex review returned CHANGES REQUESTED (architecture PASSED); 4 bounded findings fixed without redesign (phone-only recovery → fail closed; `credential_completeness` supported-bcrypt check; operator DB fence; manifest validation). RuboCop / Zeitwerk / Brakeman clean; focused + regression suites green. **Rows unchanged — still PARTIAL** (Registration, Password login, Logout, Password reset, Account recovery/reactivation, Session persistence): frontend/mobile adapters, Devise error-envelope mapping, API contract surface, and the parity-acceptance journey are Phase 5. NOT `PARITY_ACCEPTED`. Codex feature-boundary findings addressed — awaiting narrow fix confirmation.
+
+Delta log: Shared platform profile field catalogue foundation IMPLEMENTED / SELF_VERIFIED (2026-09-05, ADR 0030, `STATUS.md`) — `Profiles::FieldCatalog` is now the single canonical definition layer for scalar profile fields, consumed by `FieldPolicy`/`Configuration`/`Brand` validation/`Profile`/`ProfilePreference`/the serializers; `tribe` and `ethnicity` are defined as canonical `sensitive_identity` + `storage: :pending` capabilities (known, deterministically rejected on write, never enable-able by any brand). **Rows unchanged — `Ethnicity`, `Tribe` stay MISSING; `Genotype` stays NEEDS PRODUCT DECISION; `Denomination` stays MISSING.** This is machinery only: no product exposure decision was made, no Date9ja value migrated, no column added. Do not read this delta as Date9ja profile parity progress on those four rows — it is a platform-architecture prerequisite that makes a *future* resolution of the underlying product decisions implementable without a Date9ja-specific subsystem.
+
+The detailed inventory and these counts are authoritative. Other migration documents must link here rather than copy totals. The normalization split independently migratable user capabilities and excludes founder/admin operations from the consumer scoreboard.
+
+## Normalization record
+
+- Split bundled rows for gender/orientation, sensitive profile fields, pass versus rewind, like versus super-like, notification channels, Community primitives, Dating Hub primitives, Aunty Phobie history/limits, and analytics versus acquisition attribution.
+- Reclassified Careers and Feedback from the former bundled `LEGACY/UNUSED` row into explicit retained capabilities because reachable web/mobile/API surfaces exist in the source repository.
+- Reclassified Support chat from `NEEDS PRODUCT DECISION` to an engineering-owned missing capability; only a material user-visible behavior change returns to the product queue.
+- Removed the former `account UI` implementation-detail bundle; account settings and lifecycle behaviors are represented by their distinct capability rows.
+
+## D8N AI ownership
+
+`D8N AI` is the shared platform capability: provider abstraction, assistant runtime, context, safety, privacy/egress, credentials, versioning, metering, limits, tools, and failure handling. `Aunty Phobie` is a Date9ja branded assistant experience consuming that runtime. They are intentionally not one matrix row and no `domains/date9ja/aunty_phobie` implementation is authorized. The AI architecture/specification gate and third-party data-egress decision must pass before implementation reaches `IMPLEMENTING`.
+
+## Operational dependency register (excluded from consumer counts)
+
+| Legacy operational surface | D8N destination | Retirement requirement |
+|---|---|---|
+| Moderation, reports, photo/video/selfie review | D8N HQ / Trust & Safety | HQ can perform equivalent brand-scoped review and audit |
+| User suspension, bans, deletion/recovery operations | D8N HQ / Identity lifecycle | HQ workflows preserve authorization, audit, and recovery controls |
+| Acquisition, metrics, error logs, backups | D8N HQ / Insights / Operations | Required operational reports and backup evidence exist |
+| Community/Dating Hub/Aunty escalation administration | D8N HQ with shared-domain admin policies | Operators retain safe workflows for active retained capabilities |
+| Careers and Feedback review | D8N HQ / Support operations | Review, notification, retention, and export responsibilities are assigned |
+
+These rows do not reduce the user parity bar and are not counted as Date9ja consumer capabilities.
+
+Delta log: Profile/preference VALUE evidence gate opened (2026-09-05) — **no status
+and no count in this document changes.** Pass 1 of the profile & preference
+migration added the source value census (`scripts/date9ja/source_census.sql`
+ord 200-299) and the mapping contract
+[PROFILE-VALUE-MAPPING.md](PROFILE-VALUE-MAPPING.md). It records, as verified
+evidence rather than assumption, that the Gender / Interested-in / Lifestyle /
+Family / Relationship-intent / Profile-editing / Completion rows remain PARTIAL
+for a specific reason: the identity importer creates **no `ProfilePreference` and
+no `ProfileOptionSelection`**, so `Matching::ProfileParticipant` excludes every
+migrated member from matching. It also records that the required Date9ja
+`meeting_pace` option group has **NO LEGACY SOURCE**.
+
+**The operator census run is COMPLETE (2026-09-05; affected measures re-run
+2026-09-06 after an independent review returned CHANGES REQUIRED).** The legacy
+values are now **measured**, and the measurement makes these rows *more* clearly
+PARTIAL, not less: `users.gender` is an integer enum, so the importer writes the
+strings `"0"`/`"1"` into `profiles.gender` and a decode is mandatory;
+`preferred_distance_km` is NULL for every source row, so **0 of 280** eligible
+members could receive a complete `ProfilePreference` today; and the stored
+`looking_for` values are of doubtful reliability. **Measured is not mapped** — no
+mapping is approved, ten product decisions and six engineering-contract decisions
+are open (`PROFILE-VALUE-MAPPING.md` §6), and **nothing here is promoted. No
+count in this document changes.**
+
+Delta log: Date9ja profile & preference importer — Pass 2 IMPLEMENTED /
+SELF_VERIFIED (2026-09-06, `STATUS.md`). **Rows unchanged; no count in this
+document changes.** `Date9ja::Import::ProfilePreferenceImport` creates the
+`ProfilePreference` and option selections the identity slice deliberately did
+not, and decodes `profiles.gender` from the legacy integer code to `man`/`woman`
+so `Matching::EligibilityScope` can match it — together removing the reason every
+migrated member was excluded from matching. Proven end to end against the **real**
+`EligibilityScope`: two migrated members find each other in both directions, and
+so does a migrated same-gender pair. Product decisions taken: D-1 (`man`/`woman`),
+D-9 (migrate `looking_for` verbatim — a same-gender preference is an orientation,
+not a defect, and migration never revises a member's own choice), D-7/D-10/D-11
+(relax the four required-but-sourceless fields; all stay enabled). Fails closed
+and counts, rather than guessing, on D-5's `courtship`/`dating`/`activity_partner`
+and D-6's `wants_children: open`. **Gender / Interested-in / Relationship-intent /
+Family / Completion stay PARTIAL** — migrated profiles are still `:draft`/`:hidden`
+pending **D-8**, `first_name`/`last_name` are still unset pending **D-4**, and
+`country_code` is still unmappable pending **E-1**, so no member is discoverable
+in production yet. Not independently reviewed, no operator rehearsal, **NOT
+`PARITY_ACCEPTED`.**
+
+## Source evidence used for normalization
+
+The reachability review used Date9ja API controllers/models/jobs/channels plus the web and mobile clients, including `api/app/controllers/api/v1/careers_controller.rb`, `feedback_items_controller.rb`, `message_reactions_controller.rb`, `dating_hub/*`, `community/*`, `aunty_phobie_controller.rb`, `profile_views_controller.rb`, `profile_videos_controller.rb`, and `config/routes.rb`; web `src/pages/CareersPage.js`, `CommunityPage.js`, `DatingHubPage.js`, `AuntyPhobiePage.js`, `ProfileViewsPage.js`, `MessagesPage.js`, and `src/api/client.js`; and the mobile navigation/API surfaces. These are source-repository observations only; no production usage counts were accessed.

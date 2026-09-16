@@ -57,7 +57,7 @@ module Identity
     end
 
     def phone_owned?(phone)
-      IdentityIdentifier.kept.phone.where(normalized_value: phone).where.not(id: identifier.id).exists?
+      IdentityIdentifier.kept.phone.where(brand: session.brand, normalized_value: phone).where.not(id: identifier.id).exists?
     end
 
     def audit(outcome, new_phone: nil)

@@ -35,17 +35,29 @@ class KamalStagingR2ConfigurationTest < ActiveSupport::TestCase
 
   REQUIRED_APP_KEYS = (BASE_APP_KEYS + LEGACY_R2_APP_KEYS + BRAND_R2_APP_KEYS + SMS_APP_KEYS).freeze
 
-  test "shared staging proxy serves the HookUs and DateZA hosts with TLS" do
+  test "shared staging proxy serves the HookUs, DateZA, and Date9ja hosts with TLS" do
     staging = YAML.safe_load_file(Rails.root.join("config/deploy.staging.yml"))
 
     assert_equal "d8n-staging", staging.fetch("service")
     assert_equal [ "145.241.185.41" ], staging.dig("servers", "web")
     assert_equal true, staging.dig("proxy", "ssl")
     assert_equal(
-      %w[ staging-api.d8n.tech dateza-staging-api.d8n.tech ],
+      %w[ staging-api.d8n.tech dateza-staging-api.d8n.tech date9ja-staging-api.d8n.tech ],
       staging.dig("proxy", "hosts")
     )
     assert_nil staging.dig("proxy", "host")
+  end
+
+  test "Date9ja staging host maps to the Date9ja brand and the staging Vercel frontend is CORS-approved" do
+    staging = YAML.safe_load_file(Rails.root.join("config/deploy.staging.yml"))
+    env = staging.fetch("env").fetch("clear")
+
+    assert_equal "date9ja-staging-api.d8n.tech", env.fetch("DATE9JA_API_HOST")
+    assert_includes env.fetch("D8N_CORS_ORIGINS").split(","), "https://date9ja-seo-frontend.vercel.app"
+    # Date9ja intentionally NOT in D8N_R2_BRANDS yet -- no staging R2 secrets
+    # provisioned (operator step); auth/discovery/profile/trust/RealMe all
+    # work on staging without it, only real photo/video byte serving needs it.
+    refute_includes env.fetch("D8N_R2_BRANDS").split(","), "date9ja"
   end
 
   test "staging destination enables R2 and preserves all required app secrets" do

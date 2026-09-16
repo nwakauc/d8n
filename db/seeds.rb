@@ -16,6 +16,11 @@ if (dateza = Brand.kept.find_by(slug: "dateza"))
   Profiles::DatezaProfileCatalog.install!(brand: dateza)
 end
 
+# Date9ja is a first-class platform tenant. The installer is additive and
+# idempotent: it creates the brand/catalogue on a fresh database and preserves
+# operator-owned status, hosts, memberships, and catalogue changes thereafter.
+Brands::Date9jaInstaller.call(hosts: [])
+
 # ADR 0020 gives every role a centralized, tested capability meaning. Seeds
 # create vocabulary only; capabilities remain immutable application policy.
 {

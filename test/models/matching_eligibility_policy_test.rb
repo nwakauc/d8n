@@ -18,6 +18,23 @@ module Matching
       assert_not policy.location_freshness_required?
     end
 
+    test "Date9ja uses the liquidity-first discovery policy" do
+      policy = D8n::Platform::Brands::Date9ja::ELIGIBILITY_POLICY
+
+      assert_equal Matching::EligibilityPolicy::LIQUIDITY_FIRST, policy
+      assert_not policy.location_filtering
+      assert_not policy.age_filtering
+      assert_not policy.require_age_preferences
+      assert_nil policy.location_max_age
+    end
+
+    test "liquidity-first only relaxes brand policy, never a platform default" do
+      assert Matching::EligibilityPolicy::DEFAULT.age_filtering
+      assert Matching::EligibilityPolicy::DEFAULT.require_age_preferences
+      assert Matching::EligibilityPolicy::NO_LOCATION.age_filtering
+      assert Matching::EligibilityPolicy::PERSISTENT_LOCATION.age_filtering
+    end
+
     test "brand surfaces and interactions share their configured policy" do
       hookus = Brand.new(slug: "hookus", name: "HookUs")
       dateza = Brand.new(slug: "dateza", name: "DateZA")

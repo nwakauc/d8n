@@ -44,6 +44,7 @@ module Identity
         challenge.consume!
         identity_identifier.update!(verified_at: Time.current, last_seen_at: Time.current)
         record_attempt(identity_identifier, result: :succeeded)
+        award_trust!(identity_identifier)
         success(identity_identifier)
       end
     end
@@ -118,6 +119,20 @@ module Identity
           identifier_kind: kind,
           identifier_last4: identity_identifier.normalized_value.last(4)
         }
+      )
+    end
+
+    # Live trust award (ADR 0025 / Trust::Date9jaSchedule) — identical points
+    # to Date9ja's own `award_email!`/`award_phone!`. Idempotent per
+    # identifier, so a re-verification (should one ever happen) never
+    # double-awards.
+    def award_trust!(identity_identifier)
+      schedule = Trust::Date9jaSchedule.for_identifier_verification(kind)
+      return if schedule.blank?
+
+      Trust::AwardEvent.call(
+        user:, brand:, event_type: schedule.fetch(:event_type), points: schedule.fetch(:points),
+        idempotency_key: "realme:#{identity_identifier.id}:approved", source: identity_identifier
       )
     end
 

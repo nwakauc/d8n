@@ -3,8 +3,11 @@
 # Ignore bundler config.
 /.bundle
 
-# Ignore local env files.
+# Ignore local env files, except the committed, secret-free test-environment
+# defaults that keep `bin/rails test` deterministic regardless of a
+# developer's local `.env` (see .env.test).
 /.env*
+!/.env.test
 
 # Ignore Rails secrets.
 /config/master.key

@@ -22,7 +22,7 @@ module Media
     end
 
     test "brands without an explicit policy stay moderate-first (hidden)" do
-      %w[date9ja some-future-brand].each do |slug|
+      [ "some-future-brand" ].each do |slug|
         brand = Brand.new(slug:, name: slug)
 
         state = PhotoPolicy.initial_state(brand:)
@@ -30,6 +30,16 @@ module Media
         assert_equal :hidden, state.visibility, "#{slug} must default to hidden"
         assert_equal :pending_review, state.status
       end
+    end
+
+    test "Date9ja uses its explicit legacy-compatible immediate policy" do
+      brand = Brand.new(slug: "date9ja", name: "Date9ja")
+
+      state = PhotoPolicy.initial_state(brand:)
+
+      assert_equal :visible, state.visibility
+      assert_equal :pending_review, state.status
+      assert_not PhotoPolicy.moderate_first?(brand:)
     end
 
     test "moderation capability is preserved — no policy grants approved status" do

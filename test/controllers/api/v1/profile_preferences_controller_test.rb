@@ -123,7 +123,52 @@ class Api::V1::ProfilePreferencesControllerTest < ActionDispatch::IntegrationTes
     assert response_body.fetch("details").fetch("min_age").present?
   end
 
+  test "a brand with an explicit preference contract rejects and omits unenabled fields" do
+    dateza, token, profile = dateza_member
+
+    patch "/api/v1/profile/preferences",
+      headers: bearer_headers(token),
+      params: { min_age: 25, max_age: 40, interested_in: [ "woman" ], country: "NG", relationship_intent: "marriage" }
+
+    assert_response :unprocessable_entity
+    body = JSON.parse(response.body)
+    assert_equal "invalid_preference_fields", body.fetch("error")
+    assert_equal %w[country relationship_intent], body.fetch("details").fetch("fields")
+    assert_not ProfilePreference.exists?(profile:)
+
+    patch "/api/v1/profile/preferences",
+      headers: bearer_headers(token),
+      params: { min_age: 25, max_age: 40, interested_in: [ "woman" ], max_distance_km: 60 }
+
+    assert_response :success
+    preferences = JSON.parse(response.body).fetch("preferences")
+    assert_equal %w[brand id interested_in max_age max_distance_km min_age profile_id].sort, preferences.keys.sort
+    assert_not preferences.key?("country")
+    assert_not preferences.key?("relationship_intent")
+    assert_equal "dateza", preferences.fetch("brand").fetch("slug")
+
+    # Persisted value survives reload and is never populated for an unenabled field.
+    stored = ProfilePreference.find_by!(profile:)
+    assert_equal 60, stored.max_distance_km
+    assert_nil stored.country
+  end
+
   private
+
+  def dateza_member
+    dateza = Brand.create!(slug: "dateza", name: "DateZA")
+    Profiles::DatezaProfileCatalog.install!(brand: dateza)
+    BrandDomain.create!(brand: dateza, host: "dateza.test")
+    user = User.create!
+    membership = BrandMembership.create!(brand: dateza, user:)
+    profile = Profile.create!(
+      brand: dateza, user:, brand_membership: membership,
+      display_name: "Zola", birthdate: 27.years.ago.to_date, gender: "woman"
+    )
+    token, = Session.issue!(brand: dateza, user:)
+    host! "dateza.test"
+    [ dateza, token, profile ]
+  end
 
   def bearer_headers(token)
     { "Authorization" => "Bearer #{token}" }

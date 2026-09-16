@@ -6,7 +6,7 @@ module Notifications
       @brand = Brand.create!(slug: "hookus", name: "HookUs")
       @user = User.create!
       BrandMembership.create!(brand: @brand, user: @user, status: :active)
-      @phone = @user.identity_identifiers.create!(kind: :phone, normalized_value: "27821234567", verified_at: Time.current)
+      @phone = @user.identity_identifiers.create!(brand: @brand, kind: :phone, normalized_value: "27821234567", verified_at: Time.current)
       Notifications::Sms::TestGateway.clear
     end
 

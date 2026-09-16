@@ -1,5 +1,14 @@
 # Profile Field Matrix
 
+> **Runtime authority note (ADR 0030, 2026-09-05):** `Profiles::FieldCatalog`
+> is the authoritative, executable definition of every canonical scalar
+> profile field (type, sensitivity, storage, validation, audience ceiling).
+> This matrix remains historical/design evidence from the pre-implementation
+> field-mapping audit — useful context for *why* a field is classified the
+> way it is — but it is not re-derived from or kept in lockstep with
+> `FieldCatalog`. Where the two differ, `FieldCatalog` (and the brand
+> catalogues that consume it) governs runtime behavior.
+
 ## Purpose
 
 This matrix is design evidence for ADR 0008. It maps active HookUs and Date9ja profile behavior into D8N ownership boundaries before migrations are written.

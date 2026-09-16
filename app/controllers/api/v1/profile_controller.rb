@@ -41,9 +41,10 @@ class Api::V1::ProfileController < ApplicationController
   def profile_params
     filters = field_policy.writable_profile_fields.filter_map do |field|
       case field
-      when "languages_spoken" then { languages_spoken: [] }
       when "languages" then { languages: [ :code, :proficiency, :primary ] }
-      else field.to_sym
+      else
+        definition = Profiles::FieldCatalog.fetch(field) if Profiles::FieldCatalog.defined?(field)
+        definition&.data_type == :string_list ? { field.to_sym => [] } : field.to_sym
       end
     end
     params.permit(*filters)

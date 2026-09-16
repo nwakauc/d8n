@@ -4,15 +4,24 @@ class Api::V1::LikesController < Api::V1::InteractionController
   before_action -> { enforce_rate_limit!(:like_profile) }, only: :create
   before_action :set_active_storage_url_options, only: [ :incoming, :outgoing ]
 
+  ALLOWED_LIKE_KINDS = %w[like super_like].freeze
+
   def create
+    kind = params[:kind].presence || "like"
+    unless ALLOWED_LIKE_KINDS.include?(kind)
+      return render json: { error: "invalid_kind" }, status: :unprocessable_entity
+    end
+
     result = Matching::LikeProfile.call(
       user: Current.user,
       brand: Current.brand,
-      target_public_id: params[:profile_id]
+      target_public_id: params[:profile_id],
+      kind: kind.to_sym
     )
 
     render json: {
       liked: true,
+      kind: like_kind(result.like),
       matched: result.match.present?,
       match_id: result.match&.public_id,
       created: result.created
@@ -57,6 +66,16 @@ class Api::V1::LikesController < Api::V1::InteractionController
 
   private
 
+  # `Like#kind` is ambiguous once read back from the DB: `hook` and
+  # `super_like` are the same underlying integer (1) — a legacy-alias
+  # enum (see Like#kind's comment) — and Rails' reverse-cast canonicalizes
+  # to whichever name it saw first, not necessarily the one used to create
+  # the row. `kind_super_like?` reads the raw integer directly, so it is
+  # stable across create vs. reload/list regardless of alias.
+  def like_kind(like)
+    like.kind_super_like? ? "super_like" : "like"
+  end
+
   def render_interaction_error(error)
     status = error.code == :profile_unavailable ? :not_found : :conflict
     render json: { error: error.code }, status:
@@ -75,6 +94,7 @@ class Api::V1::LikesController < Api::V1::InteractionController
         )
         payload = {
           liked_at: like.created_at.iso8601,
+          kind: like_kind(like),
           profile: Profiles::PublicSerializer.call(profile:).merge(safe_status)
         }
         compatibility = pair_compatibility(viewer: result.viewer, profile:)

@@ -12,6 +12,7 @@ module Identity
       user = User.create!
       BrandMembership.create!(brand:, user:)
       identity_identifier = user.identity_identifiers.create!(
+        brand:,
         kind: :phone,
         normalized_value: "+27 82 123 4567"
       )

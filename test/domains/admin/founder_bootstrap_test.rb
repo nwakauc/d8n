@@ -8,12 +8,12 @@ module Admin
       @dateza = Brand.create!(slug: "dateza", name: "DateZA", status: :active)
       @user = User.create!
       @user.identity_identifiers.create!(
-        kind: :email, normalized_value: "founder@example.test", verified_at: Time.current
+        brand: @hookus, kind: :email, normalized_value: "founder@example.test", verified_at: Time.current
       )
     end
 
     test "promotes an existing user to AdminUser and assigns founder on every active brand" do
-      result = FounderBootstrap.call(email: " Founder@Example.TEST ")
+      result = FounderBootstrap.call(email: " Founder@Example.TEST ", brand: @hookus)
 
       assert_equal @user, result.user
       admin_user = AdminUser.kept.find_by!(user: @user)
@@ -28,28 +28,28 @@ module Admin
     test "fails safely when no existing identity matches the email" do
       assert_no_difference [ -> { User.count }, -> { AdminUser.count }, -> { IdentityIdentifier.count } ] do
         assert_raises(FounderBootstrap::IdentityNotFound) do
-          FounderBootstrap.call(email: "nobody@example.test")
+          FounderBootstrap.call(email: "nobody@example.test", brand: @hookus)
         end
       end
     end
 
     test "is idempotent on repeated execution" do
-      FounderBootstrap.call(email: "founder@example.test")
+      FounderBootstrap.call(email: "founder@example.test", brand: @hookus)
 
       assert_no_difference [ -> { AdminUser.count }, -> { AdminAssignment.count }, -> { BrandMembership.count } ] do
-        FounderBootstrap.call(email: "founder@example.test")
+        FounderBootstrap.call(email: "founder@example.test", brand: @hookus)
       end
     end
 
     test "rerun after a new brand exists adds only the missing assignment" do
-      FounderBootstrap.call(email: "founder@example.test")
+      FounderBootstrap.call(email: "founder@example.test", brand: @hookus)
       admin_user = AdminUser.kept.find_by!(user: @user)
       existing_assignment = AdminAssignment.kept.find_by!(admin_user:, brand: @hookus)
 
       date9ja = Brand.create!(slug: "date9ja", name: "Date9ja", status: :active)
 
       assert_difference -> { AdminAssignment.count }, 1 do
-        FounderBootstrap.call(email: "founder@example.test")
+        FounderBootstrap.call(email: "founder@example.test", brand: @hookus)
       end
 
       assert AdminAssignment.kept.exists?(admin_user:, brand: date9ja, admin_role: @role)
@@ -57,27 +57,27 @@ module Admin
     end
 
     test "preserves an existing assignment untouched" do
-      FounderBootstrap.call(email: "founder@example.test")
+      FounderBootstrap.call(email: "founder@example.test", brand: @hookus)
       admin_user = AdminUser.kept.find_by!(user: @user)
       assignment = AdminAssignment.kept.find_by!(admin_user:, brand: @hookus)
       original_created_at = assignment.created_at
 
-      FounderBootstrap.call(email: "founder@example.test")
+      FounderBootstrap.call(email: "founder@example.test", brand: @hookus)
 
       assert_equal original_created_at, assignment.reload.created_at
     end
 
     test "missing FOUNDER_EMAIL fails clearly" do
-      assert_raises(FounderBootstrap::MissingEmail) { FounderBootstrap.call(email: nil) }
-      assert_raises(FounderBootstrap::MissingEmail) { FounderBootstrap.call(email: "") }
+      assert_raises(FounderBootstrap::MissingEmail) { FounderBootstrap.call(email: nil, brand: @hookus) }
+      assert_raises(FounderBootstrap::MissingEmail) { FounderBootstrap.call(email: "", brand: @hookus) }
     end
 
     test "invalid email fails clearly" do
-      assert_raises(FounderBootstrap::InvalidEmail) { FounderBootstrap.call(email: "not-an-email") }
+      assert_raises(FounderBootstrap::InvalidEmail) { FounderBootstrap.call(email: "not-an-email", brand: @hookus) }
     end
 
     test "does not create a duplicate identity or AdminUser" do
-      FounderBootstrap.call(email: "founder@example.test")
+      FounderBootstrap.call(email: "founder@example.test", brand: @hookus)
 
       assert_equal 1, User.where(id: @user.id).count
       assert_equal 1, IdentityIdentifier.kept.where(kind: :email, normalized_value: "founder@example.test").count
@@ -88,7 +88,7 @@ module Admin
       @role.update!(deleted_at: Time.current)
 
       assert_raises(FounderBootstrap::RoleMissing) do
-        FounderBootstrap.call(email: "founder@example.test")
+        FounderBootstrap.call(email: "founder@example.test", brand: @hookus)
       end
     end
 
@@ -96,12 +96,12 @@ module Admin
       Brand.update_all(deleted_at: Time.current)
 
       assert_raises(FounderBootstrap::NoActiveBrands) do
-        FounderBootstrap.call(email: "founder@example.test")
+        FounderBootstrap.call(email: "founder@example.test", brand: @hookus)
       end
     end
 
     test "never creates a Credential or a platform-level grant" do
-      FounderBootstrap.call(email: "founder@example.test")
+      FounderBootstrap.call(email: "founder@example.test", brand: @hookus)
 
       assert_equal 0, Credential.count
       assert_equal 2, AdminAssignment.kept.active.where(admin_role: @role).count
@@ -116,7 +116,7 @@ module Admin
         admin_user:, brand: @hookus, admin_role: moderator, status: :active
       )
 
-      FounderBootstrap.call(email: "founder@example.test")
+      FounderBootstrap.call(email: "founder@example.test", brand: @hookus)
 
       assert legacy.reload.revoked?
       assert legacy.deleted_at.present?

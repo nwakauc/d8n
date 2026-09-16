@@ -116,6 +116,7 @@ class Api::V1::Auth::PasswordsController < ApplicationController
   def session_payload(result)
     verification = Identity::VerificationState.call(session: result.session, brand: Current.brand)
     verified = verification.verified
+    verification_enabled = contact_verification_enabled?(verification.kind)
 
     payload = {
       expires_at: result.session.expires_at.iso8601,
@@ -134,8 +135,8 @@ class Api::V1::Auth::PasswordsController < ApplicationController
       # dispatched asynchronously; on login of a still-unverified identifier this
       # tells the client verification is outstanding (use the resend endpoint) — no
       # code is re-sent by login itself.
-      verification_required: !verified,
-      verification_channel: verified ? nil : verification.kind,
+      verification_required: verification_enabled && !verified,
+      verification_channel: verification_enabled && !verified ? verification.kind : nil,
       verification: {
         code_dispatched: verification.code_dispatched,
         resend_available_in: verification.resend_available_in,
@@ -150,6 +151,11 @@ class Api::V1::Auth::PasswordsController < ApplicationController
       payload[:token_type] = "Bearer"
     end
     payload
+  end
+
+  def contact_verification_enabled?(kind)
+    D8n::Platform::BrandRegistry.fetch(brand: Current.brand)
+      .capability_enabled?("verify.contact.#{kind}")
   end
 
   def authorize_session_mode!

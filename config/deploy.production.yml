@@ -1,5 +1,15 @@
 service: d8n
 
+# Default (30s) is too tight for this app's current eager-load + boot time
+# with the accumulated migrations/schema -- two consecutive deploys timed
+# out here on 2026-09-16 with Puma still mid-boot when kamal-proxy gave up
+# (confirmed via container logs: "Booting Puma" followed seconds later by
+# "Relaying signal to upstream process: terminated", zero downtime both
+# times since the old container kept serving throughout). This does not
+# change anything about how fast the app actually boots -- it only gives
+# Puma enough real time to finish before the deploy is judged unhealthy.
+deploy_timeout: 90
+
 servers:
   web:
     - 164.68.106.97
@@ -14,6 +24,18 @@ proxy:
   hosts:
     - api.d8n.tech
     - dateza-api.d8n.tech
+    # Final canonical Date9ja production host (matches the existing Date9ja
+    # web/mobile apps). DNS for api.date9ja.love still points at the legacy
+    # Date9ja application tonight -- left registered here so kamal-proxy is
+    # ready the moment DNS is deliberately switched at tomorrow's cutover;
+    # until then this host's ACME challenge simply cannot resolve here and
+    # is inert, isolated from the other hosts kamal-proxy serves.
+    - api.date9ja.love
+    # Temporary founder-acceptance host on D8N's own domain (not date9ja.love)
+    # so tonight's Vercel acceptance frontend can reach the real production
+    # backend without touching legacy Date9ja DNS/routing. Removed once
+    # api.date9ja.love is the live host after cutover.
+    - date9ja-api.d8n.tech
 
 ssh:
   user: d8nadmin
@@ -39,17 +61,26 @@ env:
     JOB_CONCURRENCY: "1"
     D8N_R2_ENABLED: "true"
     D8N_DEPLOYMENT_ENV: "production"
-    D8N_R2_BRANDS: "hookus,dateza"
+    D8N_R2_BRANDS: "hookus,dateza,date9ja"
     D8N_EMAIL_PROVIDER: "resend"
     D8N_SMS_PROVIDER: "twilio"
     D8N_EMAIL_FROM: "HookUs <no-reply@hookus.app>"
     D8N_DATEZA_EMAIL_FROM: "DateZA <no-reply@date-za.com>"
     D8N_DATEZA_APP_URL: "https://www.date-za.com"
-    D8N_CORS_ORIGINS: "https://hookus.app,https://www.hookus.app,https://www.date-za.com,https://date-za.com"
+    D8N_DATE9JA_EMAIL_FROM: "Date9ja <no-reply@date9ja.love>"
+    D8N_DATE9JA_APP_URL: "https://www.date9ja.love"
+    D8N_DEFAULT_MAILER_HOST: "api.d8n.tech"
+    D8N_CORS_ORIGINS: "https://hookus.app,https://www.hookus.app,https://www.date-za.com,https://date-za.com,https://www.date9ja.love,https://date9ja-seo-frontend.vercel.app"
+    D8N_ALLOWED_HOSTS: "api.d8n.tech,dateza-api.d8n.tech,api.date9ja.love,date9ja-api.d8n.tech"
     # Maps this host to the dateza Brand via the idempotent brands:install_dateza
     # task, run automatically on web boot (see bin/docker-entrypoint). Must match
     # the dateza entry in proxy.hosts above.
     DATEZA_API_HOST: "dateza-api.d8n.tech"
+    # Retains the API hostname used by the existing Date9ja web and mobile apps,
+    # plus a temporary founder-acceptance host (see proxy.hosts above). Both map
+    # idempotently to the same Date9ja BrandDomain on every web boot; only the
+    # temp host resolves/serves traffic until api.date9ja.love DNS is switched.
+    DATE9JA_API_HOST: "date9ja-api.d8n.tech,api.date9ja.love"
 
   secret:
     - RAILS_MASTER_KEY
@@ -61,6 +92,9 @@ env:
     - D8N_R2_DATEZA_PRODUCTION_ACCESS_KEY_ID
     - D8N_R2_DATEZA_PRODUCTION_SECRET_ACCESS_KEY
     - D8N_R2_DATEZA_PRODUCTION_BUCKET
+    - D8N_R2_DATE9JA_PRODUCTION_ACCESS_KEY_ID
+    - D8N_R2_DATE9JA_PRODUCTION_SECRET_ACCESS_KEY
+    - D8N_R2_DATE9JA_PRODUCTION_BUCKET
     - RESEND_API_KEY
     - TWILIO_ACCOUNT_SID
     - TWILIO_API_KEY_SID

@@ -23,15 +23,30 @@ module Identity
       assert_not result.throttled?, "repeated successful logins must never throttle the same user"
     end
 
-    test "password_registration identifier and ip limits are platform-wide (brand-independent)" do
+    # Registration is brand-scoped, same as every other purpose: identity
+    # itself is brand-scoped (app/models/identity_identifier.rb), so a
+    # legitimate independent registration on a second brand with the same
+    # identifier must never be throttled by the first brand's attempts.
+    test "password_registration identifier and ip limits are brand-scoped" do
       identifier_limit = PasswordThrottle::POLICIES.fetch("password_registration").fetch(:identifier_limit)
-      (identifier_limit).times do |i|
-        create_attempt(brand: i.even? ? @brand : @other_brand, purpose: "password_registration",
+      identifier_limit.times do |i|
+        create_attempt(brand: @other_brand, purpose: "password_registration",
           result: :failed, identifier: "shared@example.com", ip_address: "198.51.100.#{i}")
       end
 
       result = PasswordThrottle.call(
         brand: @brand, purpose: "password_registration", identifier: "shared@example.com", ip_address: "198.51.100.99"
+      )
+
+      assert_not result.throttled?, "a different brand's registration attempts must not throttle this brand"
+
+      identifier_limit.times do |i|
+        create_attempt(brand: @brand, purpose: "password_registration",
+          result: :failed, identifier: "shared@example.com", ip_address: "198.51.101.#{i}")
+      end
+
+      result = PasswordThrottle.call(
+        brand: @brand, purpose: "password_registration", identifier: "shared@example.com", ip_address: "198.51.101.99"
       )
 
       assert result.throttled?

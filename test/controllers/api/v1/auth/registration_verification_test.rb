@@ -159,24 +159,25 @@ class Api::V1::Auth::RegistrationVerificationTest < ActionDispatch::IntegrationT
 
   # ---- BRAND ISOLATION ---------------------------------------------------
 
-  test "registration resolves the host brand for delivery and never falls back to another brand" do
+  test "Date9ja phone registration is disabled and cannot trigger an OTP or SMS" do
     date9ja = Brand.create!(slug: "date9ja", name: "Date9ja", auth_methods: %w[ phone_password email_password ])
     BrandDomain.create!(brand: date9ja, host: "date9ja.test")
     host! "date9ja.test"
 
     with_sms_provider("test") do
-      perform_enqueued_jobs do
-        post "/api/v1/auth/password/register", params: phone_registration
+      assert_no_difference -> { User.count } do
+        assert_no_difference -> { OtpChallenge.phone_verification.count } do
+        assert_no_enqueued_jobs only: Notifications::DeliverChallengeJob do
+          post "/api/v1/auth/password/register", params: phone_registration
+        end
+        end
       end
     end
 
-    assert_response :created
-    assert_equal date9ja, OtpChallenge.phone_verification.last.brand
-
-    delivery = Notifications::Sms::TestGateway.deliveries.last
-    assert_equal date9ja.id, delivery.fetch(:brand_id)
-    assert_includes delivery.fetch(:body), "Date9ja"
-    assert_no_match(/HookUs/, delivery.fetch(:body), "must not leak the other brand's sender identity")
+    assert_response :not_found
+    body = JSON.parse(response.body)
+    assert_equal "auth_method_unavailable", body.fetch("error")
+    assert_empty Notifications::Sms::TestGateway.deliveries
   end
 
   # ---- VERIFICATION E2E --------------------------------------------------

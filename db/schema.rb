@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_15_130200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -97,6 +97,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.index ["brand_id"], name: "index_admin_assignments_on_brand_id"
   end
 
+  create_table "admin_identity_corrections", force: :cascade do |t|
+    t.bigint "admin_user_id", null: false
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.string "field", null: false
+    t.jsonb "new_value", default: {}, null: false
+    t.text "note"
+    t.jsonb "previous_value", default: {}, null: false
+    t.bigint "profile_id", null: false
+    t.text "reason", null: false
+    t.datetime "updated_at", null: false
+    t.index ["admin_user_id"], name: "index_admin_identity_corrections_on_admin_user_id"
+    t.index ["brand_id", "profile_id"], name: "index_admin_identity_corrections_on_brand_id_and_profile_id"
+    t.index ["brand_id"], name: "index_admin_identity_corrections_on_brand_id"
+    t.index ["profile_id"], name: "index_admin_identity_corrections_on_profile_id"
+  end
+
   create_table "admin_mfa_credentials", force: :cascade do |t|
     t.bigint "admin_user_id", null: false
     t.datetime "confirmed_at"
@@ -126,6 +143,57 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.datetime "updated_at", null: false
     t.bigint "user_id"
     t.index ["user_id"], name: "index_admin_users_on_user_id", unique: true
+  end
+
+  create_table "ai_conversations", force: :cascade do |t|
+    t.string "assistant_key", null: false
+    t.bigint "brand_id", null: false
+    t.bigint "brand_membership_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.string "language", default: "english", null: false
+    t.datetime "last_message_at"
+    t.integer "safety_status", default: 0, null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "deleted_at"], name: "index_ai_conversations_on_brand_id_and_deleted_at"
+    t.index ["brand_id"], name: "index_ai_conversations_on_brand_id"
+    t.index ["brand_membership_id", "assistant_key", "last_message_at"], name: "index_ai_conversations_member_history"
+    t.index ["brand_membership_id"], name: "index_ai_conversations_on_brand_membership_id"
+  end
+
+  create_table "ai_messages", force: :cascade do |t|
+    t.bigint "ai_conversation_id", null: false
+    t.string "client_message_id"
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.string "model"
+    t.string "provider"
+    t.integer "role", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ai_conversation_id", "client_message_id"], name: "index_ai_messages_client_idempotency", unique: true, where: "(client_message_id IS NOT NULL)"
+    t.index ["ai_conversation_id", "created_at"], name: "index_ai_messages_on_ai_conversation_id_and_created_at"
+    t.index ["ai_conversation_id"], name: "index_ai_messages_on_ai_conversation_id"
+  end
+
+  create_table "ai_usage_events", force: :cascade do |t|
+    t.bigint "ai_conversation_id", null: false
+    t.bigint "brand_id", null: false
+    t.bigint "brand_membership_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "input_tokens"
+    t.string "model", null: false
+    t.integer "output_tokens"
+    t.string "provider", null: false
+    t.string "request_key", null: false
+    t.integer "status", default: 0, null: false
+    t.integer "total_tokens"
+    t.datetime "updated_at", null: false
+    t.index ["ai_conversation_id"], name: "index_ai_usage_events_on_ai_conversation_id"
+    t.index ["brand_id"], name: "index_ai_usage_events_on_brand_id"
+    t.index ["brand_membership_id", "created_at"], name: "index_ai_usage_events_on_brand_membership_id_and_created_at"
+    t.index ["brand_membership_id"], name: "index_ai_usage_events_on_brand_membership_id"
+    t.index ["request_key"], name: "index_ai_usage_events_on_request_key", unique: true
   end
 
   create_table "analytics_events", force: :cascade do |t|
@@ -211,6 +279,203 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.index ["slug"], name: "index_brands_on_slug", unique: true, where: "(deleted_at IS NULL)"
   end
 
+  create_table "community_answers", force: :cascade do |t|
+    t.boolean "anonymous", default: false, null: false
+    t.bigint "author_profile_id", null: false
+    t.text "body", null: false
+    t.bigint "brand_id", null: false
+    t.bigint "community_question_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.text "moderation_note"
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.datetime "published_at"
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_admin_user_id"
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_profile_id"], name: "index_community_answers_on_author_profile_id"
+    t.index ["brand_id", "community_question_id", "status", "created_at"], name: "idx_community_answers_publication"
+    t.index ["brand_id"], name: "index_community_answers_on_brand_id"
+    t.index ["community_question_id"], name: "index_community_answers_on_community_question_id"
+    t.index ["id", "brand_id"], name: "idx_community_answers_id_brand", unique: true
+    t.index ["id", "community_question_id"], name: "idx_community_answers_id_question", unique: true
+    t.index ["public_id"], name: "index_community_answers_on_public_id", unique: true
+    t.index ["reviewed_by_admin_user_id"], name: "index_community_answers_on_reviewed_by_admin_user_id"
+    t.check_constraint "status = ANY (ARRAY[0, 1, 2, 3])", name: "chk_community_answers_status"
+  end
+
+  create_table "community_circle_memberships", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "community_circle_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.bigint "profile_id", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id"], name: "index_community_circle_memberships_on_brand_id"
+    t.index ["community_circle_id", "profile_id"], name: "idx_community_circle_memberships_active", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["community_circle_id"], name: "index_community_circle_memberships_on_community_circle_id"
+    t.index ["profile_id"], name: "index_community_circle_memberships_on_profile_id"
+    t.check_constraint "status = ANY (ARRAY[0, 1])", name: "chk_community_memberships_status"
+  end
+
+  create_table "community_circles", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.string "category", null: false
+    t.datetime "created_at", null: false
+    t.bigint "creator_profile_id", null: false
+    t.datetime "deleted_at"
+    t.text "description", null: false
+    t.text "moderation_note"
+    t.string "name", null: false
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.datetime "published_at"
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_admin_user_id"
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id", "status", "created_at"], name: "index_community_circles_on_brand_id_and_status_and_created_at"
+    t.index ["brand_id"], name: "index_community_circles_on_brand_id"
+    t.index ["creator_profile_id"], name: "index_community_circles_on_creator_profile_id"
+    t.index ["id", "brand_id"], name: "idx_community_circles_id_brand", unique: true
+    t.index ["public_id"], name: "index_community_circles_on_public_id", unique: true
+    t.index ["reviewed_by_admin_user_id"], name: "index_community_circles_on_reviewed_by_admin_user_id"
+    t.check_constraint "status = ANY (ARRAY[0, 1, 2, 3])", name: "chk_community_circles_status"
+  end
+
+  create_table "community_comments", force: :cascade do |t|
+    t.bigint "author_profile_id", null: false
+    t.text "body", null: false
+    t.bigint "brand_id", null: false
+    t.bigint "community_post_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_profile_id"], name: "index_community_comments_on_author_profile_id"
+    t.index ["brand_id"], name: "index_community_comments_on_brand_id"
+    t.index ["community_post_id", "created_at"], name: "index_community_comments_on_community_post_id_and_created_at"
+    t.index ["community_post_id"], name: "index_community_comments_on_community_post_id"
+    t.index ["public_id"], name: "index_community_comments_on_public_id", unique: true
+  end
+
+  create_table "community_event_rsvps", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "community_event_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.bigint "profile_id", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id"], name: "index_community_event_rsvps_on_brand_id"
+    t.index ["community_event_id", "profile_id"], name: "idx_community_event_rsvps_active", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["community_event_id"], name: "index_community_event_rsvps_on_community_event_id"
+    t.index ["profile_id"], name: "index_community_event_rsvps_on_profile_id"
+    t.check_constraint "status = ANY (ARRAY[0, 1])", name: "chk_community_rsvps_status"
+  end
+
+  create_table "community_events", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.integer "capacity"
+    t.string "city", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.text "description", null: false
+    t.text "moderation_note"
+    t.bigint "organizer_profile_id", null: false
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.datetime "published_at"
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_admin_user_id"
+    t.datetime "starts_at", null: false
+    t.integer "status", default: 0, null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.string "venue"
+    t.index ["brand_id", "status", "starts_at"], name: "index_community_events_on_brand_id_and_status_and_starts_at"
+    t.index ["brand_id"], name: "index_community_events_on_brand_id"
+    t.index ["id", "brand_id"], name: "idx_community_events_id_brand", unique: true
+    t.index ["organizer_profile_id"], name: "index_community_events_on_organizer_profile_id"
+    t.index ["public_id"], name: "index_community_events_on_public_id", unique: true
+    t.index ["reviewed_by_admin_user_id"], name: "index_community_events_on_reviewed_by_admin_user_id"
+    t.check_constraint "capacity IS NULL OR capacity > 0", name: "chk_community_events_capacity_positive"
+    t.check_constraint "status = ANY (ARRAY[0, 1, 2, 3])", name: "chk_community_events_status"
+  end
+
+  create_table "community_posts", force: :cascade do |t|
+    t.bigint "author_profile_id", null: false
+    t.text "body", null: false
+    t.bigint "brand_id", null: false
+    t.bigint "community_circle_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_profile_id"], name: "index_community_posts_on_author_profile_id"
+    t.index ["brand_id"], name: "index_community_posts_on_brand_id"
+    t.index ["community_circle_id", "created_at"], name: "index_community_posts_on_community_circle_id_and_created_at"
+    t.index ["community_circle_id"], name: "index_community_posts_on_community_circle_id"
+    t.index ["id", "brand_id"], name: "idx_community_posts_id_brand", unique: true
+    t.index ["public_id"], name: "index_community_posts_on_public_id", unique: true
+  end
+
+  create_table "community_questions", force: :cascade do |t|
+    t.boolean "anonymous", default: true, null: false
+    t.bigint "author_profile_id", null: false
+    t.text "body", null: false
+    t.bigint "brand_id", null: false
+    t.string "category", null: false
+    t.datetime "closes_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.text "moderation_note"
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.datetime "published_at"
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_admin_user_id"
+    t.bigint "selected_answer_id"
+    t.datetime "selected_at"
+    t.string "selection_model"
+    t.string "selection_provider"
+    t.integer "selection_status", default: 0, null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_profile_id"], name: "index_community_questions_on_author_profile_id"
+    t.index ["brand_id", "author_profile_id", "created_at"], name: "idx_on_brand_id_author_profile_id_created_at_2f19ab2079"
+    t.index ["brand_id", "status", "closes_at"], name: "index_community_questions_on_brand_id_and_status_and_closes_at"
+    t.index ["brand_id"], name: "index_community_questions_on_brand_id"
+    t.index ["id", "brand_id"], name: "idx_community_questions_id_brand", unique: true
+    t.index ["public_id"], name: "index_community_questions_on_public_id", unique: true
+    t.index ["reviewed_by_admin_user_id"], name: "index_community_questions_on_reviewed_by_admin_user_id"
+    t.check_constraint "closes_at > created_at", name: "chk_community_questions_close_after_create"
+    t.check_constraint "selection_status = ANY (ARRAY[0, 1, 2])", name: "chk_community_questions_selection_status"
+    t.check_constraint "status = ANY (ARRAY[0, 1, 2, 3])", name: "chk_community_questions_status"
+  end
+
+  create_table "community_stories", force: :cascade do |t|
+    t.bigint "author_profile_id", null: false
+    t.text "body", null: false
+    t.bigint "brand_id", null: false
+    t.string "content_type", default: "text", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.text "moderation_note"
+    t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.datetime "published_at"
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_admin_user_id"
+    t.integer "status", default: 0, null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_profile_id"], name: "index_community_stories_on_author_profile_id"
+    t.index ["brand_id", "status", "created_at"], name: "index_community_stories_on_brand_id_and_status_and_created_at"
+    t.index ["brand_id"], name: "index_community_stories_on_brand_id"
+    t.index ["public_id"], name: "index_community_stories_on_public_id", unique: true
+    t.index ["reviewed_by_admin_user_id"], name: "index_community_stories_on_reviewed_by_admin_user_id"
+    t.check_constraint "status = ANY (ARRAY[0, 1, 2, 3])", name: "chk_community_stories_status"
+  end
+
   create_table "conversation_participants", force: :cascade do |t|
     t.datetime "archived_at"
     t.bigint "brand_id", null: false
@@ -268,6 +533,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.index ["identity_identifier_id"], name: "index_credentials_on_identity_identifier_id"
     t.index ["user_id", "kind", "identity_identifier_id"], name: "index_credentials_on_active_user_kind_identifier", unique: true, where: "(deleted_at IS NULL)"
     t.index ["user_id"], name: "index_credentials_on_user_id"
+  end
+
+  create_table "date9ja_history_records", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "occurred_at"
+    t.jsonb "payload", default: {}, null: false
+    t.bigint "profile_id"
+    t.string "record_type", null: false
+    t.datetime "redacted_at"
+    t.string "source_entity", null: false
+    t.string "source_id", null: false
+    t.string "status"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["brand_id", "record_type", "occurred_at"], name: "idx_date9ja_history_records_timeline"
+    t.index ["brand_id", "source_entity", "source_id"], name: "idx_date9ja_history_records_source", unique: true
+    t.index ["brand_id"], name: "index_date9ja_history_records_on_brand_id"
+    t.index ["profile_id"], name: "index_date9ja_history_records_on_profile_id"
+    t.index ["user_id"], name: "index_date9ja_history_records_on_user_id"
   end
 
   create_table "device_registrations", force: :cascade do |t|
@@ -397,6 +682,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
   end
 
   create_table "identity_identifiers", force: :cascade do |t|
+    t.bigint "brand_id", null: false
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
     t.integer "kind", null: false
@@ -406,8 +692,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.datetime "verified_at"
-    t.index ["kind", "normalized_value"], name: "index_identity_identifiers_on_kind_and_normalized_value", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["brand_id", "kind", "normalized_value"], name: "index_identity_identifiers_on_brand_kind_and_normalized_value", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["brand_id"], name: "index_identity_identifiers_on_brand_id"
     t.index ["user_id"], name: "index_identity_identifiers_on_user_id"
+  end
+
+  create_table "legacy_references", force: :cascade do |t|
+    t.bigint "brand_id"
+    t.datetime "created_at", null: false
+    t.bigint "destination_id", null: false
+    t.string "destination_type", null: false
+    t.string "importer_version", null: false
+    t.string "source_entity", null: false
+    t.string "source_fingerprint"
+    t.string "source_id", null: false
+    t.string "source_system", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id"], name: "index_legacy_references_on_brand_id"
+    t.index ["source_system", "destination_type", "destination_id"], name: "idx_legacy_references_destination_key", unique: true
+    t.index ["source_system", "source_entity", "source_id"], name: "idx_legacy_references_source_key", unique: true
+    t.index ["source_system", "source_entity"], name: "idx_legacy_references_source_scan"
   end
 
   create_table "likes", force: :cascade do |t|
@@ -468,24 +772,108 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.index ["public_id"], name: "index_message_attachments_on_public_id", unique: true
   end
 
+  create_table "message_reactions", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.string "emoji", null: false
+    t.bigint "message_id", null: false
+    t.bigint "reactor_profile_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_id"], name: "index_message_reactions_on_brand_id"
+    t.index ["message_id", "reactor_profile_id", "emoji"], name: "idx_message_reactions_unique", unique: true
+    t.index ["message_id"], name: "index_message_reactions_on_message_id"
+    t.index ["reactor_profile_id"], name: "index_message_reactions_on_reactor_profile_id"
+  end
+
   create_table "messages", force: :cascade do |t|
     t.text "body"
     t.bigint "brand_id", null: false
     t.bigint "conversation_id", null: false
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
+    t.datetime "edited_at"
+    t.integer "kind", default: 0, null: false
     t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.datetime "read_at"
     t.jsonb "reply_snapshot", default: {}, null: false
     t.bigint "reply_to_message_id"
     t.bigint "sender_profile_id", null: false
+    t.string "source_media_reference"
+    t.jsonb "source_metadata", default: {}, null: false
     t.datetime "updated_at", null: false
     t.index ["brand_id"], name: "index_messages_on_brand_id"
     t.index ["conversation_id", "created_at", "id"], name: "idx_messages_conversation_cursor", where: "(deleted_at IS NULL)"
+    t.index ["conversation_id", "created_at", "id"], name: "idx_messages_history_cursor"
     t.index ["conversation_id"], name: "index_messages_on_conversation_id"
     t.index ["id", "brand_id"], name: "idx_messages_on_id_brand", unique: true
     t.index ["public_id"], name: "index_messages_on_public_id", unique: true
     t.index ["reply_to_message_id"], name: "index_messages_on_reply_to_message_id"
     t.index ["sender_profile_id"], name: "index_messages_on_sender_profile_id"
+  end
+
+  create_table "migration_media_attachment_refs", force: :cascade do |t|
+    t.string "attachment_name", null: false
+    t.datetime "created_at", null: false
+    t.string "failure_code"
+    t.string "importer_version", null: false
+    t.bigint "media_object_ref_id", null: false
+    t.integer "preflight_state", default: 0, null: false
+    t.string "source_attachment_id", null: false
+    t.string "source_record_entity", null: false
+    t.string "source_record_id", null: false
+    t.string "source_system", null: false
+    t.datetime "updated_at", null: false
+    t.index ["media_object_ref_id"], name: "index_migration_media_attachment_refs_on_media_object_ref_id"
+    t.index ["source_system", "source_attachment_id"], name: "idx_migration_media_attachment_refs_source_key", unique: true
+    t.index ["source_system", "source_record_entity", "source_record_id"], name: "idx_migration_media_attachment_refs_record"
+    t.check_constraint "preflight_state >= 0 AND preflight_state <= 3", name: "chk_migration_media_attachment_refs_preflight_state"
+  end
+
+  create_table "migration_media_object_refs", force: :cascade do |t|
+    t.bigint "byte_size"
+    t.string "checksum"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.string "failure_code"
+    t.string "importer_version", null: false
+    t.integer "preflight_state", default: 0, null: false
+    t.string "source_blob_id", null: false
+    t.string "source_fingerprint", null: false
+    t.string "source_system", null: false
+    t.integer "transfer_state", default: 0, null: false
+    t.datetime "transferred_at"
+    t.datetime "updated_at", null: false
+    t.index ["source_system", "source_blob_id"], name: "idx_migration_media_object_refs_source_key", unique: true
+    t.check_constraint "byte_size IS NULL OR byte_size > 0", name: "chk_migration_media_object_refs_positive_size"
+    t.check_constraint "preflight_state >= 0 AND preflight_state <= 3", name: "chk_migration_media_object_refs_preflight_state"
+    t.check_constraint "transfer_state >= 0 AND transfer_state <= 3", name: "chk_migration_media_object_refs_transfer_state"
+  end
+
+  create_table "migration_profile_readinesses", force: :cascade do |t|
+    t.jsonb "applied_fields", default: [], null: false
+    t.datetime "assessed_at", null: false
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "disposition", null: false
+    t.string "importer_version", null: false
+    t.bigint "profile_id"
+    t.datetime "publication_applied_at"
+    t.jsonb "reason_codes", default: [], null: false
+    t.string "source_entity", null: false
+    t.string "source_fingerprint"
+    t.string "source_id", null: false
+    t.string "source_system", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["brand_id"], name: "index_migration_profile_readinesses_on_brand_id"
+    t.index ["profile_id"], name: "idx_migration_profile_readiness_profile", unique: true, where: "(profile_id IS NOT NULL)"
+    t.index ["source_system", "source_entity", "source_id"], name: "idx_migration_profile_readiness_source", unique: true
+    t.index ["user_id"], name: "index_migration_profile_readinesses_on_user_id"
+    t.check_constraint "disposition >= 0 AND disposition <= 3", name: "chk_migration_profile_readiness_disposition"
+    t.check_constraint "jsonb_typeof(applied_fields) = 'array'::text", name: "chk_migration_profile_readiness_applied_fields_array"
+    t.check_constraint "jsonb_typeof(reason_codes) = 'array'::text", name: "chk_migration_profile_readiness_reasons_array"
+    t.check_constraint "profile_id IS NULL AND user_id IS NULL OR profile_id IS NOT NULL AND user_id IS NOT NULL", name: "chk_migration_profile_readiness_owner_pair"
   end
 
   create_table "notification_deliveries", force: :cascade do |t|
@@ -755,6 +1143,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.jsonb "metadata", default: {}, null: false
     t.integer "position", default: 0, null: false
     t.datetime "processed_at"
+    t.uuid "processing_claim_token"
+    t.datetime "processing_started_at"
     t.integer "processing_state", default: 0, null: false
     t.bigint "profile_id", null: false
     t.string "public_id", null: false
@@ -766,6 +1156,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.index ["brand_id", "status", "created_at"], name: "index_profile_photos_on_brand_id_and_status_and_created_at"
     t.index ["brand_id", "user_id", "deleted_at"], name: "index_profile_photos_on_brand_id_and_user_id_and_deleted_at"
     t.index ["brand_id"], name: "index_profile_photos_on_brand_id"
+    t.index ["processing_state", "processing_started_at"], name: "index_profile_photos_on_processing_state_and_started_at"
     t.index ["profile_id", "position"], name: "index_profile_photos_on_profile_id_and_position", unique: true, where: "(deleted_at IS NULL)"
     t.index ["profile_id"], name: "index_profile_photos_on_profile_id"
     t.index ["public_id"], name: "index_profile_photos_on_public_id", unique: true
@@ -782,6 +1173,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.integer "max_distance_km"
     t.jsonb "metadata", default: {}, null: false
     t.integer "min_age"
+    t.jsonb "preferred_attributes", default: {}, null: false
+    t.jsonb "preferred_country_codes", default: [], null: false
     t.bigint "profile_id", null: false
     t.string "relationship_intent"
     t.datetime "updated_at", null: false
@@ -827,6 +1220,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.check_constraint "\"position\" >= 0", name: "chk_profile_prompts_position"
   end
 
+  create_table "profile_videos", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.bigint "deleted_by_id"
+    t.string "deletion_reason"
+    t.integer "duration_seconds"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "processed_at"
+    t.uuid "processing_claim_token"
+    t.datetime "processing_started_at"
+    t.integer "processing_state", default: 0, null: false
+    t.bigint "profile_id", null: false
+    t.string "public_id", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.integer "visibility", default: 0, null: false
+    t.index ["brand_id"], name: "index_profile_videos_on_brand_id"
+    t.index ["processing_state", "processing_started_at"], name: "index_profile_videos_on_processing_state_and_started_at"
+    t.index ["profile_id"], name: "idx_profile_videos_one_per_profile", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["public_id"], name: "index_profile_videos_on_public_id", unique: true
+    t.index ["user_id"], name: "index_profile_videos_on_user_id"
+  end
+
   create_table "profiles", force: :cascade do |t|
     t.text "bio"
     t.date "birthdate"
@@ -839,31 +1257,45 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.string "country_code", limit: 2
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
+    t.datetime "discovery_restricted_at"
+    t.bigint "discovery_restricted_by_admin_user_id"
+    t.text "discovery_restriction_note"
+    t.string "discovery_restriction_reason"
     t.string "display_name"
     t.string "drinking", limit: 32
+    t.text "faith_family_expectations"
     t.string "fitness", limit: 32
     t.string "gender"
     t.integer "height_cm"
+    t.text "ideal_partner_description"
+    t.text "interest_in_nigerian_culture"
+    t.boolean "is_nigerian"
     t.string "job_title", limit: 120
     t.jsonb "languages", default: [], null: false
     t.jsonb "languages_spoken", default: [], null: false
     t.text "looking_for_text"
     t.jsonb "metadata", default: {}, null: false
+    t.string "nationality", limit: 2
     t.string "occupation", limit: 120
     t.string "pronouns", limit: 40
     t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
+    t.string "relocation_preferences", default: [], null: false, array: true
     t.string "school_or_institution", limit: 160
     t.string "smoking", limit: 32
+    t.string "state_of_origin", limit: 80
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.integer "visibility", default: 0, null: false
+    t.boolean "willing_to_relocate"
     t.index "lower((display_name)::text)", name: "index_profiles_on_lower_display_name"
     t.index ["brand_id", "country_code", "city"], name: "index_profiles_on_brand_id_and_country_code_and_city"
     t.index ["brand_id", "status", "visibility", "created_at"], name: "idx_on_brand_id_status_visibility_created_at_3574045134"
     t.index ["brand_id"], name: "index_profiles_on_brand_id"
     t.index ["brand_membership_id"], name: "index_profiles_on_brand_membership_id"
     t.index ["deleted_at"], name: "index_profiles_on_deleted_at"
+    t.index ["discovery_restricted_at"], name: "index_profiles_on_discovery_restricted_at"
+    t.index ["discovery_restricted_by_admin_user_id"], name: "index_profiles_on_discovery_restricted_by_admin_user_id"
     t.index ["id", "brand_id"], name: "idx_profiles_on_id_brand", unique: true
     t.index ["id", "user_id", "brand_id"], name: "idx_profiles_on_id_user_brand", unique: true
     t.index ["public_id"], name: "index_profiles_on_public_id", unique: true
@@ -901,9 +1333,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.datetime "updated_at", null: false
     t.index ["brand_id", "reported_profile_id"], name: "index_reports_on_brand_id_and_reported_profile_id"
     t.index ["brand_id", "reporter_profile_id", "reported_profile_id"], name: "idx_reports_open_profile", unique: true, where: "((status = 0) AND (target_id IS NULL))"
+    t.index ["brand_id", "reporter_profile_id", "target_type", "target_id"], name: "idx_reports_open_target", unique: true, where: "((status = 0) AND (target_id IS NOT NULL))"
     t.index ["brand_id", "status", "created_at"], name: "index_reports_on_brand_id_and_status_and_created_at"
     t.index ["brand_id", "target_type", "created_at"], name: "index_reports_on_brand_id_and_target_type_and_created_at"
-    t.index ["brand_id", "target_type", "target_id"], name: "idx_reports_open_target", unique: true, where: "((status = 0) AND (target_id IS NOT NULL))"
     t.index ["brand_id"], name: "index_reports_on_brand_id"
     t.index ["reported_profile_id"], name: "index_reports_on_reported_profile_id"
     t.index ["reporter_profile_id"], name: "index_reports_on_reporter_profile_id"
@@ -952,15 +1384,80 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
+  create_table "trust_adjustments", force: :cascade do |t|
+    t.bigint "actor_admin_user_id"
+    t.string "appeal_status", default: "not_requested", null: false
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.string "idempotency_key", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "occurred_at", null: false
+    t.integer "points", null: false
+    t.string "reason_code", null: false
+    t.datetime "resolved_at"
+    t.bigint "resolved_by_admin_user_id"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["actor_admin_user_id"], name: "index_trust_adjustments_on_actor_admin_user_id"
+    t.index ["brand_id", "idempotency_key"], name: "idx_trust_adjustments_idempotency", unique: true
+    t.index ["brand_id", "user_id"], name: "idx_trust_adjustments_lookup"
+    t.index ["brand_id"], name: "index_trust_adjustments_on_brand_id"
+    t.index ["resolved_by_admin_user_id"], name: "index_trust_adjustments_on_resolved_by_admin_user_id"
+    t.index ["user_id"], name: "index_trust_adjustments_on_user_id"
+  end
+
+  create_table "trust_events", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.datetime "created_at", null: false
+    t.string "event_type", null: false
+    t.string "idempotency_key", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "occurred_at", null: false
+    t.integer "points", null: false
+    t.bigint "profile_id"
+    t.string "source_id"
+    t.string "source_type"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["brand_id", "idempotency_key"], name: "idx_trust_events_idempotency", unique: true
+    t.index ["brand_id", "user_id"], name: "idx_trust_events_lookup"
+    t.index ["brand_id"], name: "index_trust_events_on_brand_id"
+    t.index ["profile_id"], name: "index_trust_events_on_profile_id"
+    t.index ["user_id"], name: "index_trust_events_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
     t.string "first_name", limit: 100
     t.string "last_name", limit: 100
+    t.jsonb "metadata", default: {}, null: false
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index "lower((first_name)::text)", name: "index_users_on_lower_first_name"
     t.index "lower((last_name)::text)", name: "index_users_on_lower_last_name"
+  end
+
+  create_table "verification_assertions", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.string "check_type", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "evidence", default: {}, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.bigint "profile_id"
+    t.datetime "reviewed_at"
+    t.string "reviewer_source_id"
+    t.string "source_id", null: false
+    t.string "source_type", null: false
+    t.string "status", null: false
+    t.datetime "submitted_at"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["brand_id", "source_type", "source_id"], name: "idx_verification_assertions_source", unique: true
+    t.index ["brand_id", "user_id", "source_type", "check_type"], name: "idx_verification_assertions_lookup"
+    t.index ["brand_id"], name: "index_verification_assertions_on_brand_id"
+    t.index ["profile_id"], name: "index_verification_assertions_on_profile_id"
+    t.index ["user_id"], name: "index_verification_assertions_on_user_id"
   end
 
   add_foreign_key "account_closures", "brand_memberships"
@@ -979,8 +1476,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
   add_foreign_key "admin_assignments", "admin_roles"
   add_foreign_key "admin_assignments", "admin_users"
   add_foreign_key "admin_assignments", "brands"
+  add_foreign_key "admin_identity_corrections", "admin_users"
+  add_foreign_key "admin_identity_corrections", "brands"
+  add_foreign_key "admin_identity_corrections", "profiles"
   add_foreign_key "admin_mfa_credentials", "admin_users"
   add_foreign_key "admin_users", "users"
+  add_foreign_key "ai_conversations", "brand_memberships"
+  add_foreign_key "ai_conversations", "brands"
+  add_foreign_key "ai_messages", "ai_conversations"
+  add_foreign_key "ai_usage_events", "ai_conversations"
+  add_foreign_key "ai_usage_events", "brand_memberships"
+  add_foreign_key "ai_usage_events", "brands"
   add_foreign_key "analytics_events", "brands"
   add_foreign_key "analytics_events", "profiles"
   add_foreign_key "analytics_events", "sessions"
@@ -992,6 +1498,49 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
   add_foreign_key "brand_domains", "brands"
   add_foreign_key "brand_memberships", "brands"
   add_foreign_key "brand_memberships", "users"
+  add_foreign_key "community_answers", "admin_users", column: "reviewed_by_admin_user_id"
+  add_foreign_key "community_answers", "brands"
+  add_foreign_key "community_answers", "community_questions"
+  add_foreign_key "community_answers", "community_questions", column: ["community_question_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_answers_question_tenant"
+  add_foreign_key "community_answers", "profiles", column: "author_profile_id"
+  add_foreign_key "community_answers", "profiles", column: ["author_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_answers_author_tenant"
+  add_foreign_key "community_circle_memberships", "brands"
+  add_foreign_key "community_circle_memberships", "community_circles"
+  add_foreign_key "community_circle_memberships", "community_circles", column: ["community_circle_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_memberships_circle_tenant"
+  add_foreign_key "community_circle_memberships", "profiles"
+  add_foreign_key "community_circle_memberships", "profiles", column: ["profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_memberships_profile_tenant"
+  add_foreign_key "community_circles", "admin_users", column: "reviewed_by_admin_user_id"
+  add_foreign_key "community_circles", "brands"
+  add_foreign_key "community_circles", "profiles", column: "creator_profile_id"
+  add_foreign_key "community_circles", "profiles", column: ["creator_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_circles_creator_tenant"
+  add_foreign_key "community_comments", "brands"
+  add_foreign_key "community_comments", "community_posts"
+  add_foreign_key "community_comments", "community_posts", column: ["community_post_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_comments_post_tenant"
+  add_foreign_key "community_comments", "profiles", column: "author_profile_id"
+  add_foreign_key "community_comments", "profiles", column: ["author_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_comments_author_tenant"
+  add_foreign_key "community_event_rsvps", "brands"
+  add_foreign_key "community_event_rsvps", "community_events"
+  add_foreign_key "community_event_rsvps", "community_events", column: ["community_event_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_rsvps_event_tenant"
+  add_foreign_key "community_event_rsvps", "profiles"
+  add_foreign_key "community_event_rsvps", "profiles", column: ["profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_rsvps_profile_tenant"
+  add_foreign_key "community_events", "admin_users", column: "reviewed_by_admin_user_id"
+  add_foreign_key "community_events", "brands"
+  add_foreign_key "community_events", "profiles", column: "organizer_profile_id"
+  add_foreign_key "community_events", "profiles", column: ["organizer_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_events_organizer_tenant"
+  add_foreign_key "community_posts", "brands"
+  add_foreign_key "community_posts", "community_circles"
+  add_foreign_key "community_posts", "community_circles", column: ["community_circle_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_posts_circle_tenant"
+  add_foreign_key "community_posts", "profiles", column: "author_profile_id"
+  add_foreign_key "community_posts", "profiles", column: ["author_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_posts_author_tenant"
+  add_foreign_key "community_questions", "admin_users", column: "reviewed_by_admin_user_id"
+  add_foreign_key "community_questions", "brands"
+  add_foreign_key "community_questions", "community_answers", column: ["selected_answer_id", "id"], primary_key: ["id", "community_question_id"], name: "fk_community_questions_selected_answer"
+  add_foreign_key "community_questions", "profiles", column: "author_profile_id"
+  add_foreign_key "community_questions", "profiles", column: ["author_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_questions_author_tenant"
+  add_foreign_key "community_stories", "admin_users", column: "reviewed_by_admin_user_id"
+  add_foreign_key "community_stories", "brands"
+  add_foreign_key "community_stories", "profiles", column: "author_profile_id"
+  add_foreign_key "community_stories", "profiles", column: ["author_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_community_stories_author_tenant"
   add_foreign_key "conversation_participants", "brands"
   add_foreign_key "conversation_participants", "conversations", column: ["conversation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_conversation_participants_conversation_tenant"
   add_foreign_key "conversation_participants", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_conversation_participants_profile_tenant"
@@ -1001,6 +1550,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
   add_foreign_key "credential_password_hashes", "credentials", column: ["credential_id", "credential_kind"], primary_key: ["id", "kind"], name: "fk_password_hash_credential_kind"
   add_foreign_key "credentials", "identity_identifiers"
   add_foreign_key "credentials", "users"
+  add_foreign_key "date9ja_history_records", "brands"
+  add_foreign_key "date9ja_history_records", "profiles"
+  add_foreign_key "date9ja_history_records", "users"
   add_foreign_key "device_registrations", "brand_memberships"
   add_foreign_key "device_registrations", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_device_registrations_membership_owner"
   add_foreign_key "device_registrations", "brands"
@@ -1024,7 +1576,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
   add_foreign_key "hooks", "profile_openers", column: ["profile_opener_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_profile_opener_tenant"
   add_foreign_key "hooks", "profiles", column: ["recipient_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_recipient_tenant"
   add_foreign_key "hooks", "profiles", column: ["sender_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_sender_tenant"
+  add_foreign_key "identity_identifiers", "brands"
   add_foreign_key "identity_identifiers", "users"
+  add_foreign_key "legacy_references", "brands"
   add_foreign_key "likes", "brands"
   add_foreign_key "likes", "profiles", column: ["liked_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_likes_liked_profile_tenant"
   add_foreign_key "likes", "profiles", column: ["liker_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_likes_liker_profile_tenant"
@@ -1033,10 +1587,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
   add_foreign_key "matches", "profiles", column: ["profile_b_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_matches_profile_b_tenant"
   add_foreign_key "message_attachments", "brands"
   add_foreign_key "message_attachments", "messages", column: ["message_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_message_attachments_message_tenant"
+  add_foreign_key "message_reactions", "brands"
+  add_foreign_key "message_reactions", "messages"
+  add_foreign_key "message_reactions", "profiles", column: "reactor_profile_id"
   add_foreign_key "messages", "brands"
   add_foreign_key "messages", "conversations", column: ["conversation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_conversation_tenant"
   add_foreign_key "messages", "messages", column: ["reply_to_message_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_reply_to_message_tenant"
   add_foreign_key "messages", "profiles", column: ["sender_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_sender_tenant"
+  add_foreign_key "migration_media_attachment_refs", "migration_media_object_refs", column: "media_object_ref_id"
+  add_foreign_key "migration_profile_readinesses", "brands"
+  add_foreign_key "migration_profile_readinesses", "profiles"
+  add_foreign_key "migration_profile_readinesses", "profiles", column: ["profile_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_migration_profile_readiness_profile_tenant"
+  add_foreign_key "migration_profile_readinesses", "users"
   add_foreign_key "notification_deliveries", "brands"
   add_foreign_key "notification_deliveries", "device_registrations"
   add_foreign_key "notification_deliveries", "notifications"
@@ -1094,6 +1656,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
   add_foreign_key "profile_prompt_answers", "profile_prompts", column: ["profile_prompt_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_prompt_answers_prompt_tenant"
   add_foreign_key "profile_prompt_answers", "profiles", column: ["profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_profile_prompt_answers_profile_tenant"
   add_foreign_key "profile_prompts", "brands"
+  add_foreign_key "profile_videos", "brands"
+  add_foreign_key "profile_videos", "profiles"
+  add_foreign_key "profile_videos", "users"
+  add_foreign_key "profiles", "admin_users", column: "discovery_restricted_by_admin_user_id"
   add_foreign_key "profiles", "brand_memberships"
   add_foreign_key "profiles", "brand_memberships", column: ["brand_membership_id", "user_id", "brand_id"], primary_key: ["id", "user_id", "brand_id"], name: "fk_profiles_membership_tenant"
   add_foreign_key "profiles", "brands"
@@ -1108,4 +1674,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_120000) do
   add_foreign_key "sessions", "brands"
   add_foreign_key "sessions", "credentials"
   add_foreign_key "sessions", "users"
+  add_foreign_key "trust_adjustments", "admin_users", column: "actor_admin_user_id"
+  add_foreign_key "trust_adjustments", "admin_users", column: "resolved_by_admin_user_id"
+  add_foreign_key "trust_adjustments", "brands"
+  add_foreign_key "trust_adjustments", "users"
+  add_foreign_key "trust_events", "brands"
+  add_foreign_key "trust_events", "profiles"
+  add_foreign_key "trust_events", "users"
+  add_foreign_key "verification_assertions", "brands"
+  add_foreign_key "verification_assertions", "profiles"
+  add_foreign_key "verification_assertions", "users"
 end

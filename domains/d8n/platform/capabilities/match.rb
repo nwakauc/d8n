@@ -6,7 +6,10 @@ module D8n
           CapabilityDefinition.new(key: "match.eligibility", status: :available,
             implementations: %w[Matching::EligibilityScope Matching::ProfileParticipant]),
           CapabilityDefinition.new(key: "match.compatibility", status: :available,
-            implementations: %w[Matching::Strategies::Hookus Matching::Strategies::DatezaV1]),
+            implementations: %w[
+              Matching::Strategies::Hookus Matching::Strategies::DatezaV1
+              Matching::Strategies::Date9jaContract
+            ]),
           CapabilityDefinition.new(key: "match.ranking", status: :available,
             implementations: %w[Matching::StrategyRegistry]),
           # Read (incoming/outgoing) shares this same key with the write action

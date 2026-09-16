@@ -137,7 +137,7 @@ module Identity
     end
 
     def email_owned?(new_email)
-      IdentityIdentifier.kept.email.where(normalized_value: new_email).where.not(id: identifier.id).exists?
+      IdentityIdentifier.kept.email.where(brand: session.brand, normalized_value: new_email).where.not(id: identifier.id).exists?
     end
 
     def account_throttle_result

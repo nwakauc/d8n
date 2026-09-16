@@ -5,10 +5,12 @@ module Profiles
   #
   #   verified       — the member has proven ownership of at least one contact
   #                    identifier (email/phone: IdentityIdentifier#verified_at).
-  #                    This is NOT photo/identity ("it's really them") verification
-  #                    — that domain does not exist yet. It is the honest, weaker
-  #                    "reachable / contactable" signal we actually have today;
-  #                    the caller decides how strongly to badge it.
+  #                    This is the honest, weaker "reachable / contactable"
+  #                    signal, NOT identity verification.
+  #   realme_badge   — the member has confirmed their email AND has an
+  #                    approved selfie, liveness video, and government ID
+  #                    (Identity::RealmeBadge, ADR 0034). This IS the "it's
+  #                    really them" signal, manually reviewed today.
   #   online         — the member has an active brand session used within
   #                    ONLINE_WINDOW. Reuses Matching::FacetFilter::ONLINE_WINDOW
   #                    on purpose so the "online" discovery *filter* and this
@@ -51,6 +53,7 @@ module Profiles
       return {} if viewer.nil? || profiles.empty?
 
       verified = verified_user_ids
+      realme_badges = Identity::RealmeBadge.bulk(user_ids:, brand: viewer.brand)
       activity = last_active_by_user
       distances = distance_by_profile
       online_threshold = ONLINE_WINDOW.ago
@@ -61,6 +64,7 @@ module Profiles
         last_active = activity[profile.user_id]
         acc[profile.id] = {
           verified: verified.include?(profile.user_id),
+          realme_badge: realme_badges.fetch(profile.user_id, false),
           online: last_active.present? && last_active >= online_threshold,
           active_today: last_active.present? && last_active >= active_today_threshold,
           new_here: profile.created_at.present? && profile.created_at >= new_here_threshold,

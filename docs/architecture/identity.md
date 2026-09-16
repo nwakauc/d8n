@@ -127,6 +127,20 @@ authentication failure and exposes no credential details. HookUs currently has
 no equivalent requirement. Find remains a separate passive browsing surface and
 does not inherit the interaction controller.
 
+Date9ja uses progressive verification instead of a general interaction wall.
+Onboarding, discovery, profile detail, likes, passes, matches, conversation
+creation, and history reads do not require a confirmed login identifier. Message
+sending is the higher-trust boundary; a future message-media upload intent uses
+the same policy if Date9ja enables that capability. The brand-configured
+`verified_realme_method` accepts only signals whose capability is enabled for
+the current brand. Date9ja currently accepts an approved, same-brand selfie,
+video, liveness, or government-ID `VerificationAssertion`; its phone capability
+is disabled, so neither a verified phone nor a historical phone assertion
+qualifies. A verified email is contact control only and does not qualify. Denial is `403
+realme_verification_required` and never discloses which private evidence exists.
+Until live RealMe flows and a consumer status contract ship, approved imported
+non-phone assertions are honored server-side without being exposed publicly.
+
 Members without a published profile continue through each endpoint's existing
 profile/lifecycle authorization, preserving distinct unfinished, suspended, and
 unavailable outcomes. Account/profile management and Trust safety actions do not

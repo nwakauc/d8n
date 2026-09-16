@@ -39,6 +39,7 @@ class ProfilePhotoLimitConcurrencyTest < ActiveSupport::TestCase
       blob_ids = ActiveStorage::Attachment.where(record_type: "ProfilePhoto", record_id: photo_ids).pluck(:blob_id)
       ActiveStorage::Attachment.where(record_type: "ProfilePhoto", record_id: photo_ids).delete_all
       ProfilePhoto.where(brand:).delete_all
+      AnalyticsEvent.where(brand:).delete_all
       Profile.where(brand:).delete_all
       BrandMembership.where(brand:).delete_all
       ActiveStorage::Blob.where(id: blob_ids).find_each(&:purge)

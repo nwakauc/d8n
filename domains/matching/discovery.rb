@@ -57,13 +57,20 @@ module Matching
       scope = FacetFilter.apply(scope:, brand:, filter:)
       scope = strategy.rank(scope:, viewer:, eligibility_policy: selected_surface.eligibility_policy)
       scope = Cursor.apply(scope:, value: cursor, brand:, strategy:, filter:)
-      profiles = scope.includes(
+      preload = [
         :brand,
         { profile_option_selections: [ :profile_option, :profile_option_group ] },
         { profile_photos: { display_image_attachment: :blob } }
-      ).limit(limit + 1).to_a
+      ]
+      preload << :profile_preference if strategy.respond_to?(:for_eligible_pair)
+      preload << { profile_video: [ { playback_attachment: :blob }, { poster_attachment: :blob } ] } if
+        Media::VideoPolicy.enabled?(brand:)
+      profiles = scope.includes(*preload).limit(limit + 1).to_a
       has_more = profiles.length > limit
       profiles = profiles.first(limit)
+      compatibility_by_profile = pair_compatibility(
+        strategy:, viewer:, profiles:, eligibility_policy: selected_surface.eligibility_policy
+      )
 
       Result.new(
         profiles:,
@@ -72,7 +79,7 @@ module Matching
         viewer:,
         eligibility_policy: selected_surface.eligibility_policy,
         decorators: selected_surface.decorators,
-        compatibility_by_profile: nil,
+        compatibility_by_profile:,
         selection: nil
       )
     end
@@ -102,6 +109,16 @@ module Matching
       ProfileParticipant.discoverable!(user:, brand:)
     rescue InteractionError
       raise ViewerIneligible, "an active discoverable profile is required"
+    end
+
+    def pair_compatibility(strategy:, viewer:, profiles:, eligibility_policy:)
+      return unless strategy.respond_to?(:for_eligible_pair)
+
+      scorer = strategy.new(brand:, viewer:, eligibility_policy:)
+      profiles.to_h do |profile|
+        result = scorer.for_eligible_pair(candidate: profile)
+        [ profile.id, result.respond_to?(:public_payload) ? result.public_payload : result ]
+      end
     end
 
     def normalize_limit(value)

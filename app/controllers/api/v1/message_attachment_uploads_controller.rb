@@ -1,6 +1,7 @@
 class Api::V1::MessageAttachmentUploadsController < Api::V1::InteractionController
   requires_platform_capability "chat.message.media"
 
+  before_action :authorize_message_send_access!, only: :create
   before_action -> { enforce_rate_limit!(:chat_media_upload_intent) }, only: :create
   before_action :set_active_storage_url_options, only: :create
 

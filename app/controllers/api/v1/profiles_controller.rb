@@ -29,6 +29,7 @@ class Api::V1::ProfilesController < Api::V1::InteractionController
     detail[:verification] = { contact: { verified: status.fetch(:verified, false) } }
     compatibility = detail_compatibility(contract:, viewer:, profile:)
     detail[:compatibility] = compatibility unless compatibility == :unsupported
+    detail[:viewer_interaction] = viewer_interaction(viewer:, profile:)
 
     render json: { profile: detail }
   rescue Profiles::PublicProfile::ViewerIneligible
@@ -55,5 +56,25 @@ class Api::V1::ProfilesController < Api::V1::InteractionController
 
     result = strategy.for_visible_pair(brand: Current.brand, viewer:, candidate: profile)
     result.respond_to?(:public_payload) ? result.public_payload : result
+  end
+
+  # Whether the viewer has already liked/super-liked or passed this profile —
+  # lets the profile page (opened from Introductions/Explore/Likes after an
+  # action was already taken) render the same "already decided" state instead
+  # of offering Pass/Like/Super Like again as if nothing happened. A repeat
+  # Like/Pass call is harmless either way (Matching::LikeProfile / PassProfile
+  # are idempotent), this is purely so the UI doesn't lie about what already
+  # happened.
+  def viewer_interaction(viewer:, profile:)
+    return { liked: false, kind: nil, passed: false } if viewer.nil?
+
+    like = Like.kept.find_by(brand: Current.brand, liker_profile: viewer, liked_profile: profile)
+    passed = ProfilePass.kept.exists?(brand: Current.brand, passer_profile: viewer, passed_profile: profile)
+
+    {
+      liked: like.present?,
+      kind: like.nil? ? nil : (like.kind_super_like? ? "super_like" : "like"),
+      passed:
+    }
   end
 end

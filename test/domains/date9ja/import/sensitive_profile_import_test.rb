@@ -1,0 +1,219 @@
+# frozen_string_literal: true
+
+require "test_helper"
+require "bcrypt"
+
+module Date9ja
+  module Import
+    # The gated sensitive-profile importer: religion / tribe / ethnicity /
+    # denomination / genotype / state_of_origin / nationality / is_nigerian /
+    # openness flags / matching-preference arrays / interest_in_nigerian_culture.
+    class SensitiveProfileImportTest < ActiveSupport::TestCase
+      test "snapshot SQL reads genotype from its real JSON source and invents no source columns" do
+        connection = Object.new
+        query = nil
+        connection.define_singleton_method(:exec_query) do |sql|
+          query = sql
+          Struct.new(:to_a).new([])
+        end
+
+        Snapshot::SensitiveUserSource.new(connection:, verify_schema: false).to_a
+
+        assert_includes query, "v2_onboarding_answers ->> 'genotype' AS genotype"
+        assert_includes query, "NULL::character varying[] AS preferred_ethnicity"
+        assert_includes query, "NULL::character varying[] AS preferred_genotype"
+        refute_includes query, "denomination, genotype,"
+      end
+
+      setup do
+        @brand = Brands::Date9jaInstaller.call
+        Geography::NigeriaCatalog.install!
+      end
+
+      def base_row(id:, **overrides)
+        {
+          id:, public_id: "pub-#{id}", email: "member#{id}@example.test", phone: nil,
+          encrypted_password: BCrypt::Password.create("x", cost: BCrypt::Engine::MIN_COST).to_s,
+          confirmed_at: Time.utc(2024, 1, 1), phone_verified_at: nil, created_at: Time.utc(2023, 1, 1),
+          deleted_at: nil, suspended_at: nil, banned_at: nil, profile_hidden: false,
+          onboarding_completed_at: Time.utc(2024, 2, 1), date_of_birth: 30.years.ago.to_date,
+          gender: 0, full_name: "Tunde Okafor", display_name: "Member #{id}", city: "Lagos",
+          country_of_residence: "Nigeria", about_me: "A real biography", ideal_partner_description: "Kind",
+          looking_for: 1, preferred_age_min: 25, preferred_age_max: 40, preferred_distance_km: nil,
+          relationship_intention: 0, wants_children: 0, children_count: 0
+        }.merge(overrides)
+      end
+
+      # Runs identity + preference first so a Profile and ProfilePreference exist,
+      # then the sensitive pass over the same source ids.
+      def run_sensitive(base_rows, sensitive_rows)
+        IdentityImport.call(brand: @brand, source: Snapshot::UserSource.new(rows: base_rows))
+        ProfilePreferenceImport.call(brand: @brand, source: Snapshot::UserSource.new(rows: base_rows))
+        SensitiveProfileImport.call(
+          brand: @brand, source: Snapshot::SensitiveUserSource.new(rows: sensitive_rows)
+        )
+      end
+
+      def profile_for(id)
+        Migration::ReferenceMap.resolved(source_system: "date9ja", source_entity: "profile", source_id: id.to_s)
+      end
+
+      def selection(id, group_key)
+        group = @brand.profile_option_groups.kept.find_by!(key: group_key)
+        ProfileOptionSelection.kept.where(profile: profile_for(id), profile_option_group: group)
+          .joins(:profile_option).pluck("profile_options.code")
+      end
+
+      test "preserves scalars, option groups and matching preferences" do
+        result = run_sensitive(
+          [ base_row(id: 1) ],
+          [ { id: 1, is_nigerian: true, state_of_origin: "Imo", nationality: "Nigeria",
+              tribe: "Igbo", ethnicity: "Igbo", religion: "Christianity", denomination: "Catholic",
+              genotype: "AS", intertribal_marriage_openness: "open", polygamy_openness: "no",
+              interest_in_nigerian_culture: "Very involved in my culture",
+              preferred_religion: [ "Christianity" ], preferred_tribes: [ "Igbo", "Yoruba" ],
+              preferred_ethnicity: [], preferred_genotype: [ "AA", "AS" ] } ]
+        )
+
+        profile = profile_for(1).reload
+        assert_equal true, profile.is_nigerian
+        assert_equal "Imo", profile.state_of_origin
+        assert_equal "NG", profile.nationality
+        assert_equal "Very involved in my culture", profile.interest_in_nigerian_culture
+        assert_equal [ "igbo" ], selection(1, "tribe")
+        assert_equal [ "christian" ], selection(1, "religion")
+        assert_equal [ "catholic" ], selection(1, "denomination")
+        assert_equal [ "as" ], selection(1, "genotype")
+        assert_equal [ "open" ], selection(1, "intertribal_marriage_openness")
+        assert_equal [ "not_open" ], selection(1, "polygamy_openness")
+
+        preference = ProfilePreference.kept.find_by!(profile: profile_for(1))
+        assert_equal({ "religion" => [ "christian" ], "tribe" => [ "igbo", "yoruba" ],
+                       "genotype" => [ "aa", "as" ] }, preference.preferred_attributes)
+
+        assert_equal 1, result.reconciliation.count(:imported)
+        assert result.reconciliation.balanced?
+      end
+
+      test "imported genotype is consumed by Date9ja compatibility" do
+        run_sensitive(
+          [ base_row(id: 1), base_row(id: 2, gender: 1, looking_for: 0) ],
+          [ { id: 1, genotype: "AS" }, { id: 2, genotype: "AS" } ]
+        )
+
+        check = Matching::Strategies::Date9jaContract.for_visible_pair(
+          brand: @brand, viewer: profile_for(1), candidate: profile_for(2)
+        ).critical_checks.fetch(:hemoglobin_genotype)
+
+        assert_equal "elevated_sickle_cell_risk", check.fetch(:status)
+        assert_equal 0.25, check.fetch(:sickle_cell_disease_probability)
+      end
+
+      test "an unrecognised sensitive value is quarantined, noted, and kept verbatim owner-only, never guessed" do
+        result = run_sensitive(
+          [ base_row(id: 1) ],
+          [ { id: 1, tribe: "Martian", state_of_origin: "Atlantis", religion: nil } ]
+        )
+
+        # never guessed into a destination code
+        assert_empty selection(1, "tribe")
+        assert_nil profile_for(1).reload.state_of_origin
+        assert_equal 1, result.reconciliation.note_count("tribe_unmapped")
+        assert_equal 1, result.reconciliation.note_count("state_of_origin_unmapped")
+        assert_equal 1, result.reconciliation.note_count("religion_absent")
+
+        # but never lost: raw value kept in owner-only profile metadata
+        meta = profile_for(1).reload.metadata
+        assert_equal "Martian", meta["date9ja_tribe_raw"]
+        assert_equal "Atlantis", meta["date9ja_state_of_origin_raw"]
+        assert_equal 1, result.reconciliation.note_count("tribe_raw_preserved")
+        assert_equal 1, result.reconciliation.note_count("state_of_origin_raw_preserved")
+
+        # rerun does not duplicate or overwrite
+        run_sensitive([ base_row(id: 1) ], [ { id: 1, tribe: "Martian", state_of_origin: "Atlantis" } ])
+        assert_equal "Martian", profile_for(1).reload.metadata["date9ja_tribe_raw"]
+      end
+
+      test "gap-fill only: a member's own sensitive value survives a rerun" do
+        rows = [ { id: 1, tribe: "Igbo", is_nigerian: true } ]
+        run_sensitive([ base_row(id: 1) ], rows)
+
+        profile = profile_for(1)
+        group = @brand.profile_option_groups.kept.find_by!(key: "tribe")
+        ProfileOptionSelection.kept.where(profile:, profile_option_group: group).delete_all
+        yoruba = group.profile_options.kept.find_by!(code: "yoruba")
+        ProfileOptionSelection.create!(profile:, user_id: profile.user_id, brand_id: @brand.id,
+          profile_option_group: group, profile_option: yoruba)
+        profile.update!(is_nigerian: false)
+
+        result = SensitiveProfileImport.call(
+          brand: @brand, source: Snapshot::SensitiveUserSource.new(rows: rows)
+        )
+
+        assert_equal [ "yoruba" ], selection(1, "tribe")
+        assert_equal false, profile_for(1).reload.is_nigerian
+        assert_equal 1, result.reconciliation.count(:imported)
+      end
+
+      test "the sanitized rehearsal shape (all NULL / empty) writes nothing" do
+        result = run_sensitive([ base_row(id: 1) ], [ { id: 1 } ])
+
+        profile = profile_for(1).reload
+        assert_nil profile.is_nigerian
+        assert_nil profile.state_of_origin
+        assert_empty selection(1, "religion")
+        assert_equal 0, result.reconciliation.to_h.dig("created", "option_selections_created")
+        assert_equal 1, result.reconciliation.count(:imported)
+        assert_equal 1, result.reconciliation.note_count("religion_absent")
+      end
+
+      test "non-genotype V2 onboarding answers are preserved verbatim in owner-only profile metadata" do
+        result = run_sensitive(
+          [ base_row(id: 1) ],
+          [ { id: 1, genotype: "AA",
+              v2_onboarding_answers: {
+                "faith_practice" => "devout", "family_involvement" => "high",
+                "language_at_home" => "yoruba", "settlement" => "lagos",
+                "money_providing" => "shared", "children" => "wants_more",
+                "lifestyle" => "quiet", "conflict" => "talk_it_out",
+                "custom_religion" => "", "genotype" => "AA"
+              } } ]
+        )
+
+        stored = profile_for(1).reload.metadata["date9ja_v2_onboarding"]
+        assert_equal "devout", stored["faith_practice"]
+        assert_equal "talk_it_out", stored["conflict"]
+        assert_not stored.key?("genotype"), "genotype must not be duplicated into the metadata blob"
+        assert_equal 1, result.reconciliation.note_count("v2_onboarding_answers_mapped")
+
+        # Rerun is gap-fill: the existing copy is left untouched.
+        rerun = SensitiveProfileImport.call(
+          brand: @brand,
+          source: Snapshot::SensitiveUserSource.new(rows: [ { id: 1, v2_onboarding_answers: { "faith_practice" => "changed" } } ])
+        )
+        assert_equal "devout", profile_for(1).reload.metadata.dig("date9ja_v2_onboarding", "faith_practice")
+        assert_equal 1, rerun.reconciliation.note_count("v2_onboarding_answers_preserved")
+      end
+
+      test "a soft-deleted or banned source row is skipped" do
+        result = run_sensitive(
+          [ base_row(id: 1), base_row(id: 2, email: "b@example.test") ],
+          [ { id: 1, deleted_at: Time.utc(2025, 1, 1), tribe: "Igbo" },
+            { id: 2, banned_at: Time.utc(2025, 1, 1), tribe: "Yoruba" } ]
+        )
+        assert_equal 2, result.reconciliation.count(:skipped)
+        assert result.reconciliation.balanced?
+      end
+
+      test "sensitive destinations stay owner-only except Date9ja's compatibility-visible genotype" do
+        %w[tribe ethnicity religion denomination
+           intertribal_marriage_openness polygamy_openness].each do |key|
+          group = @brand.profile_option_groups.kept.find_by!(key:)
+          assert_equal "owner_only", group.visibility, key
+        end
+        assert_equal "public_profile", @brand.profile_option_groups.kept.find_by!(key: "genotype").visibility
+        assert_equal :owner_only, Profiles::FieldCatalog.fetch("interest_in_nigerian_culture").default_audience
+      end
+    end
+  end
+end

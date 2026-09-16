@@ -30,12 +30,13 @@ module Admin
 
     Result = Data.define(:user, :admin_user, :admin_role, :assignments)
 
-    def self.call(email:)
-      new(email:).call
+    def self.call(email:, brand:)
+      new(email:, brand:).call
     end
 
-    def initialize(email:)
+    def initialize(email:, brand:)
       @email_input = email
+      @source_brand = brand
     end
 
     def call
@@ -72,17 +73,22 @@ module Admin
 
     private
 
-    attr_reader :email_input
+    attr_reader :email_input, :source_brand
 
+    # Identity is brand-scoped (app/models/identity_identifier.rb): the same
+    # email may independently belong to a different User on a different
+    # brand. The operator names which brand's account is "the" admin-rooted
+    # identity explicitly, rather than this task guessing/picking arbitrarily
+    # among however many brands happen to share that email.
     def existing_user(login_identifier)
       identity_identifier = IdentityIdentifier.kept.find_by(
-        kind: :email, normalized_value: login_identifier.normalized_value
+        brand: source_brand, kind: :email, normalized_value: login_identifier.normalized_value
       )
       user = identity_identifier&.user
       if user.blank? || user.deleted_at.present?
         raise IdentityNotFound,
-          "No existing D8N identity for #{login_identifier.normalized_value.inspect}. " \
-          "Register a normal account with this email through the app first, then rerun this task."
+          "No existing D8N identity for #{login_identifier.normalized_value.inspect} on brand #{source_brand.slug.inspect}. " \
+          "Register a normal account with this email on that brand through the app first, then rerun this task."
       end
 
       user

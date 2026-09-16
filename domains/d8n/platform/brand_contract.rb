@@ -8,8 +8,29 @@ module D8n
           super(catalog:, detail_decorators: Array(detail_decorators).freeze)
         end
       end
-      InteractionConfiguration = Data.define(:eligibility_policy, :compatibility_strategy, :verification_requirement)
-      MediaConfiguration = Data.define(:photo_policy, :initial_visibility, :max_profile_photos)
+      InteractionConfiguration = Data.define(
+        :eligibility_policy,
+        :compatibility_strategy,
+        :verification_requirement,
+        :message_send_verification_requirement
+      ) do
+        def initialize(
+          eligibility_policy:,
+          compatibility_strategy:,
+          verification_requirement: nil,
+          message_send_verification_requirement: nil
+        )
+          super
+        end
+      end
+      # Optional profile-video policy (ADR 0023). Absent (`video: nil`) means the
+      # brand does not offer profile video.
+      VideoConfiguration = Data.define(:policy, :initial_visibility, :max_duration_seconds, :max_byte_size)
+      MediaConfiguration = Data.define(:photo_policy, :initial_visibility, :max_profile_photos, :video) do
+        def initialize(photo_policy:, initial_visibility:, max_profile_photos:, video: nil)
+          super
+        end
+      end
       # D8N Opener: a brand's one-shot-opener-then-reply-unlocks-chat policy
       # (implemented by Hooks::SendHook et al. — see Hook/ProfileOpener). Nil for
       # a brand that doesn't enable match.hook/match.opener at all.
@@ -94,6 +115,14 @@ module D8n
         capabilities.include?(CapabilityKey.new(key, reserved_segments: [ slug ]))
       end
 
+      # Whether the brand uses D8N's curated Place selector / ProfileLocation
+      # contract. False for brands (Date9ja) that store country/city as profile
+      # scalars and have no coordinate or distance product behaviour. This is
+      # the same signal the contract already ties `place_country_codes` to.
+      def place_selection_enabled?
+        capability_enabled?("profile.location.place_selection")
+      end
+
       def surface(key)
         discovery_surfaces[CapabilityKey.new(key, reserved_segments: [ slug ]).to_s]
       end
@@ -121,10 +150,10 @@ module D8n
         requirements = brand.profile_completion_requirements
         @enabled_identity_fields = requirements.fetch("enabled_identity_fields", []).dup.freeze
         @enabled_profile_fields = requirements.fetch(
-          "enabled_profile_fields", Profiles::Configuration::PROFILE_FIELD_LABELS.keys
+          "enabled_profile_fields", Profiles::FieldCatalog.enableable_keys_for_group(:profile)
         ).dup.freeze
         @enabled_preference_fields = requirements.fetch(
-          "enabled_preference_fields", Profiles::Configuration::PREFERENCE_FIELD_LABELS.keys
+          "enabled_preference_fields", Profiles::FieldCatalog.enableable_keys_for_group(:preference)
         ).dup.freeze
       end
 
@@ -135,10 +164,29 @@ module D8n
         unless interaction.eligibility_policy.is_a?(Matching::EligibilityPolicy)
           raise ArgumentError, "interaction eligibility policy is required"
         end
+        unless [ nil, :verified_login_identifier ].include?(interaction.verification_requirement)
+          raise ArgumentError, "unsupported interaction verification requirement"
+        end
+        unless [ nil, :verified_realme_method ].include?(interaction.message_send_verification_requirement)
+          raise ArgumentError, "unsupported message-send verification requirement"
+        end
         raise ArgumentError, "media configuration is required" unless media.is_a?(MediaConfiguration)
         unless media.photo_policy.respond_to?(:initial_state) && media.photo_policy.respond_to?(:max_count) &&
             media.max_profile_photos.is_a?(Integer) && media.max_profile_photos.positive?
           raise ArgumentError, "valid media photo policy and maximum are required"
+        end
+        if media.video
+          unless media.video.is_a?(VideoConfiguration) &&
+              media.video.policy.respond_to?(:initial_state) &&
+              media.video.max_duration_seconds.is_a?(Integer) && media.video.max_duration_seconds.positive? &&
+              media.video.max_byte_size.is_a?(Integer) && media.video.max_byte_size.positive?
+            raise ArgumentError, "valid media video configuration is required"
+          end
+          unless capability_enabled?("profile.video") && capability_enabled?("media.profile_video.upload")
+            raise ArgumentError, "profile video configuration requires the profile.video capability"
+          end
+        elsif capability_enabled?("profile.video")
+          raise ArgumentError, "profile.video capability requires a media video configuration"
         end
         unless notifications.is_a?(NotificationConfiguration)
           raise ArgumentError, "notification configuration is required"

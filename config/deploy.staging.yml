@@ -19,6 +19,12 @@ proxy:
   hosts:
     - staging-api.d8n.tech
     - dateza-staging-api.d8n.tech
+    # Founder acceptance testing target for the Date9ja Vercel staging
+    # frontend (https://date9ja-seo-frontend.vercel.app) against migrated
+    # Date9ja data. DNS for this host is an operator step (see closure
+    # report) -- adding it here documents the intended target and lets
+    # `kamal deploy -d staging` provision the proxy route once DNS resolves.
+    - date9ja-staging-api.d8n.tech
 
 env:
   clear:
@@ -34,6 +40,10 @@ env:
     # deployment environment. Brand onboarding is configuration-driven here;
     # each slug must have a matching r2_<brand>_staging service and secrets.
     D8N_DEPLOYMENT_ENV: "staging"
+    # Date9ja intentionally NOT yet in D8N_R2_BRANDS: staging has no
+    # D8N_R2_DATE9JA_STAGING_* secrets provisioned (operator step -- see
+    # closure report). Date9ja auth/discovery/profile/trust/RealMe all work
+    # on staging without it; only real photo/video byte serving would need it.
     D8N_R2_BRANDS: "hookus,dateza"
     # Transactional delivery providers (see domains/notifications). Provider NAMES
     # are not secret; their credentials are (below). With these set, the app fails
@@ -49,11 +59,23 @@ env:
     # Brand-owned destination for notification email CTAs. Paths are composed
     # by the shared notification deep-link boundary from opaque public ids.
     D8N_DATEZA_APP_URL: "https://www.date-za.com"
-    # Explicit browser origins permitted to call the staging API. HookUs and
-    # DateZA frontends talk to the real staging backend during integration.
-    # Origins are not secrets; never use "*" here. Extend this comma-separated
-    # list only for approved frontend origins.
-    D8N_CORS_ORIGINS: "http://localhost:3001,http://127.0.0.1:3001,http://192.168.0.109:3001,https://hookus.app,https://www.hookus.app,https://hookus-web.hookus.workers.dev,http://localhost:5173,https://dateza.vercel.app,https://www.date-za.com"
+    # Resend sender + deep-link app URL for Date9ja, mirroring production
+    # (see config/deploy.production.yml). No new secret required -- Resend
+    # sends "from" any verified identity using the shared RESEND_API_KEY.
+    D8N_DATE9JA_EMAIL_FROM: "Date9ja <no-reply@date9ja.love>"
+    D8N_DATE9JA_APP_URL: "https://date9ja-seo-frontend.vercel.app"
+    # Explicit browser origins permitted to call the staging API. HookUs,
+    # DateZA, and Date9ja frontends talk to the real staging backend during
+    # integration. Origins are not secrets; never use "*" here. Extend this
+    # comma-separated list only for approved frontend origins.
+    D8N_CORS_ORIGINS: "http://localhost:3001,http://127.0.0.1:3001,http://192.168.0.109:3001,https://hookus.app,https://www.hookus.app,https://hookus-web.hookus.workers.dev,http://localhost:5173,https://dateza.vercel.app,https://www.date-za.com,https://date9ja-seo-frontend.vercel.app"
+    # Staging leaves D8N_ALLOWED_HOSTS unset deliberately (see config/environments/
+    # production.rb: "an empty list preserves staging's existing behavior") --
+    # not introduced here for the new host, to avoid changing established,
+    # working staging host-authorization behavior beyond what this pass needs.
+    # Maps date9ja-staging-api.d8n.tech to the Date9ja brand on web boot (same
+    # idempotent brands:ensure_date9ja task production uses).
+    DATE9JA_API_HOST: "date9ja-staging-api.d8n.tech"
 
   secret:
     - RAILS_MASTER_KEY

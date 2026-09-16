@@ -1,4 +1,4 @@
-# Phase 1 Capability Parity Audit
+# Historical Phase 0/Phase 1 Capability Parity Audit
 
 ## Current Date9ja architecture
 
@@ -41,7 +41,7 @@ The source's user IDs must never be used as D8N primary keys by assumption. Pres
 
 ## Changed migration principle
 
-The Phase 0 “legacy-only can wait” classification is superseded. A capability may be deferred only if it is proven unused, explicitly removed by product decision, or retained through a supported legacy/read-only transition that users can still access. For a normal cutover, every active retained capability requires a D8N implementation, Date9ja policy, web/mobile API path, tests, and staging verification.
+This document records audit findings; it is not an execution plan. The Phase 0 “legacy-only can wait” classification is superseded. A capability may be deferred only if it is proven unused, explicitly removed by product decision, or retained through a supported legacy/read-only transition that users can still access. For a normal cutover, every active retained capability requires a D8N implementation, Date9ja policy, web/mobile API path, tests, and staging verification. See `MASTER-PLAN.md` for phases and `CAPABILITY-PARITY.md` for normalized scope and totals.
 
 ## Requested blocker classification
 
@@ -63,21 +63,11 @@ The Phase 0 “legacy-only can wait” classification is superseded. A capabilit
 - Add analytics event backfill only if product reporting requires historical continuity.
 - Add compatibility aliases/adapters for frontend contracts and deprecation telemetry.
 
-### CAN WAIT UNTIL AFTER MIGRATION
+### CAN WAIT UNTIL AFTER MIGRATION (historical audit framing; superseded for retained user features)
 
 - Only proven unused/legacy administrative surfaces, unrelated founder tooling, and unrelated platform improvements.
 - Legacy schema cleanup, binary optimization, and frontend redesign.
 
-## Phased strategy
+## Execution-model note
 
-| Phase | Work / validation / exit |
-|---|---|
-| 0 Audit | Classify every source table, obtain snapshot/data decisions, and approve blockers. Exit: reviewed field matrix. |
-| 1 Provision | Add idempotent Date9ja installer/contract, trusted hosts, Nigerian locations, auth/profile/notification policy. Exit: host and tenancy tests pass. |
-| 2 Gaps | Implement every missing/partial retained capability as a reusable D8N domain with Date9ja policy. Exit: all retained domains have targets. |
-| 3 Tooling | Build dependency-ordered, checkpointed, dry-run importer with external-ID map, retries, quarantine, and reconciliation. Exit: repeated fixture imports are unchanged. |
-| 4 Staging | Restore approved snapshot into isolated staging and import. Exit: counts, graph, auth, and media checks pass. |
-| 5 Test | Run complete web/mobile feature journeys, moderation, notifications, realtime, and full reconciliation. Exit: no unexplained loss/orphans/duplicates and no unapproved feature gaps. |
-| 6 Cutover | Freeze writes, final backup/delta, reconcile, switch trusted routing, smoke test, reopen. Exit: critical journeys green. |
-| 7 Observe | Monitor auth, errors, messages, media, reports, and reconciliation. Exit: agreed stability period. |
-| 8 Retire | Archive legacy backups/runbooks and retire only after legal/rollback approval. Exit: written approval; never delete during cutover. |
+The former audit-phase table is intentionally removed as a competing plan. Use [`MASTER-PLAN.md`](MASTER-PLAN.md) for the sole Phase 0–10 model; use [`PARITY-BUILD-PLAN.md`](PARITY-BUILD-PLAN.md) for detailed sequencing within it.

@@ -12,6 +12,30 @@ workflow for a compact client contract, but remain platform identity storage.
 They never become public profile capabilities; `Profile.display_name` remains
 the independently stored public name.
 
+## Canonical Field Catalogue
+
+`Profiles::FieldCatalog` (ADR 0030) is the single canonical definition layer
+for scalar/typed profile fields — identity, profile, and preference groups
+alike. It owns each field's stable key, semantic meaning, data type,
+sensitivity, storage ownership (or `storage: :pending` when no approved
+storage exists yet), canonical validation constraint values, and audience
+ceiling. A brand never redefines a field's canonical semantics; it only
+selects which fields it enables, requires, and — within the field's audience
+ceiling — narrows further.
+
+`Profiles::CapabilityCatalog` (below, "Controlled Options") is the sibling
+canonical layer for controlled vocabularies. A concept belongs to exactly one
+of the two catalogues; a controlled-vocabulary concept such as religion is
+never duplicated as a `FieldCatalog` scalar.
+
+`Profiles::FieldPolicy` resolves a brand's *effective* enabled, writable, and
+serializable field sets from `FieldCatalog` plus that brand's
+`profile_completion_requirements`, and fails closed: a field D8N knows but a
+brand has not enabled — including every sensitive-identity or
+`storage: :pending` field — is rejected on write with `invalid_profile_fields`
+(422), never silently ignored. See ADR 0030 for the full ownership boundaries
+and the workflow for adding a brand-new canonical field.
+
 ## Typed Profile Details
 
 The shared `profiles` table owns stable dating-presence details such as:

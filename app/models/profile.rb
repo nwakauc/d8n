@@ -5,13 +5,21 @@ class Profile < ApplicationRecord
   belongs_to :user
   belongs_to :brand
   belongs_to :brand_membership
+  belongs_to :discovery_restricted_by_admin_user, class_name: "AdminUser", optional: true
 
   has_one :profile_preference, dependent: :restrict_with_exception
+  # The single live introduction video (ADR 0023). Scoped to kept rows so it
+  # mirrors the one-per-profile partial unique index; soft-deleted videos are
+  # invisible here and handled by Profiles::VideoLibrary.
+  has_one :profile_video, -> { where(deleted_at: nil) }, dependent: :restrict_with_exception
   has_many :profile_photos, dependent: :restrict_with_exception
   has_many :profile_option_selections, dependent: :restrict_with_exception
   has_many :selected_profile_options, through: :profile_option_selections, source: :profile_option
   has_many :prompt_answers, class_name: "ProfilePromptAnswer", dependent: :restrict_with_exception
   has_many :profile_locations, dependent: :restrict_with_exception
+  has_one :migration_profile_readiness,
+    class_name: "Migration::ProfileReadiness",
+    dependent: :restrict_with_exception
   has_many :find_exposures_as_viewer,
     class_name: "FindProfileExposure",
     foreign_key: :viewer_profile_id,
@@ -52,25 +60,36 @@ class Profile < ApplicationRecord
 
   validates :user_id, uniqueness: { scope: :brand_id, conditions: -> { kept } }
   validates :public_id, presence: true, uniqueness: true, format: { with: PUBLIC_ID_FORMAT }
-  validates :display_name, length: { maximum: 80 }, allow_blank: true
-  validates :bio, length: { maximum: 1_000 }, allow_blank: true
-  validates :gender, length: { maximum: 40 }, allow_blank: true
-  validates :country_code, format: { with: /\A[A-Z]{2}\z/ }, allow_blank: true
-  validates :city, :occupation, length: { maximum: 120 }, allow_blank: true
-  validates :height_cm,
-    numericality: { only_integer: true, greater_than_or_equal_to: 100, less_than_or_equal_to: 250 },
-    allow_nil: true
-  validates :body_type, length: { maximum: 80 }, allow_blank: true
+
+  # Canonical scalar constraints — the VALUES live in Profiles::FieldCatalog
+  # (one authoritative place to change a semantic limit); the rules stay
+  # explicit here so "why was this profile rejected?" is answerable from the
+  # model. Domain invariants below (age gate, tenant scope, languages) stay
+  # entirely hand-written.
+  catalog = Profiles::FieldCatalog
+  validates :display_name, length: { maximum: catalog.max_length("display_name") }, allow_blank: true
+  validates :bio, length: { maximum: catalog.max_length("bio") }, allow_blank: true
+  validates :gender, length: { maximum: catalog.max_length("gender") }, allow_blank: true
+  validates :pronouns, length: { maximum: catalog.max_length("pronouns") }, allow_blank: true
+  validates :city, length: { maximum: catalog.max_length("city") }, allow_blank: true
+  validates :state_of_origin, length: { maximum: catalog.max_length("state_of_origin") }, allow_blank: true
+  validates :nationality, format: { with: /\A[A-Z]{2}\z/ }, allow_blank: true
+  validates :ideal_partner_description, length: { maximum: catalog.max_length("ideal_partner_description") }, allow_blank: true
+  validate :relocation_preferences_are_valid
+  validate :configured_minimum_lengths
+  validates :occupation, length: { maximum: catalog.max_length("occupation") }, allow_blank: true
+  validates :job_title, length: { maximum: catalog.max_length("job_title") }, allow_blank: true
+  validates :company_name, length: { maximum: catalog.max_length("company_name") }, allow_blank: true
+  validates :school_or_institution, length: { maximum: catalog.max_length("school_or_institution") }, allow_blank: true
+  validates :looking_for_text, length: { maximum: catalog.max_length("looking_for_text") }, allow_blank: true
+  validates :body_type, length: { maximum: catalog.max_length("body_type") }, allow_blank: true
+  validates :country_code, format: { with: catalog.format_pattern("country_code") }, allow_blank: true
+  validates :height_cm, numericality: catalog.numericality("height_cm"), allow_nil: true
+  validates :children_count, numericality: catalog.numericality("children_count"), allow_nil: true
   validates :smoking, :drinking, :fitness,
-    inclusion: { in: %w[ never occasionally regularly ] },
+    inclusion: { in: catalog.allowed_values("smoking") },
     allow_blank: true
-  validates :pronouns, length: { maximum: 40 }, allow_blank: true
-  validates :job_title, :company_name, length: { maximum: 120 }, allow_blank: true
-  validates :school_or_institution, length: { maximum: 160 }, allow_blank: true
-  validates :looking_for_text, length: { maximum: 600 }, allow_blank: true
-  validates :children_count,
-    numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 30 },
-    allow_nil: true
+
   validate :birthdate_meets_minimum_age
   validate :brand_membership_matches_profile_scope
   validate :languages_spoken_are_valid
@@ -105,8 +124,13 @@ class Profile < ApplicationRecord
       return
     end
 
-    errors.add(:languages_spoken, "cannot have more than 15 entries") if languages_spoken.size > 15
-    errors.add(:languages_spoken, "contains an invalid value") if languages_spoken.any? { |value| !value.is_a?(String) || value.length > 40 }
+    limits = Profiles::FieldCatalog.list_limits("languages_spoken")
+    if languages_spoken.size > limits.fetch(:max_entries)
+      errors.add(:languages_spoken, "cannot have more than #{limits.fetch(:max_entries)} entries")
+    end
+    if languages_spoken.any? { |value| !value.is_a?(String) || value.length > limits.fetch(:item_max_length) }
+      errors.add(:languages_spoken, "contains an invalid value")
+    end
   end
 
   # Structured languages (canonical going forward — `languages_spoken` is the
@@ -121,6 +145,10 @@ class Profile < ApplicationRecord
   def normalize_profile_details
     self.country_code = country_code.to_s.strip.upcase.presence
     self.city = city.to_s.strip.presence
+    self.state_of_origin = state_of_origin.to_s.strip.presence
+    self.nationality = nationality.to_s.strip.upcase.presence
+    self.ideal_partner_description = ideal_partner_description.to_s.strip.presence
+    self.relocation_preferences = Array(relocation_preferences).filter_map { |value| value.to_s.strip.presence }.uniq
     self.occupation = occupation.to_s.strip.presence
     self.body_type = body_type.to_s.strip.presence
     self.pronouns = pronouns.to_s.strip.presence
@@ -134,6 +162,28 @@ class Profile < ApplicationRecord
     self.languages_spoken = languages_spoken.map do |value|
       value.is_a?(String) ? value.strip.presence : value
     end.compact.uniq
+  end
+
+  def relocation_preferences_are_valid
+    return if relocation_preferences.is_a?(Array) && relocation_preferences.size <= 10 && relocation_preferences.all? { |v| v.is_a?(String) && v.length <= 80 }
+
+    errors.add(:relocation_preferences, "must contain at most 10 destinations")
+  end
+
+  def configured_minimum_lengths
+    return if brand.blank?
+
+    brand.profile_completion_requirements.fetch("minimum_lengths", {}).each do |field, minimum|
+      next unless minimum.is_a?(Integer) && Profiles::FieldCatalog.defined?(field)
+
+      definition = Profiles::FieldCatalog.fetch(field)
+      next unless definition.group == :profile && definition.storage[:record] == :profile && has_attribute?(field)
+
+      value = self[field]
+      next if value.blank? || value.to_s.length >= minimum.to_i
+
+      errors.add(field.to_sym, "is too short (minimum is #{minimum} characters)")
+    end
   end
 
   # Only rewrite to canonical form when the input is structurally valid; leaving

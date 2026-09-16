@@ -7,10 +7,16 @@ module D8n
             implementations: %w[Identity::VerificationRequester Identity::VerificationVerifier]),
           CapabilityDefinition.new(key: "verify.contact.phone", status: :available,
             implementations: %w[Identity::VerificationRequester Identity::VerificationVerifier]),
-          CapabilityDefinition.new(key: "verify.identity.selfie", status: :planned),
-          CapabilityDefinition.new(key: "verify.identity.liveness", status: :planned),
+          # Manual-review RealMe v1 (ADR 0034): a member submits evidence, a
+          # human admin approves/rejects/requests resubmission. No automated
+          # face-match or document-match yet — those stay :planned.
+          CapabilityDefinition.new(key: "verify.identity.selfie", status: :available,
+            implementations: %w[Identity::RealmeSubmission Trust::ModerateRealmeVerification]),
+          CapabilityDefinition.new(key: "verify.identity.liveness", status: :available,
+            implementations: %w[Identity::RealmeSubmission Trust::ModerateRealmeVerification]),
+          CapabilityDefinition.new(key: "verify.identity.document", status: :available,
+            implementations: %w[Identity::RealmeSubmission Trust::ModerateRealmeVerification]),
           CapabilityDefinition.new(key: "verify.identity.face_match", status: :planned),
-          CapabilityDefinition.new(key: "verify.identity.document", status: :planned),
           CapabilityDefinition.new(key: "verify.level", status: :planned)
         ].freeze
 

@@ -6,12 +6,10 @@ module Profiles
     # areas a member has filled in.
     Result = Data.define(:complete?, :percent, :missing, :sections)
 
-    SUPPORTED_IDENTITY_FIELDS = %w[ first_name last_name ].freeze
-    SUPPORTED_PROFILE_FIELDS = %w[
-      display_name bio birthdate gender country_code city occupation height_cm body_type
-      languages_spoken smoking drinking fitness
-    ].freeze
-    SUPPORTED_PREFERENCE_FIELDS = %w[ min_age max_age interested_in max_distance_km country relationship_intent ].freeze
+    # Which canonical scalar fields a brand may declare as a completion
+    # requirement now lives on the canonical field:
+    # Profiles::FieldCatalog.completion_requirable_keys(group). Collections are
+    # not scalar fields, so their allowlist stays here.
     SUPPORTED_COLLECTIONS = %w[ photos location ].freeze
     COLLECTION_PRESENCE = {
       "photos" => ->(profile) { profile.profile_photos.kept.with_attached_display_image.any?(&:publication_eligible?) },
@@ -38,7 +36,8 @@ module Profiles
     def call
       missing = missing_identity_fields + missing_profile_fields + missing_preference_fields + missing_collections +
         missing_option_groups
-      total = identity_fields.size + profile_fields.size + preference_fields.size + collections.size + option_groups.size
+      total = identity_fields.size + required_profile_fields.size + preference_fields.size + collections.size +
+        required_option_groups.size
       return Result.new(true, 100, [], sections) if total.zero?
 
       completed = total - missing.size
@@ -90,7 +89,10 @@ module Profiles
 
     def basics_complete?
       identity_complete = identity_fields.all? { |field| profile.user.public_send(field).present? }
-      identity_complete && [ profile.display_name, profile.birthdate, profile.gender ].all?(&:present?)
+      # A brand may collapse the display name into the given name (Date9ja):
+      # first_name then stands in for a blank display_name.
+      display_name = profile.display_name.presence || profile.user.first_name
+      identity_complete && [ display_name, profile.birthdate, profile.gender ].all?(&:present?)
     end
 
     def missing_identity_fields
@@ -98,7 +100,32 @@ module Profiles
     end
 
     def missing_profile_fields
-      profile_fields.filter { |field| profile.public_send(field).blank? }.map(&:to_sym)
+      missing = required_profile_fields.filter { |field| !value_present?(profile[field]) }
+      minimum_lengths = requirements.fetch("minimum_lengths", {})
+      minimum_lengths.each do |field, minimum|
+        next unless safe_configured_profile_field?(field) && minimum.is_a?(Integer)
+
+        value = profile[field]
+        missing << field if value_present?(value) && value.to_s.length < minimum.to_i
+      end
+      missing.uniq.map(&:to_sym)
+    end
+
+    def required_profile_fields
+      (profile_fields + applicable_conditional_profile_fields).uniq
+    end
+
+    def applicable_conditional_profile_fields
+      Array(requirements["conditional_profile_fields"]).flat_map do |rule|
+        condition = rule.fetch("if", {})
+        next [] unless configured_condition_matches?(condition)
+
+        Array(rule["fields"]).select { |field| safe_configured_profile_field?(field) }
+      end
+    end
+
+    def value_present?(value)
+      value == false || value.present?
     end
 
     def missing_preference_fields
@@ -116,13 +143,58 @@ module Profiles
 
     def missing_option_groups
       selected_keys = profile.profile_option_selections.kept.joins(:profile_option_group)
-        .where(profile_option_groups: { key: option_groups }).distinct.pluck("profile_option_groups.key")
+        .where(profile_option_groups: { key: required_option_groups }).distinct.pluck("profile_option_groups.key")
 
-      (option_groups - selected_keys).map { |key| :"options.#{key}" }
+      required = required_option_groups
+      (required - selected_keys).map { |key| :"options.#{key}" }
+    end
+
+    def required_option_groups
+      (option_groups + conditional_option_groups).uniq
+    end
+
+    def conditional_option_groups
+      Array(requirements["conditional_option_groups"]).flat_map do |rule|
+        condition = rule.fetch("if", {})
+        configured_condition_matches?(condition) ? Array(rule["groups"]) : []
+      end
+    end
+
+    def configured_condition_matches?(condition)
+      condition.is_a?(Hash) && condition.present? && condition.all? do |field, expected|
+        safe_condition_field?(field) && profile[field] == expected
+      end
+    end
+
+    def safe_condition_field?(field)
+      safe_configured_profile_field?(field) && FieldCatalog.fetch(field).data_type == :boolean
+    end
+
+    def safe_configured_profile_field?(field)
+      key = field.to_s
+      return false unless FieldCatalog.defined?(key)
+
+      definition = FieldCatalog.fetch(key)
+      definition.group == :profile && definition.storage[:record] == :profile && profile.has_attribute?(key)
     end
 
     def requirements
-      @requirements ||= profile.brand.profile_completion_requirements
+      @requirements ||= resolve_requirements
+    end
+
+    # A brand may declare a `migration_completion` relaxation (a strict subset of
+    # its own required lists). It applies only to a migration-origin profile:
+    # a member imported from a legacy system predates onboarding fields added
+    # after they joined and is prompted to fill them post-migration, while a
+    # fresh registration keeps the full contract. No brand without the key, and
+    # no non-migrated profile, changes behaviour.
+    def resolve_requirements
+      configured = profile.brand.profile_completion_requirements
+      relaxation = configured["migration_completion"]
+      return configured if relaxation.blank?
+      return configured unless Migration::ReferenceMap.migrated?(profile)
+
+      configured.merge(relaxation)
     end
 
     def profile_fields

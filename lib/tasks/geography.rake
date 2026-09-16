@@ -8,4 +8,10 @@ namespace :geography do
     Geography::SouthAfricaCatalog.install!
     puts "South Africa place catalog: #{Place.kept.where(country_code: "ZA").count} places"
   end
+
+  desc "Seed the curated Nigerian place catalog (states/metros/areas)"
+  task seed_nigeria: :environment do
+    Geography::NigeriaCatalog.install!
+    puts "Nigeria place catalog: #{Place.kept.where(country_code: "NG").count} places"
+  end
 end

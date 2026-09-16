@@ -16,7 +16,7 @@ module Media
     end
 
     test "production cannot accidentally resolve a staging service" do
-      configured = %w[ hookus dateza ]
+      configured = %w[ hookus dateza date9ja ]
 
       assert_equal :r2_hookus_production,
         StorageResolver.configured_service_name(
@@ -25,6 +25,10 @@ module Media
       assert_equal :r2_dateza_production,
         StorageResolver.configured_service_name(
           brand: Brand.new(slug: "dateza"), environment: "production", configured_brands: configured
+        )
+      assert_equal :r2_date9ja_production,
+        StorageResolver.configured_service_name(
+          brand: Brand.new(slug: "date9ja"), environment: "production", configured_brands: configured
         )
     end
 

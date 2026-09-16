@@ -47,6 +47,7 @@ module Identity
         credential_ids = sessions.where.not(credential_id: nil).pluck(:credential_id)
         user_ids = BrandMembership.where(brand:).pluck(:user_id)
         sessions.delete_all
+        AnalyticsEvent.where(brand:).delete_all
         AuthAttempt.where(brand:).delete_all
         SecurityEvent.where(brand:).delete_all
         OtpChallenge.where(brand:).delete_all

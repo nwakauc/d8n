@@ -48,6 +48,10 @@ gem "aws-sdk-s3", require: false
 gem "rack-cors", "~> 3.0"
 
 group :development, :test do
+  # Load developer/test secrets from the untracked `.env` file. Production must
+  # receive its AI/provider credentials through the deployment environment.
+  gem "dotenv", require: "dotenv/load"
+
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
 

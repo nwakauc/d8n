@@ -167,10 +167,10 @@ module Notifications
       def target_path
         target = notification.payload.fetch("target")
         case target.fetch("type")
-        when "conversation" then "conversations/#{target.fetch("id")}" 
-        when "match" then "matches/#{target.fetch("id")}" 
-        when "opener" then "openers/#{target.fetch("id")}" 
-        when "profile" then "profiles/#{target.fetch("id")}" 
+        when "conversation" then "conversations/#{target.fetch("id")}"
+        when "match" then "matches/#{target.fetch("id")}"
+        when "opener" then "openers/#{target.fetch("id")}"
+        when "profile" then "profiles/#{target.fetch("id")}"
         else ""
         end
       end

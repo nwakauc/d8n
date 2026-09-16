@@ -148,7 +148,7 @@ class Api::V1::ProfileControllerTest < ActionDispatch::IntegrationTest
       languages_spoken: [ "English" ], job_title: "Engineer"
     )
     IdentityIdentifier.create!(
-      user: @user, kind: :device_fingerprint,
+      user: @user, brand: dateza, kind: :device_fingerprint,
       normalized_value: "device-fingerprint", verified_at: Time.current
     )
 

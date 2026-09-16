@@ -55,7 +55,7 @@ class DatezaWelcomeNotificationTest < ActionDispatch::IntegrationTest
   test "processing and job retries do not duplicate the welcome or its channels" do
     user = User.create!
     membership = BrandMembership.create!(brand: @dateza, user:, status: :active)
-    user.identity_identifiers.create!(kind: :email, normalized_value: "retry@example.com", last_seen_at: Time.current)
+    user.identity_identifiers.create!(brand: @dateza, kind: :email, normalized_value: "retry@example.com", last_seen_at: Time.current)
     event = Notifications::EventPublisher.membership_registered!(membership:)
 
     2.times { Notifications::ProcessEventJob.perform_now(event.id) }

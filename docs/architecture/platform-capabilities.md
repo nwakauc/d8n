@@ -129,22 +129,41 @@ must not accumulate nullable fields for every future product.
 
 ## Profile field authority
 
+`Profiles::FieldCatalog` (ADR 0030) is the canonical definition layer for
+scalar/typed profile fields — key, type, sensitivity, storage, audience
+ceiling, and validation constraint values. `Profiles::CapabilityCatalog`
+(ADR 0017) is the sibling canonical layer for controlled vocabularies /
+option groups. Neither a brand nor a consumer redefines a field's canonical
+semantics; a brand only selects, requires, and narrows within the ceiling
+each catalogue sets.
+
 `brand.profile_completion_requirements` is the shared source used by
-`Profiles::Configuration` and `Profiles::FieldPolicy`.
+`Profiles::Configuration` and `Profiles::FieldPolicy` to resolve a brand's
+*effective* enabled/required set from that canonical layer.
 
 - `GET /api/v1/profile/configuration` advertises enabled brand scalar fields.
 - `PATCH /api/v1/profile` rejects known D8N scalar fields disabled for that brand
-  with `invalid_profile_fields` (422).
+  with `invalid_profile_fields` (422) — including sensitive/pending fields no
+  brand may ever enable.
 - owner and public serializers omit disabled scalar fields, including values on
   historical rows;
-- audience visibility remains a second independent condition;
+- audience visibility remains a second independent condition, bounded by each
+  field's `default_audience` ceiling;
 - stable envelope fields, controlled options, prompts, completion, and photos
   retain their focused platform contracts; and
 - shared storage and controllers remain unchanged.
 
-HookUs currently preserves its broad legacy scalar catalogue. DateZA explicitly
-enables its smaller required and optional field set. Neither brand owns a profile
-table, onboarding engine, or serializer fork.
+`Profiles::FieldCatalog.keys_for_group` is the known superset (used only to
+produce a deterministic write rejection); `enableable_keys_for_group` is the
+safe subset — excluding every `sensitive_identity` and `storage: :pending`
+field — used everywhere a default, advertisement, or validation ceiling is
+computed. See ADR 0030 for the full "D8N knows a capability ≠ a brand uses
+it ≠ it is writable ≠ ..." invariant and the new-brand profile workflow.
+
+HookUs currently preserves its broad legacy scalar catalogue (the safe
+`enableable_keys_for_group` default). DateZA and Date9ja explicitly enable
+their own smaller field sets. Neither brand owns a profile table, onboarding
+engine, or serializer fork.
 
 ## Engineering guardrails
 

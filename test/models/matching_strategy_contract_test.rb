@@ -10,9 +10,9 @@ module Matching
       )
     end
 
-    test "keeps the Date9ja contract out of the production registry" do
-      assert_raises(StrategyRegistry::UnsupportedBrand) { StrategyRegistry.fetch(brand: @date9ja) }
-      assert_not Strategies::Date9jaContract.production_ready?
+    test "registers the Date9ja contract as a production discovery strategy" do
+      assert_equal Strategies::Date9jaContract, StrategyRegistry.fetch(brand: @date9ja)
+      assert Strategies::Date9jaContract.production_ready?
       assert Strategies::Hookus.production_ready?
       hookus = Brand.new(slug: "hookus", name: "HookUs")
       production_strategies = D8n::Platform::BrandRegistry.fetch(brand: hookus).discovery_surfaces.values
@@ -66,7 +66,7 @@ module Matching
 
       assert_equal [ candidates[2].id, candidates[1].id ], first_page.pluck(:id)
       assert_equal [ candidates[0].id ], second_page.pluck(:id)
-      assert_equal({ score: 0, confidence: 0.0, reasons: [] }, strategy.compatibility(profile: first_page.first))
+      assert_nil strategy.compatibility(profile: first_page.first)
     end
 
     test "binds contract cursors to Date9ja and its strategy key" do

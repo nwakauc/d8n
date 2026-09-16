@@ -233,9 +233,9 @@ class Api::V1::BrowserSessionTest < ActionDispatch::IntegrationTest
   end
 
   test "an unconfigured brand fails closed for browser session mode" do
-    unsupported = Brand.create!(slug: "date9ja", name: "Date9ja", auth_methods: %w[email_password])
-    BrandDomain.create!(brand: unsupported, host: "date9ja.test")
-    host! "date9ja.test"
+    unsupported = Brand.create!(slug: "unregistered", name: "Unregistered", auth_methods: %w[email_password])
+    BrandDomain.create!(brand: unsupported, host: "unregistered.test")
+    host! "unregistered.test"
 
     assert_no_difference -> { Session.count } do
       register

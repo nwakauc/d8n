@@ -136,7 +136,7 @@ module Hq
       if identifier.present?
         return scope.where(
           user_id: IdentityIdentifier.kept.where(
-            kind: identifier.kind, normalized_value: identifier.lookup_values
+            brand:, kind: identifier.kind, normalized_value: identifier.lookup_values
           ).select(:user_id)
         )
       end

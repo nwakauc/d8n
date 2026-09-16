@@ -26,6 +26,7 @@ module Identity
       login_identifier = LoginIdentifier.call(identifier_input, brand:)
       return malformed_identifier_result unless login_identifier
       return failure(:auth_method_unavailable) unless AuthPolicy.enabled?(brand:, method: login_identifier.auth_method)
+      return failure(:auth_method_unavailable) unless verification_enabled?(login_identifier.kind)
       return invalid_registration(login_identifier) unless PasswordEngine.valid?(password:)
 
       registration = register(login_identifier)
@@ -83,6 +84,8 @@ module Identity
     # identifier simply remains unverified, and the standard resend endpoint recovers.
     # The result is therefore intentionally not propagated.
     def deliver_verification(user, login_identifier)
+      return unless verification_enabled?(login_identifier.kind)
+
       VerificationRequester.call(
         user:,
         brand:,
@@ -90,6 +93,20 @@ module Identity
         ip_address:,
         user_agent:
       )
+    end
+
+    # A password-authentication method may remain available for migrated users
+    # without being safe for new registration. Registration requires the
+    # matching contact-verification capability so a user cannot reserve another
+    # person's unverified phone/email. Date9ja therefore keeps migrated
+    # phone/password login but rejects new phone signup while SMS is disabled.
+    def verification_enabled?(kind)
+      D8n::Platform::BrandRegistry.fetch(brand:)
+        .capability_enabled?("verify.contact.#{kind}")
+    rescue D8n::Platform::BrandRegistry::UnsupportedBrand
+      # Unsupported brands cannot reach this service through the public API;
+      # retain the domain seam for isolated/internal test brands.
+      true
     end
 
     def register(login_identifier)
@@ -112,6 +129,7 @@ module Identity
             audit(login_identifier, result: :throttled, retry_after: throttle.retry_after)
             result = failure(:rate_limited, retry_after: throttle.retry_after)
           elsif IdentityIdentifier.where(
+            brand:,
             kind: login_identifier.kind,
             normalized_value: login_identifier.lookup_values
           ).exists?
@@ -133,6 +151,7 @@ module Identity
     def create_account(login_identifier)
       user = User.create!
       identity_identifier = user.identity_identifiers.create!(
+        brand:,
         kind: login_identifier.kind,
         normalized_value: login_identifier.normalized_value,
         verified_at: nil,

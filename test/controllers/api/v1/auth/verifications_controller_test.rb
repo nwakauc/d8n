@@ -10,8 +10,8 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
     BrandDomain.create!(brand: @brand, host: "hookus.test")
     @user = User.create!
     @membership = BrandMembership.create!(brand: @brand, user: @user)
-    @phone = @user.identity_identifiers.create!(kind: :phone, normalized_value: "+27 82 123 4567")
-    @email = @user.identity_identifiers.create!(kind: :email, normalized_value: "ada@example.com")
+    @phone = @user.identity_identifiers.create!(brand: @brand, kind: :phone, normalized_value: "+27 82 123 4567")
+    @email = @user.identity_identifiers.create!(brand: @brand, kind: :email, normalized_value: "ada@example.com")
     @credential = @user.credentials.create!(identity_identifier: @phone, kind: :password)
     Identity::PasswordEngine.set!(credential: @credential, password: "secret")
     @token, = Session.issue!(brand: @brand, user: @user, credential: @credential)
@@ -201,7 +201,7 @@ class Api::V1::Auth::VerificationsControllerTest < ActionDispatch::IntegrationTe
 
   test "does not accept another user's challenge" do
     other_user = User.create!
-    other_identifier = other_user.identity_identifiers.create!(kind: :phone, normalized_value: "+27 82 999 9999")
+    other_identifier = other_user.identity_identifiers.create!(brand: @brand, kind: :phone, normalized_value: "+27 82 999 9999")
     challenge = create_challenge(identity_identifier: other_identifier, kind: :phone_verification)
 
     patch "/api/v1/auth/verification",

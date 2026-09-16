@@ -18,6 +18,7 @@ module Identity
 
     def call
       return failure(:invalid_kind) unless SUPPORTED_KINDS.include?(kind)
+      return failure(:verification_unavailable) unless verification_enabled?
 
       identity_identifier = owned_identifier
       return generic_success if identity_identifier.blank? || identity_identifier.verified_at.present?
@@ -28,6 +29,13 @@ module Identity
     private
 
     attr_reader :user, :brand, :kind, :ip_address, :user_agent
+
+    def verification_enabled?
+      D8n::Platform::BrandRegistry.fetch(brand:)
+        .capability_enabled?("verify.contact.#{kind}")
+    rescue D8n::Platform::BrandRegistry::UnsupportedBrand
+      true
+    end
 
     def request_code(identity_identifier)
       result = nil

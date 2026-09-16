@@ -9,18 +9,11 @@ module Identity
       # changing their password repeatedly is never throttled by their own
       # success. See #counted_attempts_scope.
       #
-      # Also platform-wide (`brand_scoped: false`): IdentityIdentifier has no
-      # brand_id and is globally unique across D8N (app/models/identity_identifier.rb),
-      # so there is no legitimate "separate per-brand registration" with the same
-      # identifier to protect — and a brand-scoped IP counter would let an
-      # attacker multiply their registration budget by switching Host between
-      # brands. See #counted_attempts_scope.
       "password_registration" => {
         window: 1.hour,
         identifier_limit: 5,
         ip_limit: 20,
-        count_successes: true,
-        brand_scoped: false
+        count_successes: true
       },
       "password_login" => {
         window: 15.minutes,

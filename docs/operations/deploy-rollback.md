@@ -3,7 +3,7 @@
 ## Current deployment boundary
 
 Staging uses Kamal with separate `web` and `job` roles. The image entrypoint runs
-`bin/rails db:prepare` before a web server starts. Therefore a successful image
+`bin/rails db:prepare` and the idempotent Date9ja brand ensure task before a web server starts. Therefore a successful image
 rollback does **not** roll back schema changes: a new migration may already have
 committed before the new container became healthy.
 
@@ -23,6 +23,20 @@ For every staging or future production deploy, record:
 
 `kamal config` may reveal combined secrets and must not be pasted into tickets,
 logs, or chat.
+
+## Date9ja brand bootstrap
+
+Every web container runs `bin/rails brands:ensure_date9ja` after `db:prepare` and
+before serving traffic. It creates the canonical `date9ja` Brand and missing
+catalogue defaults without resetting existing status, memberships, hosts, or
+operator configuration. Set `DATE9JA_API_HOST` only in an environment approved
+to serve Date9ja; the task then adds that DB-backed host mapping. A failure is
+fatal to container startup. Explicit recovery and verification commands are:
+
+```sh
+bundle exec kamal app exec -d production "bin/rails brands:ensure_date9ja"
+bundle exec kamal app exec -d production "bin/rails 'brands:verify[date9ja]'"
+```
 
 ## Smoke sequence
 
@@ -76,4 +90,3 @@ This document does not prove rollback. DR-07 remains open until a dated staging
 exercise records a normal rolling deploy, web/worker replacement, a rollback to a
 known compatible image, a failed deploy, and the schema boundary observed in each
 case. Production deployment remains founder-approved work.
-

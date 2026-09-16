@@ -13,7 +13,7 @@ class Api::V1::Hq::OperatorsControllerTest < ActionDispatch::IntegrationTest
     target = User.create!
     BrandMembership.create!(brand: @brand, user: target)
     IdentityIdentifier.create!(
-      user: target, kind: :email, normalized_value: "support@example.test", verified_at: Time.current
+      user: target, brand: @brand, kind: :email, normalized_value: "support@example.test", verified_at: Time.current
     )
 
     assert_difference -> { SecurityEvent.where(event_type: "admin.operator_assigned").count }, 1 do
@@ -92,14 +92,14 @@ class Api::V1::Hq::OperatorsControllerTest < ActionDispatch::IntegrationTest
   def existing_member(email)
     user = User.create!
     BrandMembership.create!(brand: @brand, user:)
-    IdentityIdentifier.create!(user:, kind: :email, normalized_value: email, verified_at: Time.current)
+    IdentityIdentifier.create!(user:, brand: @brand, kind: :email, normalized_value: email, verified_at: Time.current)
     email
   end
 
   def create_operator(role:, email:, brand: @brand)
     user = User.create!
     BrandMembership.create!(brand:, user:)
-    IdentityIdentifier.create!(user:, kind: :email, normalized_value: email, verified_at: Time.current)
+    IdentityIdentifier.create!(user:, brand:, kind: :email, normalized_value: email, verified_at: Time.current)
     admin = AdminUser.create!(user:, status: :active)
     assignment = AdminAssignment.create!(
       admin_user: admin, brand:, admin_role: AdminRole.find_by!(name: role), status: :active

@@ -107,8 +107,33 @@ module Hq
           onboarding_completion_percent: onboarding.dig(:completion, :percent),
           photo_count: profile.profile_photos.kept.count,
           photos: photos.map { |photo| photo_summary(photo) },
-          preference: preference.blank? ? nil : preference_summary(preference)
+          preference: preference.blank? ? nil : preference_summary(preference),
+          discovery_state: discovery_state
         }
+      end
+
+      # Single canonical answer to "why is/isn't this member discoverable
+      # right now" for an operator, distinct from the mechanics-level
+      # DiscoveryDiagnostic (which explains the live candidate pipeline for an
+      # ALREADY-eligible viewer). Checked in the order a member would actually
+      # encounter these states: existence -> lifecycle -> enforcement ->
+      # moderator action -> completion -> pause -> visible.
+      DISCOVERY_STATES = %w[
+        deleted_left banned suspended moderator_hidden profile_incomplete
+        member_paused visible system_ineligible
+      ].freeze
+
+      def discovery_state
+        return "deleted_left" if brand_membership.left? || user.deleted_at.present?
+
+        enforcement = AccountEnforcement.active.find_by(brand:, user_id: user.id)
+        return "banned" if enforcement&.ban?
+        return "suspended" if enforcement&.suspension? || brand_membership.suspended?
+        return "moderator_hidden" if profile.discovery_restricted_at.present?
+        return "profile_incomplete" unless Profiles::Completion.call(profile:).complete?
+        return "member_paused" if profile.draft? || profile.hidden?
+
+        profile.active? && profile.visible? ? "visible" : "system_ineligible"
       end
 
       def photo_summary(photo)
@@ -209,7 +234,25 @@ module Hq
           recent_reports: recent_reports,
           active_enforcement: active_enforcement_summary,
           enforcement_count: AccountEnforcement.where(brand:, user:).count,
+          discovery_restriction: discovery_restriction_summary,
           account_closure: account_closure_summary
+        }
+      end
+
+      # Distinct from active_enforcement (suspension/ban) -- reason/note/actor/
+      # timestamp for a moderator discovery-hide, when present. Internal
+      # note is operator-only (this whole endpoint is admin-authenticated),
+      # never a member-facing surface -- see Api::V1::MeController /
+      # Profiles::StatusFields for what members and other members actually see
+      # (neither exposes reason, note, or actor).
+      def discovery_restriction_summary
+        return nil if profile.blank? || profile.discovery_restricted_at.blank?
+
+        {
+          restricted_at: profile.discovery_restricted_at.iso8601,
+          reason: profile.discovery_restriction_reason,
+          note: profile.discovery_restriction_note,
+          restricted_by_admin_user_id: profile.discovery_restricted_by_admin_user_id
         }
       end
 

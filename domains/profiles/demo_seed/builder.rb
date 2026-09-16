@@ -70,7 +70,7 @@ module Profiles
       def create_identity
         user = User.create!(identity_attributes.merge(status: :active))
         user.identity_identifiers.create!(
-          kind: :email, normalized_value: email, last_seen_at: now,
+          brand:, kind: :email, normalized_value: email, last_seen_at: now,
           metadata: { "seed" => seed_tag }
         )
       end

@@ -46,11 +46,15 @@ module Profiles
     ENABLED_CAPABILITIES = [
       { key: "relationship_intent", cardinality: :single, max_selections: 1, only: RELATIONSHIP_INTENTS },
       { key: "has_children", visibility: :owner_only },
-      { key: "wants_children", visibility: :owner_only },
+      # `only:` pins the offered set: Date9ja's contract-fidelity pass added
+      # `open` / `diploma` to the shared catalogue for its own use; DateZA's
+      # vocabulary is unchanged.
+      { key: "wants_children", visibility: :owner_only,
+        only: %w[ yes maybe no open_to_partner_with_children prefer_not_to_say ] },
       { key: "religion_importance", visibility: :owner_only },
       { key: "social_style" },
       { key: "meeting_pace", only: %w[ chat_first video_call_first few_days meet_soon go_with_the_flow ] },
-      { key: "education_level" },
+      { key: "education_level", only: %w[ high_school vocational some_college undergraduate postgraduate doctorate other prefer_not_to_say ] },
       { key: "religion", visibility: :owner_only },
       { key: "diet" },
       { key: "pets" },
