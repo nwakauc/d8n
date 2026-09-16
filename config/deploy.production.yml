@@ -70,7 +70,7 @@ env:
     D8N_DATE9JA_EMAIL_FROM: "Date9ja <no-reply@date9ja.love>"
     D8N_DATE9JA_APP_URL: "https://www.date9ja.love"
     D8N_DEFAULT_MAILER_HOST: "api.d8n.tech"
-    D8N_CORS_ORIGINS: "https://hookus.app,https://www.hookus.app,https://www.date-za.com,https://date-za.com,https://www.date9ja.love,https://date9ja-seo-frontend.vercel.app"
+    D8N_CORS_ORIGINS: "https://hookus.app,https://www.hookus.app,https://www.date-za.com,https://date-za.com,https://www.date9ja.love,https://date9ja-seo-frontend.vercel.app,https://d8n-hq.vercel.app"
     D8N_ALLOWED_HOSTS: "api.d8n.tech,dateza-api.d8n.tech,api.date9ja.love,date9ja-api.d8n.tech"
     # Maps this host to the dateza Brand via the idempotent brands:install_dateza
     # task, run automatically on web boot (see bin/docker-entrypoint). Must match

@@ -35,7 +35,7 @@ module Date9ja
       # attempt to sanitise arbitrary strings. Rejects control chars, `?`, `#`,
       # `\`, `%` (encoded traversal), whitespace, leading `/`, and `.`/`..`
       # segments.
-      KEY_SEGMENT = /\A[A-Za-z0-9][A-Za-z0-9_=-]*\z/
+      KEY_SEGMENT = /\A[A-Za-z0-9][A-Za-z0-9_.=-]*\z/
       MAX_KEY_LENGTH = 512
 
       class Error < StandardError; end

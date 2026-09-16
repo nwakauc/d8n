@@ -354,6 +354,54 @@ namespace :date9ja do
     Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
   end
 
+  desc "PRODUCTION Path B1: Date9ja profile-photo transfer reading from the destination " \
+       "bucket (bytes already copied by scripts/date9ja/transfer_media_bytes.rb, same " \
+       "legacy key preserved) instead of a local synthetic corpus. Set " \
+       "DATE9JA_SNAPSHOT_DATABASE_URL. Reuses D8N_R2_DATE9JA_PRODUCTION_* / R2_ENDPOINT " \
+       "env vars already required to boot. Prints a PII-free reconciliation JSON."
+  task transfer_photos_from_destination_bucket: :environment do
+    require "json"
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+    service = ActiveStorage::Blob.services.fetch(:r2_date9ja_production)
+
+    connection = Date9ja::Snapshot::Connection.connect!
+    source = Date9ja::Snapshot::PhotoSource.new(connection: connection)
+    locator = Date9ja::Snapshot::MediaLocatorSource.new(connection: connection)
+    reader = Date9ja::Storage::DestinationBucketReader.new(client: service.client.client, bucket: service.bucket.name)
+
+    result = Date9ja::Import::PhotoTransfer.call(
+      brand:, source:, locator:, source_reader: reader, processing: :inline
+    )
+
+    puts JSON.pretty_generate(result.reconciliation.to_h)
+  ensure
+    Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
+  end
+
+  desc "PRODUCTION Path B1: Date9ja profile-video transfer (adopt + domain migration) " \
+       "reading from the destination bucket instead of a local synthetic corpus. Set " \
+       "DATE9JA_SNAPSHOT_DATABASE_URL. Prints a PII-free reconciliation JSON."
+  task transfer_videos_from_destination_bucket: :environment do
+    require "json"
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+    service = ActiveStorage::Blob.services.fetch(:r2_date9ja_production)
+
+    connection = Date9ja::Snapshot::Connection.connect!
+    source = Date9ja::Snapshot::VideoSource.new(connection: connection)
+    locator = Date9ja::Snapshot::VideoLocatorSource.new(connection: connection)
+    reader = Date9ja::Storage::DestinationBucketReader.new(client: service.client.client, bucket: service.bucket.name)
+
+    result = Date9ja::Import::VideoTransfer.call(
+      brand:, source:, locator:, source_reader: reader, stage: :domain, processing: :inline
+    )
+
+    puts JSON.pretty_generate(result.reconciliation.to_h)
+  ensure
+    Date9ja::Snapshot::Connection.remove_connection if Date9ja::Snapshot::Connection.connected?
+  end
+
   desc "Date9ja profile-video DOMAIN migration pass 2B (ADR 0029): adopted original blob -> " \
        "ProfileVideo + exact original attachment + Migration::ReferenceMap binding -> " \
        "Media::ProcessProfileVideoJob -> validated playback + poster -> ready -> existing raw purge. " \

@@ -14,7 +14,7 @@ module Date9ja
     # backslash, control, whitespace, `?`, `#`, or `%` (encoded-traversal
     # ambiguity). Keys are never filesystem paths.
     module SafeObjectKey
-      SEGMENT = /\A[A-Za-z0-9][A-Za-z0-9_=-]*\z/
+      SEGMENT = /\A[A-Za-z0-9][A-Za-z0-9_.=-]*\z/
       MAX_LENGTH = 512
       UNSAFE_CHARS = /[\x00-\x1f\x7f]|[?#\\%\s]/
 
