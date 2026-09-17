@@ -169,7 +169,7 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "mutual_age_fit" ], profiles.last.dig("compatibility", "reasons")
   end
 
-  test "uses distance only when either profile configured a distance preference" do
+  test "distance is never an available compatibility dimension under HookUs' location-less policy" do
     candidate = create_candidate
     create_location(@viewer)
     create_location(candidate)
@@ -180,11 +180,15 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0.25, without_preference.fetch("confidence")
     assert_not_includes without_preference.fetch("reasons"), "nearby"
 
+    # HookUs::ELIGIBILITY_POLICY is NO_LOCATION: distance never joins into the
+    # ranking query (Matching::EligibilityScope#distance_scope short-circuits
+    # on location_filtering), so a distance preference has no effect on
+    # confidence -- unlike a location-filtering brand, where this would raise it.
     candidate.profile_preference.update!(max_distance_km: 50)
     get "/api/v1/discovery", headers: bearer_headers(@token)
 
     with_preference = JSON.parse(response.body).fetch("profiles").sole.fetch("compatibility")
-    assert_equal 0.5, with_preference.fetch("confidence")
+    assert_equal 0.25, with_preference.fetch("confidence")
     assert_not_includes with_preference.fetch("reasons"), "nearby"
     assert_not_includes response.body, "nearby"
   end

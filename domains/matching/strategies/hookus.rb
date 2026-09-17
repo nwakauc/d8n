@@ -51,7 +51,12 @@ module Matching
       end
 
       def self.rank(scope:, viewer:, eligibility_policy:)
-        viewer_has_location = fresh_location?(viewer:, eligibility_policy:)
+        # candidate_locations is only ever joined (EligibilityScope#distance_scope)
+        # when the policy has location filtering enabled -- referencing it in the
+        # score SQL when the policy disables filtering raises "missing FROM-clause
+        # entry" regardless of whether the viewer happens to have a location on file.
+        viewer_has_location = eligibility_policy.location_filtering &&
+          fresh_location?(viewer:, eligibility_policy:)
         viewer_uses_distance = viewer.profile_preference.max_distance_km.present?
         expressions = score_expressions(viewer_has_location:, viewer_uses_distance:)
         scope = with_option_scores(scope:, viewer:)
@@ -150,7 +155,10 @@ module Matching
       private_class_method :score_expressions
 
       def self.fresh_location?(viewer:, eligibility_policy:)
-        viewer.profile_locations.kept.where(captured_at: eligibility_policy.location_max_age.ago..).exists?
+        scope = viewer.profile_locations.kept
+        cutoff = eligibility_policy.location_max_age&.ago
+        scope = scope.where(captured_at: cutoff..) if cutoff
+        scope.exists?
       end
       private_class_method :fresh_location?
 

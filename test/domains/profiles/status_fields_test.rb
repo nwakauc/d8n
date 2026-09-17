@@ -106,14 +106,14 @@ class Profiles::StatusFieldsTest < ActiveSupport::TestCase
     assert_nil status.fetch(member.id).fetch(:distance_km)
   end
 
-  test "treats a stale candidate location as absent" do
+  test "an old candidate location still counts under HookUs' no-freshness-cutoff policy" do
     member = build_profile
     put_location(@viewer, lat: 6.52, lon: 3.37)
     put_location(member, lat: 6.45, lon: 3.39, captured_at: 2.days.ago)
 
     status = status_fields(viewer: @viewer, profiles: [ member ])
 
-    assert_nil status.fetch(member.id).fetch(:distance_km)
+    assert_equal 8, status.fetch(member.id).fetch(:distance_km)
   end
 
   test "floors sub-kilometre distance to 1 km rather than reading as co-location" do

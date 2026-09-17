@@ -71,7 +71,13 @@ module D8n
 
         PROFILE_DECORATORS = [ Hooks::ProfileStateDecorator, HookTonight::ProfileStateDecorator ].freeze
 
-        ELIGIBILITY_POLICY = Matching::EligibilityPolicy::DEFAULT
+        # Discovery is orientation-first (gender / interested_in reciprocity),
+        # not distance-gated: HookUs has too few nearby members yet for a
+        # 24h-fresh-location requirement to be viable, and members should be
+        # discoverable regardless of whether they've shared a location at
+        # all. A future explicit "nearby" filter can reintroduce distance as
+        # an opt-in narrowing, not a baseline eligibility gate.
+        ELIGIBILITY_POLICY = Matching::EligibilityPolicy::NO_LOCATION
 
         SURFACES = [
           DiscoverySurface.new(
