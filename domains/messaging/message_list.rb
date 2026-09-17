@@ -24,7 +24,7 @@ module Messaging
     end
 
     def call
-      access = ConversationAccess.find!(user:, brand:, conversation_public_id:)
+      access = ConversationAccess.find!(user:, brand:, conversation_public_id:, allow_ended: true)
       scope = Message.kept.where(brand:, conversation: access.conversation)
         .order("messages.created_at DESC", "messages.id DESC")
       scope = MessageCursor.apply(scope:, value: cursor, brand:, viewer: access.viewer, conversation: access.conversation)

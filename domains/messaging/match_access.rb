@@ -2,9 +2,15 @@ module Messaging
   class MatchAccess
     Result = Data.define(:match, :viewer)
 
-    def self.find!(user:, brand:, match_public_id:)
+    # `allow_ended:` is read-only accommodation for message HISTORY (see
+    # ConversationAccess/MessageList) -- a match that has ended still keeps
+    # its conversation visible as read-only metadata (tested contract), so
+    # reading its past messages must not 404 just because the match ended.
+    # Every write path (sending, attaching) must keep the default false.
+    def self.find!(user:, brand:, match_public_id:, allow_ended: false)
       viewer = Matching::ProfileParticipant.match_member!(user:, brand:)
-      match = Match.kept.status_active.includes(
+      scope = allow_ended ? Match.kept : Match.kept.status_active
+      match = scope.includes(
         profile_a: [ :user, :brand_membership ],
         profile_b: [ :user, :brand_membership ]
       ).find_by(brand:, public_id: match_public_id)

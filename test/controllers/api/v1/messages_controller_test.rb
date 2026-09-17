@@ -199,6 +199,32 @@ class Api::V1::MessagesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "an ended match keeps its message history readable but blocks sending new ones" do
+    Message.create!(brand: @brand, conversation: @conversation, sender_profile: @ada, body: "before the unmatch")
+    @match.update!(status: :ended)
+
+    get "/api/v1/conversations/#{@conversation.public_id}/messages", headers: bearer_headers(@ada_token)
+    assert_response :success
+    assert_equal [ "before the unmatch" ], JSON.parse(response.body).fetch("messages").pluck("body")
+
+    assert_no_difference -> { Message.count } do
+      post "/api/v1/conversations/#{@conversation.public_id}/messages",
+        headers: bearer_headers(@ada_token), params: { body: "still here?" }
+    end
+    assert_response :not_found
+    assert_equal "conversation_unavailable", JSON.parse(response.body).fetch("error")
+  end
+
+  test "a blocked pair cannot read an ended match's history either" do
+    Message.create!(brand: @brand, conversation: @conversation, sender_profile: @ada, body: "before the block")
+    @match.update!(status: :ended)
+    Trust::BlockProfile.call(user: @ada.user, brand: @brand, target_public_id: @sam.public_id)
+
+    get "/api/v1/conversations/#{@conversation.public_id}/messages", headers: bearer_headers(@sam_token)
+    assert_response :not_found
+    assert_equal "conversation_unavailable", JSON.parse(response.body).fetch("error")
+  end
+
   test "a suspended counterpart makes the conversation unavailable to the other participant" do
     @sam.user.update!(status: :suspended)
 

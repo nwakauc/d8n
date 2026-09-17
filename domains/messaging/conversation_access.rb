@@ -10,11 +10,14 @@ module Messaging
   class ConversationAccess
     Result = Data.define(:conversation, :match, :viewer)
 
-    def self.find!(user:, brand:, conversation_public_id:)
+    # `allow_ended:` — see MatchAccess. Only MessageList (read) passes true;
+    # every write path (SendMessage, MessageAttachmentUpload) keeps the
+    # default false and still 404s once the match has ended.
+    def self.find!(user:, brand:, conversation_public_id:, allow_ended: false)
       conversation = Conversation.kept.status_active.find_by(brand:, public_id: conversation_public_id)
       raise AccessError, :conversation_unavailable if conversation.blank?
 
-      access = MatchAccess.find!(user:, brand:, match_public_id: conversation.match.public_id)
+      access = MatchAccess.find!(user:, brand:, match_public_id: conversation.match.public_id, allow_ended:)
       Result.new(conversation:, match: access.match, viewer: access.viewer)
     end
   end
