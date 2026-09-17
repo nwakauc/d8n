@@ -5,7 +5,7 @@ module Matching
   class FacetFilter
     class InvalidFilter < StandardError; end
 
-    ONLINE_WINDOW = 10.minutes
+    ONLINE_WINDOW = 30.minutes
 
     Filter = Data.define(:values, :definitions) do
       def initialize(values:, definitions:)
