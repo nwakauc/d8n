@@ -52,6 +52,21 @@ class Api::V1::BrowserSessionTest < ActionDispatch::IntegrationTest
     assert_nil response.headers["Set-Cookie"]
   end
 
+  test "an explicit token session mode behaves identically to the default bearer mode" do
+    post "/api/v1/auth/password/register", params: {
+      identifier: "member@example.com",
+      password: "secret",
+      session_mode: "token"
+    }
+
+    assert_response :created
+    body = JSON.parse(response.body)
+    assert body.fetch("token").present?
+    assert_equal "Bearer", body.fetch("token_type")
+    assert_nil body["browser_session"]
+    assert_nil response.headers["Set-Cookie"]
+  end
+
   test "an unknown session mode fails instead of returning an unexpected bearer secret" do
     assert_no_difference -> { Session.count } do
       post "/api/v1/auth/password/register", params: {

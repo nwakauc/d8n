@@ -158,9 +158,14 @@ class Api::V1::Auth::PasswordsController < ApplicationController
       .capability_enabled?("verify.contact.#{kind}")
   end
 
+  # Blank and the explicit "token" value both mean the default Bearer-token
+  # session shape (see #session_payload) -- there is nothing more to
+  # authorize for either. Only "browser" opts into cookie-backed sessions,
+  # which need the additional checks below. Any other value is rejected as
+  # malformed rather than silently treated as one of the two known modes.
   def authorize_session_mode!
     mode = params[:session_mode].to_s
-    return if mode.blank?
+    return if mode.blank? || mode == "token"
     return render(json: { error: "invalid_session_mode" }, status: :unprocessable_entity) unless browser_session_mode?
     return render(json: { error: "browser_session_not_configured" }, status: :not_found) unless
       Identity::BrowserSession.enabled?(brand: Current.brand)
