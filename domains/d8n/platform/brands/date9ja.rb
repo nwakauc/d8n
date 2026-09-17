@@ -66,6 +66,7 @@ module D8n
           match.relationship.unmatch
           chat.conversation
           chat.message.text
+          chat.message.media
           ai.dating_assistant
           community.read
           community.participation

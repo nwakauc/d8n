@@ -117,6 +117,7 @@ module D8n
         assert contract.capability_enabled?("discovery.surface.daily_batch")
         assert contract.capability_enabled?("match.interaction.like")
         assert contract.capability_enabled?("chat.conversation")
+        assert contract.capability_enabled?("chat.message.media")
         assert_not contract.capability_enabled?("match.opener")
         assert_equal [ "discovery.find", "discovery.curated_daily" ], contract.discovery_surfaces.keys
         assert_equal "discovery.find", contract.default_discovery_surface_key
