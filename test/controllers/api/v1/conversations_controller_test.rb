@@ -92,7 +92,7 @@ class Api::V1::ConversationsControllerTest < ActionDispatch::IntegrationTest
     conversations = 3.times.map do |index|
       counterpart = create_profile(brand: @brand)
       conversation = start_conversation(create_match(@viewer, counterpart))
-      conversation.update_columns(created_at: Time.utc(2026, 8, 13, 15, 0, index), updated_at: Time.current)
+      conversation.update_columns(created_at: Time.utc(2026, 8, 13, 15, 0, index), updated_at: Time.utc(2026, 8, 13, 15, 0, index))
       conversation
     end
 
@@ -108,6 +108,26 @@ class Api::V1::ConversationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal [ conversations[0].public_id ], JSON.parse(response.body).fetch("conversations").pluck("id")
+  end
+
+  test "a new message brings its conversation to the top of the list" do
+    older = start_conversation(@match)
+    older.update_columns(created_at: 2.days.ago, updated_at: 2.days.ago)
+
+    newer_counterpart = create_profile(brand: @brand)
+    newer = start_conversation(create_match(@viewer, newer_counterpart))
+    newer.update_columns(created_at: 1.day.ago, updated_at: 1.day.ago)
+
+    get "/api/v1/conversations", headers: bearer_headers(@token)
+    assert_equal [ newer.public_id, older.public_id ],
+      JSON.parse(response.body).fetch("conversations").pluck("id")
+
+    post "/api/v1/conversations/#{older.public_id}/messages", headers: bearer_headers(@token), params: { body: "hey again" }
+    assert_response :success
+
+    get "/api/v1/conversations", headers: bearer_headers(@token)
+    assert_equal [ older.public_id, newer.public_id ],
+      JSON.parse(response.body).fetch("conversations").pluck("id")
   end
 
   test "hides conversations after match or participant availability ends" do

@@ -5,7 +5,10 @@ class Message < ApplicationRecord
   MAX_BODY_LENGTH = 2_000
 
   belongs_to :brand
-  belongs_to :conversation
+  # touch: true keeps conversation.updated_at reflecting the latest message
+  # activity -- Messaging::ConversationList orders/paginates the inbox by it
+  # so an active thread surfaces at the top, not just by when it was created.
+  belongs_to :conversation, touch: true
   belongs_to :sender_profile, class_name: "Profile"
   belongs_to :reply_to_message, class_name: "Message", optional: true
 
