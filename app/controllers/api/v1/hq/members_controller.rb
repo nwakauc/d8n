@@ -61,6 +61,8 @@ module Api
                 result[::IdentityIdentifier.kinds.key(kind.to_i).to_sym] ||= verified_at.present?
               end
             end
+          emails = ::IdentityIdentifier.kept.where(brand: Current.brand, user_id: user_ids, kind: :email)
+            .pluck(:user_id, :normalized_value).to_h
           audit!("hq.member_directory_viewed", extra: {
             search_present: params[:search].present?,
             status: params[:status].presence || "all",
@@ -70,7 +72,7 @@ module Api
           render json: {
             members: memberships.map do |membership|
               ::Hq::MemberDirectorySerializer.call(
-                membership:, report_counts:, pending_photo_counts:, active_enforcements:, contact_verification:
+                membership:, report_counts:, pending_photo_counts:, active_enforcements:, contact_verification:, emails:
               )
             end,
             next_cursor: result.next_cursor

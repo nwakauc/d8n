@@ -1,7 +1,8 @@
 module Hq
-  # Bounded, newest-first directory of members belonging to one brand. This
-  # intentionally returns a safe operational summary, not contact identifiers
-  # or a second Member 360 payload.
+  # Bounded, newest-first directory of members belonging to one brand. Returns
+  # an operational summary plus email (MemberDirectorySerializer) for founder-
+  # facing bulk review; anything beyond that (phone, full identity/history)
+  # still requires opening Member 360.
   class MemberDirectory
     DEFAULT_LIMIT = 25
     MAX_LIMIT = 100

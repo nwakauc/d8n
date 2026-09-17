@@ -85,12 +85,17 @@ class Api::V1::Hq::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, body.fetch("members").size
     assert body.fetch("next_cursor").present?
     assert_equal sam.public_id, body.fetch("members").first.fetch("profile_id")
-    assert_not_includes body.to_s, "ada@example.com"
 
     get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { limit: 1, cursor: body.fetch("next_cursor") }
     assert_response :success
-    assert_equal 1, JSON.parse(response.body).fetch("members").size
-    assert JSON.parse(response.body).fetch("members").first.key?("user_id")
+    page_two = JSON.parse(response.body).fetch("members")
+    assert_equal 1, page_two.size
+    assert page_two.first.key?("user_id")
+
+    get "/api/v1/hq/members", headers: bearer_headers(@admin_token), params: { limit: 100 }
+    assert_response :success
+    ada_entry = JSON.parse(response.body).fetch("members").find { |member| member["profile_id"] == @ada.public_id }
+    assert_equal "ada@example.com", ada_entry.fetch("email")
   end
 
   test "member directory rejects invalid filters and does not expose another brand" do

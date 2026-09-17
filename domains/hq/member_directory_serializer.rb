@@ -1,6 +1,7 @@
 module Hq
   class MemberDirectorySerializer
-    def self.call(membership:, report_counts: {}, pending_photo_counts: {}, active_enforcements: {}, contact_verification: {})
+    def self.call(membership:, report_counts: {}, pending_photo_counts: {}, active_enforcements: {},
+      contact_verification: {}, emails: {})
       profile = membership.profile
       user = membership.user
 
@@ -8,6 +9,7 @@ module Hq
         user_id: user.id,
         profile_id: profile&.public_id,
         display_name: profile&.display_name,
+        email: emails[user.id],
         user_status: user.status,
         membership_status: membership.status,
         profile_status: profile&.status,
