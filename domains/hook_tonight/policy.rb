@@ -2,18 +2,16 @@ module HookTonight
   # Single source of truth for Hook Tonight availability policy. Everything that
   # needs the availability window or the accepted intents reads it from here.
   module Policy
-    # How long an activation stays live. Hook Tonight is a TEMPORARY "tonight"
-    # signal, not a profile setting, so it lapses on its own. We deliberately use a
-    # simple fixed duration rather than midnight/timezone machinery: the platform
-    # has no per-user timezone today, and a fixed window is defensible ("the next
-    # several hours"), self-expiring, and trivially correct. 6 hours comfortably
-    # covers an evening while guaranteeing a forgotten activation cannot linger
-    # into the next day.
+    # How long an activation stays live. Hook Tonight is a TEMPORARY signal, not
+    # a profile setting, so it lapses on its own. We deliberately use a simple
+    # fixed duration rather than midnight/timezone machinery: the platform has
+    # no per-user timezone today, and a fixed window is defensible, self-
+    # expiring, and trivially correct.
     #
     # Expiry is LAZY: HookTonightState#live? re-checks this against the clock, so a
     # cleanup job (if one is ever added) is a cosmetic convenience, never a
     # correctness dependency.
-    EXPIRES_IN = 6.hours
+    EXPIRES_IN = 24.hours
 
     # V1 exposes a single availability intent. Kept as an allowlist so the
     # activation request can carry `intent` (forward-compatible) without becoming a
