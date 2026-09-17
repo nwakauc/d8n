@@ -29,6 +29,7 @@ module Api
         end
 
         before_action :resolve_member, except: :index
+        before_action :set_active_storage_url_options, only: :show
 
         def index
           result = ::Hq::MemberDirectory.call(

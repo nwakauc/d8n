@@ -14,6 +14,11 @@ class Hq::Member360::LoadTest < ActiveSupport::TestCase
       brand: @brand, user: @user, profile: @profile, min_age: 21, max_age: 40, interested_in: [ "person" ]
     )
     IdentityIdentifier.create!(user: @user, brand: @brand, kind: :email, normalized_value: "ada@example.com")
+    ActiveStorage::Current.url_options = { host: "http://test.local" }
+  end
+
+  teardown do
+    ActiveStorage::Current.url_options = nil
   end
 
   test "returns all six sections for a member with a profile" do
@@ -34,6 +39,35 @@ class Hq::Member360::LoadTest < ActiveSupport::TestCase
     assert_equal 0, sections[:safety][:reports_filed_count]
     assert_nil sections[:safety][:active_enforcement]
     assert_nil sections[:activity][:last_login_at]
+  end
+
+  test "account_type reads preserved Date9ja entitlement metadata, defaulting to Free" do
+    default_sections = Hq::Member360::Load.call(brand: @brand, brand_membership: @membership)
+    assert_equal(
+      { label: "Free", founding_member: false, subscription_status: nil, premium_expires_at: nil },
+      default_sections[:identity][:account_type],
+    )
+
+    @user.update!(metadata: @user.metadata.merge(
+      "date9ja" => { "founding_member" => true, "subscription_status" => "premium" },
+    ))
+    sections = Hq::Member360::Load.call(brand: @brand, brand_membership: @membership)
+    account_type = sections[:identity][:account_type]
+    assert_equal "Founding member", account_type[:label]
+    assert account_type[:founding_member]
+    assert_equal "premium", account_type[:subscription_status]
+  end
+
+  test "profile photos and video carry signed delivery URLs" do
+    photo = ProfilePhoto.new(brand: @brand, user: @user, profile: @profile, position: 0, status: :approved, visibility: :visible)
+    photo.image.attach(io: StringIO.new("fake"), filename: "photo.jpg", content_type: "image/jpeg")
+    photo.save!
+    photo.display_image.attach(io: StringIO.new("fake"), filename: "photo.jpg", content_type: "image/jpeg")
+
+    sections = Hq::Member360::Load.call(brand: @brand, brand_membership: @membership)
+    photo_row = sections[:profile][:photos].find { |row| row[:id] == photo.public_id }
+    assert photo_row[:image_url].present?
+    assert_nil sections[:profile][:video]
   end
 
   test "discovery_state distinguishes moderator_hidden from suspended, banned, and deleted/left" do

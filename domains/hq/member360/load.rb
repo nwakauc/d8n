@@ -17,6 +17,7 @@ module Hq
       RECENT_REPORTS_LIMIT = 5
       RECENT_AUTH_ATTEMPTS_LIMIT = 5
       RECENT_SECURITY_EVENTS_LIMIT = 5
+      PHOTO_URL_EXPIRES_IN = 5.minutes
 
       def self.call(brand:, brand_membership:)
         new(brand:, brand_membership:).call
@@ -58,8 +59,28 @@ module Hq
           user_created_at: user.created_at.iso8601,
           membership_status: brand_membership.status,
           member_since: brand_membership.created_at.iso8601,
+          account_type: account_type_summary,
           identifiers: identifiers.map { |identifier| identifier_summary(identifier) },
           recent_sessions: sessions.map { |session| session_summary(session) }
+        }
+      end
+
+      # Legacy-source entitlement data (founding member / subscription /
+      # premium expiry), preserved verbatim on migration by
+      # Date9ja::Import::ExtendedHistoryImport#import_entitlements into
+      # user.metadata["date9ja"] -- D8N has no live billing system yet (no
+      # Membership/Subscription model), so this is read-only historical
+      # status, not a current entitlement the app enforces.
+      def account_type_summary
+        source = user.metadata["date9ja"]
+        return { label: "Free", founding_member: false, subscription_status: nil, premium_expires_at: nil } if source.blank?
+
+        founding = source["founding_member"] == true
+        {
+          label: founding ? "Founding member" : (source["subscription_status"].presence || "free").to_s.titleize,
+          founding_member: founding,
+          subscription_status: source["subscription_status"],
+          premium_expires_at: source["premium_expires_at"]
         }
       end
 
@@ -90,6 +111,7 @@ module Hq
         onboarding = Profiles::OnboardingStatus.call(user:, brand:)
         preference = ProfilePreference.kept.find_by(profile:)
         photos = profile.profile_photos.kept.order(:position).limit(RECENT_PHOTOS_LIMIT)
+          .includes(display_image_attachment: :blob)
 
         {
           exists: true,
@@ -107,6 +129,7 @@ module Hq
           onboarding_completion_percent: onboarding.dig(:completion, :percent),
           photo_count: profile.profile_photos.kept.count,
           photos: photos.map { |photo| photo_summary(photo) },
+          video: profile.profile_video ? video_summary(profile.profile_video) : nil,
           preference: preference.blank? ? nil : preference_summary(preference),
           discovery_state: discovery_state
         }
@@ -136,13 +159,28 @@ module Hq
         profile.active? && profile.visible? ? "visible" : "system_ineligible"
       end
 
+      # Same short-lived, signed, safe-derivative-only delivery pattern as
+      # Api::V1::Admin::ProfilePhotosController's own queue -- never the raw
+      # original, never a permanent URL.
       def photo_summary(photo)
         {
           id: photo.public_id,
           position: photo.position,
           status: photo.status,
           visibility: photo.visibility,
-          processing_state: photo.processing_state
+          processing_state: photo.processing_state,
+          image_url: photo.display_image.attached? ? photo.display_image.url(expires_in: PHOTO_URL_EXPIRES_IN) : nil
+        }
+      end
+
+      def video_summary(video)
+        {
+          id: video.public_id,
+          status: video.status,
+          visibility: video.visibility,
+          processing_state: video.processing_state,
+          playback_url: video.playback.attached? ? video.playback.url(expires_in: PHOTO_URL_EXPIRES_IN) : nil,
+          poster_url: video.poster.attached? ? video.poster.url(expires_in: PHOTO_URL_EXPIRES_IN) : nil
         }
       end
 
