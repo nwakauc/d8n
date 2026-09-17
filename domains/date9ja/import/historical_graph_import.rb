@@ -135,18 +135,30 @@ module Date9ja
         match = resolve(:match, value(row, :match_id))
         raise MissingParticipant unless match
         record = Conversation.find_or_initialize_by(match:)
-        unless record.new_record?
+        was_new = record.new_record?
+        unless was_new
           bind!(record, :conversation, row)
+          ensure_conversation_participants!(record, match)
           return bump(:conversations, :already_imported)
         end
         record.assign_attributes(brand:, status: value(row, :status).presence || :active,
           created_at: timestamp(row), updated_at: timestamp(row), deleted_at: value(row, :deleted_at))
         record.save!
-        [ match.profile_a, match.profile_b ].each do |profile|
-          record.conversation_participants.create!(profile:, user: profile.user, brand:, created_at: record.created_at, updated_at: record.updated_at)
-        end
+        ensure_conversation_participants!(record, match)
         bind!(record, :conversation, row)
         bump(:conversations, :imported)
+      end
+
+      # A conversation created by an earlier importer version may predate
+      # participant-row creation (added after that run already completed) --
+      # re-runs must still backfill them, not only fresh conversations.
+      def ensure_conversation_participants!(record, match)
+        existing = record.conversation_participants.pluck(:profile_id).to_set
+        [ match.profile_a, match.profile_b ].each do |profile|
+          next if existing.include?(profile.id)
+
+          record.conversation_participants.create!(profile:, user: profile.user, brand:, created_at: record.created_at, updated_at: record.updated_at)
+        end
       end
 
       def import_message(row)

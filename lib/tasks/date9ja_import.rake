@@ -528,4 +528,15 @@ namespace :date9ja do
     result = Date9ja::Import::TrustLedgerImport.call(brand:)
     puts JSON.pretty_generate(imported: result.imported, skipped: result.skipped, failed: result.failed)
   end
+
+  desc "One-time repair: backfill ConversationParticipant rows for conversations imported by an " \
+       "earlier HistoricalGraphImport version that predates participant-row creation. Reads only " \
+       "already-migrated D8N data -- no legacy snapshot connection. Prints checked/created counts."
+  task backfill_conversation_participants: :environment do
+    require "json"
+
+    brand = Brand.kept.find_by!(slug: "date9ja")
+    result = Date9ja::Import::ConversationParticipantBackfill.call(brand:)
+    puts JSON.pretty_generate(conversations_checked: result.conversations_checked, participants_created: result.participants_created)
+  end
 end

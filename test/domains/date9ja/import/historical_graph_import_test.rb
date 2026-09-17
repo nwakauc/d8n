@@ -93,6 +93,22 @@ module Date9ja
         assert_equal "kept", Message.find_by!(body: "kept").body
       end
 
+      test "backfills participants on a pre-existing conversation that predates participant creation" do
+        match = Match.create!(brand: @brand, profile_a: @alice, profile_b: @bob, created_at: 2.days.ago)
+        conversation = Conversation.create!(brand: @brand, match:, created_at: 2.days.ago)
+        assert_equal 0, conversation.conversation_participants.count
+
+        source = HistoricalGraphImport::Source.new(
+          likes: [], passes: [], matches: [ { id: 22, profile_a_id: "a", profile_b_id: "b", created_at: 2.days.ago } ],
+          conversations: [ { id: "date9ja-match:22:conversation", match_id: "22", created_at: 2.days.ago } ],
+          messages: [], blocks: [], reports: []
+        )
+        result = HistoricalGraphImport.call(brand: @brand, source:)
+
+        assert_equal 1, result.counts.fetch("conversations.already_imported")
+        assert_equal [ @alice.id, @bob.id ].sort, conversation.reload.conversation_participants.pluck(:profile_id).sort
+      end
+
       test "keeps distinct reports distinct, preserves non-text message kind, and quarantines untimestamped messages" do
         rows = [
           { id: 31, reporter_profile_id: "a", reported_profile_id: "b", target_type: :message, target_id: 100, reason: :spam, created_at: 2.days.ago },
