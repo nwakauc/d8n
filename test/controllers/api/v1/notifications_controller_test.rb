@@ -23,6 +23,7 @@ class Api::V1::NotificationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     body = JSON.parse(response.body)
     assert_equal 1, body.fetch("unread_count")
+    assert_equal({ "dateza.welcome" => 1 }, body.fetch("unread_counts"))
     assert_equal [ @notification.public_id ], body.fetch("notifications").pluck("id")
     assert_equal "dateza.welcome", body.dig("notifications", 0, "type")
     assert_not_includes response.body, "recipient"
@@ -33,6 +34,29 @@ class Api::V1::NotificationsControllerTest < ActionDispatch::IntegrationTest
     get "/api/v1/notifications", headers: bearer(@hookus_token)
     assert_response :success
     assert_equal [], JSON.parse(response.body).fetch("notifications")
+    assert_equal({}, JSON.parse(response.body).fetch("unread_counts"))
+  end
+
+  test "category counts cover the full inbox beyond its fifty record page" do
+    50.times do
+      event = @notification.notification_event.dup
+      event.idempotency_key = SecureRandom.uuid
+      event.save!
+      notification = @notification.dup
+      notification.public_id = SecureRandom.uuid
+      notification.notification_event = event
+      notification.save!
+    end
+
+    host! "dateza.test"
+    get "/api/v1/notifications", headers: bearer(@dateza_token)
+    body = JSON.parse(response.body)
+    assert_equal 50, body.fetch("notifications").length
+    assert_equal 51, body.fetch("unread_count")
+    assert_equal({ "dateza.welcome" => 51 }, body.fetch("unread_counts"))
+
+    patch "/api/v1/notifications/#{@notification.public_id}/read", headers: bearer(@dateza_token)
+    assert_equal({ "dateza.welcome" => 50 }, JSON.parse(response.body).fetch("unread_counts"))
   end
 
   test "requires a brand-bound session" do
@@ -47,12 +71,14 @@ class Api::V1::NotificationsControllerTest < ActionDispatch::IntegrationTest
     patch "/api/v1/notifications/#{@notification.public_id}/read", headers: bearer(@dateza_token)
     assert_response :success
     assert @notification.reload.read_at
+    assert_equal({}, JSON.parse(response.body).fetch("unread_counts"))
 
     @notification.update!(read_at: nil)
     post "/api/v1/notifications/read_all", headers: bearer(@dateza_token)
     assert_response :success
     assert_equal 1, JSON.parse(response.body).fetch("marked_read")
     assert @notification.reload.read_at
+    assert_equal({}, JSON.parse(response.body).fetch("unread_counts"))
   end
 
   test "cross-brand notification ids fail neutrally" do

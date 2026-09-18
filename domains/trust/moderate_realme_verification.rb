@@ -36,7 +36,10 @@ module Trust
           metadata:
         )
         record_audit!(admin_user:, brand:, assertion:, decision: target)
-        award_trust!(assertion) if target == "approved"
+        if target == "approved"
+          award_trust!(assertion)
+          Notifications::EventPublisher.verification_approved!(assertion:)
+        end
         transitioned = true
       end
 

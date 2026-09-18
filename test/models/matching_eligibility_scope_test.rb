@@ -114,7 +114,9 @@ module Matching
       EligibilityScope.call(
         brand: @brand,
         viewer: @viewer,
-        policy: D8n::Platform::Brands::Hookus::ELIGIBILITY_POLICY
+        # Exercise the shared distance/freshness engine, independently of a
+        # brand's explicitly configured orientation-first discovery policy.
+        policy: EligibilityPolicy::DEFAULT
       )
     end
 

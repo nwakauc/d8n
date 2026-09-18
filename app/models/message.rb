@@ -30,6 +30,8 @@ class Message < ApplicationRecord
   validate :body_or_attachment_present, on: :create
   validate :reply_to_message_is_same_conversation
 
+  after_create_commit -> { Realtime::MemberEvents.message_created(self) }
+
   before_validation :ensure_public_id, on: :create
 
   def kept?

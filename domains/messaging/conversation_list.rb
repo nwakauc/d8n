@@ -20,21 +20,7 @@ module Messaging
 
     def call
       viewer = Matching::ProfileParticipant.match_member!(user:, brand:)
-      scope = Conversation.kept.status_active.where(brand:)
-        .joins(:conversation_participants, :match)
-        .where(conversation_participants: { profile_id: viewer.id, deleted_at: nil })
-        .where(matches: { deleted_at: nil })
-        .joins(participant_availability_joins)
-        .where(message_profile_as: { deleted_at: nil }, message_profile_bs: { deleted_at: nil })
-        .where.not(message_profile_as: { status: Profile.statuses.fetch("suspended") })
-        .where.not(message_profile_bs: { status: Profile.statuses.fetch("suspended") })
-        .where(
-          message_user_as: { deleted_at: nil, status: User.statuses.fetch("active") },
-          message_user_bs: { deleted_at: nil, status: User.statuses.fetch("active") },
-          message_membership_as: { deleted_at: nil, status: BrandMembership.statuses.fetch("active") },
-          message_membership_bs: { deleted_at: nil, status: BrandMembership.statuses.fetch("active") }
-        )
-      scope = Trust::BlockPolicy.exclude_matches(scope:)
+      scope = self.class.available_scope(viewer:, brand:)
         .order("conversations.updated_at DESC", "conversations.public_id DESC")
       scope = ConversationCursor.apply(scope:, value: cursor, brand:, viewer:)
       conversations = scope.preload(
@@ -56,6 +42,24 @@ module Messaging
       )
     rescue Matching::InteractionError
       raise AccessError, :conversation_unavailable
+    end
+
+    def self.available_scope(viewer:, brand:)
+      scope = Conversation.kept.status_active.where(brand:)
+        .joins(:conversation_participants, :match)
+        .where(conversation_participants: { profile_id: viewer.id, deleted_at: nil })
+        .where(matches: { deleted_at: nil })
+        .joins(new(user: viewer.user, brand:, cursor: nil, limit: nil).send(:participant_availability_joins))
+        .where(message_profile_as: { deleted_at: nil }, message_profile_bs: { deleted_at: nil })
+        .where.not(message_profile_as: { status: Profile.statuses.fetch("suspended") })
+        .where.not(message_profile_bs: { status: Profile.statuses.fetch("suspended") })
+        .where(
+          message_user_as: { deleted_at: nil, status: User.statuses.fetch("active") },
+          message_user_bs: { deleted_at: nil, status: User.statuses.fetch("active") },
+          message_membership_as: { deleted_at: nil, status: BrandMembership.statuses.fetch("active") },
+          message_membership_bs: { deleted_at: nil, status: BrandMembership.statuses.fetch("active") }
+        )
+      Trust::BlockPolicy.exclude_matches(scope:)
     end
 
     private

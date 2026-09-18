@@ -211,13 +211,7 @@ Examples:
 - Subscription products
 - Notification templates
 - Safety policies
-
-Forking the backend should be treated as a failure mode, not a normal way to launch brands.
-
-### 7. Security And Privacy Are Architecture, Not Features
-
-D8N is a dating platform. That makes security, privacy, moderation, fraud prevention, and auditability core product requirements.
-
+kingdoms inside emp
 They must be designed into the foundation instead of added later.
 
 No major domain should be considered complete unless it answers:

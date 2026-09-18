@@ -924,3 +924,27 @@ bin/rails test test/controllers/api/v1
 ```
 
 The contract test fails when a Rails `/api/v1` route is undocumented, a documented operation has no route, operation IDs collide, or a local schema reference is broken.
+
+## Member realtime and unread messages (local implementation)
+
+`GET /api/v1/member_events` uses authenticated SSE over the same-origin proxy.
+Events are ephemeral hints; fetch `/notifications` and `/messages/unread` on
+`ready`, `reconcile`, reconnect, and focus. Do not increment counters from hints.
+The browser must close streams on logout. No tokens or brand IDs in URLs.
+`POST /conversations/{id}/read` accepts `{message_ids: [opaque IDs]}` for up to
+100 actually displayed messages, persists idempotent receipts and returns
+authoritative global/per-conversation unread-message counts. Unseen concurrent
+messages remain unread. Conversation cards include `unread_message_count`.
+Notifications retain their distinct unread count. Reading chat acknowledges only
+matching message notifications; reading an inbox notification does not read chat.
+Date9ja manual RealMe approval now publishes the existing outbox with the safe
+empty-payload `date9ja.verification_approved` type. No evidence in notifications.
+Existing histories lack read evidence and remain unread until acknowledged.
+See ADR 0035 for hosting, security, capacity and rollback limitations.
+
+Unread inbox responses (`GET notifications`, single read and read-all) include
+`unread_counts`: a notification-type-to-count map over the complete scoped unread
+inbox. Missing types are zero. Date9ja uses this existing read state for unread
+received-like and match badges; these counts are alerts, not lifetime relationships
+or unread conversations/messages. Displayed-target acknowledgments use the existing
+single-notification read endpoint.

@@ -583,7 +583,7 @@ class Api::V1::DiscoveryControllerTest < ActionDispatch::IntegrationTest
     select_options(offline, intents: %w[hookups], vibes: %w[420_friendly])
     # An active session that has gone quiet is not "online now".
     _token, stale = Session.issue!(brand: @brand, user: offline.user)
-    stale.update_columns(last_used_at: 20.minutes.ago)
+    stale.update_columns(last_used_at: (Matching::FacetFilter::ONLINE_WINDOW + 1.minute).ago)
 
     get "/api/v1/discovery", headers: bearer_headers(@token), params: { online: "true" }
     assert_response :success

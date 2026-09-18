@@ -50,7 +50,7 @@ module Notifications
       end
 
       Response.new(status: response.code.to_i, body: response.body.to_s)
-    rescue Timeout::Error, Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::EHOSTUNREACH,
+    rescue Timeout::Error, Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::EHOSTUNREACH, Errno::ENETUNREACH,
            SocketError, EOFError, IOError, OpenSSL::SSL::SSLError => e
       raise TransientError, e.class.name
     end

@@ -339,14 +339,20 @@ class Api::V1::MessagesMediaControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "after unmatch, attachment upload, send, and message retrieval are all unavailable" do
+  test "after unmatch history remains readable but attachment upload and send are unavailable" do
     signed_id = upload_and_complete(@ada_token, media_kind: "image")
     send_message(@ada_token, attachment_uploads: [ { signed_id:, media_kind: "image" } ])
     perform_enqueued_jobs
     @conversation.match.update!(status: :ended)
 
     get_messages(@ada_token)
-    assert_response :not_found
+    assert_response :success
+    assert_equal 1, JSON.parse(response.body).fetch("messages").size
+
+    assert_no_difference -> { Message.count } do
+      send_message(@ada_token, body: "must not be sent")
+      assert_response :not_found
+    end
 
     post "/api/v1/conversations/#{@conversation.public_id}/attachments/uploads",
       headers: bearer_headers(@ada_token), params: intent_params(media_kind: "image")

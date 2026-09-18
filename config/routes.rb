@@ -174,6 +174,10 @@ Rails.application.routes.draw do
       post "auth/password/recovery" => "auth/password_recoveries#create"
       post "auth/password/recovery/verify" => "auth/password_recoveries#verify"
       post "auth/password/recovery/reset" => "auth/password_recoveries#reset"
+      get "member_events" => "member_events#index"
+      get "messages/unread" => "message_reads#index"
+      post "conversations/:conversation_id/read" => "message_reads#create"
+
       post "auth/verification" => "auth/verifications#create"
       patch "auth/verification" => "auth/verifications#update"
       delete "auth/session" => "auth/sessions#destroy"

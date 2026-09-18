@@ -40,7 +40,7 @@ module Matching
         # match!" for the same transition, so like_received is only published
         # when this Like did NOT just create a Match.
         if match
-          Notifications::EventPublisher.match_created!(match:)
+          Notifications::EventPublisher.match_created!(match:, initiator: viewer)
         else
           Notifications::EventPublisher.like_received!(like:, recipient: target, actor: viewer)
         end

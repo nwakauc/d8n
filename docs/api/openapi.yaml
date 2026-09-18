@@ -3584,6 +3584,99 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/member_events:
+    get:
+      operationId: streamMemberEvents
+      tags: [Notifications]
+      summary: Stream current-brand recipient event hints through SSE
+      description: |
+        Authenticated same-origin stream; no tokens or brand input in URLs.
+        Subscribe before ready; on ready/reconcile clients fetch authoritative
+        notification and message unread snapshots. Member events contain type,
+        event_id, occurred_at and opaque message/conversation/actor or notification
+        IDs and the existing safe notification presenter only. No message contents or verification evidence. Ephemeral events
+        are not replayed. Streams close after 240 seconds and recheck session,
+        membership/user/credential/brand availability before delivery and heartbeat.
+      responses:
+        "200":
+          description: SSE ready, member and reconcile events. Retry after 3000ms.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Origin is not allowed (browser_session_origin_not_allowed).
+  /api/v1/messages/unread:
+    get:
+      operationId: getUnreadMessages
+      tags: [Messaging]
+      summary: Authoritative incoming unread message counts
+      description: |
+        Counts kept incoming messages without recipient receipts in canonical
+        current-brand available unblocked participant conversations. Own messages
+        and unavailable/deleted records are excluded. Not conversation counts.
+      responses:
+        "200":
+          description: Global unread message count and per-conversation counts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageUnreadState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
+        "404":
+          description: Brand or chat capability not configured.
+  /api/v1/conversations/{conversation_id}/read:
+    post:
+      operationId: markDisplayedMessagesRead
+      tags: [Messaging]
+      summary: Acknowledge messages actually displayed by a participant
+      description: |
+        Idempotently persist recipient receipts for up to 100 displayed messages;
+        unseen concurrent messages remain unread. Matching message notifications
+        become read, including notifications materialized later. Requires cookie
+        CSRF on browser unsafe methods. Reading notifications does not read chat.
+      parameters:
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message_ids]
+              properties:
+                message_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        "200":
+          description: Updated authoritative unread message state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageUnreadState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/InteractionForbidden"
+        "404":
+          description: Neutral conversation_unavailable or capability not configured.
+        "422":
+          description: Invalid displayed message IDs (invalid_message_ids).
   /api/v1/conversations:
     get:
       operationId: listConversations
@@ -8623,6 +8716,11 @@ components:
         type:
           type: string
           enum:
+            - date9ja.welcome
+            - date9ja.like_received
+            - date9ja.match_created
+            - date9ja.message_received
+            - date9ja.verification_approved
             - dateza.welcome
             - dateza.like_received
             - dateza.match_created
@@ -8659,7 +8757,7 @@ components:
     EmptyNotificationPayload:
       type: object
       additionalProperties: false
-      description: The payload shape for dateza.welcome, which carries no fields.
+      description: The payload shape for date9ja.welcome, date9ja.like_received, date9ja.match_created, date9ja.message_received, date9ja.verification_approved, dateza.welcome, which carries no fields.
     DatingEventNotificationPayload:
       type: object
       required: [actor, target]
@@ -8686,6 +8784,10 @@ components:
             id:
               type: string
               format: uuid
+            initiator_profile_id:
+              type: string
+              format: uuid
+              description: Optional action initiator, used to suppress self-generated alerts.
             message_id:
               type: string
               format: uuid
@@ -8694,6 +8796,12 @@ components:
       type: object
       required: [notifications, unread_count]
       properties:
+        unread_counts:
+          type: object
+          description: Authoritative unread notification counts by notification type across the full inbox, not only the returned page.
+          additionalProperties:
+            type: integer
+            minimum: 0
         notifications:
           type: array
           maxItems: 50
@@ -8704,19 +8812,35 @@ components:
           minimum: 0
     NotificationResponse:
       type: object
-      required: [notification]
+      required: [notification, unread_count]
       properties:
+        unread_counts:
+          type: object
+          description: Authoritative unread notification counts by notification type across the full inbox, not only the returned page.
+          additionalProperties:
+            type: integer
+            minimum: 0
+        unread_count:
+          type: integer
+          minimum: 0
         notification:
           $ref: "#/components/schemas/ProductNotification"
     MarkAllNotificationsReadResponse:
       type: object
       required: [marked_read, unread_count]
       properties:
+        unread_counts:
+          type: object
+          description: Authoritative unread notification counts by notification type across the full inbox, not only the returned page.
+          additionalProperties:
+            type: integer
+            minimum: 0
         marked_read:
           type: integer
           minimum: 0
         unread_count:
-          const: 0
+          type: integer
+          minimum: 0
     NotificationPreferences:
       type: object
       required: [product_email_enabled, push_enabled]
@@ -8764,10 +8888,26 @@ components:
             $ref: "#/components/schemas/Match"
         next_cursor:
           type: [string, "null"]
+    MessageUnreadState:
+      type: object
+      required: [unread_message_count, conversations]
+      properties:
+        unread_message_count:
+          type: integer
+          minimum: 0
+        conversations:
+          type: object
+          description: Opaque conversation IDs mapped to counts greater than zero.
+          additionalProperties:
+            type: integer
+            minimum: 1
     Conversation:
       type: object
-      required: [id, match_id, status, created_at, profile, last_message]
+      required: [id, match_id, status, created_at, profile, last_message, unread_message_count]
       properties:
+        unread_message_count:
+          type: integer
+          minimum: 0
         id:
           type: string
           format: uuid

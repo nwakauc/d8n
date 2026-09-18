@@ -155,14 +155,18 @@ class Api::V1::LocationSearchControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "excessive requests are rate limited" do
-    AbuseProtection::Policy::RULES.fetch(:location_search).find { |rule| rule.name == "burst" }.limit.times do
+    # All requests must belong to one fixed window. Wall-clock execution can
+    # cross a ten-second boundary under the full parallel suite.
+    freeze_time do
+      AbuseProtection::Policy::RULES.fetch(:location_search).find { |rule| rule.name == "burst" }.limit.times do
+        get "/api/v1/locations/search", headers: bearer_headers(@token), params: { q: "sea point" }
+        assert_response :success
+      end
+
       get "/api/v1/locations/search", headers: bearer_headers(@token), params: { q: "sea point" }
-      assert_response :success
+
+      assert_response :too_many_requests
     end
-
-    get "/api/v1/locations/search", headers: bearer_headers(@token), params: { q: "sea point" }
-
-    assert_response :too_many_requests
   end
 
   test "repeated equivalent queries use the cache instead of re-querying the provider" do

@@ -4,9 +4,10 @@ module Messaging
     # message (fetched in one batched query) so the frontend list is useful; the
     # create path has none yet and passes nil. Sender is resolved from the
     # already-loaded participants, so no extra query is issued per card.
-    def self.call(conversation:, viewer:, last_message: nil)
+    def self.call(conversation:, viewer:, last_message: nil, unread_message_count: 0)
       {
         id: conversation.public_id,
+        unread_message_count:,
         match_id: conversation.match.public_id,
         status: conversation.status,
         relationship_state: conversation.match.status,

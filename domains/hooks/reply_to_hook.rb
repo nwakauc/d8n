@@ -50,7 +50,7 @@ module Hooks
         # same transition, which is the same confusing-duplicate problem the
         # taxonomy avoids for Like -> Match. So only match_created is published
         # here; "opener_replied" is not a materialized notification type.
-        Notifications::EventPublisher.match_created!(match: conversation.match)
+        Notifications::EventPublisher.match_created!(match: conversation.match, initiator: viewer)
         # Only stamp the opener when the conversation is brand new — a match that
         # somehow already existed keeps its own history intact.
         Message.create!(brand:, conversation:, sender_profile: sender, body: hook.message) if created

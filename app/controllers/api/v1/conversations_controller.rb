@@ -11,12 +11,14 @@ class Api::V1::ConversationsController < Api::V1::InteractionController
       limit: params[:limit]
     )
 
+    unread = Messaging::ReadState.snapshot(user: Current.user, brand: Current.brand)
     render json: {
       conversations: result.conversations.map do |conversation|
         Messaging::ConversationSerializer.call(
           conversation:,
           viewer: result.viewer,
-          last_message: result.last_messages[conversation.id]
+          last_message: result.last_messages[conversation.id],
+          unread_message_count: unread[:conversations].fetch(conversation.public_id, 0)
         )
       end,
       next_cursor: result.next_cursor

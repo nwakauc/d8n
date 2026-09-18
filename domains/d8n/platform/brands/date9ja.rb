@@ -171,6 +171,9 @@ module D8n
                   notification_type: "date9ja.match_created",
                   email_template: :product
                 ),
+                "verification_approved" => BrandContract::NotificationPlan.new(
+                  notification_type: "date9ja.verification_approved", email_template: :product
+                ),
                 "message_received" => BrandContract::NotificationPlan.new(
                   notification_type: "date9ja.message_received",
                   email_template: :product

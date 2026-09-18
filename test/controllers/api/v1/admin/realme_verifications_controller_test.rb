@@ -60,6 +60,11 @@ class Api::V1::Admin::RealmeVerificationsControllerTest < ActionDispatch::Integr
     body = JSON.parse(response.body)
     assert_equal "approved", body.dig("assertion", "status")
     assert_equal true, body.fetch("transitioned")
+    event = NotificationEvent.find_by(brand: @brand, user: @profile.user, event_type: "verification_approved")
+    assert event
+    notification = Notifications::MaterializeEvent.call(event:)
+    assert_equal "date9ja.verification_approved", notification.notification_type
+    assert_equal({}, notification.payload)
     assert_equal "approved", @assertion.reload.status
     assert @assertion.reviewed_at.present?
     assert_equal "d8n_admin:#{@admin.id}", @assertion.reviewer_source_id

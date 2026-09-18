@@ -7,6 +7,14 @@ module Notifications
   # makes every call below a safe no-op — no capability check, no branching,
   # needed at any call site.
   class EventPublisher
+    def self.verification_approved!(assertion:)
+      membership = BrandMembership.kept.active.find_by(brand: assertion.brand, user: assertion.user)
+      return unless membership
+
+      publish!(event_type: "verification_approved", idempotency_key: "verification_approved:#{assertion.id}",
+        brand: assertion.brand, user: assertion.user, brand_membership: membership, payload: {})
+    end
+
     def self.membership_registered!(membership:)
       publish!(
         event_type: "membership_registered",
@@ -39,7 +47,7 @@ module Notifications
     # recipient) — safe to call unconditionally on every path that produces or
     # finds an active Match; retries and concurrent reciprocal actions can never
     # double-notify a participant.
-    def self.match_created!(match:)
+    def self.match_created!(match:, initiator: nil)
       [ match.profile_a, match.profile_b ].each do |recipient|
         actor = match.other_profile(recipient)
         publish!(
@@ -48,7 +56,7 @@ module Notifications
           brand: recipient.brand,
           user: recipient.user,
           brand_membership: recipient.brand_membership,
-          payload: { actor: { profile_id: actor.public_id }, target: { type: "match", id: match.public_id } }
+          payload: { actor: { profile_id: actor.public_id }, target: { type: "match", id: match.public_id, initiator_profile_id: initiator&.public_id }.compact }
         )
       end
     end

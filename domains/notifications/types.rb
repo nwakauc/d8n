@@ -15,6 +15,11 @@ module Notifications
     DATING_EVENT_PAYLOAD_KEYS = %w[actor target].freeze
 
     DEFINITIONS = {
+      "date9ja.verification_approved" => Definition.new(
+        code: "date9ja.verification_approved", title: "Your verification was approved",
+        body: "Your RealMe verification has been approved. View your verification status in Settings.",
+        email_subject: "Your verification was approved", allowed_payload_keys: []
+      ),
       "date9ja.welcome" => Definition.new(
         code: "date9ja.welcome",
         title: "Welcome to Date9ja",

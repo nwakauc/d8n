@@ -172,8 +172,9 @@ class Api::V1::MatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "hi there", listed.sole.dig("last_message", "body")
 
     get "/api/v1/conversations/#{conversation.public_id}/messages", headers: bearer_headers(@token)
-    assert_response :not_found
-    assert_equal "conversation_unavailable", JSON.parse(response.body).fetch("error")
+    # ADR 0010 permits participants to retain history, never new interaction.
+    assert_response :success
+    assert_equal [ "hi there" ], JSON.parse(response.body).fetch("messages").pluck("body")
 
     post "/api/v1/conversations/#{conversation.public_id}/messages",
       headers: bearer_headers(@token), params: { body: "still there?" }

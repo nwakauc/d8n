@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_15_130200) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_18_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -784,6 +784,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_130200) do
     t.index ["message_id", "reactor_profile_id", "emoji"], name: "idx_message_reactions_unique", unique: true
     t.index ["message_id"], name: "index_message_reactions_on_message_id"
     t.index ["reactor_profile_id"], name: "index_message_reactions_on_reactor_profile_id"
+  end
+
+  create_table "message_reads", force: :cascade do |t|
+    t.bigint "brand_id", null: false
+    t.bigint "message_id", null: false
+    t.bigint "profile_id", null: false
+    t.datetime "read_at", null: false
+    t.index ["brand_id"], name: "index_message_reads_on_brand_id"
+    t.index ["message_id"], name: "index_message_reads_on_message_id"
+    t.index ["profile_id", "message_id"], name: "index_message_reads_on_profile_id_and_message_id", unique: true
+    t.index ["profile_id"], name: "index_message_reads_on_profile_id"
   end
 
   create_table "messages", force: :cascade do |t|
@@ -1590,6 +1601,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_130200) do
   add_foreign_key "message_reactions", "brands"
   add_foreign_key "message_reactions", "messages"
   add_foreign_key "message_reactions", "profiles", column: "reactor_profile_id"
+  add_foreign_key "message_reads", "brands"
+  add_foreign_key "message_reads", "messages", column: ["message_id", "brand_id"], primary_key: ["id", "brand_id"]
+  add_foreign_key "message_reads", "profiles", column: ["profile_id", "brand_id"], primary_key: ["id", "brand_id"]
   add_foreign_key "messages", "brands"
   add_foreign_key "messages", "conversations", column: ["conversation_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_conversation_tenant"
   add_foreign_key "messages", "messages", column: ["reply_to_message_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_messages_reply_to_message_tenant"

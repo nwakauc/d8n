@@ -17,6 +17,7 @@ module Notifications
         return finish_without_notification unless plan && eligible_membership?
 
         notification = create_notification(plan)
+        mark_displayed_message_read(notification)
         create_in_app_delivery(notification)
         create_email_delivery(notification) if Policy.channel_allowed?(membership:, category: :product_email)
         create_push_deliveries(notification) if Policy.channel_allowed?(membership:, category: :push)
@@ -48,6 +49,17 @@ module Notifications
         notification.notification_type = plan.notification_type
         notification.payload = event.payload
       end
+    end
+
+    def mark_displayed_message_read(notification)
+      target = notification.payload["target"]
+      return unless target && target["type"] == "conversation" && target["message_id"]
+
+      profile = Profile.kept.find_by(brand: event.brand, user: event.user)
+      message = Message.kept.find_by(brand: event.brand, public_id: target["message_id"])
+      return unless profile && message && MessageRead.exists?(brand: event.brand, profile:, message:)
+
+      notification.mark_read!
     end
 
     def create_in_app_delivery(notification)

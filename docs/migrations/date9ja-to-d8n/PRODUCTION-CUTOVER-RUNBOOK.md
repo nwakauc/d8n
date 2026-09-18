@@ -1,5 +1,14 @@
 # Date9ja → D8N — Production Cutover Runbook (executable)
 
+> **2026-09-18 superseding safety notice:** DO NOT execute this historical
+> runbook. Both PK-copy promotion scripts are disabled following the current
+> audit; their production promotion/max-ID assumptions are unsafe in a shared,
+> populated destination. See [PHASE1-CLOSURE.md](PHASE1-CLOSURE.md).
+> New synchronization commands are isolated-rehearsal-only. Production
+> application, source write freeze, deployment and traffic switch remain
+> unauthorized and blocked on the remaining gates. Earlier READY labels below
+> are historical and do not describe current cutover acceptance.
+
 **Status:** DRAFT FOR OPERATOR APPROVAL. Do not begin the write freeze or any
 traffic switch until the operator explicitly approves this runbook.
 

@@ -16,6 +16,10 @@ class Notification < ApplicationRecord
   validate :event_matches_recipient
   validate :payload_is_safe_for_type
 
+  after_create_commit -> { Realtime::MemberEvents.notification_changed(self, created: true) }
+  after_update_commit -> { Realtime::MemberEvents.notification_changed(self, created: false) },
+    if: -> { saved_change_to_read_at? }
+
   before_validation :ensure_public_id, on: :create
 
   def mark_read!
