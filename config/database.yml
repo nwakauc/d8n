@@ -17,7 +17,10 @@ default: &default
   encoding: unicode
   # For details on connection pooling, see Rails configuration guide
   # https://guides.rubyonrails.org/configuring.html#database-pooling
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  # Keep the pool aligned with Puma. ActionController::Live streams release
+  # their Active Record connection while waiting, but normal requests still
+  # need one connection per active request thread.
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 8 } %>
 
 
 development:

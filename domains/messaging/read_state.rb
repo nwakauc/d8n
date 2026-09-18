@@ -17,6 +17,23 @@ module Messaging
       { unread_message_count: counts.values.sum, conversations: counts }
     end
 
+    # Conversation lists already contain an authorized set of records. Count
+    # unread rows for that set directly instead of rebuilding the full
+    # availability and block-policy scope used by the global badge.
+    def self.conversation_counts(user:, brand:, conversations:)
+      viewer = Profile.kept.find_by(user:, brand:)
+      return {} unless viewer
+
+      ids = conversations.map(&:id)
+      return {} if ids.empty?
+
+      Message.kept.where(brand:, conversation_id: ids)
+        .where.not(sender_profile_id: viewer.id)
+        .where.not(id: MessageRead.where(brand:, profile: viewer).select(:message_id))
+        .joins(:conversation)
+        .group("conversations.public_id").count
+    end
+
     # Only messages the client actually displayed are acknowledged. A concurrent
     # incoming message is never swept into a broad "read everything" update.
     def self.mark!(user:, brand:, conversation_public_id:, message_ids:)
