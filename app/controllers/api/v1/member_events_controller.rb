@@ -11,6 +11,7 @@ class Api::V1::MemberEventsController < ApplicationController
     adapter = ActionCable.server.pubsub
     ready = Queue.new
     adapter.subscribe(channel, callback, -> { ready.push(true) })
+    Rails.logger.info("member_realtime_connected")
     response.headers["Content-Type"] = "text/event-stream"
     response.headers["Cache-Control"] = "private, no-store"
     response.headers["X-Accel-Buffering"] = "no"
@@ -37,6 +38,7 @@ class Api::V1::MemberEventsController < ApplicationController
   rescue IOError, ActionController::Live::ClientDisconnected
     # Browser closed the stream; no state is changed.
   ensure
+    Rails.logger.info("member_realtime_disconnected") if callback
     adapter&.unsubscribe(channel, callback) if callback
     response.stream.close
   end
@@ -46,6 +48,7 @@ class Api::V1::MemberEventsController < ApplicationController
   def authorize_stream_origin!
     return if Identity::BrowserSession.origin_allowed?(request:)
 
+    Rails.logger.warn("member_realtime_origin_rejected")
     render json: { error: "browser_session_origin_not_allowed" }, status: :forbidden
   end
 end

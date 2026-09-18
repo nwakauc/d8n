@@ -7629,6 +7629,11 @@ components:
           description: >-
             Duration of the currently deliverable introduction video, or null
             when no card-visible video exists.
+        realme_badge:
+          type: boolean
+          description: >-
+            True only when D8N's composite RealMe identity badge is complete.
+            No verification evidence or moderation data is exposed.
     Compatibility:
       type: object
       required: [score, confidence, reasons]
@@ -7778,11 +7783,11 @@ components:
           type: boolean
           description: |
             The member has proven ownership of at least one contact identifier
-            (email or phone). This is CONTACT verification, not photo/identity
-            ("it's really them") verification, which does not exist yet — treat it
-            as a "reachable" signal rather than a strong trust badge. On profile
-            detail, prefer `verification.contact.verified`; this top-level field
-            remains as a backward-compatible legacy projection.
+            (email or phone). This is CONTACT verification, not the reviewed
+            RealMe identity badge. On profile detail, prefer
+            `verification.contact.verified`; this top-level field remains as a
+            backward-compatible legacy projection. `realme_badge` is the
+            separate composite identity signal on the public profile envelope.
         active_today:
           type: boolean
           description: An active brand session was used within the last 24 hours.
@@ -7986,6 +7991,10 @@ components:
               $ref: "#/components/schemas/PairCompatibility"
             viewer_interaction:
               $ref: "#/components/schemas/ViewerInteraction"
+            trust_score:
+              type: integer
+              minimum: 0
+              description: Public-safe derived Trust Score; no ledger details are exposed.
             video:
               description: >-
                 The member's introduction video (ADR 0023). Present only for

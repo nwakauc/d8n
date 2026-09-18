@@ -14,7 +14,7 @@ module Profiles
         id: profile.public_id,
         photos: public_photos,
         options: public_options
-      }.merge(public_profile_fields).merge(derived_public_fields).merge(video_card_fields)
+      }.merge(public_profile_fields).merge(derived_public_fields).merge(video_card_fields).merge(realme_fields)
     end
 
     private
@@ -60,6 +60,11 @@ module Profiles
         video.deliverable? && Media::VideoPolicy.publication_eligible?(video:)
 
       { has_video_intro: deliverable, video_intro_duration_seconds: deliverable ? video.duration_seconds : nil }
+    end
+
+    # Safe public signal only; assertions and evidence remain private.
+    def realme_fields
+      { realme_badge: Identity::RealmeBadge.call(user: profile.user, brand: profile.brand) }
     end
 
     # Safe, approximate location metadata only — never raw coordinates. The

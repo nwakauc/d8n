@@ -25,7 +25,7 @@ class Realtime::MemberEventsTest < ActiveSupport::TestCase
     assert_not Realtime::MemberEvents.session_active?(**ids)
     assert_not Realtime::MemberEvents.session_active?(**ids.merge(brand_id: brand.id + 1))
   end
-  test "message hints route to each current-brand participant, distinguish own events and omit content" do
+  test "message hints route to each current-brand participant with canonical message payload" do
     brand = Brand.create!(slug: "hookus", name: "HookUs")
     profiles = 2.times.map do
       user = User.create!
@@ -45,6 +45,7 @@ class Realtime::MemberEventsTest < ActiveSupport::TestCase
     assert_equal [ false, true ], captured.map { |_, data| data[:incoming] }
     assert_equal [ a.user_id, b.user_id ].map { |id| Realtime::MemberEvents.stream_name(brand_id: brand.id, user_id: id) }, captured.map(&:first)
     assert captured.all? { |_, data| data[:message_id] == message.public_id }
-    assert_not_includes captured.to_json, "private content"
+    assert captured.all? { |_, data| data[:message].fetch(:id) == message.public_id }
+    assert captured.all? { |_, data| data[:message].fetch(:body) == "private content" }
   end
 end

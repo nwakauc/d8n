@@ -19,6 +19,7 @@ module Realtime
         publish(brand_id: message.brand_id, user_id: participant.user_id,
           type: "message_created", event_id: "message:#{message.public_id}",
           conversation_id: message.conversation.public_id, message_id: message.public_id,
+          message: Messaging::MessageSerializer.call(message:),
           incoming: participant.profile_id != message.sender_profile_id,
           actor_profile_id: message.sender_profile.public_id, occurred_at: message.created_at.iso8601(6))
       end

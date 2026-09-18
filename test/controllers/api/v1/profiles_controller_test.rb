@@ -383,8 +383,12 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     detail = JSON.parse(response.body).fetch("profile")
     assert_equal target.public_id, detail.fetch("id")
     assert_equal "Bea", detail.fetch("display_name")
+    assert detail.key?("realme_badge")
+    assert_equal 0, detail.fetch("trust_score")
     assert_includes detail.fetch("photos").sole.fetch("url"), "display.jpg"
     assert_not_includes response.body, photo.image.blob.key
+    assert_not_includes response.body, "realme_assertions"
+    assert_not_includes response.body, "verification_evidence"
 
     ProfileBlock.create!(brand: @brand, blocker_profile: target, blocked_profile: @viewer)
 

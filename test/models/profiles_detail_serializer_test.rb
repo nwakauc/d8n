@@ -67,6 +67,9 @@ module Profiles
       end
       assert payload.key?(:prompts)
       assert payload.key?(:interests)
+      assert_equal 0, payload.fetch(:trust_score)
+      assert payload.key?(:realme_badge)
+      assert_not payload.key?(:realme_assertions)
     end
 
     private

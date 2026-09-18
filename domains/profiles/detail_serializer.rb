@@ -31,7 +31,7 @@ module Profiles
       base.merge(
         prompts: PromptPresenter.call(profile:),
         interests: grouped_interests
-      ).merge(video_section)
+      ).merge(video_section).merge(trust_score: Trust::Ledger.score(user: profile.user, brand: profile.brand))
     end
 
     private
