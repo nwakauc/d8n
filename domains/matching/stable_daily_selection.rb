@@ -66,7 +66,7 @@ module Matching
       return allocation if allocation
 
       ranked_candidates = surface.strategy.rank_daily_selection(
-        scope: candidate_scope(viewer:),
+        scope: fresh_daily_candidate_scope(viewer:, allocation_date:),
         viewer:,
         eligibility_policy: surface.eligibility_policy,
         limit: policy.daily_limit
@@ -77,7 +77,16 @@ module Matching
         daily_limit: policy.daily_limit, strategy_key: surface.strategy.key,
         policy_key: policy.key, finalized_at: now
       )
-      append_candidates!(allocation:, ranked_candidates:, starting_position: 1)
+      ranked_candidates = rotate_daily_candidates(ranked_candidates, allocation_date:)
+      if ranked_candidates.length < policy.daily_limit
+        fallback = surface.strategy.rank_daily_selection(
+          scope: candidate_scope(viewer:).where.not(id: ranked_candidates.map { |entry| entry.fetch(:profile).id }),
+          viewer:, eligibility_policy: surface.eligibility_policy,
+          limit: policy.daily_limit - ranked_candidates.length
+        )
+        ranked_candidates.concat(fallback)
+      end
+      append_candidates!(allocation:, ranked_candidates: ranked_candidates.first(policy.daily_limit), starting_position: 1)
       allocation
     end
 
@@ -143,6 +152,27 @@ module Matching
       scope = EligibilityScope.call(brand:, viewer:, policy: surface.eligibility_policy)
       scope = ExclusionsScope.call(scope:, viewer:, contributors: surface.exclusions)
       FacetFilter.apply(scope:, brand:, filter:)
+    end
+
+    def fresh_daily_candidate_scope(viewer:, allocation_date:)
+      previous = DiscoveryAllocation.kept.find_by(
+        brand:, brand_membership: viewer.brand_membership, surface_key: surface.key.to_s,
+        allocation_date: allocation_date - 1.day
+      )
+      previous_ids = previous&.allocation_candidates&.kept&.pluck(:candidate_profile_id) || []
+      scope = candidate_scope(viewer:)
+      previous_ids.empty? ? scope : scope.where.not(id: previous_ids)
+    end
+
+    def rotate_daily_candidates(candidates, allocation_date:)
+      return candidates if candidates.empty?
+
+      offset = (allocation_date.jd + viewer_seed) % candidates.length
+      candidates.rotate(offset)
+    end
+
+    def viewer_seed
+      Digest::SHA256.hexdigest("#{user.id}:#{brand.id}").to_i(16)
     end
 
     def deliver(allocation:, viewer:)
