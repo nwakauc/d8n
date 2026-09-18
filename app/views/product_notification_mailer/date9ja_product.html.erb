@@ -1,0 +1,10 @@
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent"><%= @preheader %></div>
+<div style="background:#fffaf2;padding:32px;font-family:Arial,sans-serif;color:#241d19">
+  <div style="max-width:560px;margin:auto;background:#fff;border:1px solid #eadfce;border-radius:18px;padding:32px">
+    <strong style="font-size:24px;color:#087a43">Date9ja<span style="color:#ff4d6d">♥</span></strong>
+    <% if @actor_image_url.present? %><img src="<%= @actor_image_url %>" alt="<%= @actor_name %>" width="64" height="64" style="display:block;border-radius:50%;margin:24px 0 16px"><% end %>
+    <h1 style="font-size:28px;margin:12px 0"><%= @title %></h1>
+    <p style="font-size:16px;line-height:1.6;color:#5d5148"><%= @body %></p>
+    <% if @cta_url.present? && @cta_label.present? %><p><a href="<%= @cta_url %>" style="display:inline-block;background:#ff4665;color:#fff;padding:13px 22px;border-radius:999px;text-decoration:none;font-weight:700"><%= @cta_label %></a></p><% end %>
+  </div>
+</div>

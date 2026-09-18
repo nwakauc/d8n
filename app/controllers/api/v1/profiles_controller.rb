@@ -30,6 +30,7 @@ class Api::V1::ProfilesController < Api::V1::InteractionController
     compatibility = detail_compatibility(contract:, viewer:, profile:)
     detail[:compatibility] = compatibility unless compatibility == :unsupported
     detail[:viewer_interaction] = viewer_interaction(viewer:, profile:)
+    Notifications::EventPublisher.profile_viewed!(viewer:, recipient: profile)
 
     render json: { profile: detail }
   rescue Profiles::PublicProfile::ViewerIneligible

@@ -19,13 +19,25 @@ class Date9jaNotificationMaterializationTest < ActiveSupport::TestCase
     Notifications::EventPublisher.match_created!(match: @match)
     match_event = NotificationEvent.find_by!(event_type: "match_created", user: @alice.user)
     message_event = Notifications::EventPublisher.message_received!(message:, recipient: @bob)
-    events = [ welcome_event, like_event, match_event, message_event ]
+    profile_view_event = Notifications::EventPublisher.profile_viewed!(viewer: @alice, recipient: @bob)
+    events = [ welcome_event, like_event, match_event, message_event, profile_view_event ]
 
     events.each { |event| Notifications::MaterializeEvent.call(event:) }
 
     assert_equal %w[
-      date9ja.welcome date9ja.like_received date9ja.match_created date9ja.message_received
+      date9ja.welcome date9ja.like_received date9ja.match_created date9ja.message_received date9ja.profile_viewed
     ].sort, Notification.where(brand: @brand).pluck(:notification_type).sort
+  end
+
+  test "profile views are deduplicated for the cooldown window and never self-notify" do
+    first = Notifications::EventPublisher.profile_viewed!(viewer: @alice, recipient: @bob)
+    second = Notifications::EventPublisher.profile_viewed!(viewer: @alice, recipient: @bob)
+    own = Notifications::EventPublisher.profile_viewed!(viewer: @alice, recipient: @alice)
+
+    assert first
+    assert_nil second
+    assert_nil own
+    assert_equal 1, NotificationEvent.where(event_type: "profile_viewed", user: @bob.user).count
   end
 
   private

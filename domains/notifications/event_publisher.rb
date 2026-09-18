@@ -7,6 +7,30 @@ module Notifications
   # makes every call below a safe no-op — no capability check, no branching,
   # needed at any call site.
   class EventPublisher
+    PROFILE_VIEW_COOLDOWN = 24.hours
+
+    def self.profile_viewed!(viewer:, recipient:)
+      return if viewer.nil? || recipient.nil? || viewer.id == recipient.id
+      return if viewer.user_id == recipient.user_id
+      return unless Messaging::MatchAccess.profile_available?(viewer) && Messaging::MatchAccess.profile_available?(recipient)
+      return if Trust::BlockPolicy.blocked_between?(brand: recipient.brand, first: viewer, second: recipient)
+      return if NotificationEvent.where(
+        brand: recipient.brand, user: recipient.user, event_type: "profile_viewed"
+      ).where("occurred_at >= ?", PROFILE_VIEW_COOLDOWN.ago).where(
+        "payload -> 'actor' ->> 'profile_id' = ?", viewer.public_id
+      ).exists?
+
+      bucket = Time.current.to_i / PROFILE_VIEW_COOLDOWN.to_i
+      publish!(
+        event_type: "profile_viewed",
+        idempotency_key: "profile_viewed:#{viewer.id}:#{recipient.id}:#{bucket}",
+        brand: recipient.brand,
+        user: recipient.user,
+        brand_membership: recipient.brand_membership,
+        payload: { actor: { profile_id: viewer.public_id }, target: { type: "profile", id: recipient.public_id } }
+      )
+    end
+
     def self.verification_approved!(assertion:)
       membership = BrandMembership.kept.active.find_by(brand: assertion.brand, user: assertion.user)
       return unless membership

@@ -48,6 +48,13 @@ module Notifications
         email_subject: "New message on Date9ja",
         allowed_payload_keys: DATING_EVENT_PAYLOAD_KEYS
       ),
+      "date9ja.profile_viewed" => Definition.new(
+        code: "date9ja.profile_viewed",
+        title: "Someone viewed your profile",
+        body: "Someone's taking a closer look.",
+        email_subject: "Someone viewed your Date9ja profile",
+        allowed_payload_keys: DATING_EVENT_PAYLOAD_KEYS
+      ),
       "dateza.welcome" => Definition.new(
         code: "dateza.welcome",
         title: "Welcome to DateZA",

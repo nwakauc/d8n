@@ -11,7 +11,8 @@ class ProductNotificationMailer < ApplicationMailer
     "dateza.like_received" => "dateza_product",
     "dateza.match_created" => "dateza_product",
     "dateza.opener_received" => "dateza_product",
-    "dateza.message_received" => "dateza_product"
+    "dateza.message_received" => "dateza_product",
+    "date9ja.profile_viewed" => "date9ja_product"
   }.freeze
 
   def welcome

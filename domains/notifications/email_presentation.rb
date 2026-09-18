@@ -6,7 +6,8 @@ module Notifications
     )
 
     PRESENTERS = {
-      "dateza" => Notifications::EmailPresenters::Dateza
+      "dateza" => Notifications::EmailPresenters::Dateza,
+      "date9ja" => Notifications::EmailPresenters::Date9ja
     }.freeze
 
     def self.call(notification:, notification_type:, brand_slug:)

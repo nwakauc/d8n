@@ -177,6 +177,10 @@ module D8n
                 "message_received" => BrandContract::NotificationPlan.new(
                   notification_type: "date9ja.message_received",
                   email_template: :product
+                ),
+                "profile_viewed" => BrandContract::NotificationPlan.new(
+                  notification_type: "date9ja.profile_viewed",
+                  email_template: :product
                 )
               }
             ),
