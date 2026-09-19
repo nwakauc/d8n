@@ -1,3 +1,5 @@
+require "digest"
+
 module Matching
   # DateZA's curated daily Discover surface: up to `daily_limit` distinct,
   # ranked candidates per member per day (`StableDailyAllocationPolicy`),

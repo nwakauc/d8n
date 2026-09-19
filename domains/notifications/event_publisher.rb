@@ -31,6 +31,21 @@ module Notifications
       )
     end
 
+    def self.profile_updated_by_admin!(correction:)
+      profile = correction.profile
+      membership = profile.brand_membership
+      return unless membership
+
+      publish!(
+        event_type: "profile_updated_by_admin",
+        idempotency_key: "profile_updated_by_admin:#{correction.id}",
+        brand: profile.brand,
+        user: profile.user,
+        brand_membership: membership,
+        payload: { target: { type: "profile", id: profile.public_id, fields: [ correction.field ] } }
+      )
+    end
+
     def self.verification_approved!(assertion:)
       membership = BrandMembership.kept.active.find_by(brand: assertion.brand, user: assertion.user)
       return unless membership

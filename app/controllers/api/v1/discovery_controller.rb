@@ -49,6 +49,9 @@ class Api::V1::DiscoveryController < ApplicationController
     render json: { error: "invalid_filter" }, status: :unprocessable_entity
   rescue Matching::StrategyRegistry::UnsupportedBrand
     render json: { error: "matching_not_configured" }, status: :not_found
+  rescue StandardError => error
+    Rails.logger.error("discovery_request_failed error=#{error.class} message=#{error.message}")
+    render json: { error: "discovery_unavailable" }, status: :service_unavailable
   end
 
   private

@@ -55,6 +55,13 @@ module Notifications
         email_subject: "Someone viewed your Date9ja profile",
         allowed_payload_keys: DATING_EVENT_PAYLOAD_KEYS
       ),
+      "date9ja.profile_updated_by_admin" => Definition.new(
+        code: "date9ja.profile_updated_by_admin",
+        title: "An admin updated your profile",
+        body: "An admin changed details on your profile. You can review and edit them anytime.",
+        email_subject: "An admin updated your Date9ja profile",
+        allowed_payload_keys: DATING_EVENT_PAYLOAD_KEYS
+      ),
       "dateza.welcome" => Definition.new(
         code: "dateza.welcome",
         title: "Welcome to DateZA",

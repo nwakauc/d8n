@@ -38,6 +38,7 @@ module Admin
       end
 
       record_audit!(admin_user:, correction:)
+      Notifications::EventPublisher.profile_updated_by_admin!(correction:)
       correction
     rescue ActiveRecord::RecordInvalid => e
       raise ModerationError, :invalid_value if e.record.is_a?(Profile) || e.record.is_a?(ProfilePreference)

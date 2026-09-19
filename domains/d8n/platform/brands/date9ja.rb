@@ -181,6 +181,10 @@ module D8n
                 "profile_viewed" => BrandContract::NotificationPlan.new(
                   notification_type: "date9ja.profile_viewed",
                   email_template: :product
+                ),
+                "profile_updated_by_admin" => BrandContract::NotificationPlan.new(
+                  notification_type: "date9ja.profile_updated_by_admin",
+                  email_template: :product
                 )
               }
             ),
