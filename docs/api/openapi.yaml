@@ -5528,6 +5528,59 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hq/members/{lookup}/publication:
+    post:
+      operationId: publishHqMemberProfile
+      tags: [Hq]
+      summary: Publish an eligible hidden member profile
+      description: |
+        Requires verified admin MFA and `admin.profile_publication.manage`
+        (founder or super-admin). This brand-scoped, audited action runs the
+        normal publication checks. It cannot bypass active enforcement or a
+        moderator discovery restriction. A reason is required.
+      parameters:
+        - $ref: "#/components/parameters/HqLookup"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+      responses:
+        "200":
+          description: The profile is now active and visible.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HqProfilePublicationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: The member or profile is unavailable on this brand.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The profile is already visible, enforced, or discovery-restricted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The reason is invalid or the profile is incomplete.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/hq/members/{lookup}/security_events:
     get:
       operationId: listMemberSecurityEvents
@@ -10619,6 +10672,25 @@ components:
                 type: string
               candidate_count:
                 type: integer
+    HqProfilePublicationResponse:
+      type: object
+      required: [profile]
+      properties:
+        profile:
+          type: object
+          required: [profile_id, status, visibility, discovery_state]
+          properties:
+            profile_id:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [active]
+            visibility:
+              type: string
+              enum: [visible]
+            discovery_state:
+              type: string
     StartConversationResponse:
       type: object
       required: [conversation, created]

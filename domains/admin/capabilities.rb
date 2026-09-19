@@ -19,6 +19,7 @@ module Admin
     TRUST_ADJUSTMENTS_MANAGE = "admin.trust_adjustments.manage"
     TRUST_ADJUSTMENTS_REVERSE = "admin.trust_adjustments.reverse"
     DISCOVERY_RESTRICTIONS_MANAGE = "admin.discovery_restrictions.manage"
+    PROFILE_PUBLICATION_MANAGE = "admin.profile_publication.manage"
     IDENTITY_CORRECTION_MANAGE = "admin.identity_correction.manage"
     COMMUNITY_READ = "admin.community.read"
     COMMUNITY_MODERATE = "admin.community.moderate"
@@ -59,6 +60,7 @@ module Admin
       # here).
       TRUST_ADJUSTMENTS_MANAGE,
       TRUST_ADJUSTMENTS_REVERSE,
+      PROFILE_PUBLICATION_MANAGE,
       IDENTITY_CORRECTION_MANAGE,
       OPERATORS_READ,
       OPERATORS_MANAGE,

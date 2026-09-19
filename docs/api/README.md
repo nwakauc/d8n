@@ -86,6 +86,21 @@ Development and test load these values from the untracked `.env` file; restart
 Rails after changing it. Production receives them through its deployment
 environment rather than a checked-in environment file.
 
+### HQ profile publication
+
+Founder and super-admin operators with verified HQ MFA can restore an eligible
+brand profile to the normal published state through:
+
+```txt
+POST /api/v1/hq/members/{lookup}/publication
+```
+
+The request must include a short audited `reason`. The action is brand-scoped
+and runs the same publication checks as the member-facing publication flow. It
+does not bypass active enforcement or an explicit moderator discovery
+restriction; those states must be resolved through their corresponding
+moderation workflows.
+
 ### Community
 
 Community is enabled explicitly by the resolved brand contract; route presence

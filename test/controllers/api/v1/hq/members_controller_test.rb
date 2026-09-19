@@ -343,6 +343,38 @@ class Api::V1::Hq::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "profile_unavailable", JSON.parse(response.body).fetch("error")
   end
 
+  test "founder can publish a complete hidden profile through HQ" do
+    @ada.update!(bio: "A complete HookUs profile.", country_code: "ZA", status: :draft, visibility: :hidden)
+    ProfilePreference.create!(
+      brand: @brand, user: @ada.user, profile: @ada, interested_in: [ "person" ], min_age: 18, max_age: 99
+    )
+    _founder, founder_token = create_admin(brand: @brand, role_name: "founder")
+
+    assert_difference -> { SecurityEvent.where(event_type: "admin.profile_published").count }, 1 do
+      post "/api/v1/hq/members/ada@example.com/publication", headers: bearer_headers(founder_token),
+        params: { reason: "Founder confirmed this member should be discoverable." }
+    end
+
+    assert_response :success
+    assert @ada.reload.active?
+    assert @ada.visible?
+    body = JSON.parse(response.body)
+    assert_equal "visible", body.dig("profile", "visibility")
+    assert_equal "visible", body.dig("profile", "discovery_state")
+  end
+
+  test "HQ publication refuses an incomplete profile" do
+    _founder, founder_token = create_admin(brand: @brand, role_name: "founder")
+
+    post "/api/v1/hq/members/ada@example.com/publication", headers: bearer_headers(founder_token),
+      params: { reason: "Reviewed profile." }
+
+    assert_response :unprocessable_entity
+    assert_equal "profile_incomplete", JSON.parse(response.body).fetch("error")
+    assert @ada.reload.draft?
+    assert @ada.hidden?
+  end
+
   private
 
   def bearer_headers(token)

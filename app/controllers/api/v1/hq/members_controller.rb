@@ -11,16 +11,24 @@ module Api
           only: %i[security_events auth_attempts enforcements timeline]
         requires_admin_capability ::Admin::Capabilities::DISCOVERY_DIAGNOSTICS_READ,
           only: :discovery_diagnostic
+        requires_admin_capability ::Admin::Capabilities::PROFILE_PUBLICATION_MANAGE,
+          only: :publish
 
         CODE_STATUS = {
           member_unavailable: :not_found,
           profile_unavailable: :not_found,
           invalid_limit: :unprocessable_entity,
           invalid_filter: :unprocessable_entity,
-          invalid_search: :unprocessable_entity
+          invalid_search: :unprocessable_entity,
+          invalid_reason: :unprocessable_entity,
+          profile_incomplete: :unprocessable_entity,
+          already_visible: :conflict,
+          enforced: :conflict,
+          discovery_restricted: :conflict
         }.freeze
 
         rescue_from ::Hq::HqError, with: :render_hq_error
+        rescue_from ::Admin::ModerationError, with: :render_hq_error
         rescue_from ::Hq::Cursor::Invalid do
           render json: { error: "invalid_cursor" }, status: :unprocessable_entity
         end
@@ -79,7 +87,7 @@ module Api
             next_cursor: result.next_cursor
           }
         end
-        before_action :require_profile, only: :discovery_diagnostic
+        before_action :require_profile, only: %i[discovery_diagnostic publish]
 
         def show
           sections = ::Hq::Member360::Load.call(brand: Current.brand, brand_membership: @brand_membership)
@@ -120,6 +128,27 @@ module Api
             eligible: result.eligible,
             ineligibility_reason: result.ineligibility_reason,
             stages: result.stages.map { |stage| { stage: stage.stage, description: stage.description, candidate_count: stage.candidate_count } }
+          }
+        end
+
+        def publish
+          profile = ::Admin::PublishProfile.call(
+            admin_user: Current.admin_user,
+            brand: Current.brand,
+            profile_public_id: @profile.public_id,
+            reason: params[:reason]
+          )
+          audit!("hq.member_profile_published")
+
+          render json: {
+            profile: {
+              profile_id: profile.public_id,
+              status: profile.status,
+              visibility: profile.visibility,
+              discovery_state: ::Hq::Member360::Load.call(
+                brand: Current.brand, brand_membership: @brand_membership
+              ).dig(:profile, :discovery_state)
+            }
           }
         end
 

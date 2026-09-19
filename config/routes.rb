@@ -139,6 +139,7 @@ Rails.application.routes.draw do
         get "members/:lookup/enforcements" => "members#enforcements", constraints: { lookup: /[^\/]+/ }
         get "members/:lookup/timeline" => "members#timeline", constraints: { lookup: /[^\/]+/ }
         get "members/:lookup/discovery_diagnostic" => "members#discovery_diagnostic", constraints: { lookup: /[^\/]+/ }
+        post "members/:lookup/publication" => "members#publish", constraints: { lookup: /[^\/]+/ }
       end
       get "trust_score" => "trust_scores#show"
       get "profile" => "profile#show"
