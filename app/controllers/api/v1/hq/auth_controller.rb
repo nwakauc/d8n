@@ -17,7 +17,7 @@ module Api
           )
           return render(json: { error: "invalid_credentials" }, status: :unauthorized) unless result.success?
 
-          context = Admin::AuthorizationContext.resolve(user: result.user, brand: Current.brand)
+          context = ::Admin::AuthorizationContext.resolve(user: result.user, brand: Current.brand)
           unless context
             result.session.update!(revoked_at: Time.current, revocation_reason: "no_hq_assignment")
             return render(json: { error: "forbidden" }, status: :forbidden)
@@ -68,7 +68,7 @@ module Api
           Current.authentication_source = :hq_cookie
           Current.session = result.session
           Current.user = result.user
-          context = Admin::AuthorizationContext.resolve(user: Current.user, brand: Current.brand)
+          context = ::Admin::AuthorizationContext.resolve(user: Current.user, brand: Current.brand)
           unless context
             render json: { error: "forbidden" }, status: :forbidden
             return false
