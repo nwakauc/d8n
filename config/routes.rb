@@ -181,6 +181,9 @@ Rails.application.routes.draw do
       post "auth/password/recovery/verify" => "auth/password_recoveries#verify"
       post "auth/password/recovery/reset" => "auth/password_recoveries#reset"
       get "member_events" => "member_events#index"
+      post "device_registrations" => "device_registrations#create"
+      delete "device_registrations/:installation_id" => "device_registrations#destroy",
+        constraints: { installation_id: /[^\/]+/ }
       get "messages/unread" => "message_reads#index"
       post "conversations/:conversation_id/read" => "message_reads#create"
 

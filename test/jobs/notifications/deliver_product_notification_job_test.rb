@@ -107,6 +107,40 @@ module Notifications
       assert_not_includes delivery.recipient, "private-device-token"
     end
 
+    test "a provider-invalid token is disabled for future delivery" do
+      device = DeviceRegistration.create!(
+        brand: @brand,
+        user: @user,
+        brand_membership: @membership,
+        platform: :android,
+        token: "invalid-device-token",
+        last_seen_at: Time.current
+      )
+      event = NotificationEvent.create!(
+        brand: @brand, user: @user, brand_membership: @membership,
+        event_type: "membership_registered",
+        idempotency_key: "membership_registered:invalid-device:#{@membership.id}",
+        payload: {}, occurred_at: Time.current
+      )
+      ProcessEventJob.perform_now(event.id)
+      delivery = event.notification.notification_deliveries.push.sole
+      gateway = Class.new do
+        define_singleton_method(:deliver) do |**|
+          DeliveryResponse.permanent(
+            provider: "fake", error_code: "invalid_token", error_message: "Token is no longer registered"
+          )
+        end
+      end
+
+      stub_method(Push, :gateway, -> { gateway }) do
+        DeliverProductNotificationJob.perform_now(delivery.id)
+      end
+
+      assert_not device.reload.enabled?
+      assert_equal "invalid_token", device.last_error
+      assert device.revoked_at.present?
+    end
+
     test "no device or a revoked device creates no push attempt" do
       assert_equal 0, @event.notification.notification_deliveries.push.count
 

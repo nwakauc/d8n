@@ -41,6 +41,18 @@ module AbuseProtection
         rule("sustained", scope: :user, limit: 600, window: 1.hour)
       ],
 
+      device_registration: [
+        rule("burst", scope: :installation, limit: 10, window: 1.minute),
+        rule("member", scope: :user, limit: 30, window: 1.minute),
+        rule("ip", scope: :ip, limit: 300, window: 1.hour)
+      ],
+
+      member_events_connection: [
+        rule("installation", scope: :installation, limit: 30, window: 1.minute),
+        rule("member", scope: :user, limit: 60, window: 1.minute),
+        rule("ip", scope: :ip, limit: 600, window: 1.hour)
+      ],
+
       # LLM requests cost money and can be used to probe a provider or generate
       # abusive volume. This is intentionally an abuse ceiling, not a future
       # product entitlement/quota, which belongs in the AI domain once billing

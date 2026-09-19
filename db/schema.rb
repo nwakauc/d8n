@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_18_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_19_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -560,7 +560,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_150000) do
     t.bigint "brand_membership_id", null: false
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
+    t.string "device_name"
     t.boolean "enabled", default: true, null: false
+    t.string "installation_id"
+    t.string "last_error"
     t.datetime "last_seen_at", null: false
     t.integer "platform", null: false
     t.uuid "public_id", default: -> { "gen_random_uuid()" }, null: false
@@ -569,6 +572,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_150000) do
     t.string "token_digest", null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.index ["brand_id", "installation_id"], name: "idx_device_registrations_active_installation", unique: true, where: "((installation_id IS NOT NULL) AND (deleted_at IS NULL))"
     t.index ["brand_id", "token_digest"], name: "idx_device_registrations_active_token", unique: true, where: "((revoked_at IS NULL) AND (deleted_at IS NULL))"
     t.index ["brand_id", "user_id", "enabled", "last_seen_at"], name: "idx_device_registrations_delivery"
     t.index ["brand_id"], name: "index_device_registrations_on_brand_id"
@@ -679,6 +683,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_150000) do
     t.index ["recipient_profile_id"], name: "index_hooks_on_recipient_profile_id"
     t.index ["sender_profile_id"], name: "index_hooks_on_sender_profile_id"
     t.check_constraint "sender_profile_id <> recipient_profile_id", name: "chk_hooks_not_self"
+  end
+
+  create_table "hq_operator_sessions", force: :cascade do |t|
+    t.bigint "admin_mfa_credential_id"
+    t.datetime "admin_mfa_verified_at"
+    t.bigint "admin_user_id", null: false
+    t.datetime "created_at", null: false
+    t.string "device_name"
+    t.datetime "expires_at", null: false
+    t.string "ip_address"
+    t.datetime "last_used_at", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.string "revocation_reason"
+    t.datetime "revoked_at"
+    t.string "token_digest", null: false
+    t.datetime "updated_at", null: false
+    t.text "user_agent"
+    t.bigint "user_id", null: false
+    t.index ["admin_mfa_credential_id"], name: "index_hq_operator_sessions_on_admin_mfa_credential_id"
+    t.index ["admin_user_id", "revoked_at"], name: "index_hq_operator_sessions_on_admin_user_id_and_revoked_at"
+    t.index ["admin_user_id"], name: "index_hq_operator_sessions_on_admin_user_id"
+    t.index ["token_digest"], name: "index_hq_operator_sessions_on_token_digest", unique: true
+    t.index ["user_id"], name: "index_hq_operator_sessions_on_user_id"
   end
 
   create_table "identity_identifiers", force: :cascade do |t|
@@ -1587,6 +1614,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_150000) do
   add_foreign_key "hooks", "profile_openers", column: ["profile_opener_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_profile_opener_tenant"
   add_foreign_key "hooks", "profiles", column: ["recipient_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_recipient_tenant"
   add_foreign_key "hooks", "profiles", column: ["sender_profile_id", "brand_id"], primary_key: ["id", "brand_id"], name: "fk_hooks_sender_tenant"
+  add_foreign_key "hq_operator_sessions", "admin_mfa_credentials"
+  add_foreign_key "hq_operator_sessions", "admin_users"
+  add_foreign_key "hq_operator_sessions", "users"
   add_foreign_key "identity_identifiers", "brands"
   add_foreign_key "identity_identifiers", "users"
   add_foreign_key "legacy_references", "brands"

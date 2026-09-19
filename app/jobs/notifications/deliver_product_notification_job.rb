@@ -134,8 +134,20 @@ module Notifications
         attributes.merge!(status: :sent, sent_at: Time.current, failed_at: nil)
       else
         attributes.merge!(status: :failed, failed_at: Time.current)
+        disable_invalid_push_device!(delivery, response)
       end
       delivery.update!(attributes)
+    end
+
+    def disable_invalid_push_device!(delivery, response)
+      return unless delivery.channel == "push"
+      return unless %w[invalid_token unregistered_device device_not_registered].include?(response.error_code)
+      return unless delivery.device_registration
+
+      Notifications::DeviceRegistrar.disable!(
+        registration: delivery.device_registration,
+        reason: response.error_code
+      )
     end
 
     def record_unexpected_failure(delivery, error)

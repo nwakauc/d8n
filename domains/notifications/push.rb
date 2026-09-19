@@ -1,7 +1,11 @@
 module Notifications
   module Push
     def self.gateway
-      provider_name == "test" ? TestGateway : RequiredGateway
+      case provider_name
+      when "test" then TestGateway
+      when "expo" then ExpoGateway
+      else RequiredGateway
+      end
     end
 
     def self.provider_name

@@ -49,7 +49,7 @@ the API root (`GET /`) and the summary at the top of `openapi.yaml`.
 | Media | Available foundation | Brand-scoped direct upload, safe re-encoding, short-lived signed owner/public delivery, ordering/primary semantics, limits, deletion/purge, and audited approve/reject transitions are implemented. Provider automation, appeals, and an admin UI remain future work. |
 | Verification | Available foundation | Identifier verification and manually reviewed RealMe assertions are implemented; public profiles expose only the composite `realme_badge`, never evidence or moderation data. |
 | Admin | Preview | Brand-scoped report review, photo moderation, suspension/ban enforcement, capability RBAC, mandatory admin MFA, operator management, and HQ Member 360/Directory reads exist; the complete admin product and operational acceptance remain gated. |
-| Product Notifications | Available | Brand-scoped inbox/read API and DateZA registration welcome email. Device storage/push boundary exists; device enrollment API and production push provider are deferred. Identity challenge delivery remains separate. |
+| Product Notifications | Available | Brand-scoped inbox/read API, installation-scoped native device registration/revocation, Expo Push Service delivery for the current Date9ja native app, and DateZA registration welcome email. Identity challenge delivery remains separate. |
 | Billing / Analytics | Planned | No consumer product endpoints yet. |
 
 Every path in `openapi.yaml` is implemented; the "Preview" and "In development"
@@ -223,8 +223,8 @@ the request's brand.
 
 No production DateZA domain is assumed by this repository. DateZA Find,
 deterministic compatibility v1, and stable daily Discovery are implemented;
-RealMe, public Trust standing, AI Matchmaker, notification UI/device enrollment,
-and subscriptions/entitlements remain future work. DateZA registration creates
+RealMe, public Trust standing, AI Matchmaker, notification UI, native push
+provider delivery, and subscriptions/entitlements remain future work. DateZA registration creates
 one `dateza.welcome` product notification after commit.
 
 For DateZA, `GET /api/v1/discovery` returns the current Johannesburg-calendar-day
@@ -927,10 +927,16 @@ The contract test fails when a Rails `/api/v1` route is undocumented, a document
 
 ## Member realtime and unread messages (local implementation)
 
-`GET /api/v1/member_events` uses authenticated SSE over the same-origin proxy.
-Events are ephemeral hints; fetch `/notifications` and `/messages/unread` on
-`ready`, `reconcile`, reconnect, and focus. Do not increment counters from hints.
-The browser must close streams on logout. No tokens or brand IDs in URLs.
+`GET /api/v1/member_events` uses authenticated SSE. Browsers use the host-only
+cookie session and the existing origin/CSRF model. Native clients use the same
+brand-bound bearer session with `X-D8N-Client: native` and
+`X-D8N-Installation-ID: <opaque installation id>` headers; tokens are never
+placed in URLs and browser origin checks remain unchanged. Events are ephemeral
+hints; fetch `/notifications` and `/messages/unread` on `ready`, `reconcile`,
+reconnect, and focus. Do not increment counters from hints. Clients must close
+streams on logout. Reconnects are rate-limited per member and installation,
+with a high IP backstop that does not become the primary shared allowance for
+carrier NAT.
 `POST /conversations/{id}/read` accepts `{message_ids: [opaque IDs]}` for up to
 100 actually displayed messages, persists idempotent receipts and returns
 authoritative global/per-conversation unread-message counts. Unseen concurrent

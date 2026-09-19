@@ -13,14 +13,16 @@ class DeviceRegistration < ApplicationRecord
   scope :deliverable, -> { kept.where(enabled: true, revoked_at: nil) }
 
   validates :public_id, :token, :token_digest, :last_seen_at, presence: true
+  validates :installation_id, length: { in: 1..128 }, allow_nil: true
+  validates :device_name, length: { maximum: 120 }, allow_blank: true
   validates :public_id, uniqueness: true, format: { with: Profile::PUBLIC_ID_FORMAT }
   validate :membership_matches_owner
 
   before_validation :ensure_public_id, on: :create
   before_validation :set_token_digest, if: :will_save_change_to_token?
 
-  def revoke!
-    update!(enabled: false, revoked_at: Time.current)
+  def revoke!(reason: nil)
+    update!(enabled: false, revoked_at: Time.current, last_error: reason)
   end
 
   private

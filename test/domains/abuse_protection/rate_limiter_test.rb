@@ -108,5 +108,30 @@ module AbuseProtection
       (rule.limit + 1).times { limit(action: :profile_write, now:) }
       assert limit(action: :profile_write, now:).throttled?
     end
+
+    test "native installation limits are isolated between installations" do
+      rule = Policy.rules_for(:device_registration).find { |candidate| candidate.scope == :installation }
+      now = Time.zone.at(7_000)
+
+      (rule.limit + 1).times do
+        RateLimiter.call(action: :device_registration, brand: @brand, user: @user,
+          installation_id: "install-a", ip_address: "2.2.2.2", now:)
+      end
+      throttled = RateLimiter.call(action: :device_registration, brand: @brand, user: @user,
+        installation_id: "install-a", ip_address: "2.2.2.2", now:)
+      assert throttled.throttled?
+      assert_equal "burst", throttled.rule_name
+
+      other_installation = RateLimiter.call(action: :device_registration, brand: @brand, user: @user,
+        installation_id: "install-b", ip_address: "2.2.2.2", now:)
+      assert_not other_installation.throttled?
+    end
+
+    test "member event limits use member and installation identity" do
+      assert_equal %i[installation user ip], Policy.rules_for(:member_events_connection).map(&:scope)
+      first = RateLimiter.call(action: :member_events_connection, brand: @brand, user: @user,
+        installation_id: "install-a", ip_address: "3.3.3.3", now: Time.zone.at(8_000))
+      assert_not first.throttled?
+    end
   end
 end

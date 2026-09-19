@@ -63,6 +63,7 @@ env:
     D8N_R2_ENABLED: "true"
     D8N_DEPLOYMENT_ENV: "production"
     D8N_R2_BRANDS: "hookus,dateza,date9ja"
+    D8N_PUSH_PROVIDER: "expo"
     # D8N AI is process-configured; the API key is supplied through Kamal's
     # secret environment below, never committed to deployment config.
     D8N_AI_PROVIDER: "openai"

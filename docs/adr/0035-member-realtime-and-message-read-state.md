@@ -6,6 +6,12 @@ D8N owns this reusable mechanism. No production changes or independent approval.
 Reuse Rails Action Cable's configured pubsub adapter (PostgreSQL in production)
 with SSE browser transport at `/api/v1/member_events`, which works through the
 same-origin HTTP BFF without changing session cookie scope or exposing tokens.
+The same endpoint also supports explicitly identified native clients: they use
+the existing brand-bound bearer session in an `Authorization` header plus
+`X-D8N-Client: native` and an opaque `X-D8N-Installation-ID` header. Native
+requests must not carry browser Origin/fetch metadata; browser cookie sessions
+continue to require the existing origin enforcement. Bearer credentials are
+never accepted in URLs.
 No websocket deployment, Redis, separate broker, provider or outbox redesign.
 Message events carry opaque IDs only; inbox events reuse the existing safe
 notification presenter (generic copy and opaque payload IDs, never content). After-commit events are ephemeral hints; HTTP

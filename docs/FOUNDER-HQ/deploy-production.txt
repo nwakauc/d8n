@@ -31,7 +31,9 @@ for v in \
   TWILIO_DATEZA_MESSAGING_SERVICE_SID \
   D8N_AR_ENCRYPTION_PRIMARY_KEY \
   D8N_AR_ENCRYPTION_DETERMINISTIC_KEY \
-  D8N_AR_ENCRYPTION_KEY_DERIVATION_SALT
+  D8N_AR_ENCRYPTION_KEY_DERIVATION_SALT\
+  D8N_AI_PROVIDER\
+  D8N_AI_OPENAI_API_KEY
 do
   [[ -n "${(P)v}" ]] && echo "$v = SET" || echo "$v = MISSING"
 done
@@ -42,3 +44,4 @@ bundle exec kamal deploy -d production
 bundle exec kamal details -d production
 curl -I https://api.d8n.tech
 curl -I https://dateza-api.d8n.tech
+curl -I https://date9ja-api.d8n.tech

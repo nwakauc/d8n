@@ -1,6 +1,7 @@
 class Api::V1::MemberEventsController < ApplicationController
   include ActionController::Live
   before_action :authenticate_user!
+  before_action -> { enforce_rate_limit!(:member_events_connection, installation_id: native_installation_id) }, only: :index
   before_action :authorize_stream_origin!, only: :index
 
   def index
@@ -46,9 +47,22 @@ class Api::V1::MemberEventsController < ApplicationController
   private
 
   def authorize_stream_origin!
-    return if Identity::BrowserSession.origin_allowed?(request:)
+    return if Current.authentication_source == :cookie && Identity::BrowserSession.origin_allowed?(request:)
+    return if Current.authentication_source == :bearer && native_client_request?
 
     Rails.logger.warn("member_realtime_origin_rejected")
-    render json: { error: "browser_session_origin_not_allowed" }, status: :forbidden
+    error = Current.authentication_source == :bearer ? "native_client_headers_required" : "browser_session_origin_not_allowed"
+    render json: { error: }, status: :forbidden
+  end
+
+  def native_client_request?
+    request.headers["X-D8N-Client"].to_s.casecmp("native").zero? &&
+      native_installation_id.present? && native_installation_id.bytesize <= 128 &&
+      request.headers["Origin"].blank? &&
+      request.headers["Sec-Fetch-Site"].to_s != "cross-site"
+  end
+
+  def native_installation_id
+    request.headers["X-D8N-Installation-ID"].to_s.presence
   end
 end

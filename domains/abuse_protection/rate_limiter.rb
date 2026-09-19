@@ -22,11 +22,12 @@ module AbuseProtection
       new(...).call
     end
 
-    def initialize(action:, brand:, user:, ip_address:, now: Time.current)
+    def initialize(action:, brand:, user:, ip_address:, installation_id: nil, now: Time.current)
       @action = action
       @brand = brand
       @user = user
       @ip_address = ip_address.presence
+      @installation_id = installation_id.presence
       @now = now
     end
 
@@ -46,7 +47,7 @@ module AbuseProtection
 
     private
 
-    attr_reader :action, :brand, :user, :ip_address, :now
+    attr_reader :action, :brand, :user, :ip_address, :installation_id, :now
 
     def evaluate(rules)
       rules.each do |rule|
@@ -79,6 +80,8 @@ module AbuseProtection
       when :ip
         # Platform-wide on purpose: not scoped by brand.
         "ip:#{ip_address}" if ip_address
+      when :installation
+        "brand:#{brand.id}:user:#{user.id}:installation:#{installation_id}" if brand && user && installation_id
       end
     end
 

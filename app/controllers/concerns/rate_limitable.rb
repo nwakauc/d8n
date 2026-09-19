@@ -16,12 +16,13 @@ module RateLimitable
 
   # Returns false and renders a 429 when the action is throttled (which halts the
   # before_action chain), true otherwise.
-  def enforce_rate_limit!(action)
+  def enforce_rate_limit!(action, installation_id: nil)
     result = AbuseProtection::RateLimiter.call(
       action:,
       brand: Current.brand,
       user: Current.user,
-      ip_address: request.remote_ip
+      ip_address: request.remote_ip,
+      installation_id:
     )
     return true unless result.throttled?
 
@@ -46,7 +47,8 @@ module RateLimitable
   def log_rate_limited(result)
     Rails.logger.warn(
       "[abuse_protection] throttled action=#{result.action} rule=#{result.rule_name} " \
-        "brand=#{Current.brand&.id.inspect} authenticated=#{Current.user.present?} " \
+      "brand=#{Current.brand&.id.inspect} authenticated=#{Current.user.present?} " \
+      "installation_id_present=#{result.action == :device_registration || result.action == :member_events_connection} " \
         "retry_after=#{result.retry_after} request_id=#{request.request_id}"
     )
   end

@@ -3590,8 +3590,10 @@ paths:
       tags: [Notifications]
       summary: Stream current-brand recipient event hints through SSE
       description: |
-        Authenticated same-origin stream; no tokens or brand input in URLs.
-        Subscribe before ready; on ready/reconcile clients fetch authoritative
+        Browser clients use the host-only cookie session and same-origin
+        enforcement. Native clients use the same brand-bound bearer session
+        with `X-D8N-Client: native` and `X-D8N-Installation-ID` headers; no
+        tokens or brand input are accepted in URLs. Subscribe before ready; on ready/reconcile clients fetch authoritative
         notification and message unread snapshots. Member events contain type,
         event_id, occurred_at and opaque message/conversation/actor or notification
         IDs and the existing safe notification presenter only. No message contents or verification evidence. Ephemeral events
@@ -3608,6 +3610,130 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           description: Origin is not allowed (browser_session_origin_not_allowed).
+  /api/v1/device_registrations:
+    post:
+      operationId: registerNativeDevice
+      tags: [Notifications]
+      summary: Register or refresh a native push device for the current member
+      description: |
+        Bearer-authenticated native clients register an installation-scoped
+        Expo/FCM/APNs-compatible token. Repeating the same brand,
+        installation, and token converges on one registration. A token
+        rotation updates that registration rather than creating another row.
+        The token is never returned. The installation ID is client-generated
+        and must not be placed in a URL or treated as an authentication secret.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceRegistrationRequest"
+      responses:
+        "201":
+          description: New installation registration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceRegistrationResponse"
+        "200":
+          description: Existing registration refreshed or rotated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceRegistrationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          description: Invalid registration parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/device_registrations/{installation_id}:
+    delete:
+      operationId: revokeNativeDevice
+      tags: [Notifications]
+      summary: Disable the current member's native device registration
+      parameters:
+        - name: installation_id
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+      responses:
+        "200":
+          description: Device registration disabled if it belonged to the current member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceRegistrationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/hq/auth/login:
+    post:
+      operationId: hqLogin
+      tags: [Hq]
+      summary: Establish an HttpOnly HQ operator session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier, password]
+              properties:
+                identifier: { type: string }
+                password: { type: string, format: password }
+                device_name: { type: string, maxLength: 120 }
+      responses:
+        "201":
+          description: HQ session established.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+  /api/v1/hq/auth/session:
+    get:
+      operationId: getHqSession
+      tags: [Hq]
+      summary: Show the current HQ operator session
+      responses:
+        "200": { description: Current HQ session and operator. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/AdminForbidden" }
+    delete:
+      operationId: revokeHqSession
+      tags: [Hq]
+      summary: Revoke the current HQ operator session
+      responses:
+        "204": { description: Session revoked. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/AdminForbidden" }
+  /api/v1/hq/auth/sessions:
+    get:
+      operationId: listHqSessions
+      tags: [Hq]
+      summary: List current operator sessions
+      responses:
+        "200": { description: Active HQ sessions. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/AdminForbidden" }
+  /api/v1/hq/auth/sessions/{id}:
+    delete:
+      operationId: revokeHqSessionById
+      tags: [Hq]
+      summary: Revoke another HQ operator session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Session revoked. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/AdminForbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/v1/messages/unread:
     get:
       operationId: getUnreadMessages
@@ -5551,6 +5677,27 @@ paths:
           $ref: "#/components/responses/AdminForbidden"
         "404":
           description: No member matches `lookup`, or the member has no profile yet (`member_unavailable` / `profile_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/hq/members/{lookup}/timeline:
+    get:
+      operationId: getMemberTimeline
+      tags: [Hq]
+      summary: Read the current-brand member security and reputation timeline
+      description: Requires verified admin MFA and `hq.member.security_read`; brand-scoped and audited.
+      parameters:
+        - $ref: "#/components/parameters/HqLookup"
+      responses:
+        "200":
+          description: Combined member timeline events.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminForbidden"
+        "404":
+          description: No member on this brand matches `lookup`.
           content:
             application/json:
               schema:
@@ -8875,6 +9022,54 @@ components:
           type: boolean
         push_enabled:
           type: boolean
+    DeviceRegistrationRequest:
+      type: object
+      required: [device_registration]
+      properties:
+        device_registration:
+          type: object
+          required: [installation_id, token, platform]
+          additionalProperties: false
+          properties:
+            installation_id:
+              type: string
+              minLength: 1
+              maxLength: 128
+              description: Stable opaque ID generated and kept by one native app installation.
+            token:
+              type: string
+              minLength: 1
+              maxLength: 512
+              description: Expo, FCM, or APNs-compatible provider token. Never returned by D8N.
+            platform:
+              type: string
+              enum: [ios, android]
+            device_name:
+              type: [string, "null"]
+              maxLength: 120
+    DeviceRegistrationResponse:
+      type: object
+      required: [device_registration]
+      properties:
+        device_registration:
+          type: object
+          required: [id, installation_id, platform, enabled, last_seen_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            installation_id:
+              type: string
+            platform:
+              type: string
+              enum: [ios, android]
+            device_name:
+              type: [string, "null"]
+            enabled:
+              type: boolean
+            last_seen_at:
+              type: string
+              format: date-time
     Match:
       type: object
       required: [id, matched_at, profile]

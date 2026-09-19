@@ -66,14 +66,19 @@ challenge delivery has its own policy and throttles.
 
 `DeviceRegistration` supports `ios`, `android`, and reserved future `web`
 platforms. Tokens are encrypted at rest and have a keyed digest for active
-brand-level uniqueness. Disabled, revoked, deleted, wrong-brand, or wrong-member
-devices are never selected. A device enrollment/revocation API is deliberately not
-included in this backend ticket.
+brand-level uniqueness. Native registration is installation-scoped and
+idempotent: repeated registration refreshes one row, token rotation updates
+that row, and account switching moves the installation to the authenticated
+member within the current brand. Disabled, revoked, deleted, wrong-brand, or
+wrong-member devices are never selected. Provider invalid-token responses
+disable the registration for future delivery.
 
-No production push provider is approved. `Notifications::Push` therefore exposes
-a provider boundary, a test adapter, and a production-safe `required` adapter that
-records `provider_not_configured`. No APNs/FCM assumptions or credentials are in
-the domain model.
+The current Date9ja native app uses Expo Push Service. Production selects it with
+`D8N_PUSH_PROVIDER=expo`; the gateway maps Expo tickets into the platform
+`DeliveryResponse` contract. An optional `D8N_EXPO_ACCESS_TOKEN` may be supplied
+if the Expo project requires authenticated provider requests. No provider
+credentials are stored in the domain model; registration still accepts opaque
+Expo/FCM/APNs-compatible tokens.
 
 ## Email configuration
 
@@ -122,8 +127,9 @@ Queue worker as well as Rails web.
 
 ## Planned, not implemented
 
-- Device enrollment/revocation API and frontend permission flow.
-- Production APNs/FCM (or other) adapter and invalid-token feedback handling.
+- Native device enrollment/revocation API is implemented; native frontend
+  permission flow and provider delivery remain integration work.
+- Production APNs/FCM (or other) adapter and provider credential configuration.
 - Preference-management API, quiet hours, digesting, and campaign/newsletter tools.
 - RealMe/moderation/security/subscription event policies.
 - Realtime/websocket inbox delivery and notification UI.
