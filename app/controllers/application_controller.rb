@@ -57,6 +57,10 @@ class ApplicationController < ActionController::API
   end
 
   def authenticate_session
+    if request.path.start_with?("/api/v1/hq/") || request.path.start_with?("/api/v1/admin/")
+      authenticate_hq_cookie_session
+      return
+    end
     source, token = authentication_credential
     return if token.blank?
 
@@ -67,6 +71,19 @@ class ApplicationController < ActionController::API
       clear_browser_session_cookie if source == :cookie
       return
     end
+
+    Current.session = result.session
+    Current.user = result.user
+  end
+
+  def authenticate_hq_cookie_session
+    token = cookies[Identity::HqBrowserSession::COOKIE_NAME]
+    return if token.blank?
+
+    result = Identity::HqOperatorSessionAuthenticator.call(token:)
+    Current.authentication_source = :hq_cookie
+    Current.authentication_error = result.error
+    return unless result.success?
 
     Current.session = result.session
     Current.user = result.user
@@ -89,6 +106,15 @@ class ApplicationController < ActionController::API
 
   def verify_browser_session_csrf!
     return unless Current.session
+    if Current.authentication_source == :hq_cookie
+      return if Identity::HqBrowserSession.valid_csrf_token?(
+        session: Current.session,
+        token: request.headers[Identity::HqBrowserSession::CSRF_HEADER]
+      ) || %w[GET HEAD OPTIONS].include?(request.request_method)
+
+      render json: { error: "csrf_token_invalid" }, status: :forbidden
+      return
+    end
     return unless Identity::BrowserSession.csrf_required?(
       request:, authentication_source: Current.authentication_source
     )

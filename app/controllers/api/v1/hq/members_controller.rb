@@ -8,7 +8,7 @@ module Api
       class MembersController < BaseController
         requires_admin_capability ::Admin::Capabilities::MEMBER_SENSITIVE_READ, only: %i[index show]
         requires_admin_capability ::Admin::Capabilities::MEMBER_SECURITY_READ,
-          only: %i[security_events auth_attempts enforcements]
+          only: %i[security_events auth_attempts enforcements timeline]
         requires_admin_capability ::Admin::Capabilities::DISCOVERY_DIAGNOSTICS_READ,
           only: :discovery_diagnostic
 
@@ -133,6 +133,17 @@ module Api
             enforcements: result.enforcements.map { |enforcement| ::Admin::EnforcementSerializer.call(enforcement:) },
             next_cursor: result.next_cursor
           }
+        end
+
+        def timeline
+          events = []
+          SecurityEvent.where(brand: Current.brand, user: @user).order(created_at: :desc).limit(100).each { |event| events << { type: "security", name: event.event_type, created_at: event.created_at.iso8601, metadata: event.metadata } }
+          AuthAttempt.where(brand: Current.brand, user: @user).order(created_at: :desc).limit(100).each { |event| events << { type: "authentication", name: event.result, created_at: event.created_at.iso8601, metadata: { kind: event.kind, ip_address: event.ip_address } } }
+          AccountEnforcement.where(brand: Current.brand, user: @user).order(created_at: :desc).limit(100).each { |event| events << { type: "enforcement", name: event.kind, created_at: event.created_at.iso8601, metadata: { reason: event.reason, state: event.reverted? ? "reverted" : "active" } } }
+          TrustEvent.where(brand: Current.brand, user: @user).order(occurred_at: :desc).limit(100).each { |event| events << { type: "trust", name: event.event_type, created_at: event.occurred_at.iso8601, metadata: { points: event.points } } }
+          TrustAdjustment.where(brand: Current.brand, user: @user).order(occurred_at: :desc).limit(100).each { |event| events << { type: "trust_adjustment", name: event.reason_code, created_at: event.occurred_at.iso8601, metadata: { points: event.points, appeal_status: event.appeal_status } } }
+          audit!("hq.member_timeline_viewed")
+          render json: { events: events.sort_by { |event| event[:created_at] }.reverse.first(250) }
         end
 
         private

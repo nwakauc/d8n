@@ -7,13 +7,14 @@ module Identity
       new(...).call
     end
 
-    def initialize(brand:, identifier:, password:, device_name: nil, ip_address: nil, user_agent: nil)
+    def initialize(brand:, identifier:, password:, device_name: nil, ip_address: nil, user_agent: nil, session_issuer: Session)
       @brand = brand
       @identifier_input = identifier
       @password = password
       @device_name = device_name
       @ip_address = ip_address
       @user_agent = user_agent
+      @session_issuer = session_issuer
     end
 
     def call
@@ -101,14 +102,13 @@ module Identity
         return failure(:invalid_credentials)
       end
 
-      raw_token, session = Session.issue!(
-        user:,
-        brand:,
-        credential:,
-        device_name:,
-        ip_address:,
-        user_agent:
-      )
+      issuer = @session_issuer.respond_to?(:call) ? @session_issuer.call(user:) : @session_issuer
+      return failure(:invalid_credentials) if @session_issuer != Session && issuer.blank?
+      raw_token, session = if issuer == Session
+        Session.issue!(user:, brand:, credential:, device_name:, ip_address:, user_agent:)
+      else
+        HqOperatorSession.issue!(user:, admin_user: issuer, device_name:, ip_address:, user_agent:)
+      end
       identity_identifier.update!(last_seen_at: Time.current)
       credential.update!(last_used_at: Time.current)
       audit(login_identifier, result: :succeeded, user:, identity_identifier:, credential:)

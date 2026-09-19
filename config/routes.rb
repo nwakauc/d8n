@@ -110,6 +110,11 @@ Rails.application.routes.draw do
       # profile public_id, so it needs an explicit constraint to avoid Rails'
       # default dot-as-format-separator route parsing.
       namespace :hq do
+        post "auth/login" => "auth#login"
+        get "auth/session" => "auth#show"
+        delete "auth/session" => "auth#destroy"
+        get "auth/sessions" => "operator_sessions#index"
+        delete "auth/sessions/:id" => "operator_sessions#destroy"
         get "operator" => "operator#show"
         get "operators" => "operators#index"
         post "operators" => "operators#create"
@@ -132,6 +137,7 @@ Rails.application.routes.draw do
         get "members/:lookup/security_events" => "members#security_events", constraints: { lookup: /[^\/]+/ }
         get "members/:lookup/auth_attempts" => "members#auth_attempts", constraints: { lookup: /[^\/]+/ }
         get "members/:lookup/enforcements" => "members#enforcements", constraints: { lookup: /[^\/]+/ }
+        get "members/:lookup/timeline" => "members#timeline", constraints: { lookup: /[^\/]+/ }
         get "members/:lookup/discovery_diagnostic" => "members#discovery_diagnostic", constraints: { lookup: /[^\/]+/ }
       end
       get "trust_score" => "trust_scores#show"

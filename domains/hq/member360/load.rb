@@ -131,6 +131,7 @@ module Hq
           photos: photos.map { |photo| photo_summary(photo) },
           video: profile.profile_video ? video_summary(profile.profile_video) : nil,
           preference: preference.blank? ? nil : preference_summary(preference),
+          configured_fields: Profiles::OwnerSerializer.call(profile:),
           discovery_state: discovery_state
         }
       end
@@ -211,6 +212,10 @@ module Hq
           hook_tonight_live: HookTonightState.live.where(brand:, profile:).exists?,
           conversations_count: profile.conversations.kept.count,
           recent_conversations: recent_conversations,
+          passes_given: profile.passes_given.kept.count,
+          passes_received: profile.passes_received.kept.count,
+          pass_history: pass_history,
+          match_history: match_history,
           blocks_given: profile.blocks_initiated.kept.count,
           blocks_received: profile.blocks_received.kept.count
         }
@@ -231,9 +236,37 @@ module Hq
       end
 
       def recent_conversations
-        profile.conversations.kept.order(created_at: :desc).limit(RECENT_CONVERSATIONS_LIMIT).map do |conversation|
-          { id: conversation.public_id, status: conversation.status, created_at: conversation.created_at.iso8601 }
+        profile.conversations.kept.includes(:match, :conversation_participants, :messages).order(created_at: :desc).limit(RECENT_CONVERSATIONS_LIMIT).map do |conversation|
+          other = conversation.other_profile(profile)
+          {
+            id: conversation.public_id, status: conversation.status, created_at: conversation.created_at.iso8601,
+            match_id: conversation.match.public_id, other_member: { profile_id: other&.public_id, display_name: other&.display_name },
+            messages: conversation.messages.order(:created_at).limit(200).map { |message| message_summary(message) }
+          }
         end
+      end
+
+      def message_summary(message)
+        {
+          id: message.public_id, sender_profile_id: message.sender_profile.public_id, kind: message.kind,
+          body: message.body, deleted: message.deleted_at.present?, created_at: message.created_at.iso8601,
+          attachments: message.message_attachments.map { |attachment| { id: attachment.public_id, kind: attachment.media_kind, processing_state: attachment.processing_state, deleted: attachment.deleted_at.present? } }
+        }
+      end
+
+      def pass_history
+        (profile.passes_given.kept.includes(:passed_profile).map { |pass| relationship_summary("given", pass.passed_profile, pass.created_at) } +
+          profile.passes_received.kept.includes(:passer_profile).map { |pass| relationship_summary("received", pass.passer_profile, pass.created_at) })
+          .sort_by { |entry| entry[:created_at] }.reverse.first(100)
+      end
+
+      def match_history
+        profile.matches_as_profile_a.kept.includes(:profile_b).map { |match| relationship_summary(match.status, match.profile_b, match.created_at).merge(id: match.public_id) } +
+          profile.matches_as_profile_b.kept.includes(:profile_a).map { |match| relationship_summary(match.status, match.profile_a, match.created_at).merge(id: match.public_id) }
+      end
+
+      def relationship_summary(direction, counterpart, created_at)
+        { direction:, counterpart_profile_id: counterpart&.public_id, counterpart_display_name: counterpart&.display_name, created_at: created_at.iso8601 }
       end
 
       # --- Comms ------------------------------------------------------------
@@ -267,6 +300,9 @@ module Hq
 
       def safety_section
         {
+          trust_score: Trust::Ledger.score(user:, brand:),
+          trust_breakdown: Trust::Ledger.breakdown(user:, brand:).first(50).map { |entry| trust_entry_summary(entry) },
+          realme: Identity::RealmeAssertions.call(user:, brand:).map { |entry| { check_type: entry.check_type, status: entry.status, submitted_at: entry.submitted_at&.iso8601, reviewed_at: entry.reviewed_at&.iso8601 } },
           reports_filed_count: profile.blank? ? 0 : Report.where(brand:, reporter_profile: profile).count,
           reports_received_count: profile.blank? ? 0 : Report.where(brand:, reported_profile: profile).count,
           recent_reports: recent_reports,
@@ -275,6 +311,10 @@ module Hq
           discovery_restriction: discovery_restriction_summary,
           account_closure: account_closure_summary
         }
+      end
+
+      def trust_entry_summary(entry)
+        { kind: entry[:kind], type: entry[:type], label: entry[:label], points: entry[:points], applies: entry[:applies], occurred_at: entry[:occurred_at]&.iso8601 }
       end
 
       # Distinct from active_enforcement (suspension/ban) -- reason/note/actor/
