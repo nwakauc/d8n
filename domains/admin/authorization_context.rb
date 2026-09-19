@@ -16,7 +16,7 @@ module Admin
     def self.resolve(user:, brand:)
       return if user.blank? || brand.blank?
 
-      admin_user = AdminUser.kept.active.find_by(user:)
+      admin_user = AdminUser.kept.active.find_by(user_id: user.id)
       return if admin_user.blank?
 
       assignments = AdminAssignment.kept.active.includes(:admin_role)

@@ -71,3 +71,11 @@ a production destination exists.
 
 . Apply the sync:
   kamal app exec "bin/rails runner 'b = Brand.find_by!(slug: %q(dateza)); Profiles::DatezaProfileCatalog.install!(brand: b); puts %Q(active openers: #{b.profile_openers.kept.status_active.ordered.pluck(:key).join(%q(, ))})'" -d staging -p
+
+
+
+
+DEPLOY TO PRODUCTION
+
+
+set -a && source .env && set +a && kamal deploy -d production

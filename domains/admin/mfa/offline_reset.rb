@@ -13,7 +13,7 @@ module Admin
         login = Identity::LoginIdentifier.call(email)
         identifier = login&.kind == :email &&
           IdentityIdentifier.kept.email.find_by(brand:, normalized_value: login.normalized_value)
-        admin_user = identifier && AdminUser.kept.find_by(user: identifier.user)
+        admin_user = identifier && AdminUser.kept.find_by(user_id: identifier.user_id)
         raise Unavailable, "No active administrative identity is available for that email on that brand" if admin_user.blank?
 
         credential = admin_user.admin_mfa_credentials.kept.first

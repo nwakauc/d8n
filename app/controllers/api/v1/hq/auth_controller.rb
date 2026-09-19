@@ -10,7 +10,10 @@ module Api
             **password_params,
             ip_address: request.remote_ip,
             user_agent: request.user_agent,
-            session_issuer: ->(user) { AdminUser.kept.active.find_by(user:) }
+            # Query the concrete FK explicitly. `find_by(user:)` makes
+            # ActiveRecord emit a predicate against a singular `"user"` table
+            # without a join, which PostgreSQL rejects during HQ login.
+            session_issuer: ->(user) { AdminUser.kept.active.find_by(user_id: user.id) }
           )
           return render(json: { error: "invalid_credentials" }, status: :unauthorized) unless result.success?
 
