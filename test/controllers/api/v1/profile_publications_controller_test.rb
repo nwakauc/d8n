@@ -43,6 +43,17 @@ class Api::V1::ProfilePublicationsControllerTest < ActionDispatch::IntegrationTe
     assert_equal 40, TrustEvent.find_by(brand: @brand, user: @user, event_type: "compatibility_completed").points
   end
 
+  test "HookUs publishes without intents or vibes" do
+    complete_profile
+    assert_empty @profile.profile_option_selections.kept
+
+    post "/api/v1/profile/publication", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert @profile.reload.active?
+    assert @profile.visible?
+  end
+
   test "republishing an already-published profile does not double-award trust points" do
     complete_profile
     post "/api/v1/profile/publication", headers: bearer_headers(@token)

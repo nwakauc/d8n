@@ -78,15 +78,15 @@ module Profiles
       random_love make_me_laugh guilty_pleasure toxic_trait green_flag adventure
     ].freeze
 
-    # Photos are deliberately NOT required for completion/publication — HookUs is a
-    # hookup site and many members stay anonymous rather than share a photo up
-    # front. Only these original fields + interested_in + the two brand groups are
-    # required; every capability enabled above is OPTIONAL.
+    # HookUs keeps publication low-friction. Photos, intents, and vibes are all
+    # optional; members can add those signals later without being removed from
+    # discovery. Only the core profile and reciprocal preference fields gate
+    # publication.
     REQUIREMENTS = {
       profile_fields: %w[ display_name bio birthdate gender country_code ],
       preference_fields: %w[ interested_in ],
       collections: [].freeze,
-      option_groups: %w[ intents vibes ]
+      option_groups: [].freeze
     }.freeze
 
     def self.install!(brand:)

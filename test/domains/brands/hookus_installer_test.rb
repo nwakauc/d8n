@@ -18,7 +18,7 @@ module Brands
       assert brand.active?
       assert_equal %w[ phone_password email_password ], brand.auth_methods
       assert_equal brand, BrandDomain.kept.active.find_by!(host: "hookus.test").brand
-      assert_equal %w[ intents vibes ], brand.profile_completion_requirements.fetch("option_groups")
+      assert_empty brand.profile_completion_requirements.fetch("option_groups")
       assert brand.profile_option_groups.kept.exists?(key: "intents")
       assert brand.profile_option_groups.kept.exists?(key: "vibes")
     end
