@@ -302,7 +302,7 @@ module Hq
         {
           trust_score: Trust::Ledger.score(user:, brand:),
           trust_breakdown: Trust::Ledger.breakdown(user:, brand:).first(50).map { |entry| trust_entry_summary(entry) },
-          realme: Identity::RealmeAssertions.call(user:, brand:).map { |entry| { check_type: entry.check_type, status: entry.status, submitted_at: entry.submitted_at&.iso8601, reviewed_at: entry.reviewed_at&.iso8601 } },
+          realme: ::Identity::RealmeAssertions.call(user:, brand:).map { |entry| { check_type: entry.check_type, status: entry.status, submitted_at: entry.submitted_at&.iso8601, reviewed_at: entry.reviewed_at&.iso8601 } },
           reports_filed_count: profile.blank? ? 0 : Report.where(brand:, reporter_profile: profile).count,
           reports_received_count: profile.blank? ? 0 : Report.where(brand:, reported_profile: profile).count,
           recent_reports: recent_reports,

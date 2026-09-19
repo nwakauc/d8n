@@ -41,6 +41,12 @@ class Hq::Member360::LoadTest < ActiveSupport::TestCase
     assert_nil sections[:activity][:last_login_at]
   end
 
+  test "loads the canonical global RealMe assertions service" do
+    sections = Hq::Member360::Load.call(brand: @brand, brand_membership: @membership)
+
+    assert_equal [], sections[:safety][:realme]
+  end
+
   test "account_type reads preserved Date9ja entitlement metadata, defaulting to Free" do
     default_sections = Hq::Member360::Load.call(brand: @brand, brand_membership: @membership)
     assert_equal(
