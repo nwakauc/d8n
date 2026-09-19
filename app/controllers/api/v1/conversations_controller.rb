@@ -20,7 +20,8 @@ class Api::V1::ConversationsController < Api::V1::InteractionController
           conversation:,
           viewer: result.viewer,
           last_message: result.last_messages[conversation.id],
-          unread_message_count: unread.fetch(conversation.public_id, 0)
+          unread_message_count: unread.fetch(conversation.public_id, 0),
+          realme_badge: result.realme_badges.fetch(conversation.other_profile(result.viewer).user_id, false)
         )
       end,
       next_cursor: result.next_cursor

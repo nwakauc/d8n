@@ -5,7 +5,7 @@ module Messaging
 
     class InvalidLimit < StandardError; end
 
-    Result = Data.define(:conversations, :viewer, :next_cursor, :last_messages)
+    Result = Data.define(:conversations, :viewer, :next_cursor, :last_messages, :realme_badges)
 
     def self.call(user:, brand:, cursor: nil, limit: nil)
       new(user:, brand:, cursor:, limit:).call
@@ -23,22 +23,32 @@ module Messaging
       scope = self.class.available_scope(viewer:, brand:)
         .order("conversations.updated_at DESC", "conversations.public_id DESC")
       scope = ConversationCursor.apply(scope:, value: cursor, brand:, viewer:)
+      profile_preload = [
+        :brand,
+        { profile_option_selections: [ :profile_option, :profile_option_group ] },
+        { profile_photos: { display_image_attachment: :blob } }
+      ]
+      if Media::VideoPolicy.enabled?(brand:)
+        profile_preload << { profile_video: [ { playback_attachment: :blob }, { poster_attachment: :blob } ] }
+      end
+
       conversations = scope.preload(
         :match,
-        conversation_participants: { profile: [
-          :brand,
-          { profile_option_selections: [ :profile_option, :profile_option_group ] },
-          { profile_photos: { display_image_attachment: :blob } }
-        ] }
+        conversation_participants: { profile: profile_preload }
       ).limit(limit + 1).to_a
       has_more = conversations.length > limit
       conversations = conversations.first(limit)
+      realme_badges = Identity::RealmeBadge.bulk(
+        user_ids: conversations.map { |conversation| conversation.other_profile(viewer).user_id },
+        brand:
+      )
 
       Result.new(
         conversations:,
         viewer:,
         next_cursor: has_more ? ConversationCursor.encode(brand:, viewer:, conversation: conversations.last) : nil,
-        last_messages: latest_messages_by_conversation(conversations)
+        last_messages: latest_messages_by_conversation(conversations),
+        realme_badges:
       )
     rescue Matching::InteractionError
       raise AccessError, :conversation_unavailable

@@ -180,6 +180,25 @@ class Api::V1::ConversationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 5, JSON.parse(response.body).fetch("conversations").size
   end
 
+  test "keeps conversation serialization queries bounded for ten and fifty cards" do
+    49.times do
+      counterpart = create_profile(brand: @brand)
+      start_conversation(create_match(@viewer, counterpart))
+    end
+
+    ten = count_select_queries do
+      get "/api/v1/conversations", headers: bearer_headers(@token), params: { limit: 10 }
+    end
+    fifty = count_select_queries do
+      get "/api/v1/conversations", headers: bearer_headers(@token), params: { limit: 50 }
+    end
+
+    assert_response :success
+    assert_equal 50, JSON.parse(response.body).fetch("conversations").size
+    assert_operator fifty, :<=, ten + 8,
+      "conversation-list SELECT count grew with page size: 10=#{ten}, 50=#{fifty}"
+  end
+
   test "rejects invalid cursors and limits" do
     get "/api/v1/conversations", headers: bearer_headers(@token), params: { cursor: "invalid" }
     assert_response :unprocessable_entity

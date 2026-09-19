@@ -4,7 +4,14 @@ module Messaging
     # message (fetched in one batched query) so the frontend list is useful; the
     # create path has none yet and passes nil. Sender is resolved from the
     # already-loaded participants, so no extra query is issued per card.
-    def self.call(conversation:, viewer:, last_message: nil, unread_message_count: 0)
+    def self.call(
+      conversation:, viewer:, last_message: nil, unread_message_count: 0,
+      realme_badge: Profiles::PublicSerializer::PRECOMPUTED_UNSET
+    )
+      profile = conversation.other_profile(viewer)
+      profile_payload = { profile: }
+      profile_payload[:realme_badge] = realme_badge unless realme_badge.equal?(Profiles::PublicSerializer::PRECOMPUTED_UNSET)
+
       {
         id: conversation.public_id,
         unread_message_count:,
@@ -12,7 +19,7 @@ module Messaging
         status: conversation.status,
         relationship_state: conversation.match.status,
         created_at: conversation.created_at.iso8601,
-        profile: Profiles::PublicSerializer.call(profile: conversation.other_profile(viewer)),
+        profile: Profiles::PublicSerializer.call(**profile_payload),
         last_message: last_message && last_message_payload(conversation, last_message)
       }
     end

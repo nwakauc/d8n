@@ -34,6 +34,43 @@ class Api::V1::MatchesControllerTest < ActionDispatch::IntegrationTest
     assert_not payload.fetch("profile").key?("user_id")
   end
 
+  test "preserves the RealMe badge while keeping list queries bounded" do
+    candidate = create_profile(gender: "man", interested_in: [ "woman" ], display_name: "Verified Sam")
+    IdentityIdentifier.create!(
+      user: candidate.user, brand: @brand, kind: :email,
+      normalized_value: "verified-sam@example.com", verified_at: Time.current
+    )
+    %w[selfie video government_id].each_with_index do |check_type, index|
+      VerificationAssertion.create!(
+        brand: @brand, user: candidate.user, source_type: "member_submission", source_id: "match-#{index}",
+        check_type:, status: "approved"
+      )
+    end
+    create_match(@viewer, candidate)
+
+    get "/api/v1/matches", headers: bearer_headers(@token)
+
+    assert_response :success
+    assert_equal true, JSON.parse(response.body).fetch("matches").sole.fetch("profile").fetch("realme_badge")
+
+    49.times do
+      counterpart = create_profile(gender: "man", interested_in: [ "woman" ])
+      create_match(@viewer, counterpart)
+    end
+
+    ten = count_select_queries do
+      get "/api/v1/matches", headers: bearer_headers(@token), params: { limit: 10 }
+    end
+    fifty = count_select_queries do
+      get "/api/v1/matches", headers: bearer_headers(@token), params: { limit: 50 }
+    end
+
+    assert_response :success
+    assert_equal 50, JSON.parse(response.body).fetch("matches").size
+    assert_operator fifty, :<=, ten + 8,
+      "match-list SELECT count grew with page size: 10=#{ten}, 50=#{fifty}"
+  end
+
   test "uses a viewer-bound cursor" do
     candidates = 3.times.map { create_profile(gender: "man", interested_in: [ "woman" ]) }
     matches = candidates.map { |candidate| create_match(@viewer, candidate) }
@@ -291,6 +328,15 @@ class Api::V1::MatchesControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def count_select_queries
+    count = 0
+    callback = lambda do |_name, _start, _finish, _id, payload|
+      count += 1 if payload[:sql].match?(/\ASELECT/i) && payload[:name] != "SCHEMA"
+    end
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    count
+  end
 
   def bearer_headers(token)
     { "Authorization" => "Bearer #{token}" }

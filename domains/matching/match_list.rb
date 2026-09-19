@@ -5,7 +5,7 @@ module Matching
 
     class InvalidLimit < StandardError; end
 
-    Result = Data.define(:matches, :viewer, :next_cursor)
+    Result = Data.define(:matches, :viewer, :next_cursor, :realme_badges)
 
     def self.call(user:, brand:, cursor: nil, limit: nil)
       new(user:, brand:, cursor:, limit:).call
@@ -45,11 +45,16 @@ module Matching
       ).limit(limit + 1).to_a
       has_more = matches.length > limit
       matches = matches.first(limit)
+      realme_badges = Identity::RealmeBadge.bulk(
+        user_ids: matches.map { |match| match.other_profile(viewer).user_id },
+        brand:
+      )
 
       Result.new(
         matches:,
         viewer:,
-        next_cursor: has_more ? MatchCursor.encode(brand:, viewer:, match: matches.last) : nil
+        next_cursor: has_more ? MatchCursor.encode(brand:, viewer:, match: matches.last) : nil,
+        realme_badges:
       )
     end
 

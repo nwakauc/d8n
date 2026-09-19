@@ -1,11 +1,14 @@
 module Profiles
   class PublicSerializer
-    def self.call(profile:)
-      new(profile:).call
+    PRECOMPUTED_UNSET = Object.new.freeze
+
+    def self.call(profile:, realme_badge: PRECOMPUTED_UNSET)
+      new(profile:, realme_badge:).call
     end
 
-    def initialize(profile:)
+    def initialize(profile:, realme_badge: PRECOMPUTED_UNSET)
       @profile = profile
+      @realme_badge = realme_badge
       @field_policy = FieldPolicy.new(brand: profile.brand)
     end
 
@@ -19,7 +22,7 @@ module Profiles
 
     private
 
-    attr_reader :profile, :field_policy
+    attr_reader :profile, :field_policy, :realme_badge
 
     # Public scalar values, resolved once through FieldPolicy: canonical ∧
     # brand-enabled ∧ catalogue audience ceiling is :public ∧ not
@@ -64,7 +67,13 @@ module Profiles
 
     # Safe public signal only; assertions and evidence remain private.
     def realme_fields
-      { realme_badge: Identity::RealmeBadge.call(user: profile.user, brand: profile.brand) }
+      badge = if realme_badge.equal?(PRECOMPUTED_UNSET)
+        Identity::RealmeBadge.call(user: profile.user, brand: profile.brand)
+      else
+        realme_badge
+      end
+
+      { realme_badge: badge }
     end
 
     # Safe, approximate location metadata only — never raw coordinates. The

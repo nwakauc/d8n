@@ -17,7 +17,13 @@ class Api::V1::MatchesController < Api::V1::InteractionController
     )
 
     render json: {
-      matches: result.matches.map { |match| match_payload(match:, viewer: result.viewer) },
+      matches: result.matches.map do |match|
+        match_payload(
+          match:,
+          viewer: result.viewer,
+          realme_badge: result.realme_badges.fetch(match.other_profile(result.viewer).user_id, false)
+        )
+      end,
       next_cursor: result.next_cursor
     }
   rescue Matching::InteractionError
@@ -41,11 +47,11 @@ class Api::V1::MatchesController < Api::V1::InteractionController
 
   private
 
-  def match_payload(match:, viewer:)
+  def match_payload(match:, viewer:, realme_badge:)
     {
       id: match.public_id,
       matched_at: match.created_at.iso8601,
-      profile: Profiles::PublicSerializer.call(profile: match.other_profile(viewer))
+      profile: Profiles::PublicSerializer.call(profile: match.other_profile(viewer), realme_badge:)
     }
   end
 
